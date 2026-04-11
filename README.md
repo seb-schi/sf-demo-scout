@@ -1,4 +1,4 @@
-# SF Demo Prep
+# SF Demo Scout
 
 A Claude Code pipeline for configuring Salesforce demo orgs from customer discovery notes.
 Two phases: **sparring** (Opus 4.6) develops the scenario and spec, **building** (Sonnet 4.6) deploys it.
