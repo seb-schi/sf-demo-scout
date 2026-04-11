@@ -6,9 +6,9 @@
 > and `/switch-org`. Do not use these values programmatically.
 
 - Alias: [DEMO ORG ALIAS]
-- Username: [YOUR DEMO USER NAME]
-- Org ID: [YOUR DEMO ORG ID]
-- Instance: https://[YOUR DEMO ORG INSTANCE].my.salesforce.com
+- Username: [YOUR ORG USER NAME]
+- Org ID: [YOUR ORG ID]
+- Instance: https://[YOUR ORG INSTANCE].my.salesforce.com
 - Type: Personal demo org — destructive operations permitted with prior explanation
 
 ## MCP Tools

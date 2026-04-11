@@ -5,19 +5,13 @@ description: >
   Use when the SE has discovery notes, transcripts, or customer context
   and needs to develop a focused demo scenario. Produces a structured
   spec for /scout-building to deploy. Activate with /scout-sparring.
+model: us.anthropic.claude-opus-4-6-v1
+context: fork
 disable-model-invocation: true
 allowed-tools: Read, Grep, Glob, Write, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs
 ---
 
 # Scout Sparring — HLS Demo Discovery & Spec Generation
-
-## Model Requirement
-
-This command runs on **Opus 4.6**. If you are not on Opus, stop and tell the SE:
-
-> "Switch to Opus 4.6 before running /scout-sparring — run `/model opus` and try again. Sparring on Sonnet will produce inferior scenario analysis."
-
-Do not proceed on any other model.
 
 ## Your Role
 
