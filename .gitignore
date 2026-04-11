@@ -1,4 +1,5 @@
 # Generated pipeline files — org-specific and potentially sensitive
+orgs/
 org-audit-*.md
 demo-spec-*.md
 deployment-summary-*.md
