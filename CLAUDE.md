@@ -5,10 +5,10 @@
 > at runtime. The values below are for human reference and are updated by `/setup-demo-scout`
 > and `/switch-org`. Do not use these values programmatically.
 
-- Alias: demo-org
-- Username: admin@lsdo-2604.demo
-- Org ID: 00DgL00000P6teYUAR
-- Instance: https://storm-ea42eb2b1d3ca3.my.salesforce.com
+- Alias: [DEMO ORG ALIAS]
+- Username: [YOUR DEMO USER NAME]
+- Org ID: [YOUR DEMO ORG ID]
+- Instance: https://[YOUR DEMO ORG INSTANCE].my.salesforce.com
 - Type: Personal demo org — destructive operations permitted with prior explanation
 
 ## MCP Tools
