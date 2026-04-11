@@ -1,10 +1,14 @@
 # SF Demo Prep — Claude Code Instructions
 
 ## Org
+> **Documentation only.** All slash commands read org identity from `sf config get target-org`
+> at runtime. The values below are for human reference and are updated by `/setup-demo-scout`
+> and `/switch-org`. Do not use these values programmatically.
+
 - Alias: demo-org
-- Username: [YOUR ORG USERNAME]
-- Org ID: [YOUR ORG ID]
-- Instance: [YOUR ORG INSTANCE URL]
+- Username: admin@lsdo-2604.demo
+- Org ID: 00DgL00000P6teYUAR
+- Instance: https://storm-ea42eb2b1d3ca3.my.salesforce.com
 - Type: Personal demo org — destructive operations permitted with prior explanation
 
 ## MCP Tools
@@ -45,7 +49,7 @@ If MCP tools are unavailable, fall back to sf CLI commands.
 4. After each deploy: confirm success via deploy status or MCP feedback
 5. On failure: explain error in plain English, fix only the failing element, redeploy
 6. After every deployment: run the Companion Permission Set (see below)
-7. IMPORTANT: If context is getting long, save progress to `deployment-log.md` and tell the SE to start a fresh session referencing that file
+7. IMPORTANT: If context is getting long, save progress to the org change log and tell the SE to start a fresh session referencing that file
 
 ## Companion Permission Set — MANDATORY
 After every deployment that creates objects, fields, record types, tabs, or apps, deploy a companion permission set in the same operation.
@@ -60,11 +64,11 @@ Include:
 Then assign using MCP:
 - Use `assign_permission_set` to assign to the current user
 
-If MCP is unavailable, fall back to:
+If MCP is unavailable, fall back to (replace [ALIAS] with the active org alias from `sf config get target-org`):
 ```
-sf data query --target-org demo-org --query "SELECT Id FROM PermissionSet WHERE Name='[NAME]'"
-sf data query --target-org demo-org --query "SELECT Id FROM User WHERE Username='[USERNAME]'"
-sf data create record --sobject PermissionSetAssignment --values "PermissionSetId=[PS_ID] AssigneeId=[USER_ID]" --target-org demo-org
+sf data query --target-org [ALIAS] --query "SELECT Id FROM PermissionSet WHERE Name='[NAME]'"
+sf data query --target-org [ALIAS] --query "SELECT Id FROM User WHERE Username='[USERNAME]'"
+sf data create record --sobject PermissionSetAssignment --values "PermissionSetId=[PS_ID] AssigneeId=[USER_ID]" --target-org [ALIAS]
 ```
 
 ## Flow XML — BANNED
@@ -72,7 +76,7 @@ NEVER deploy Flow XML. For any flow in the spec:
 - Use MCP retrieve_metadata to inspect existing flows in the org
 - Describe what the new flow does in plain English
 - Flag any execution order conflicts with existing flows
-- Add step-by-step build instructions to the SE Manual Checklist section of the Deployment Summary
+- Add step-by-step build instructions to the SE Manual Checklist section of the change log
 - Move on to the next deployable item
 
 ## Apex Rules
@@ -84,8 +88,8 @@ Apex is allowed ONLY for simple record-triggered automations under these conditi
 5. Run `run_code_analyzer` on the Apex before deploying (if MCP available)
 6. Always provide a rollback command alongside deployment:
    ```
-   sf project delete source --metadata ApexClass:[ClassName] --target-org demo-org
-   sf project delete source --metadata ApexTrigger:[TriggerName] --target-org demo-org
+   sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]
+   sf project delete source --metadata ApexTrigger:[TriggerName] --target-org [alias]
    ```
 7. If the Apex fails to deploy on second attempt, STOP — add it to the SE Manual Checklist instead
 
@@ -101,22 +105,41 @@ LWC components are allowed for demo-specific UI (Customer 360 Cards, custom reco
 4. Run `run_code_analyzer` on the LWC before deploying (if MCP available)
 5. Always provide a rollback command alongside deployment:
    ```
-   sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org demo-org
+   sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org [alias]
    ```
 6. If the LWC fails to deploy on second attempt, STOP — add it to the SE Manual Checklist instead
 
 ## Org Audit Format
+Audits are stored per org in: `orgs/[alias]-[ORG_ID_SHORT]/`
+
 When auditing the org, use MCP retrieve_metadata to pull comprehensive metadata.
-Save to `org-audit-[DATE].md`:
+Save to `orgs/[alias]-[ORG_ID_SHORT]/audit-[YYYY-MM-DD].md`
+
+Include:
 - Custom objects (API name, label, record count if feasible via run_soql_query)
 - Key fields and relationships per object
 - Existing flows (name, type, active/inactive, trigger object, key logic summary)
 - Existing LWC components (name, purpose if inferrable from source)
-- Existing permission sets (custom only)
-- Gaps relative to the demo spec or standard HLS scenario
+- Existing custom permission sets (custom only)
+- Notable gaps or risks relative to standard HLS demo scenarios
+
+## Org Folder Structure
+All per-org history lives under `orgs/`:
+
+```
+orgs/
+  [alias]-[ORG_ID_SHORT]/
+    audit-[YYYY-MM-DD].md        ← org state snapshots
+    changes-[YYYY-MM-DD]-[CUSTOMER].md  ← deployment change logs
+```
+
+Specs are customer-scoped and live in the project root:
+```
+demo-spec-[CUSTOMER]-[YYYY-MM-DD].md
+```
 
 ## Demo Spec Input
-Specs arrive from Demo Scout in this structure:
+Specs are generated by /scout-sparring and follow this structure:
 
 ```
 # Demo Spec — [Customer]
@@ -134,40 +157,58 @@ Specs arrive from Demo Scout in this structure:
 ## SE Manual Checklist
 ```
 
-When receiving a spec:
+When executing a spec via /scout-building:
 1. Read the FULL spec before any action
-2. Find and read the most recent `org-audit-*.md` file in this project
+2. Load the most recent audit from `orgs/[alias]-[ORG_ID_SHORT]/`
 3. Cross-check the spec against the org audit — flag conflicts with existing metadata, flows, and LWCs
 4. Use MCP retrieve_metadata to verify anything uncertain — the org audit may be stale
 5. Flag any ⚠️ items with the SE before proceeding
 6. Execute Claude Code Instructions ONLY — never touch SE Manual Checklist items
-7. After all deployments complete, produce the Deployment Summary (see below)
+7. After all deployments complete, write the change log (see below)
 
-## Deployment Summary — MANDATORY FINAL STEP
-After completing all deployments, produce a summary and save to `deployment-summary-[CUSTOMER]-[DATE].md`. Also output the full summary to the terminal.
+## Change Log — MANDATORY FINAL STEP
+After completing all deployments, write a change log and save to:
+`orgs/[alias]-[ORG_ID_SHORT]/changes-[YYYY-MM-DD]-[CUSTOMER].md`
+
+Also output the full change log to the terminal.
 
 ```markdown
-# Deployment Summary — [Customer] — [Date]
+# Change Log — [Customer] — [Date]
+Org: [alias] ([username])
+Spec: demo-spec-[CUSTOMER]-[DATE].md
+Audit used: audit-[YYYY-MM-DD].md
 
 ## What Was Deployed
 [Every component created or modified, grouped by type]
+[Include API names, not just labels]
 
-## What the SE Must Do Next (in order)
+## What Was Skipped
+[Items not deployed and why — conflicts, SE decision, second-attempt failure]
+
+## Companion Permission Set
+[Name, what it covers, assignment status]
+
+## Apex Deployed (if any)
+[Class/trigger names, plain-English description]
+Rollback:
+  sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]
+  sf project delete source --metadata ApexTrigger:[TriggerName] --target-org [alias]
+
+## LWC Deployed (if any)
+[Component names, plain-English description]
+Rollback:
+  sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org [alias]
+
+## Issues Encountered
+[Errors, workarounds, anything that needed a second attempt]
+
+## SE Must Do Next (in order)
 1. [Prioritised manual steps — flows first, then layout arrangement, then data refinement]
 2. [Be specific: "Open App Builder > Patient Record Page > drag Status field to top-right panel"]
 
 ## How to Verify
 [Step-by-step test sequence: navigate here, click this, expect that]
 
-## Issues Encountered
-[Anything that failed, was skipped, or needs attention — include error messages]
-
-## Apex Deployed (if any)
-[Class/trigger names, plain-English description, rollback commands]
-
-## LWC Deployed (if any)
-[Component names, plain-English description, rollback commands]
-
-## Bring Back to Demo Scout
-[Open questions, suggested next iteration, anything the SE should feed back]
+## Open Questions for Next Session
+[Unresolved items, suggested follow-up, anything to feed back into sparring]
 ```

@@ -1,9 +1,9 @@
 ---
-description: Connect your demo org and run the first audit. Run once after install.sh.
-allowed-tools: Bash, Read, Write, Edit
+description: Connect your demo org and run the first audit. Run once after cloning the repo.
+allowed-tools: Bash, Read, Write, Edit, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs
 ---
 
-# SF Demo Scout — Org Setup
+# SF Demo Prep — Org Setup
 
 You are completing the one-time org setup for a Salesforce Solutions Engineer.
 The project files are already in place from the GitHub clone. Your job is to:
@@ -29,11 +29,6 @@ Do not proceed until AWS is confirmed active.
 
 ```bash
 sf config get target-org --json
-```
-
-If a default org is already set, run:
-
-```bash
 sf org display --json
 ```
 
@@ -61,12 +56,12 @@ sf org display --target-org demo-org --json
 
 Extract and store:
 - `username`
-- `id` (this is the Org ID)
+- `id` (this is the Org ID — use the full 18-char value)
 - `instanceUrl`
 
 ## Step 4: Update CLAUDE.md
 
-Open `CLAUDE.md` and replace the three placeholder values in the `## Org` block:
+Open `CLAUDE.md` and replace the placeholder values in the `## Org` block:
 - `[YOUR ORG USERNAME]` → the username from Step 3
 - `[YOUR ORG ID]` → the org ID from Step 3
 - `[YOUR ORG INSTANCE URL]` → the instance URL from Step 3
@@ -75,40 +70,58 @@ Do not change anything else in CLAUDE.md.
 
 Confirm the update by reading back the `## Org` section to the SE.
 
+Note: the CLAUDE.md Org section is documentation only — all slash commands read
+org identity from `sf config get target-org` at runtime. CLAUDE.md is not used
+as a config source.
+
 ## Step 5: Run the First Org Audit
 
 Tell the SE:
-> "Running your first org audit — this verifies MCP is working and gives Demo Scout a baseline to work from."
+> "Running your first org audit — this verifies MCP is working and gives the pipeline a baseline to work from."
 
-Using MCP `retrieve_metadata`, audit the org and save the result to `org-audit-[TODAY'S DATE].md`.
+Determine the org folder key:
+- Alias: from Step 3
+- Org ID short: first 6 characters of the 18-char org ID from Step 3
+- Folder: `orgs/[alias]-[ORG_ID_SHORT]/`
 
-Include:
-- Custom objects (API name, label)
-- Existing flows (name, type, active/inactive)
-- Existing custom permission sets
-- Existing LWC components (if any)
+Create the folder:
+```bash
+mkdir -p orgs/[alias]-[ORG_ID_SHORT]/
+```
+
+Using MCP `retrieve_metadata`, audit the org and save the result to:
+`orgs/[alias]-[ORG_ID_SHORT]/audit-[YYYY-MM-DD].md`
+
+The audit must include:
+- Custom objects (API name, label, record count via run_soql_query where feasible)
+- Key fields and relationships per object
+- Existing flows (name, type, active/inactive, trigger object, brief logic summary)
+- Existing LWC components (name, purpose if inferrable from source)
+- Existing custom permission sets (custom only, not standard)
+- Notable gaps or risks relative to standard HLS demo scenarios
 
 If MCP is unavailable or returns empty results, tell the SE:
-> "MCP isn't connecting. Check that `.mcp.json` is in the project root (not a subfolder) and restart VSCode. Then run `/setup-demo-scout` again."
+> "MCP isn't connecting. Check that `.mcp.json` is in the project root (not a subfolder) and restart VS Code. Then run `/setup-demo-scout` again."
 
-Do not proceed if the audit is empty — MCP must be working for Demo Scout to function correctly.
+Do not proceed if the audit is empty — MCP must be working for the pipeline to function correctly.
 
 ## Step 6: Show Setup Summary
 
 Print this summary to the terminal:
 
 ```
-✅ SF Demo Scout — Setup Complete
+✅ SF Demo Prep — Setup Complete
 ====================================
 Project:    [current directory]
-Org:        demo-org ([username])
-Audit:      org-audit-[date].md
+Org:        [alias] ([username])
+Org folder: orgs/[alias]-[ORG_ID_SHORT]/
+Audit:      audit-[YYYY-MM-DD].md
 
 Three commands to remember:
-  /demo-scout     – start customer sparring
-  /switch-org     – change demo orgs
-  /model opusplan – Opus thinks, Sonnet builds
+  /scout-sparring  – Opus 4.6 discovery sparring + spec generation
+  /scout-building  – Sonnet 4.6 org deployment from completed spec
+  /switch-org      – change active demo org
 
-Ready to go! Close this session, reopen VSCode in this folder,
-and type /demo-scout to start your first sparring session.
+Ready to go! Close this session, reopen VS Code in this folder,
+and type /scout-sparring to start your first sparring session.
 ```

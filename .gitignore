@@ -5,8 +5,12 @@ deployment-summary-*.md
 deployment-log.md
 
 # Salesforce-specific, per-org artefacts
+sfdx-project.json
 force-app/
 .sf/
+.sfdx/
+force-app/
+.mcp.json
 
 # macOS
 .DS_Store
