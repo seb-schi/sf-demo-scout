@@ -4,6 +4,10 @@ demo-spec-*.md
 deployment-summary-*.md
 deployment-log.md
 
+# Salesforce-specific, per-org artefacts
+force-app/
+.sf/
+
 # macOS
 .DS_Store
 
