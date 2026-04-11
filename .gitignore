@@ -1,0 +1,14 @@
+# Generated pipeline files — org-specific and potentially sensitive
+org-audit-*.md
+demo-spec-*.md
+deployment-summary-*.md
+deployment-log.md
+
+# macOS
+.DS_Store
+
+# Claude Code local state
+.claude/settings.local.json
+
+# Editor
+.vscode/
