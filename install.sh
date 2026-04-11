@@ -70,7 +70,23 @@ else
   echo "✅ SFDX project already exists."
 fi
 
-# --- 5. Shell Environment Variables ---
+# --- 5. Salesforce Skills ---
+echo ""
+echo "🔍 Installing Salesforce skills..."
+cd "$REPO_DIR"
+for SKILL in sf-flow sf-metadata sf-permissions sf-deploy; do
+  echo "  📦 Installing $SKILL..."
+  INSTALL_OUTPUT=$(npx skills add Jaganpro/sf-skills --skill $SKILL --yes 2>&1)
+  if [ $? -eq 0 ]; then
+    echo "  ✅ $SKILL installed."
+  else
+    echo "  ⚠️  $SKILL install failed:"
+    echo "$INSTALL_OUTPUT" | tail -5
+    echo "  Run manually: npx skills add Jaganpro/sf-skills --skill $SKILL"
+  fi
+done
+
+# --- 6. Shell Environment Variables ---
 echo ""
 echo "🔍 Checking shell environment..."
 
@@ -96,7 +112,7 @@ sed -i '' 's/CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096/CLAUDE_CODE_MAX_OUTPUT_TOKENS=81
 
 source "$ZSHRC" 2>/dev/null || true
 
-# --- 6. session-startup.sh permissions ---
+# --- 7. session-startup.sh permissions ---
 echo ""
 echo "🔍 Checking hook permissions..."
 HOOK="$REPO_DIR/.claude/hooks/session-startup.sh"

@@ -31,6 +31,7 @@ If MCP tools are unavailable, fall back to sf CLI commands.
 - Create Lightning apps and custom tabs
 - Seed demo data on single objects only (no cross-object lookups)
 - Modify page layouts (field additions only — not visual arrangement)
+- Deploy simple record-triggered flows (see Flow Rules below)
 - Deploy simple Apex (see Apex Rules below)
 - Deploy simple LWC components (see LWC Rules below)
 
@@ -38,7 +39,7 @@ If MCP tools are unavailable, fall back to sf CLI commands.
 - Delete existing metadata or records
 - Modify existing profiles or existing permission sets
 - Touch anything prefixed `sb_` or `managed__`
-- Deploy flows — NEVER attempt Flow XML deployment under any circumstance
+- Deploy flows without SE confirmation (see Flow Rules)
 - Deploy Apex triggers or classes (see Apex Rules)
 - Deploy LWC components (see LWC Rules)
 
@@ -71,13 +72,34 @@ sf data query --target-org [ALIAS] --query "SELECT Id FROM User WHERE Username='
 sf data create record --sobject PermissionSetAssignment --values "PermissionSetId=[PS_ID] AssigneeId=[USER_ID]" --target-org [ALIAS]
 ```
 
-## Flow XML — BANNED
-NEVER deploy Flow XML. For any flow in the spec:
-- Use MCP retrieve_metadata to inspect existing flows in the org
-- Describe what the new flow does in plain English
-- Flag any execution order conflicts with existing flows
-- Add step-by-step build instructions to the SE Manual Checklist section of the change log
-- Move on to the next deployable item
+## Flow Rules
+Simple record-triggered flows are allowed under these conditions:
+1. STOP and explain in plain English what the flow will do before writing it
+2. Wait for explicit SE confirmation ("yes, deploy this")
+3. Use the sf-flow skill — read `skills/sf-flow/SKILL.md` before generating any Flow XML
+4. Scope: single-object, record-triggered only — no screen flows, no scheduled flows, no subflows
+5. Run the sf-flow validation script on the generated XML before deploying:
+   ```
+   python3 ~/.claude/skills/sf-flow/hooks/scripts/validate_flow.py [flow-file.flow-meta.xml]
+   ```
+6. Deploy as Draft first:
+   - Set `<status>Draft</status>` in the XML
+   - Deploy and confirm success
+   - Then edit to `<status>Active</status>` and redeploy
+7. Use MCP `retrieve_metadata` to check for existing flows on the same object before deploying — flag execution order conflicts with the SE
+8. Always provide a rollback command alongside deployment:
+   ```
+   sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]
+   ```
+9. If the flow fails to deploy on second attempt, STOP — revert to SE Manual Checklist:
+   - Describe what the flow should do in plain English
+   - List step-by-step build instructions for the SE
+
+**Complex flows always go to SE Manual Checklist (no exceptions):**
+- Screen flows
+- Scheduled / time-based flows
+- Flows referencing multiple objects
+- Subflows
 
 ## Apex Rules
 Apex is allowed ONLY for simple record-triggered automations under these conditions:

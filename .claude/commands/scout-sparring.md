@@ -36,11 +36,12 @@ Claude Code instruction must stay within these boundaries:
 - Lightning apps and custom tabs
 - Data seeding on single objects (no cross-object)
 - Page layout field additions
+- Simple record-triggered flows (single-object only, SE confirmation required)
 - Simple Apex (single-object, SE confirmation required)
 - Simple LWC components (SE confirmation required)
 
 **SE builds manually:**
-- Flows of any complexity
+- Screen flows, scheduled flows, subflows, multi-object flows
 - Page layout visual arrangement and Path
 - OmniStudio / managed package config
 - Einstein / AI features
@@ -253,6 +254,15 @@ Org Audit Used: audit-[YYYY-MM-DD].md
 - App name: [name]
 - Tabs: [list]
 
+### Flows (if applicable)
+- ⚠️ REQUIRES SE CONFIRMATION BEFORE DEPLOYMENT
+- **Plain English:** [description]
+- **Flow name:** [ApiName]
+- **Type:** Record-Triggered (single object only)
+- **Trigger object:** [single object]
+- **Trigger:** [before/after save, on create/update/delete]
+- **Logic:** [step-by-step]
+
 ### Apex (if applicable)
 - ⚠️ REQUIRES SE CONFIRMATION BEFORE DEPLOYMENT
 - **Plain English:** [description]
@@ -272,8 +282,11 @@ Org Audit Used: audit-[YYYY-MM-DD].md
 
 ## SE Manual Checklist
 
-### Flows to Build Manually
-For each flow:
+### Complex Flows to Build Manually
+> Simple record-triggered flows (single object) go in Claude Code Instructions above.
+> The following flow types always require manual build: screen flows, scheduled flows, subflows, multi-object flows.
+
+For each complex flow:
 - **Flow name:**
 - **Type:** (Screen / Record-Triggered / Scheduled)
 - **Trigger:**
@@ -284,7 +297,7 @@ For each flow:
 - **Activate when:** [condition]
 
 ### Must Do Before Demo
-- [ ] Build and activate all flows
+- [ ] Build and activate all complex flows (screen, scheduled, multi-object)
 - [ ] Arrange page layouts in App Builder
 - [ ] Add LWC components to record pages via App Builder
 - [ ] Configure Path if needed

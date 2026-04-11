@@ -106,7 +106,7 @@ Follow the Working Pattern from CLAUDE.md exactly:
 4. On failure: explain error in plain English, fix only the failing element, redeploy
 5. After every deployment that creates objects, fields, record types, tabs, or apps:
    deploy the Companion Permission Set (see CLAUDE.md) in the same operation
-6. NEVER deploy Flow XML under any circumstance
+6. Flows require explicit SE confirmation — deploy as Draft first, then activate. See Flow Rules in CLAUDE.md. Complex flows (screen, scheduled, multi-object) always go to SE Manual Checklist.
 7. Apex and LWC require explicit SE confirmation before deployment — stop and ask
 
 If context is getting long mid-deployment, save progress to
@@ -137,6 +137,11 @@ Audit used: audit-[YYYY-MM-DD].md
 
 ## Companion Permission Set
 [Name, what it covers, assignment status]
+
+## Flows Deployed (if any)
+[Flow API names, plain-English description, active or draft status]
+Rollback:
+  sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]
 
 ## Apex Deployed (if any)
 [Class/trigger names, plain-English description]
