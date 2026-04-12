@@ -73,16 +73,17 @@ fi
 # --- 5. Salesforce Skills ---
 echo ""
 echo "🔍 Installing Salesforce skills..."
-cd "$REPO_DIR"
-for SKILL in sf-flow sf-metadata sf-permissions sf-deploy; do
+SKILLS_BASE_URL="https://raw.githubusercontent.com/Jaganpro/sf-skills/main/skills"
+SKILLS_DIR="$HOME/.claude/skills"
+
+for SKILL in sf-flow sf-metadata sf-permissions sf-deploy sf-apex sf-soql sf-data sf-debug sf-ai-agentforce sf-ai-agentforce-persona; do
   echo "  📦 Installing $SKILL..."
-  INSTALL_OUTPUT=$(npx skills add Jaganpro/sf-skills --skill $SKILL --yes 2>&1)
-  if [ $? -eq 0 ]; then
+  mkdir -p "$SKILLS_DIR/$SKILL"
+  if curl -fsSL "$SKILLS_BASE_URL/$SKILL/SKILL.md" -o "$SKILLS_DIR/$SKILL/SKILL.md"; then
     echo "  ✅ $SKILL installed."
   else
-    echo "  ⚠️  $SKILL install failed:"
-    echo "$INSTALL_OUTPUT" | tail -5
-    echo "  Run manually: npx skills add Jaganpro/sf-skills --skill $SKILL"
+    echo "  ⚠️  $SKILL install failed. Run manually:"
+    echo "       curl -fsSL $SKILLS_BASE_URL/$SKILL/SKILL.md -o $SKILLS_DIR/$SKILL/SKILL.md"
   fi
 done
 
