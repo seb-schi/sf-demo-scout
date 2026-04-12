@@ -29,7 +29,7 @@ Wait for confirmation. Switch → tell SE to run `/switch-org` first.
 ## Step 2: Load Spec
 
 ```
-ls -lt demo-spec-*.md
+ls -lt orgs/[alias]-[ORG_ID_SHORT]/demo-spec-*.md
 ```
 
 - No specs → "Run /scout-sparring first." Stop.
