@@ -81,7 +81,19 @@ else
   OUTPUT+="## ⚠️ No CLAUDE.md found. Are you in the sf-demo-prep project directory?\n\n"
 fi
 
-# --- 5. Ready ---
+# --- 5. GitHub Update Check ---
+if git rev-parse --git-dir &>/dev/null; then
+  if git fetch origin main --quiet --depth=1 2>/dev/null; then
+    LOCAL=$(git rev-parse HEAD 2>/dev/null)
+    REMOTE=$(git rev-parse origin/main 2>/dev/null)
+    if [ -n "$LOCAL" ] && [ -n "$REMOTE" ] && [ "$LOCAL" != "$REMOTE" ]; then
+      OUTPUT+="## ⚠️ SF Demo Scout has updates available.\n"
+      OUTPUT+="   Run: git pull — then restart VS Code to pick up the changes.\n\n"
+    fi
+  fi
+fi
+
+# --- 6. Ready ---
 OUTPUT+="---\n"
 OUTPUT+="**Ready.**\n"
 OUTPUT+="  /scout-sparring  — Opus 4.6 discovery sparring + spec generation\n"
