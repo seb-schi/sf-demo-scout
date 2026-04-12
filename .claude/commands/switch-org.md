@@ -43,4 +43,6 @@ Switch to a different Salesforce demo org. Follow these steps:
      Tell the SE: "New org folder created. Run /scout-sparring to audit this org before building."
 
 8. Confirm the switch:
-   > "Switched to [alias] ([username]). Run /scout-sparring to start sparring against this org."
+   > "Switched to [alias] ([username]).
+   > ⚠️ Restart VS Code now (CMD+Q) — the MCP server only picks up org changes on startup.
+   > Once restarted, run /scout-sparring to start sparring against this org."
