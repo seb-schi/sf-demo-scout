@@ -18,7 +18,7 @@ Before deploying any Flows, Apex, LWC, or Agentforce: read @.claude/skills/deplo
 ## Step 1: Confirm Active Org
 
 Run `sf config get target-org --json` and `sf org display --json`.
-Extract alias, username, org ID (first 6 chars).
+Extract alias, username, org ID (characters 10–14 of the 18-char org ID; 5 chars, e.g. "P6teY" from "00DgL00000P6teYUAR").
 
 > "Active org: [alias] ([username]). Deploying here. Type 'switch' to change, or confirm."
 
