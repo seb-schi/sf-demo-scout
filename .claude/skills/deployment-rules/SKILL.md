@@ -1,14 +1,32 @@
 ---
 name: deployment-rules
 description: >
-  Rules for deploying Flows, Apex, LWC, and Agentforce in SF Demo Prep.
+  Rules for deploying Flows, Apex, LWC, Agentforce, and Page Layouts in SF Demo Prep.
   Read before deploying any of these metadata types.
 ---
 
-# Deployment Rules — Flows, Apex, LWC, Agentforce
+# Deployment Rules — Flows, Apex, LWC, Agentforce, Page Layouts
 
 All types require explicit SE confirmation before deployment.
 Two-attempt rule: if deployment fails twice, STOP and add to SE Manual Checklist.
+
+---
+
+## Page Layout Rules
+
+Before modifying any page layout, identify which layout is actually active for the demo user.
+Never retrieve "whichever layout comes first" — SDO orgs have many layouts per object and the first one is rarely the active one.
+
+1. Query `ProfileLayout` via Tooling API to find the layout assigned to System Administrator for the target object and record type:
+   ```
+   SELECT Layout.Name, RecordType.DeveloperName
+   FROM ProfileLayout
+   WHERE SobjectType = '[Object]'
+   AND Profile.Name = 'System Administrator'
+   ```
+2. Retrieve only the layout(s) returned by that query — not all layouts for the object
+3. Modify and redeploy only the active layout
+4. If multiple record types are in scope, run the query per record type and retrieve each assigned layout separately
 
 ---
 
