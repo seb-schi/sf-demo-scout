@@ -1,13 +1,13 @@
 ---
-description: Connect your demo org and run the first audit. Run once after cloning the repo.
-allowed-tools: Bash, Read, Write, Edit, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs
+description: Connect your demo org and update config. Run once after cloning the repo.
+allowed-tools: Bash, Read, Write, Edit, mcp__Salesforce_DX__list_all_orgs
 ---
 
 # SF Demo Prep — Org Setup
 
 You are completing the one-time org setup for a Salesforce Solutions Engineer.
 The project files are already in place from the GitHub clone. Your job is to:
-connect the demo org, fill in CLAUDE.md with real org details, and run the first audit.
+connect the demo org and fill in CLAUDE.md with real org details.
 
 Do not create or overwrite any existing config files. They are already correct.
 
@@ -33,7 +33,7 @@ sf org display --json
 ```
 
 If the org is authenticated and healthy, skip to Step 4 — tell the SE:
-> "Found an existing org connection: [alias] ([username]). Skipping login and going straight to the audit."
+> "Found an existing org connection: [alias] ([username]). Skipping login."
 
 If no org is set, or auth has expired, proceed to Step 3.
 
@@ -74,36 +74,17 @@ Note: the CLAUDE.md Org section is documentation only — all slash commands rea
 org identity from `sf config get target-org` at runtime. CLAUDE.md is not used
 as a config source.
 
-## Step 5: Run the First Org Audit
-
-Tell the SE:
-> "Running your first org audit — this verifies MCP is working and gives the pipeline a baseline to work from."
+## Step 5: Create Org Folder
 
 Determine the org folder key:
 - Alias: from Step 3
-- Org ID short: first 6 characters of the 18-char org ID from Step 3
+- Org ID short: first 6 characters of the 18-char org ID
 - Folder: `orgs/[alias]-[ORG_ID_SHORT]/`
 
 Create the folder:
 ```bash
 mkdir -p orgs/[alias]-[ORG_ID_SHORT]/
 ```
-
-Using MCP `retrieve_metadata`, audit the org and save the result to:
-`orgs/[alias]-[ORG_ID_SHORT]/audit-[YYYY-MM-DD].md`
-
-The audit must include:
-- Custom objects (API name, label, record count via run_soql_query where feasible)
-- Key fields and relationships per object
-- Existing flows (name, type, active/inactive, trigger object, brief logic summary)
-- Existing LWC components (name, purpose if inferrable from source)
-- Existing custom permission sets (custom only, not standard)
-- Notable gaps or risks relative to standard HLS demo scenarios
-
-If MCP is unavailable or returns empty results, tell the SE:
-> "MCP isn't connecting. Check that `.mcp.json` is in the project root (not a subfolder) and restart VS Code. Then run `/setup-demo-scout` again."
-
-Do not proceed if the audit is empty — MCP must be working for the pipeline to function correctly.
 
 ## Step 6: Show Setup Summary
 
@@ -115,13 +96,12 @@ Print this summary to the terminal:
 Project:    [current directory]
 Org:        [alias] ([username])
 Org folder: orgs/[alias]-[ORG_ID_SHORT]/
-Audit:      audit-[YYYY-MM-DD].md
 
 Three commands to remember:
   /scout-sparring  – Opus 4.6 discovery sparring + spec generation
   /scout-building  – Sonnet 4.6 org deployment from completed spec
   /switch-org      – change active demo org
 
-Ready to go! Close this session, reopen VS Code in this folder,
-and type /scout-sparring to start your first sparring session.
+Ready to go! Restart VS Code (CMD+Q), then type /scout-sparring to begin.
+Opus will audit the org as part of the sparring session.
 ```
