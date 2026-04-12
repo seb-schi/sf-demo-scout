@@ -75,7 +75,7 @@ Push back if the SE agrees without substance. **Stop and wait for confirmation.*
 
 ## Stage 3: Spec Generation
 
-Write spec to `demo-spec-[CUSTOMER]-[YYYY-MM-DD].md` using the template in @.claude/skills/spec-format/SKILL.md
+Write spec to `orgs/[alias]-[ORG_ID_SHORT]/demo-spec-[CUSTOMER]-[YYYY-MM-DD].md` using the template in @.claude/skills/spec-format/SKILL.md
 
 **Confidence flagging** for every Salesforce feature:
 - Cite help.salesforce.com if possible
