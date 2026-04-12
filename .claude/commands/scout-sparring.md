@@ -30,7 +30,7 @@ Transform discovery inputs into 1 executable demo scenario spec. Depth over brea
 
 ## Stage 0: Org Setup
 
-Run `sf config get target-org --json` and `sf org display --json`. Extract alias, username, org ID (first 6 chars).
+Run `sf config get target-org --json` and `sf org display --json`. Extract alias, username, org ID (characters 10–14 of the 18-char org ID; 5 chars, e.g. "P6teY" from "00DgL00000P6teYUAR").
 
 > "Active org: [alias] ([username]). Right org, or switch? (run /switch-org)"
 
