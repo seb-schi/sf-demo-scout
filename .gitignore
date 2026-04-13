@@ -19,8 +19,9 @@ force-app/
 # Claude Code local state
 .claude/settings.local.json
 .claude/skills/sf-*/
-.claude/skills/testing-*/
-.claude/skills/developing-*/
+.claude/skills/developing-agentforce/
+.claude/skills/observing-agentforce/
+.claude/skills/testing-agentforce/
 
 # Editor
 .vscode/

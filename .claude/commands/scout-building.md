@@ -7,7 +7,6 @@ description: >
   Activate with /scout-building.
 model: us.anthropic.claude-sonnet-4-6
 context: fork
-disable-model-invocation: true
 allowed-tools: Read, Grep, Glob, Write, Edit, Bash, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__deploy_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__assign_permission_set, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_DX__run_code_analyzer
 ---
 
