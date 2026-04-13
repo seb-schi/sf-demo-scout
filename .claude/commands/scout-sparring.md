@@ -9,8 +9,6 @@ model: opus
 allowed-tools: Read, Grep, Glob, Write, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs
 ---
 
-> **Model check:** This command is designed for Opus. Run `/model opus` now to switch this session before continuing.
-
 # Scout Sparring — HLS Demo Discovery & Spec Generation
 
 ## Your Role
@@ -48,7 +46,7 @@ SDO and IDO orgs already have significant metadata installed. The default approa
 
 Run a single MCP probe to confirm connectivity:
 - Call `run_soql_query` with: `SELECT Id FROM Organization LIMIT 1`
-- If it returns a result → MCP is active, proceed to org setup
+- If it returns a result → MCP is active, proceed to Stage 1
 - If it fails or times out → warn the SE:
   > "⚠️ MCP is not responding. Quit VS Code fully (CMD+Q), reopen, and run /scout-sparring again.
   > If this persists, check that .mcp.json exists in the project root."
@@ -60,14 +58,14 @@ Run a single MCP probe to confirm connectivity:
 
 Run `sf config get target-org --json` and `sf org display --json`. Extract alias and username.
 
-> "Active org: [alias] ([username]). Right org, or switch? (run /switch-org)"
+Output all three of these in a single response, then wait for the SE's reply:
+> "Active org: [alias] ([username]). Right org, or switch? (run /switch-org)
+>
+> Which customer is this demo for? I'll use this to name the org folder and spec files (e.g. 'makana-medtech').
+>
+> ⚠️ This command is designed for Opus 4.6. If you're not already on Opus, run `/model opus` now — your conversation history is preserved."
 
-Wait for confirmation.
-
-**Ask for the customer name:**
-> "Which customer is this demo for? I'll use this to name the org folder and spec files (e.g. 'makana-medtech')."
-
-Wait for the answer. Convert to lowercase-hyphenated format (e.g. "Deutsche Fachpflege" → `deutsche-fachpflege`).
+Wait for the SE's reply, then continue. Convert to lowercase-hyphenated format (e.g. "Deutsche Fachpflege" → `deutsche-fachpflege`).
 
 **Org folder:** `orgs/[alias]-[customer]/`
 - Exists → show most recent audit age, ask: use existing or fresh?
