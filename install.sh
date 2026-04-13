@@ -40,7 +40,27 @@ else
   echo "✅ Node.js found ($NODE_VERSION)."
 fi
 
-# --- 3. Salesforce CLI ---
+# --- 3. Python 3.9+ (required for Agentforce ADLC skills) ---
+echo ""
+echo "🔍 Checking Python 3.9+..."
+if command -v python3 &>/dev/null; then
+  PY_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+  PY_MAJOR=$(echo "$PY_VERSION" | cut -d. -f1)
+  PY_MINOR=$(echo "$PY_VERSION" | cut -d. -f2)
+  if [ "$PY_MAJOR" -ge 3 ] && [ "$PY_MINOR" -ge 9 ]; then
+    echo "✅ Python $PY_VERSION found."
+  else
+    echo "⚠️  Python $PY_VERSION found but 3.9+ required. Installing..."
+    brew install python@3.13
+    echo "✅ Python 3.13 installed."
+  fi
+else
+  echo "📦 Python not found. Installing via Homebrew..."
+  brew install python@3.13
+  echo "✅ Python 3.13 installed."
+fi
+
+# --- 4. Salesforce CLI ---
 echo ""
 echo "🔍 Checking Salesforce CLI..."
 if ! command -v sf &>/dev/null; then
@@ -52,7 +72,7 @@ else
   echo "✅ Salesforce CLI found ($SF_VERSION)."
 fi
 
-# --- 4. SFDX Project ---
+# --- 5. SFDX Project ---
 echo ""
 echo "🔍 Checking SFDX project..."
 if [ ! -f "$REPO_DIR/sfdx-project.json" ]; then
@@ -70,7 +90,7 @@ else
   echo "✅ SFDX project already exists."
 fi
 
-# --- 5. Salesforce Skills ---
+# --- 6. Salesforce Skills (Jaganpro/sf-skills) ---
 echo ""
 echo "🔍 Installing Salesforce skills..."
 SKILLS_BASE_URL="https://raw.githubusercontent.com/Jaganpro/sf-skills/main/skills"
@@ -87,7 +107,36 @@ for SKILL in sf-flow sf-metadata sf-permissions sf-deploy sf-apex sf-soql sf-dat
   fi
 done
 
-# --- 6. Shell Environment Variables ---
+# --- 7. Agentforce ADLC Skills (SalesforceAIResearch/agentforce-adlc) ---
+echo ""
+echo "🔍 Installing Agentforce ADLC skills..."
+ADLC_REPO="https://github.com/SalesforceAIResearch/agentforce-adlc.git"
+ADLC_TMP="/tmp/agentforce-adlc"
+
+# Clone or update the ADLC repo
+if [ -d "$ADLC_TMP" ]; then
+  echo "  📦 Updating agentforce-adlc..."
+  cd "$ADLC_TMP" && git pull --quiet 2>/dev/null || true
+else
+  echo "  📦 Cloning agentforce-adlc..."
+  git clone --depth 1 --quiet "$ADLC_REPO" "$ADLC_TMP" 2>/dev/null
+fi
+
+# Copy the three skill directories
+for ADLC_SKILL in developing-agentforce testing-agentforce observing-agentforce; do
+  if [ -d "$ADLC_TMP/skills/$ADLC_SKILL" ]; then
+    echo "  📦 Installing $ADLC_SKILL..."
+    mkdir -p "$SKILLS_DIR/$ADLC_SKILL"
+    cp -r "$ADLC_TMP/skills/$ADLC_SKILL/"* "$SKILLS_DIR/$ADLC_SKILL/"
+    echo "  ✅ $ADLC_SKILL installed."
+  else
+    echo "  ⚠️  $ADLC_SKILL not found in repo — check https://github.com/SalesforceAIResearch/agentforce-adlc"
+  fi
+done
+
+cd "$REPO_DIR"
+
+# --- 8. Shell Environment Variables ---
 echo ""
 echo "🔍 Checking shell environment..."
 
@@ -113,7 +162,7 @@ sed -i '' 's/CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096/CLAUDE_CODE_MAX_OUTPUT_TOKENS=81
 
 source "$ZSHRC" 2>/dev/null || true
 
-# --- 7. session-startup.sh permissions ---
+# --- 9. session-startup.sh permissions ---
 echo ""
 echo "🔍 Checking hook permissions..."
 HOOK="$REPO_DIR/.claude/hooks/session-startup.sh"

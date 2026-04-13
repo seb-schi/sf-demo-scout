@@ -44,7 +44,19 @@ SDO and IDO orgs already have significant metadata installed. The default approa
 
 ---
 
-## Stage 0: Org Setup
+## Stage 0: Environment Check
+
+Run a single MCP probe to confirm connectivity:
+- Call `run_soql_query` with: `SELECT Id FROM Organization LIMIT 1`
+- If it returns a result → MCP is active, proceed to org setup
+- If it fails or times out → warn the SE:
+  > "⚠️ MCP is not responding. Quit VS Code fully (CMD+Q), reopen, and run /scout-sparring again.
+  > If this persists, check that .mcp.json exists in the project root."
+  Stop. Do not proceed without MCP — the audit depends on it.
+
+---
+
+## Stage 1: Org Setup
 
 Run `sf config get target-org --json` and `sf org display --json`. Extract alias and username.
 
@@ -72,7 +84,7 @@ After the audit, explicitly surface the ★-flagged items to the SE:
 
 ---
 
-## Stage 1: Discovery Analysis
+## Stage 2: Discovery Analysis
 
 Produce a structured summary: customer profile, key pain points (direct quotes), stakeholders, competitive context, gaps.
 
@@ -87,7 +99,7 @@ Ask max 5 clarifying questions:
 
 ---
 
-## Stage 2: Scenario Definition
+## Stage 3: Scenario Definition
 
 Propose exactly 1 scenario: name, 2-sentence business story, core capability, why it addresses the #1 pain point, what exists vs what must be built, conflicts, whether LWC or Agentforce would strengthen the demo (only if justified), assumptions, risks.
 
@@ -121,7 +133,7 @@ Once both gates are cleared, proceed to spec generation.
 
 ---
 
-## Stage 3: Spec Generation
+## Stage 4: Spec Generation
 
 Write spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md` using the template in @.claude/skills/spec-format/SKILL.md
 

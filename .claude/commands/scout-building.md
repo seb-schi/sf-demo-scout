@@ -39,7 +39,19 @@ osascript -e 'display notification "[what you are about to deploy]" with title "
 
 ---
 
-## Step 1: Confirm Active Org
+## Step 1: MCP Probe
+
+Run a single MCP probe to confirm connectivity:
+- Call `run_soql_query` with: `SELECT Id FROM Organization LIMIT 1`
+- If it returns a result → MCP is active, proceed
+- If it fails or times out → warn the SE:
+  > "⚠️ MCP is not responding. Quit VS Code fully (CMD+Q), reopen, and run /scout-building again.
+  > If this persists, check that .mcp.json exists in the project root."
+  Stop. Do not proceed without MCP — deployment depends on it.
+
+---
+
+## Step 2: Confirm Active Org
 
 Run `sf config get target-org --json` and `sf org display --json`.
 Extract alias and username.
@@ -50,7 +62,7 @@ Wait for confirmation. Switch → tell SE to run `/switch-org` first.
 
 ---
 
-## Step 2: Identify Customer Folder
+## Step 3: Identify Customer Folder
 
 List org folders:
 ```
@@ -63,7 +75,7 @@ ls -d orgs/[alias]-*/
 
 ---
 
-## Step 3: Load Spec
+## Step 4: Load Spec
 
 ```
 ls -lt orgs/[alias]-[customer]/demo-spec-*.md
@@ -75,7 +87,7 @@ ls -lt orgs/[alias]-[customer]/demo-spec-*.md
 
 ---
 
-## Step 4: Load Org Audit
+## Step 5: Load Org Audit
 
 Find most recent audit in `orgs/[alias]-[customer]/`.
 Check `Org Audit Used:` field in spec header.
@@ -86,7 +98,7 @@ Check `Org Audit Used:` field in spec header.
 
 ---
 
-## Step 5: Pre-Deployment Conflict Check
+## Step 6: Pre-Deployment Conflict Check
 
 Cross-check spec against audit:
 - Object/field API name collisions → ⚠️
@@ -102,7 +114,7 @@ Wait for go-ahead. This is the last SE input required for safe operations.
 
 ---
 
-## Step 6: Deploy
+## Step 7: Deploy
 
 Log intent before every operation (written to terminal, not a pause for SE input).
 Deploy in small increments — never batch unrelated changes.
@@ -132,7 +144,7 @@ and tell the SE to start a fresh session.
 
 ---
 
-## Step 7: Write Change Log
+## Step 8: Write Change Log
 
 Use the template in @.claude/skills/change-log/SKILL.md
 
@@ -143,7 +155,7 @@ osascript -e 'display notification "Deployment complete. Review the change log."
 
 ---
 
-## Step 8: Propose Lessons
+## Step 9: Propose Lessons
 
 Review the session for:
 - Two-attempt failures (what failed and why)
