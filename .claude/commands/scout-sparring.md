@@ -63,7 +63,7 @@ Output all three of these in a single response, then wait for the SE's reply:
 >
 > Which customer is this demo for? I'll use this to name the org folder and spec files (e.g. 'makana-medtech').
 >
-> ⚠️ This command is designed for Opus 4.6. If you're not already on Opus, run `/model opus` now — your conversation history is preserved."
+> ⚠️ Scout sparring mode is designed for Opus 4.6. If you're not already on Opus, run `/model opus` now — your conversation history is preserved."
 
 Wait for the SE's reply, then continue. Convert to lowercase-hyphenated format (e.g. "Deutsche Fachpflege" → `deutsche-fachpflege`).
 
