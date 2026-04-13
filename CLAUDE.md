@@ -4,10 +4,10 @@
 > **Documentation only.** All slash commands read org identity from `sf config get target-org`
 > at runtime. These values are for human reference only.
 
-- Alias: scout-testing
-- Username: admin@scout-testing.demo
-- Org ID: 00DgL00000PZGOXUA5
-- Instance: https://storm-28561183a3066b.my.salesforce.com
+- Alias: [DEMO ORG ALIAS]
+- Username: [YOUR ORG USER NAME]
+- Org ID: [YOUR ORG ID]
+- Instance: https://[YOUR ORG INSTANCE].my.salesforce.com
 - Type: Personal demo org — destructive operations permitted with prior explanation
 
 ## MCP Tools
