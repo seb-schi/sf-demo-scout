@@ -4,6 +4,7 @@ description: >
   Accumulated lessons from sparring and building sessions.
   Loaded by /scout-sparring and /scout-building to prevent repeated mistakes.
   Add new lessons at the end of the relevant section.
+  Pipeline lessons live separately in pipeline-lessons/SKILL.md.
 ---
 
 # Lessons Learned

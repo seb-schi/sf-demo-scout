@@ -17,11 +17,15 @@ force-app/
 .DS_Store
 
 # Claude Code local state
+.claude/commands/project-architect.md
+.claude/commands/project-deployment.md
 .claude/settings.local.json
 .claude/skills/sf-*/
+.claude/skills/pipeline-lessons/
 .claude/skills/developing-agentforce/
 .claude/skills/observing-agentforce/
 .claude/skills/testing-agentforce/
+pipeline-changes/
 
 # Editor
 .vscode/

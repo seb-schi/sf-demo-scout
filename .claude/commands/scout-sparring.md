@@ -6,7 +6,6 @@ description: >
   and needs to develop a focused demo scenario. Produces a structured
   spec for /scout-building to deploy. Activate with /scout-sparring.
 model: us.anthropic.claude-opus-4-6-v1
-context: fork
 allowed-tools: Read, Grep, Glob, Write, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs
 ---
 
