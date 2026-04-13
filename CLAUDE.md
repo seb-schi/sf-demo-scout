@@ -69,6 +69,7 @@ sf data create record --sobject PermissionSetAssignment --values "PermissionSetI
 
 ## File Locations
 - Per-org history: `orgs/[alias]-[customer]/` (audits, change logs, specs)
+- Lessons learned: @.claude/skills/lessons/SKILL.md
 - Deployment rules: @.claude/skills/deployment-rules/SKILL.md
 - Org audit format: @.claude/skills/org-audit/SKILL.md
 - Change log template: @.claude/skills/change-log/SKILL.md

@@ -14,6 +14,7 @@ allowed-tools: Read, Grep, Glob, Write, Edit, Bash, mcp__Salesforce_DX__retrieve
 # Scout Building — Sonnet 4.6 Org Deployment
 
 Before deploying any Flows, Apex, LWC, or Agentforce: read @.claude/skills/deployment-rules/SKILL.md
+Read @.claude/skills/lessons/SKILL.md — focus on the **Building Lessons** section. Do not repeat known mistakes.
 
 ## Deployment Philosophy
 
@@ -139,3 +140,22 @@ Fire a final notification when complete:
 ```bash
 osascript -e 'display notification "Deployment complete. Review the change log." with title "SF Demo Scout — Done"'
 ```
+
+---
+
+## Step 8: Propose Lessons
+
+Review the session for:
+- Two-attempt failures (what failed and why)
+- Unexpected conflict check findings
+- SE corrections during gated confirmations
+- Permission set or layout issues that required workarounds
+
+If any occurred, propose 1-3 candidate lessons:
+
+> "A few things worth remembering for next time:
+> 1. [lesson]
+> 2. [lesson]
+> Add these to lessons? (yes / edit / skip)"
+
+If approved, append to the **Building Lessons** section of `lessons.md` with today's date. If the deployment was clean, skip silently.
