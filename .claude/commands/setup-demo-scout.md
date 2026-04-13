@@ -74,19 +74,7 @@ Note: the CLAUDE.md Org section is documentation only — all slash commands rea
 org identity from `sf config get target-org` at runtime. CLAUDE.md is not used
 as a config source.
 
-## Step 5: Create Org Folder
-
-Determine the org folder key:
-- Alias: from Step 3
-- Org ID short: first 6 characters of the 18-char org ID
-- Folder: `orgs/[alias]-[ORG_ID_SHORT]/`
-
-Create the folder:
-```bash
-mkdir -p orgs/[alias]-[ORG_ID_SHORT]/
-```
-
-## Step 6: Show Setup Summary
+## Step 5: Show Setup Summary
 
 Print this summary to the terminal:
 
@@ -95,7 +83,6 @@ Print this summary to the terminal:
 ====================================
 Project:    [current directory]
 Org:        [alias] ([username])
-Org folder: orgs/[alias]-[ORG_ID_SHORT]/
 
 Three commands to remember:
   /scout-sparring  – Opus 4.6 discovery sparring + spec generation
@@ -103,5 +90,5 @@ Three commands to remember:
   /switch-org      – change active demo org
 
 Ready to go! Restart VS Code (CMD+Q), then type /scout-sparring to begin.
-Opus will audit the org as part of the sparring session.
+Opus will audit the org and create the customer folder as part of the sparring session.
 ```

@@ -7,14 +7,16 @@ description: >
 
 # Demo Spec — Output Format
 
-Save to: `demo-spec-[CUSTOMER]-[YYYY-MM-DD].md` (project root).
+Save to: `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md`
+
+HHmm = local time at spec creation (e.g. 0930, 1445). Prevents silent overwrites when sparring runs multiple times in a day for the same customer.
 
 ```markdown
 # Demo Spec — [Customer Name]
-Generated: [Date]
+Generated: [Date] [HHmm]
 Salesforce Release: [cite or mark CONFIDENT]
-Target Org: [alias]-[ORG_ID_SHORT]
-Org Audit Used: audit-[YYYY-MM-DD].md
+Target Org: [alias] ([username])
+Org Audit Used: audit-[YYYY-MM-DD]-[HHmm].md
 
 ## Customer Context
 - **Company:**
@@ -28,17 +30,22 @@ Org Audit Used: audit-[YYYY-MM-DD].md
 **Business story:**
 **Core capability:**
 **Pain point addressed:**
-**Existing org components:** (from audit)
+**Primary build surface:** (★-flagged app, objects, and layouts from audit — confirmed with SE)
+**New metadata required:** (only what cannot be delivered by extending existing components — justify each)
 **Org conflicts:** (what to check/avoid)
 **Build required (Claude Code):**
 **Build required (SE manual):**
 **Demo risk:**
 
 ## Claude Code Instructions
-> /scout-building executes this section. Review all ⚠️ flags with SE first.
+> /scout-building executes this section autonomously after the pre-deployment conflict check.
+> Flows, Apex, LWC, and Agentforce require a single SE confirmation before that category deploys.
+> Review all ⚠️ flags before running /scout-building.
 
 ### Objects & Fields
-- [API name, label, description]
+- [Existing object API name, label] — extending existing
+  - [Field API] ([Type], [length/values], Required: yes/no)
+- [New custom object API name, label] — new (justified because: [reason])
   - [Field API] ([Type], [length/values], Required: yes/no)
 
 ### Record Types
@@ -57,30 +64,32 @@ Org Audit Used: audit-[YYYY-MM-DD].md
 - ⚠️ Replace with realistic values before demo
 
 ### Page Layouts
-- [Object] — [RecordType]: add fields [list]
+- [Object] — [RecordType] — Active layout: [layout name from audit ★]
+- Fields to add: [list]
 - ⚠️ Visual arrangement: SE Manual Checklist
 
 ### Lightning App / Tabs
-- App: [name], Tabs: [list]
+- Existing app: [name] — modifications: [list]
+- New tabs (if any): [list]
 
 ### Flows (if applicable)
-- ⚠️ SE CONFIRMATION REQUIRED
+- ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
 - Plain English: [description]
 - Flow name: [ApiName], Type: Record-Triggered
 - Object: [single], Trigger: [when], Logic: [steps]
 
 ### Apex (if applicable)
-- ⚠️ SE CONFIRMATION REQUIRED
+- ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
 - Plain English: [description]
 - Name: [name], Object: [single], Logic: [steps]
 
 ### LWC Components (if applicable)
-- ⚠️ SE CONFIRMATION REQUIRED
+- ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
 - Plain English: [behaviour]
 - Name: [name], Location: [page], Data: [objects/fields], SLDS: [pattern]
 
 ### Agentforce (if applicable)
-- ⚠️ SE CONFIRMATION REQUIRED
+- ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
 - Plain English: [what agent does, why it strengthens demo]
 - Agent: [name]
 - Topics: [name] — [description]

@@ -4,10 +4,10 @@
 > **Documentation only.** All slash commands read org identity from `sf config get target-org`
 > at runtime. These values are for human reference only.
 
-- Alias: [DEMO ORG ALIAS]
-- Username: [YOUR ORG USERNAME]
-- Org ID: [YOUR ORG ID]
-- Instance: https://[YOUR ORG INSTANCE].my.salesforce.com
+- Alias: scout-testing
+- Username: admin@scout-testing.demo
+- Org ID: 00DgL00000PZGOXUA5
+- Instance: https://storm-28561183a3066b.my.salesforce.com
 - Type: Personal demo org — destructive operations permitted with prior explanation
 
 ## MCP Tools
@@ -27,7 +27,7 @@ Fall back to `sf` CLI if MCP is unavailable.
 - Create new permission sets and assign to current user
 - Create Lightning apps and custom tabs
 - Seed demo data on single objects (no cross-object)
-- Page layout field additions (not visual arrangement)
+- Page layout field additions (active layout only — query ProfileLayout first)
 - Simple record-triggered flows — SE confirmation required
 - Simple Apex — SE confirmation required
 - Simple LWC — SE confirmation required
@@ -68,8 +68,7 @@ sf data create record --sobject PermissionSetAssignment --values "PermissionSetI
 ```
 
 ## File Locations
-- Per-org history: `orgs/[alias]-[ORG_ID_SHORT]/` (audits, change logs)
-- Customer specs: `demo-spec-[CUSTOMER]-[YYYY-MM-DD].md` (project root)
+- Per-org history: `orgs/[alias]-[customer]/` (audits, change logs, specs)
 - Deployment rules: @.claude/skills/deployment-rules/SKILL.md
 - Org audit format: @.claude/skills/org-audit/SKILL.md
 - Change log template: @.claude/skills/change-log/SKILL.md

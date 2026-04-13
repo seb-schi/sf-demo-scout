@@ -33,38 +33,37 @@ else
   if [ -n "$ORG_DISPLAY" ]; then
     USERNAME=$(echo "$ORG_DISPLAY" | grep -o '"username":"[^"]*"' | head -1 | cut -d'"' -f4)
 
-    # Use "orgId" specifically — "id" matches multiple fields in sf org display output.
-    # Fallback to matching any "id" value starting with "00D" (org ID prefix) for older CLI versions.
-    ORG_ID=$(echo "$ORG_DISPLAY" | grep -o '"orgId":"[^"]*"' | head -1 | cut -d'"' -f4)
-    if [ -z "$ORG_ID" ]; then
-      ORG_ID=$(echo "$ORG_DISPLAY" | grep -o '"id":"00D[^"]*"' | head -1 | cut -d'"' -f4)
-    fi
-
-    ORG_ID_SHORT="${ORG_ID:0:6}"
     OUTPUT+="## ✅ Active org: $DEFAULT_ORG ($USERNAME)\n"
-    OUTPUT+="$ORG_COUNT org(s) available. Switch: sf config set target-org [alias]\n\n"
+    OUTPUT+="$ORG_COUNT org(s) available. Switch: /switch-org\n\n"
 
     # --- 3. Org Folder + Audit Check ---
-    ORG_FOLDER="orgs/${DEFAULT_ORG}-${ORG_ID_SHORT}"
-    if [ -d "$ORG_FOLDER" ]; then
-      LATEST_AUDIT=$(ls -t "$ORG_FOLDER"/audit-*.md 2>/dev/null | head -1)
-      if [ -n "$LATEST_AUDIT" ]; then
-        AUDIT_AGE=$(( ( $(date +%s) - $(stat -f%m "$LATEST_AUDIT" 2>/dev/null || stat -c%Y "$LATEST_AUDIT" 2>/dev/null) ) / 86400 ))
-        AUDIT_FILE=$(basename "$LATEST_AUDIT")
-        if [ "$AUDIT_AGE" -gt 7 ]; then
-          OUTPUT+="## ⚠️ Org audit ($AUDIT_FILE) is ${AUDIT_AGE} days old — consider refreshing.\n\n"
+    # Find customer folders for this org alias (pattern: orgs/[alias]-[customer]/)
+    ORG_FOLDERS=$(ls -d orgs/${DEFAULT_ORG}-*/ 2>/dev/null)
+    if [ -n "$ORG_FOLDERS" ]; then
+      FOLDER_COUNT=$(echo "$ORG_FOLDERS" | wc -l | tr -d ' ')
+      OUTPUT+="## ℹ️ $FOLDER_COUNT customer folder(s) for $DEFAULT_ORG:\n"
+      for FOLDER in $ORG_FOLDERS; do
+        CUSTOMER=$(basename "$FOLDER" | sed "s/^${DEFAULT_ORG}-//")
+        LATEST_AUDIT=$(ls -t "$FOLDER"/audit-*.md 2>/dev/null | head -1)
+        if [ -n "$LATEST_AUDIT" ]; then
+          AUDIT_AGE=$(( ( $(date +%s) - $(stat -f%m "$LATEST_AUDIT" 2>/dev/null || stat -c%Y "$LATEST_AUDIT" 2>/dev/null) ) / 86400 ))
+          AUDIT_FILE=$(basename "$LATEST_AUDIT")
+          if [ "$AUDIT_AGE" -gt 7 ]; then
+            OUTPUT+="  - $CUSTOMER: audit ($AUDIT_FILE) is ${AUDIT_AGE}d old — consider refreshing\n"
+          else
+            OUTPUT+="  - $CUSTOMER: audit $AUDIT_FILE (${AUDIT_AGE}d ago) ✅\n"
+          fi
         else
-          OUTPUT+="## ✅ Org audit: $AUDIT_FILE (${AUDIT_AGE}d ago)\n\n"
+          OUTPUT+="  - $CUSTOMER: no audit found — run /scout-sparring\n"
         fi
-        LATEST_CHANGES=$(ls -t "$ORG_FOLDER"/changes-*.md 2>/dev/null | head -1)
+        LATEST_CHANGES=$(ls -t "$FOLDER"/changes-*.md 2>/dev/null | head -1)
         if [ -n "$LATEST_CHANGES" ]; then
-          OUTPUT+="## ℹ️ Last change log: $(basename $LATEST_CHANGES)\n\n"
+          OUTPUT+="    Last change log: $(basename $LATEST_CHANGES)\n"
         fi
-      else
-        OUTPUT+="## ℹ️ Org folder exists but no audit found — run /scout-sparring to create one.\n\n"
-      fi
+      done
+      OUTPUT+="\n"
     else
-      OUTPUT+="## ℹ️ No org folder found for $DEFAULT_ORG — a new audit will be created on first run.\n\n"
+      OUTPUT+="## ℹ️ No customer folders for $DEFAULT_ORG — run /scout-sparring to create one.\n\n"
     fi
   else
     OUTPUT+="## ⚠️ Org '$DEFAULT_ORG' auth expired. Re-authenticate:\n"

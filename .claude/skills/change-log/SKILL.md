@@ -7,14 +7,16 @@ description: >
 
 # Change Log — Template
 
-Save to: `orgs/[alias]-[ORG_ID_SHORT]/changes-[YYYY-MM-DD]-[CUSTOMER].md`
+Save to: `orgs/[alias]-[customer]/changes-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`
 Also output the full change log to the terminal.
 
+HHmm = local time at change log creation (e.g. 0930, 1445).
+
 ```markdown
-# Change Log — [Customer] — [Date]
+# Change Log — [Customer] — [Date] [HHmm]
 Org: [alias] ([username])
-Spec: demo-spec-[CUSTOMER]-[DATE].md
-Audit used: audit-[YYYY-MM-DD].md
+Spec: demo-spec-[CUSTOMER]-[DATE]-[HHmm].md
+Audit used: audit-[YYYY-MM-DD]-[HHmm].md
 
 ## What Was Deployed
 [Every component, grouped by type — include API names]
