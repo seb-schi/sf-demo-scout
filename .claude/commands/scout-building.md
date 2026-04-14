@@ -12,8 +12,8 @@ allowed-tools: Read, Grep, Glob, Write, Edit, Bash, mcp__Salesforce_DX__retrieve
 
 # Scout Building — Sonnet 4.6 Org Deployment
 
-Before deploying any Flows, Apex, LWC, or Agentforce: read @.claude/skills/_scout-deployment-rules/SKILL.md
-Read @.claude/skills/_scout-lessons/SKILL.md — focus on the **Building Lessons** section. Do not repeat known mistakes.
+Before deploying any Flows, Apex, LWC, or Agentforce: read @.claude/skills/_demo-deployment-rules/SKILL.md
+Read @.claude/skills/_demo-lessons/SKILL.md — focus on the **Building Lessons** section. Do not repeat known mistakes.
 
 ## Deployment Philosophy
 
@@ -137,7 +137,7 @@ Wait for answer. If yes, deploy the full category autonomously — no further co
 
 **Agentforce deploys last.** The ADLC skills (`developing-agentforce`, `testing-agentforce`) are large and consume significant context. Always complete all org config (fields, layouts, data, flows, permissions) before starting any Agentforce deployment. If context is already heavy after org config, write a partial change log and tell the SE to start a fresh session for the agent work.
 
-Follow @.claude/skills/_scout-deployment-rules/SKILL.md for all gated operations.
+Follow @.claude/skills/_demo-deployment-rules/SKILL.md for all gated operations.
 
 If context is getting long, save partial progress to
 `orgs/[alias]-[customer]/changes-[YYYY-MM-DD]-[HHmm]-[CUSTOMER]-partial.md`
@@ -145,18 +145,13 @@ and tell the SE to start a fresh session.
 
 ---
 
-## Step 8: Write Change Log
+## Step 8: Change Log, Lessons, and Done
 
-Use the template in @.claude/skills/_scout-change-log/SKILL.md
+### 8a: Write Change Log
 
-Fire a final notification when complete:
-```bash
-osascript -e 'display notification "Deployment complete. Review the change log." with title "SF Demo Scout — Done"'
-```
+Use the template in @.claude/skills/_demo-change-log/SKILL.md
 
----
-
-## Step 9: Propose Lessons
+### 8b: Propose Lessons
 
 Review the session for:
 - Two-attempt failures (what failed and why)
@@ -171,4 +166,12 @@ If any occurred, propose 1-3 candidate lessons:
 > 2. [lesson]
 > Add these to lessons? (yes / edit / skip)"
 
-If approved, append to the **Building Lessons** section of `lessons.md` with today's date. If the deployment was clean, skip silently.
+If approved, append to the **Building Lessons** section of `.claude/skills/_demo-lessons/SKILL.md` with today's date. If the deployment was clean, skip silently.
+
+### 8c: Done
+
+**Do NOT fire the completion notification until 8a and 8b are complete.**
+
+```bash
+osascript -e 'display notification "Deployment complete. Review the change log." with title "SF Demo Scout — Done"'
+```

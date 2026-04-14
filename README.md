@@ -54,23 +54,23 @@ Evolve the pipeline itself:
 
 | Command | Model | What it does |
 |---|---|---|
-| `/project-architect` | Opus 4.6 | Architectural sparring — diagnoses issues, proposes changes, writes a deployment guide |
-| `/project-deployment` | Sonnet 4.6 | Applies the deployment guide mechanically, appends verification log |
+| `/project-sparring` | Opus 4.6 | Architectural sparring — diagnoses issues, proposes changes, writes a deployment guide |
+| `/project-building` | Sonnet 4.6 | Applies the deployment guide mechanically, appends verification log |
 
 Pipeline change history lives in `pipeline-changes/`:
-- `pipeline-state.md` — current state, maintained by `/project-architect`
+- `pipeline-state.md` — current state, maintained by `/project-sparring`
 - `[YYYY-MM-DD]/[HHmm]-[topic]-PLAN.md` — individual change plans with LOG sections
 
 ## Skills
 
 Skills are domain-specific instruction sets loaded on demand by commands. They keep `CLAUDE.md` lean (under 100 lines) while giving each command deep context.
 
-**Scout reference skills** (internal — loaded by commands, not user-invocable):
-- `_scout-lessons` — accumulated sparring/building lessons
-- `_scout-deployment-rules` — gates for Flows, Apex, LWC, Agentforce
-- `_scout-org-audit` — audit format and procedure
-- `_scout-change-log` — change log template
-- `_scout-spec-format` — spec output format
+**Demo reference skills** (internal — loaded by commands, not user-invocable):
+- `_demo-lessons` — accumulated sparring/building lessons
+- `_demo-deployment-rules` — gates for Flows, Apex, LWC, Agentforce
+- `_demo-org-audit` — audit format and procedure
+- `_demo-change-log` — change log template
+- `_demo-spec-format` — spec output format
 
 **Pipeline reference skills** (internal):
 - `_pipeline-lessons` — pipeline architecture lessons

@@ -30,7 +30,7 @@ Fall back to `sf` CLI if MCP is unavailable.
 - Simple LWC — SE confirmation required
 - Simple Agentforce agents — SE confirmation required
 
-**Before deploying Flows, Apex, LWC, or Agentforce:** read @.claude/skills/_scout-deployment-rules/SKILL.md
+**Before deploying Flows, Apex, LWC, or Agentforce:** read @.claude/skills/_demo-deployment-rules/SKILL.md
 
 ## NEVER Without Explicit SE Confirmation
 - Delete existing metadata or records
@@ -66,8 +66,8 @@ sf data create record --sobject PermissionSetAssignment --values "PermissionSetI
 
 ## File Locations
 - Per-org history: `orgs/[alias]-[customer]/` (audits, change logs, specs)
-- Lessons learned: @.claude/skills/_scout-lessons/SKILL.md
-- Deployment rules: @.claude/skills/_scout-deployment-rules/SKILL.md
-- Org audit format: @.claude/skills/_scout-org-audit/SKILL.md
-- Change log template: @.claude/skills/_scout-change-log/SKILL.md
-- Spec output format: @.claude/skills/_scout-spec-format/SKILL.md
+- Lessons learned: @.claude/skills/_demo-lessons/SKILL.md
+- Deployment rules: @.claude/skills/_demo-deployment-rules/SKILL.md
+- Org audit format: @.claude/skills/_demo-org-audit/SKILL.md
+- Change log template: @.claude/skills/_demo-change-log/SKILL.md
+- Spec output format: @.claude/skills/_demo-spec-format/SKILL.md

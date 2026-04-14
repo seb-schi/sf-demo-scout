@@ -17,8 +17,8 @@ force-app/
 .DS_Store
 
 # Claude Code local state
-.claude/commands/project-architect.md
-.claude/commands/project-deployment.md
+.claude/commands/project-sparring.md
+.claude/commands/project-building.md
 .claude/settings.local.json
 .claude/skills/sf-*/
 .claude/skills/_pipeline-lessons/

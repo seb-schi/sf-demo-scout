@@ -19,7 +19,7 @@ Push back hard during sparring — this is where the quality of the demo is deci
 
 ## Before You Start
 
-Read @.claude/skills/_scout-lessons/SKILL.md — focus on the **Sparring Lessons** section. These are mistakes from previous sessions. Do not repeat them.
+Read @.claude/skills/_demo-lessons/SKILL.md — focus on the **Sparring Lessons** section. These are mistakes from previous sessions. Do not repeat them.
 
 ## Objective
 
@@ -86,7 +86,7 @@ Wait for the SE's reply, then continue. Convert to lowercase-hyphenated format (
 - Exists → show most recent audit age, ask: use existing or fresh?
 - Doesn't exist → create folder, run audit immediately
 
-**Run audit** per @.claude/skills/_scout-org-audit/SKILL.md
+**Run audit** per @.claude/skills/_demo-org-audit/SKILL.md
 
 After the audit, explicitly surface the ★-flagged items to the SE:
 > "Primary build surface for this org:
@@ -148,7 +148,7 @@ Once both gates are cleared, proceed to spec generation.
 
 ## Stage 4: Spec Generation
 
-Write spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md` using the template in @.claude/skills/_scout-spec-format/SKILL.md
+Write spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md` using the template in @.claude/skills/_demo-spec-format/SKILL.md
 
 HHmm = local time at spec creation (e.g. 0930, 1445). This prevents silent overwrites when sparring runs multiple times in a day for the same customer.
 
@@ -157,14 +157,9 @@ HHmm = local time at spec creation (e.g. 0930, 1445). This prevents silent overw
 - Mark [CONFIDENT — SE verify] if certain but can't cite
 - Mark [UNVERIFIED — SE must confirm] if uncertain — these NEVER go in Claude Code Instructions
 
-Tell the SE:
-> "Spec saved. Run **/scout-building** to deploy — it will cross-check against the audit and flag conflicts."
+### Propose Lessons
 
----
-
-## After Spec Generation: Propose Lessons
-
-Review the session for moments where:
+Before telling the SE the spec is ready, review the session for moments where:
 - The SE corrected a wrong assumption
 - An existing-first evaluation caught you proposing unnecessary new metadata
 - A gate question revealed a gap in the SE's reasoning (or yours)
@@ -177,4 +172,10 @@ If any of these occurred, propose 1-3 candidate lessons:
 > 2. [lesson]
 > Want me to add these, edit them, or skip?"
 
-If the SE approves (with or without edits), append to the **Sparring Lessons** section of `lessons.md` with today's date. If nothing noteworthy happened, skip this step silently — don't force lessons where there aren't any.
+If the SE approves (with or without edits), append to the **Sparring Lessons** section of `.claude/skills/_demo-lessons/SKILL.md` with today's date. If nothing noteworthy happened, skip silently.
+
+### Done
+
+**Do not send this until lessons are resolved (or skipped):**
+
+> "Spec saved. Run **/scout-building** to deploy — it will cross-check against the audit and flag conflicts."

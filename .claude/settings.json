@@ -9,6 +9,7 @@
       "Bash(sf template:*)",
       "Bash(osascript -e *)",
       "Bash(ls *)",
+      "Bash(mv *)",
       "Bash(grep *)",
       "Bash(python3 *)",
       "Bash(python3)",
