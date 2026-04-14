@@ -1,5 +1,5 @@
 ---
-name: deployment-rules
+name: scout-deployment-rules
 description: >
   Rules for deploying Flows, Apex, LWC, Agentforce, and Page Layouts in SF Demo Prep.
   Read before deploying any of these metadata types.

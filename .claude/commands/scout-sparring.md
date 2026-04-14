@@ -19,7 +19,7 @@ Push back hard during sparring — this is where the quality of the demo is deci
 
 ## Before You Start
 
-Read @.claude/skills/lessons/SKILL.md — focus on the **Sparring Lessons** section. These are mistakes from previous sessions. Do not repeat them.
+Read @.claude/skills/scout-lessons/SKILL.md — focus on the **Sparring Lessons** section. These are mistakes from previous sessions. Do not repeat them.
 
 ## Objective
 
@@ -71,7 +71,7 @@ Wait for the SE's reply, then continue. Convert to lowercase-hyphenated format (
 - Exists → show most recent audit age, ask: use existing or fresh?
 - Doesn't exist → create folder, run audit immediately
 
-**Run audit** per @.claude/skills/org-audit/SKILL.md
+**Run audit** per @.claude/skills/scout-org-audit/SKILL.md
 
 After the audit, explicitly surface the ★-flagged items to the SE:
 > "Primary build surface for this org:
@@ -133,7 +133,7 @@ Once both gates are cleared, proceed to spec generation.
 
 ## Stage 4: Spec Generation
 
-Write spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md` using the template in @.claude/skills/spec-format/SKILL.md
+Write spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md` using the template in @.claude/skills/scout-spec-format/SKILL.md
 
 HHmm = local time at spec creation (e.g. 0930, 1445). This prevents silent overwrites when sparring runs multiple times in a day for the same customer.
 
