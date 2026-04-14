@@ -11,12 +11,11 @@ Claude Code pipeline for configuring Salesforce demo orgs from customer discover
 ## Install
 
 ```bash
-git clone https://github.com/seb-schi/sf-demo-scout.git
-cd sf-demo-scout
-bash install.sh
+git clone https://github.com/seb-schi/sf-demo-scout ~/Projects/sf-demo-scout
+cd ~/Projects/sf-demo-scout && bash install.sh
 ```
 
-The install script sets up Homebrew, Node.js, Python 3.9+, Salesforce CLI, the SFDX project structure, community Salesforce skills, Agentforce ADLC skills, and shell environment variables for Claude Code model routing.
+The install script sets up Homebrew, Node.js, Python, Salesforce CLI, the SFDX project structure, community Salesforce skills, Agentforce ADLC skills, and shell environment variables for Claude Code model routing.
 
 After install, open the project in VS Code, start Claude Code, and run `/setup-demo-scout` to connect your first demo org and run an initial audit.
 
