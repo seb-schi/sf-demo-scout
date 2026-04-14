@@ -3,7 +3,7 @@
 ## Org
 > Org identity is read from `sf config get target-org` at runtime.
 > Session startup displays the active org, username, and connection status.
-> No manual configuration needed — run /setup-demo-scout to connect an org.
+> No manual configuration needed — run /switch-org to connect or change an org.
 
 - Type: Personal demo org — destructive operations permitted with prior explanation
 
