@@ -54,6 +54,23 @@ Run a single MCP probe to confirm connectivity:
 
 ---
 
+## Stage 0.5: Model Gate
+
+Fire a macOS notification:
+```bash
+osascript -e 'display notification "Scout Sparring requires Opus 4.6 — switch model now if needed." with title "SF Demo Scout — Model Check"'
+```
+
+Then output as a standalone message:
+> "⚠️ **Scout Sparring is designed for Opus 4.6.**
+> Run `/model opus` now if you haven't already — your conversation history is preserved.
+>
+> Confirm you're on Opus before we continue. (yes)"
+
+**Wait for the SE's confirmation before proceeding to Stage 1.**
+
+---
+
 ## Stage 1: Org Setup
 
 Run `sf config get target-org --json` and `sf org display --json`. Extract alias and username.
@@ -61,9 +78,7 @@ Run `sf config get target-org --json` and `sf org display --json`. Extract alias
 Output all three of these in a single response, then wait for the SE's reply:
 > "Active org: [alias] ([username]). Right org, or switch? (run /switch-org)
 >
-> Which customer is this demo for? I'll use this to name the org folder and spec files (e.g. 'makana-medtech').
->
-> ⚠️ Scout sparring mode is designed for Opus 4.6. If you're not already on Opus, run `/model opus` now — your conversation history is preserved."
+> Which customer is this demo for? I'll use this to name the org folder and spec files (e.g. 'makana-medtech')."
 
 Wait for the SE's reply, then continue. Convert to lowercase-hyphenated format (e.g. "Deutsche Fachpflege" → `deutsche-fachpflege`).
 

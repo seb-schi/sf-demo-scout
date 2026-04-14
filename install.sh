@@ -151,11 +151,31 @@ append_if_missing() {
   fi
 }
 
+# Bedrock essentials (Embark guide Step 6 — catch SEs who skipped it)
+append_if_missing "AWS_PROFILE" "export AWS_PROFILE=claude"
+append_if_missing "CLAUDE_CODE_USE_BEDROCK" "export CLAUDE_CODE_USE_BEDROCK=1"
+append_if_missing "AWS_REGION" "export AWS_REGION=us-west-2"
+
+# Claude Code configuration
 append_if_missing "CLAUDE_CODE_MAX_OUTPUT_TOKENS" "export CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192"
 append_if_missing "MAX_THINKING_TOKENS" "export MAX_THINKING_TOKENS=1024"
+
+# Model aliases
 append_if_missing "ANTHROPIC_DEFAULT_OPUS_MODEL" "export ANTHROPIC_DEFAULT_OPUS_MODEL=us.anthropic.claude-opus-4-6-v1"
 append_if_missing "ANTHROPIC_DEFAULT_SONNET_MODEL" "export ANTHROPIC_DEFAULT_SONNET_MODEL=us.anthropic.claude-sonnet-4-6"
 append_if_missing "ANTHROPIC_DEFAULT_HAIKU_MODEL" "export ANTHROPIC_DEFAULT_HAIKU_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0"
+
+# Warn about common issues
+if grep -q "ANTHROPIC_MODEL" "$ZSHRC" 2>/dev/null; then
+  echo "  ⚠️  Found ANTHROPIC_MODEL in .zshrc — this is not a Claude Code variable."
+  echo "     The default model is set via ANTHROPIC_DEFAULT_SONNET_MODEL."
+  echo "     Remove the ANTHROPIC_MODEL line from ~/.zshrc"
+fi
+
+if [ "$(grep -c "CLAUDE_CODE_MAX_OUTPUT_TOKENS" "$ZSHRC" 2>/dev/null)" -gt 1 ]; then
+  echo "  ⚠️  CLAUDE_CODE_MAX_OUTPUT_TOKENS appears more than once in .zshrc."
+  echo "     Keep only one: export CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192"
+fi
 
 # If MAX_OUTPUT_TOKENS was previously set to 4096, bump it
 sed -i '' 's/CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096/CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192/' "$ZSHRC" 2>/dev/null || true

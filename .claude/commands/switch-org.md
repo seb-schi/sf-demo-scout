@@ -1,6 +1,6 @@
 ---
 description: Switch to a different Salesforce demo org.
-allowed-tools: Bash, Read, Edit, mcp__Salesforce_DX__run_soql_query
+allowed-tools: Bash, Read, mcp__Salesforce_DX__run_soql_query
 ---
 
 Switch to a different Salesforce demo org. Follow these steps:
@@ -31,11 +31,7 @@ Switch to a different Salesforce demo org. Follow these steps:
    - Org ID (18-char): from the `id` field
    - Instance URL: from the `instanceUrl` field
 
-6. Update the `## Org` section in CLAUDE.md with the new alias, username, org ID, and instance URL.
-   Note: CLAUDE.md is documentation only — all slash commands read org identity from
-   `sf config get target-org` at runtime. This update is for human reference.
-
-7. Check for existing org folders:
+6. Check for existing org folders:
    ```
    ls -d orgs/[chosen-alias]-*/ 2>/dev/null
    ```
@@ -44,7 +40,7 @@ Switch to a different Salesforce demo org. Follow these steps:
    - If no folders exist: tell the SE:
      "No customer folders for this org yet. Run /scout-sparring — it will create one when you name the customer."
 
-8. Verify MCP connectivity against the new org:
+7. Verify MCP connectivity against the new org:
 
    Call `run_soql_query` with: `SELECT Id, Name FROM Organization LIMIT 1`
 

@@ -1,13 +1,13 @@
 ---
-description: Connect your demo org and update config. Run once after cloning the repo.
-allowed-tools: Bash, Read, Write, Edit, mcp__Salesforce_DX__list_all_orgs
+description: Connect your demo org. Run once after cloning the repo.
+allowed-tools: Bash, Read, Write, mcp__Salesforce_DX__list_all_orgs
 ---
 
 # SF Demo Prep — Org Setup
 
 You are completing the one-time org setup for a Salesforce Solutions Engineer.
 The project files are already in place from the GitHub clone. Your job is to:
-connect the demo org and fill in CLAUDE.md with real org details.
+connect the demo org and verify the connection.
 
 Do not create or overwrite any existing config files. They are already correct.
 
@@ -59,22 +59,7 @@ Extract and store:
 - `id` (this is the Org ID — use the full 18-char value)
 - `instanceUrl`
 
-## Step 4: Update CLAUDE.md
-
-Open `CLAUDE.md` and replace the placeholder values in the `## Org` block:
-- `[YOUR ORG USERNAME]` → the username from Step 3
-- `[YOUR ORG ID]` → the org ID from Step 3
-- `[YOUR ORG INSTANCE URL]` → the instance URL from Step 3
-
-Do not change anything else in CLAUDE.md.
-
-Confirm the update by reading back the `## Org` section to the SE.
-
-Note: the CLAUDE.md Org section is documentation only — all slash commands read
-org identity from `sf config get target-org` at runtime. CLAUDE.md is not used
-as a config source.
-
-## Step 5: Show Setup Summary
+## Step 4: Show Setup Summary
 
 Print this summary to the terminal:
 

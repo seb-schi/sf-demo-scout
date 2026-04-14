@@ -1,13 +1,10 @@
 # SF Demo Prep — Claude Code Instructions
 
 ## Org
-> **Documentation only.** All slash commands read org identity from `sf config get target-org`
-> at runtime. These values are for human reference only.
+> Org identity is read from `sf config get target-org` at runtime.
+> Session startup displays the active org, username, and connection status.
+> No manual configuration needed — run /setup-demo-scout to connect an org.
 
-- Alias: [ORG ALIAS]
-- Username: [YOUR USER NAME]
-- Org ID: [YOUR ORG ID]
-- Instance: https://[YOUR ORG INSTANCE].my.salesforce.com
 - Type: Personal demo org — destructive operations permitted with prior explanation
 
 ## MCP Tools

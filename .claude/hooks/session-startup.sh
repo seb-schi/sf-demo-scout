@@ -32,8 +32,14 @@ else
   ORG_DISPLAY=$(sf org display --target-org "$DEFAULT_ORG" --json 2>/dev/null)
   if [ -n "$ORG_DISPLAY" ]; then
     USERNAME=$(echo "$ORG_DISPLAY" | grep -o '"username":"[^"]*"' | head -1 | cut -d'"' -f4)
+    ORG_ID=$(echo "$ORG_DISPLAY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    INSTANCE_URL=$(echo "$ORG_DISPLAY" | grep -o '"instanceUrl":"[^"]*"' | head -1 | cut -d'"' -f4)
 
-    OUTPUT+="## ✅ Active org: $DEFAULT_ORG ($USERNAME)\n"
+    OUTPUT+="## ✅ Active Org\n"
+    OUTPUT+="- **Alias:** $DEFAULT_ORG\n"
+    OUTPUT+="- **Username:** $USERNAME\n"
+    OUTPUT+="- **Org ID:** $ORG_ID\n"
+    OUTPUT+="- **Instance:** $INSTANCE_URL\n"
     OUTPUT+="$ORG_COUNT org(s) available. Switch: /switch-org\n\n"
 
     # --- 3. Org Folder + Audit Check ---
@@ -71,12 +77,8 @@ else
   fi
 fi
 
-# --- 4. CLAUDE.md Placeholder Check ---
-if [ -f "CLAUDE.md" ]; then
-  if grep -q "\[YOUR ORG USERNAME\]" CLAUDE.md 2>/dev/null; then
-    OUTPUT+="## ⚠️ CLAUDE.md still has placeholder org details. Run /setup-demo-scout.\n\n"
-  fi
-else
+# --- 4. CLAUDE.md Presence Check ---
+if [ ! -f "CLAUDE.md" ]; then
   OUTPUT+="## ⚠️ No CLAUDE.md found. Are you in the sf-demo-prep project directory?\n\n"
 fi
 
