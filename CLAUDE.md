@@ -4,8 +4,8 @@
 > **Documentation only.** All slash commands read org identity from `sf config get target-org`
 > at runtime. These values are for human reference only.
 
-- Alias: [DEMO ORG ALIAS]
-- Username: [YOUR ORG USER NAME]
+- Alias: [ORG ALIAS]
+- Username: [YOUR USERNAME]
 - Org ID: [YOUR ORG ID]
 - Instance: https://[YOUR ORG INSTANCE].my.salesforce.com
 - Type: Personal demo org — destructive operations permitted with prior explanation

@@ -19,7 +19,7 @@ If MCP unavailable: "Check .mcp.json is in the project root and restart VS Code.
 ## Required Content
 
 ### Standard Objects in Use
-For each standard object relevant to HLS demos (Account, Contact, Opportunity, Case, Lead, and any others present):
+For each standard object commonly used in demos (Account, Contact, Opportunity, Case, Lead, and any others present):
 - Label and API name
 - Record count
 - Record types available
@@ -59,7 +59,7 @@ For each standard object relevant to HLS demos (Account, Contact, Opportunity, C
 - If any: name, topics, active/inactive status
 
 ### Notable Gaps and Risks
-- Fields or relationships missing from active layouts that would be needed for HLS scenarios
+- Fields or relationships missing from active layouts that would be needed for the demo scenario
 - Objects with no records (data seeding required)
 - Managed package components (prefixed) that cannot be modified
 - Execution order conflicts from existing active flows

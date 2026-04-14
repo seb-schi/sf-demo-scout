@@ -1,3 +1,8 @@
+---
+description: Switch to a different Salesforce demo org.
+allowed-tools: Bash, Read, Edit, mcp__Salesforce_DX__run_soql_query
+---
+
 Switch to a different Salesforce demo org. Follow these steps:
 
 1. Run `sf org list` to show all available orgs
@@ -39,7 +44,18 @@ Switch to a different Salesforce demo org. Follow these steps:
    - If no folders exist: tell the SE:
      "No customer folders for this org yet. Run /scout-sparring — it will create one when you name the customer."
 
-8. Confirm the switch:
-   > "Switched to [alias] ([username]).
-   > ⚠️ Restart VS Code now (CMD+Q) — the MCP server only picks up org changes on startup.
-   > Once restarted, run /scout-sparring to start sparring against this org."
+8. Verify MCP connectivity against the new org:
+
+   Call `run_soql_query` with: `SELECT Id, Name FROM Organization LIMIT 1`
+
+   - If the returned Id matches the Org ID from step 5 → MCP is already pointing to the new org:
+     > "Switched to [alias] ([username]). MCP verified — ready to go.
+     > Run /scout-sparring to start sparring against this org."
+   - If the returned Id does NOT match → MCP is still on the old org:
+     > "Switched to [alias] ([username]).
+     > ⚠️ MCP is still connected to the previous org. Restart VS Code now (CMD+Q) — the MCP server only picks up org changes on startup.
+     > Once restarted, run /scout-sparring to start sparring against this org."
+   - If MCP fails or times out:
+     > "Switched to [alias] ([username]).
+     > ⚠️ MCP is not responding. Restart VS Code now (CMD+Q) to initialize the MCP connection.
+     > Once restarted, run /scout-sparring to start sparring against this org."
