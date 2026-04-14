@@ -65,18 +65,18 @@ Pipeline change history lives in `pipeline-changes/`:
 
 Skills are domain-specific instruction sets loaded on demand by commands. They keep `CLAUDE.md` lean (under 100 lines) while giving each command deep context.
 
-**Scout skills** (demo loop):
-- `scout-lessons` — accumulated sparring/building lessons
-- `scout-deployment-rules` — gates for Flows, Apex, LWC, Agentforce
-- `scout-org-audit` — audit format and procedure
-- `scout-change-log` — change log template
-- `scout-spec-format` — spec output format
+**Scout reference skills** (internal — loaded by commands, not user-invocable):
+- `_scout-lessons` — accumulated sparring/building lessons
+- `_scout-deployment-rules` — gates for Flows, Apex, LWC, Agentforce
+- `_scout-org-audit` — audit format and procedure
+- `_scout-change-log` — change log template
+- `_scout-spec-format` — spec output format
 
-**Pipeline skills:**
-- `pipeline-lessons` — pipeline architecture lessons
+**Pipeline reference skills** (internal):
+- `_pipeline-lessons` — pipeline architecture lessons
 
 **Community skills** (installed by `install.sh`):
-- `sf-flow`, `sf-metadata`, `sf-permissions`, `sf-deploy`, `sf-apex`, `sf-soql`, `sf-data`, `sf-debug`, `sf-ai-agentforce` — from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills)
+- `sf-flow`, `sf-metadata`, `sf-permissions`, `sf-deploy`, `sf-apex`, `sf-soql`, `sf-data`, `sf-debug` — from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills)
 - `developing-agentforce`, `testing-agentforce`, `observing-agentforce` — from [SalesforceAIResearch/agentforce-adlc](https://github.com/SalesforceAIResearch/agentforce-adlc)
 
 ## How it connects to Salesforce

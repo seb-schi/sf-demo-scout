@@ -19,7 +19,7 @@ Push back hard during sparring — this is where the quality of the demo is deci
 
 ## Before You Start
 
-Read @.claude/skills/scout-lessons/SKILL.md — focus on the **Sparring Lessons** section. These are mistakes from previous sessions. Do not repeat them.
+Read @.claude/skills/_scout-lessons/SKILL.md — focus on the **Sparring Lessons** section. These are mistakes from previous sessions. Do not repeat them.
 
 ## Objective
 
@@ -36,9 +36,9 @@ SDO and IDO orgs already have significant metadata installed. The default approa
 
 **Default assumption:** every entity in the scenario maps to an existing standard object unless the SE names a domain concept that has no structural equivalent in any standard or installed object. If you find yourself proposing a new custom object, state which existing object you considered first and why it was insufficient. Make this reasoning visible in the spec.
 
-**Claude Code can build:** custom fields on standard or custom objects, record types, permission sets, Lightning app modifications, custom tabs, single-object data seeding, page layout field additions on active layouts, simple record-triggered flows, simple Apex, simple LWC, simple Agentforce agents (topics, actions, prompts).
+**Claude Code can build:** custom fields on standard or custom objects, record types, permission sets, Lightning app modifications, custom tabs, single-object data seeding, page layout field additions on active layouts, simple record-triggered flows, simple Apex, simple LWC, Agentforce agents via Agent Script (topics, actions, backing Apex, publish, activate, preview testing). Agentforce is a first-class deployment option — proactively suggest it when the scenario involves account-level data retrieval, knowledge lookup, rep enablement, or customer self-service. Existing agents can be modified with version-based rollback.
 
-**SE builds manually:** screen/scheduled/multi-object flows, subflows, page layout visual arrangement, OmniStudio, reports/dashboards, complex Apex/LWC, Agentforce conversation design/persona/testing, multi-agent orchestration.
+**SE builds manually:** screen/scheduled/multi-object flows, subflows, page layout visual arrangement, OmniStudio, reports/dashboards, complex Apex/LWC, multi-agent orchestration, Agentforce channel assignment, production-scale agent test suites.
 
 ---
 
@@ -71,7 +71,7 @@ Wait for the SE's reply, then continue. Convert to lowercase-hyphenated format (
 - Exists → show most recent audit age, ask: use existing or fresh?
 - Doesn't exist → create folder, run audit immediately
 
-**Run audit** per @.claude/skills/scout-org-audit/SKILL.md
+**Run audit** per @.claude/skills/_scout-org-audit/SKILL.md
 
 After the audit, explicitly surface the ★-flagged items to the SE:
 > "Primary build surface for this org:
@@ -99,7 +99,7 @@ Ask max 5 clarifying questions:
 
 ## Stage 3: Scenario Definition
 
-Propose exactly 1 scenario: name, 2-sentence business story, core capability, why it addresses the #1 pain point, what exists vs what must be built, conflicts, whether LWC or Agentforce would strengthen the demo (only if justified), assumptions, risks.
+Propose exactly 1 scenario: name, 2-sentence business story, core capability, why it addresses the #1 pain point, what exists vs what must be built, conflicts, whether LWC or Agentforce would strengthen the demo, assumptions, risks. Actively evaluate whether an Agentforce agent would strengthen the demo — if the scenario involves data retrieval, account intelligence, guided processes, or rep enablement, propose an agent and explain why. Do not default Agentforce to the SE Manual Checklist when it can be deployed via Agent Script.
 
 **Existing-first evaluation (mandatory before proposing any new metadata):**
 - Which parts of this scenario can be delivered by customising existing objects and layouts?
@@ -133,7 +133,7 @@ Once both gates are cleared, proceed to spec generation.
 
 ## Stage 4: Spec Generation
 
-Write spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md` using the template in @.claude/skills/scout-spec-format/SKILL.md
+Write spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md` using the template in @.claude/skills/_scout-spec-format/SKILL.md
 
 HHmm = local time at spec creation (e.g. 0930, 1445). This prevents silent overwrites when sparring runs multiple times in a day for the same customer.
 

@@ -5,7 +5,7 @@
 > at runtime. These values are for human reference only.
 
 - Alias: [ORG ALIAS]
-- Username: [YOUR USERNAME]
+- Username: [YOUR USER NAME]
 - Org ID: [YOUR ORG ID]
 - Instance: https://[YOUR ORG INSTANCE].my.salesforce.com
 - Type: Personal demo org — destructive operations permitted with prior explanation
@@ -33,7 +33,7 @@ Fall back to `sf` CLI if MCP is unavailable.
 - Simple LWC — SE confirmation required
 - Simple Agentforce agents — SE confirmation required
 
-**Before deploying Flows, Apex, LWC, or Agentforce:** read @.claude/skills/scout-deployment-rules/SKILL.md
+**Before deploying Flows, Apex, LWC, or Agentforce:** read @.claude/skills/_scout-deployment-rules/SKILL.md
 
 ## NEVER Without Explicit SE Confirmation
 - Delete existing metadata or records
@@ -69,8 +69,8 @@ sf data create record --sobject PermissionSetAssignment --values "PermissionSetI
 
 ## File Locations
 - Per-org history: `orgs/[alias]-[customer]/` (audits, change logs, specs)
-- Lessons learned: @.claude/skills/scout-lessons/SKILL.md
-- Deployment rules: @.claude/skills/scout-deployment-rules/SKILL.md
-- Org audit format: @.claude/skills/scout-org-audit/SKILL.md
-- Change log template: @.claude/skills/scout-change-log/SKILL.md
-- Spec output format: @.claude/skills/scout-spec-format/SKILL.md
+- Lessons learned: @.claude/skills/_scout-lessons/SKILL.md
+- Deployment rules: @.claude/skills/_scout-deployment-rules/SKILL.md
+- Org audit format: @.claude/skills/_scout-org-audit/SKILL.md
+- Change log template: @.claude/skills/_scout-change-log/SKILL.md
+- Spec output format: @.claude/skills/_scout-spec-format/SKILL.md

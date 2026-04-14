@@ -12,8 +12,8 @@ allowed-tools: Read, Grep, Glob, Write, Edit, Bash, mcp__Salesforce_DX__retrieve
 
 # Scout Building — Sonnet 4.6 Org Deployment
 
-Before deploying any Flows, Apex, LWC, or Agentforce: read @.claude/skills/scout-deployment-rules/SKILL.md
-Read @.claude/skills/scout-lessons/SKILL.md — focus on the **Building Lessons** section. Do not repeat known mistakes.
+Before deploying any Flows, Apex, LWC, or Agentforce: read @.claude/skills/_scout-deployment-rules/SKILL.md
+Read @.claude/skills/_scout-lessons/SKILL.md — focus on the **Building Lessons** section. Do not repeat known mistakes.
 
 ## Deployment Philosophy
 
@@ -135,7 +135,9 @@ osascript -e 'display notification "[plain English description of what will be d
 
 Wait for answer. If yes, deploy the full category autonomously — no further confirmations within that category. If no, add to SE Manual Checklist and continue.
 
-Follow @.claude/skills/scout-deployment-rules/SKILL.md for all gated operations.
+**Agentforce deploys last.** The ADLC skills (`developing-agentforce`, `testing-agentforce`) are large and consume significant context. Always complete all org config (fields, layouts, data, flows, permissions) before starting any Agentforce deployment. If context is already heavy after org config, write a partial change log and tell the SE to start a fresh session for the agent work.
+
+Follow @.claude/skills/_scout-deployment-rules/SKILL.md for all gated operations.
 
 If context is getting long, save partial progress to
 `orgs/[alias]-[customer]/changes-[YYYY-MM-DD]-[HHmm]-[CUSTOMER]-partial.md`
@@ -145,7 +147,7 @@ and tell the SE to start a fresh session.
 
 ## Step 8: Write Change Log
 
-Use the template in @.claude/skills/scout-change-log/SKILL.md
+Use the template in @.claude/skills/_scout-change-log/SKILL.md
 
 Fire a final notification when complete:
 ```bash

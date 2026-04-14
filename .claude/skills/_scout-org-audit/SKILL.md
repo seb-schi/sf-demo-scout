@@ -1,5 +1,5 @@
 ---
-name: scout-org-audit
+name: _scout-org-audit
 description: >
   Format and procedure for auditing a Salesforce demo org.
   Used by /scout-sparring and /setup-demo-scout.

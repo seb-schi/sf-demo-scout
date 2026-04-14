@@ -96,7 +96,7 @@ echo "🔍 Installing Salesforce skills..."
 SKILLS_BASE_URL="https://raw.githubusercontent.com/Jaganpro/sf-skills/main/skills"
 SKILLS_DIR="$REPO_DIR/.claude/skills"
 
-for SKILL in sf-flow sf-metadata sf-permissions sf-deploy sf-apex sf-soql sf-data sf-debug sf-ai-agentforce; do
+for SKILL in sf-flow sf-metadata sf-permissions sf-deploy sf-apex sf-soql sf-data sf-debug; do
   echo "  📦 Installing $SKILL..."
   mkdir -p "$SKILLS_DIR/$SKILL"
   if curl -fsSL "$SKILLS_BASE_URL/$SKILL/SKILL.md" -o "$SKILLS_DIR/$SKILL/SKILL.md"; then

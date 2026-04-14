@@ -1,5 +1,5 @@
 ---
-name: scout-deployment-rules
+name: _scout-deployment-rules
 description: >
   Rules for deploying Flows, Apex, LWC, Agentforce, and Page Layouts in SF Demo Prep.
   Read before deploying any of these metadata types.
@@ -99,21 +99,51 @@ Wait for confirmation. If yes, proceed autonomously:
 
 ## Agentforce Rules
 
-Scope: single agent, topic-based routing. No multi-agent orchestration, no custom model config.
-Allowed metadata: `GenAiPlanner`, `GenAiPlugin`, `GenAiFunction`, `BotDefinition`, `PromptTemplate`.
+Two paths depending on whether the agent is new or existing. Both use the ADLC skill suite (`developing-agentforce`, `testing-agentforce`, `observing-agentforce`). Deploy Agentforce **last** in any session — the ADLC skills are large and consume significant context.
+
+**Context check:** Before loading any Agentforce skill, assess remaining context. If the session has already deployed org config (fields, layouts, data, flows, permissions), write a partial change log first. If context is tight, save the partial log and tell the SE to start a fresh session for the agent deployment.
+
+### New Agent (Agent Script path)
+
+Scope: single agent, topic-based routing with Apex or Flow backing actions.
 
 **Before deploying, fire notification and ask:**
 ```bash
-osascript -e 'display notification "About to deploy Agentforce agent: [AgentName] — [plain English description]" with title "SF Demo Scout — Input Needed"'
+osascript -e 'display notification "About to deploy new Agentforce agent: [AgentName] — [plain English description]" with title "SF Demo Scout — Input Needed"'
 ```
-> "About to deploy: [plain English description of agent scope, topics, actions]. Proceed? (yes/no)"
+> "About to deploy new agent: [plain English description of agent scope, topics, actions]. Proceed? (yes/no)"
 
 Wait for confirmation. If yes, proceed autonomously:
-1. Read `.claude/skills/sf-ai-agentforce/SKILL.md` before generating agent metadata
-2. Check for existing agents/topics via MCP `retrieve_metadata` — flag conflicts in change log
+1. Load `developing-agentforce` skill — follow its "Create an Agent" workflow
+2. Check for existing agents via MCP `retrieve_metadata` — flag conflicts in change log
 3. Run `run_code_analyzer` on Apex backing actions (if MCP available)
-4. Rollback:
-   - `sf project delete source --metadata GenAiPlanner:[PlannerName] --target-org [alias]`
-   - `sf project delete source --metadata BotDefinition:[BotName] --target-org [alias]`
+4. Validate via `sf agent validate authoring-bundle` before publishing
+5. Preview with `sf agent preview` and live actions before publishing
+6. Publish, then activate
+7. Rollback:
+   - New agent: `sf project delete source --metadata AiAuthoringBundle:[AgentName] --target-org [alias]`
+   - Backing Apex: `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]`
 
-**Always SE Manual Checklist:** multi-agent orchestration, custom model/LLM config, conversation design, persona tuning, agent testing.
+### Modify Existing Agent (version-safe path)
+
+For agents already in the org (e.g., SDO/IDO pre-installed agents). Uses Agent Script — retrieve the existing agent, comprehend it, modify, publish as a new version.
+
+**Before deploying, fire notification and ask:**
+```bash
+osascript -e 'display notification "About to modify existing agent: [AgentName] (currently v[N]) — [plain English description]" with title "SF Demo Scout — Input Needed"'
+```
+> "⚠️ About to modify existing agent [AgentName] (currently v[N]). This agent may be part of pre-installed demo scenarios. Changes will publish as v[N+1]. Rollback: `sf agent activate --api-name [AgentName] --version-number [N]`. Proceed? (yes/no)"
+
+Wait for confirmation. If yes, proceed autonomously:
+1. Load `developing-agentforce` skill — follow its "Modify an Existing Agent" workflow
+2. Note the current active version number before any changes (rollback target)
+3. Comprehend existing agent structure, update Agent Spec
+4. Validate and preview before publishing
+5. Publish (creates new version), then activate
+6. Rollback: `sf agent deactivate --json --api-name [AgentName]` then `sf agent activate --json --api-name [AgentName] --version-number [N]`
+
+### Always SE Manual Checklist
+- Multi-agent orchestration
+- Custom model/LLM config
+- Channel assignment and configuration
+- Production-scale test suites
