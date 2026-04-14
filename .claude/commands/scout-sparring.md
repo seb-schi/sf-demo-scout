@@ -1,10 +1,10 @@
 ---
 name: scout-sparring
 description: >
-  Opus 4.6 discovery sparring partner for Salesforce demo preparation.
-  Use when the SE has discovery notes, transcripts, or customer context
-  and needs to develop a focused demo scenario. Produces a structured
-  spec for /scout-building to deploy. Activate with /scout-sparring.
+  Opus 4.6 sparring partner for Salesforce demo preparation.
+  Handles both new scenario discovery and targeted iterations on existing demos.
+  Produces a structured spec for /scout-building to deploy.
+  Activate with /scout-sparring.
 model: opus
 allowed-tools: Read, Grep, Glob, Write, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs
 ---
@@ -24,6 +24,7 @@ Read @.claude/skills/_demo-lessons/SKILL.md — focus on the **Sparring Lessons*
 ## Objective
 
 Transform discovery inputs into 1 executable demo scenario spec. Depth over breadth.
+For iterations: transform a targeted change request into a spec that integrates cleanly with prior work.
 
 ## Build Philosophy — Existing First
 
@@ -42,11 +43,11 @@ SDO and IDO orgs already have significant metadata installed. The default approa
 
 ---
 
-## Stage 0: Environment Check
+## Stage 1: Environment Check
 
 Run a single MCP probe to confirm connectivity:
 - Call `run_soql_query` with: `SELECT Id FROM Organization LIMIT 1`
-- If it returns a result → MCP is active, proceed to Stage 1
+- If it returns a result → MCP is active, proceed to Stage 2
 - If it fails or times out → warn the SE:
   > "⚠️ MCP is not responding. Quit VS Code fully (CMD+Q), reopen, and run /scout-sparring again.
   > If this persists, check that .mcp.json exists in the project root."
@@ -54,7 +55,7 @@ Run a single MCP probe to confirm connectivity:
 
 ---
 
-## Stage 0.5: Model Gate
+## Stage 2: Model Gate
 
 Fire a macOS notification:
 ```bash
@@ -67,37 +68,67 @@ Then output as a standalone message:
 >
 > Confirm you're on Opus before we continue. (yes)"
 
-**Wait for the SE's confirmation before proceeding to Stage 1.**
+**Wait for the SE's confirmation before proceeding to Stage 3.**
 
 ---
 
-## Stage 1: Org Setup
+## Stage 3: Org Setup & Intent
 
 Run `sf config get target-org --json` and `sf org display --json`. Extract alias and username.
 
-Output all three of these in a single response, then wait for the SE's reply:
+Output as a single message, then wait for the SE's reply:
 > "Active org: [alias] ([username]). Right org, or switch? (run /switch-org)
 >
-> Which customer is this demo for? I'll use this to name the org folder and spec files (e.g. 'makana-medtech')."
+> Which customer is this for, and what brings you in today?"
 
-Wait for the SE's reply, then continue. Convert to lowercase-hyphenated format (e.g. "Deutsche Fachpflege" → `deutsche-fachpflege`).
+Wait for the SE's reply. Convert the customer name to lowercase-hyphenated format (e.g. "Deutsche Fachpflege" → `deutsche-fachpflege`).
 
 **Org folder:** `orgs/[alias]-[customer]/`
-- Exists → show most recent audit age, ask: use existing or fresh?
-- Doesn't exist → create folder, run audit immediately
 
-**Run audit** per @.claude/skills/_demo-org-audit/SKILL.md
+---
 
-After the audit, explicitly surface the ★-flagged items to the SE:
+## Stage 4: Intent Classification & Audit Routing
+
+Based on the SE's response to "what brings you in today?", classify the intent.
+
+**New scenario indicators:** discovery notes, transcripts, new customer, "new demo," "starting fresh," broad scope, multiple capabilities mentioned, no reference to existing work.
+
+**Iteration indicators:** references existing demo, names a specific component to add/change, "add an agent," "update the fields," "iterate," mentions a prior session or existing setup.
+
+**If ambiguous:** ask a single follow-up: "Are you building on an existing demo for this customer, or starting a new scenario from scratch?"
+
+### Audit Routing
+
+Check `orgs/[alias]-[customer]/` for existing audits and change logs.
+
+**If recent audit exists (≤7 days old):**
+> "Last audit was [N] days ago ([audit filename]). Have you made significant changes to this org outside Scout since then?"
+- SE says no → reuse existing audit
+- SE says yes → run fresh audit
+
+**If audit exists but is stale (>7 days old):**
+> "Last audit is [N] days old. I'll run a fresh one unless nothing's changed — skip the audit?"
+- Default: run fresh audit
+- SE explicitly says skip → reuse (respect SE judgment)
+
+**If no audit exists:**
+Read `.claude/skills/_demo-org-audit/SKILL.md` for the format and procedure, then run the audit immediately — no question asked.
+
+After the audit (fresh or reused), surface the ★-flagged items:
 > "Primary build surface for this org:
 > ★ Default app: [app name]
 > ★ Active layouts: [object → layout name, per record type]
 > ★ Relevant custom objects: [if any]
 > We'll build into these unless you tell me otherwise."
 
+### Route
+
+- **New scenario** → proceed to Stage 5 (Full Discovery)
+- **Iteration** → proceed to Stage 5i (Iteration Discovery)
+
 ---
 
-## Stage 2: Discovery Analysis
+## Stage 5: Full Discovery
 
 Produce a structured summary: customer profile, key pain points (direct quotes), stakeholders, competitive context, gaps.
 
@@ -110,9 +141,37 @@ Ask max 5 clarifying questions:
 
 **Stop and wait for answers.**
 
+Then proceed to Stage 6.
+
 ---
 
-## Stage 3: Scenario Definition
+## Stage 5i: Iteration Discovery
+
+Review the most recent audit, prior specs, and change logs for this org. Understand what's already built before asking anything.
+
+Ask these three questions in a single message:
+1. **What are you adding or changing?** Be specific — "add an Agentforce agent for case triage," not "improve the demo."
+2. **Why now?** Customer feedback, new stakeholder, demo gap, competitive pressure — what's driving this?
+3. **Which part of the existing demo does this connect to?** Where in the demo flow does this appear?
+
+**Stop and wait for answers.**
+
+If the SE's answers are vague ("just add an agent" / "because I want one" / "it's standalone"), push back: "Which customer moment does this serve? If you can't name the moment, it'll feel bolted-on in the demo."
+
+### Delta Conflict Check
+
+After the SE answers, review the existing audit and any prior specs/change logs against the proposed change:
+- **Conflicts:** existing flows on the same object, field name collisions, layout crowding, permission set overlaps
+- **Quality evaluation:** does the existing setup make sense as a foundation? If the existing demo has obvious gaps or the proposed change doesn't connect to anything coherent, say so directly:
+  > "Before we add [proposed change] — I reviewed the current org state. [Problem with existing setup]. Adding this on top will [consequence]. Want to address that first, or proceed anyway?"
+
+Only surface genuine concerns — don't re-litigate prior decisions that are working fine.
+
+Then proceed to Stage 3i.
+
+---
+
+## Stage 6: Full Scenario Definition
 
 Propose exactly 1 scenario: name, 2-sentence business story, core capability, why it addresses the #1 pain point, what exists vs what must be built, conflicts, whether LWC or Agentforce would strengthen the demo, assumptions, risks. Actively evaluate whether an Agentforce agent would strengthen the demo — if the scenario involves data retrieval, account intelligence, guided processes, or rep enablement, propose an agent and explain why. Do not default Agentforce to the SE Manual Checklist when it can be deployed via Agent Script.
 
@@ -142,19 +201,40 @@ This forces a real prioritisation decision. If the SE cannot articulate what to 
 
 Wait for the answer. If the SE says "yes" without referencing specific customer statements or pain points from the discovery input, push back: "Which specific customer statement does this map to? I want to make sure we're not building for an assumed need."
 
-Once both gates are cleared, proceed to spec generation.
+Once both gates are cleared, proceed to Stage 7.
 
 ---
 
-## Stage 4: Spec Generation
+## Stage 6i: Iteration Definition
 
-Write spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md` using the template in @.claude/skills/_demo-spec-format/SKILL.md
+Propose the change: what gets built, what exists, what conflicts, what the SE does manually.
+
+Apply the same **existing-first evaluation** as Stage 3 — even a single new component should prefer extending existing metadata over creating new.
+
+**ONE GATE — send as a standalone message, then stop:**
+
+> "Walk me through the demo moment where this appears. What happens right before, and what does the customer see right after?"
+
+This forces integration thinking. If the SE can't place the change in a demo flow, say so: "If you can't describe what comes before and after, this change doesn't have a home in the demo yet. Let's figure out where it fits first."
+
+Once the gate is cleared, proceed to Stage 7.
+
+---
+
+## Stage 7: Spec Generation
+
+Read `.claude/skills/_demo-spec-format/SKILL.md` for the template, then write the spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md`
 
 HHmm = local time at spec creation (e.g. 0930, 1445). This prevents silent overwrites when sparring runs multiple times in a day for the same customer.
 
+**For iteration specs:** in the Customer Context section, add these fields:
+- **Iteration on:** [prior spec filename, or "pre-Scout setup" if no prior spec exists]
+- **Prior deployments:** [list change log filenames, or "none — org was configured manually"]
+
+This creates a traceable history without changing the spec template.
+
 **Confidence flagging** for every Salesforce feature:
-- Cite help.salesforce.com if possible
-- Mark [CONFIDENT — SE verify] if certain but can't cite
+- Mark [CONFIDENT — SE verify] if certain of the feature's behavior
 - Mark [UNVERIFIED — SE must confirm] if uncertain — these NEVER go in Claude Code Instructions
 
 ### Propose Lessons
@@ -164,6 +244,7 @@ Before telling the SE the spec is ready, review the session for moments where:
 - An existing-first evaluation caught you proposing unnecessary new metadata
 - A gate question revealed a gap in the SE's reasoning (or yours)
 - The audit surfaced something unexpected about the org
+- An iteration conflict check revealed quality issues with existing work
 
 If any of these occurred, propose 1-3 candidate lessons:
 

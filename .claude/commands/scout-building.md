@@ -5,7 +5,7 @@ description: >
   Loads a completed spec from /scout-sparring, cross-checks it against
   the org audit, flags conflicts, and deploys to the active Salesforce org.
   Activate with /scout-building.
-model: us.anthropic.claude-sonnet-4-6
+model: sonnet
 context: fork
 allowed-tools: Read, Grep, Glob, Write, Edit, Bash, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__deploy_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__assign_permission_set, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_DX__run_code_analyzer
 ---
@@ -137,7 +137,7 @@ Wait for answer. If yes, deploy the full category autonomously — no further co
 
 **Agentforce deploys last.** The ADLC skills (`developing-agentforce`, `testing-agentforce`) are large and consume significant context. Always complete all org config (fields, layouts, data, flows, permissions) before starting any Agentforce deployment. If context is already heavy after org config, write a partial change log and tell the SE to start a fresh session for the agent work.
 
-Follow @.claude/skills/_demo-deployment-rules/SKILL.md for all gated operations.
+Follow the deployment rules loaded above for all gated operations.
 
 If context is getting long, save partial progress to
 `orgs/[alias]-[customer]/changes-[YYYY-MM-DD]-[HHmm]-[CUSTOMER]-partial.md`

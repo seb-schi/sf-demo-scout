@@ -1,15 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(sf config:*)",
-      "Bash(mv: *)",
-      "Bash(sf org:*)",
-      "Bash(sf data:*)",
-      "Bash(sf project:*)",
-      "Bash(sf template:*)",
+      "Bash(sf config *)",
+      "Bash(sf org *)",
+      "Bash(sf data *)",
+      "Bash(sf project *)",
+      "Bash(sf template *)",
+      "Bash(sf agent *)",
       "Bash(osascript -e *)",
       "Bash(ls *)",
       "Bash(mv *)",
+      "Bash(mkdir *)",
       "Bash(grep *)",
       "Bash(python3 *)",
       "Bash(python3)",
@@ -21,8 +22,8 @@
       "mcp__Salesforce_DX__list_all_orgs",
       "mcp__Salesforce_DX__run_code_analyzer",
       "mcp__Salesforce_DX__get_username",
-      "Edit(.claude/**)",
-      "Write(.claude/**)"
+      "Edit",
+      "Write"
     ]
   },
   "hooks": {
