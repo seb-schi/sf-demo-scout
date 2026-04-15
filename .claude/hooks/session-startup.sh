@@ -88,6 +88,7 @@ if git rev-parse --git-dir &>/dev/null; then
     LOCAL=$(git rev-parse HEAD 2>/dev/null)
     REMOTE=$(git rev-parse origin/main 2>/dev/null)
     if [ -n "$LOCAL" ] && [ -n "$REMOTE" ] && [ "$LOCAL" != "$REMOTE" ]; then
+      osascript -e 'display notification "SF Demo Scout has updates available. Run: git pull" with title "SF Demo Scout — Update Available"' 2>/dev/null
       OUTPUT+="## ⚠️ SF Demo Scout has updates available.\n"
       OUTPUT+="   Run: git pull — then restart VS Code to pick up the changes.\n\n"
     fi

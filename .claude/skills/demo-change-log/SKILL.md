@@ -1,5 +1,5 @@
 ---
-name: _demo-change-log
+name: demo-change-log
 description: >
   Template for the mandatory change log after every deployment.
   Used by /scout-building.

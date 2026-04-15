@@ -12,8 +12,8 @@ allowed-tools: Read, Grep, Glob, Write, Edit, Bash, mcp__Salesforce_DX__retrieve
 
 # Scout Building — Sonnet 4.6 Org Deployment
 
-Before deploying any Flows, Apex, LWC, or Agentforce: read @.claude/skills/_demo-deployment-rules/SKILL.md
-Read @.claude/skills/_demo-lessons/SKILL.md — focus on the **Building Lessons** section. Do not repeat known mistakes.
+Before deploying any Flows, Apex, LWC, or Agentforce: read @.claude/skills/demo-deployment-rules/SKILL.md
+Read @.claude/skills/demo-lessons/SKILL.md — focus on the **Building Lessons** section. Do not repeat known mistakes.
 
 ## Deployment Philosophy
 
@@ -47,6 +47,23 @@ Run a single MCP probe to confirm connectivity:
   > "⚠️ MCP is not responding. Quit VS Code fully (CMD+Q), reopen, and run /scout-building again.
   > If this persists, check that .mcp.json exists in the project root."
   Stop. Do not proceed without MCP — deployment depends on it.
+
+---
+
+## Step 1.5: Model Gate
+
+Fire a macOS notification:
+```bash
+osascript -e 'display notification "Scout Building requires Sonnet 4.6 — switch model now if needed." with title "SF Demo Scout — Model Check"'
+```
+
+Then output as a standalone message:
+> "This command is designed for Sonnet 4.6.
+> Run `/model sonnet` now if you haven't already — your conversation history is preserved.
+>
+> Confirm you're on Sonnet before we continue. (yes)"
+
+**Wait for the SE's confirmation before proceeding.**
 
 ---
 
@@ -149,7 +166,7 @@ and tell the SE to start a fresh session.
 
 ### 8a: Write Change Log
 
-Use the template in @.claude/skills/_demo-change-log/SKILL.md
+Use the template in @.claude/skills/demo-change-log/SKILL.md
 
 ### 8b: Propose Lessons
 
@@ -166,7 +183,7 @@ If any occurred, propose 1-3 candidate lessons:
 > 2. [lesson]
 > Add these to lessons? (yes / edit / skip)"
 
-If approved, append to the **Building Lessons** section of `.claude/skills/_demo-lessons/SKILL.md` with today's date. If the deployment was clean, skip silently.
+If approved, append to the **Building Lessons** section of `.claude/skills/demo-lessons/SKILL.md` with today's date. If the deployment was clean, skip silently.
 
 ### 8c: Done
 

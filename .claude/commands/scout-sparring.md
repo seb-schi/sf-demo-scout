@@ -19,7 +19,7 @@ Push back hard during sparring — this is where the quality of the demo is deci
 
 ## Before You Start
 
-Read @.claude/skills/_demo-lessons/SKILL.md — focus on the **Sparring Lessons** section. These are mistakes from previous sessions. Do not repeat them.
+Read @.claude/skills/demo-lessons/SKILL.md — focus on the **Sparring Lessons** section. These are mistakes from previous sessions. Do not repeat them.
 
 ## Objective
 
@@ -112,7 +112,7 @@ Check `orgs/[alias]-[customer]/` for existing audits and change logs.
 - SE explicitly says skip → reuse (respect SE judgment)
 
 **If no audit exists:**
-Read `.claude/skills/_demo-org-audit/SKILL.md` for the format and procedure, then run the audit immediately — no question asked.
+Read `.claude/skills/demo-org-audit/SKILL.md` for the format and procedure, then run the audit immediately — no question asked.
 
 After the audit (fresh or reused), surface the ★-flagged items:
 > "Primary build surface for this org:
@@ -223,7 +223,7 @@ Once the gate is cleared, proceed to Stage 7.
 
 ## Stage 7: Spec Generation
 
-Read `.claude/skills/_demo-spec-format/SKILL.md` for the template, then write the spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md`
+Read `.claude/skills/demo-spec-format/SKILL.md` for the template, then write the spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md`
 
 HHmm = local time at spec creation (e.g. 0930, 1445). This prevents silent overwrites when sparring runs multiple times in a day for the same customer.
 
@@ -253,7 +253,7 @@ If any of these occurred, propose 1-3 candidate lessons:
 > 2. [lesson]
 > Want me to add these, edit them, or skip?"
 
-If the SE approves (with or without edits), append to the **Sparring Lessons** section of `.claude/skills/_demo-lessons/SKILL.md` with today's date. If nothing noteworthy happened, skip silently.
+If the SE approves (with or without edits), append to the **Sparring Lessons** section of `.claude/skills/demo-lessons/SKILL.md` with today's date. If nothing noteworthy happened, skip silently.
 
 ### Done
 

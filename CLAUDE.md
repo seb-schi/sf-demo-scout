@@ -3,7 +3,7 @@
 ## Org
 > Org identity is read from `sf config get target-org` at runtime.
 > Session startup displays the active org, username, and connection status.
-> No manual configuration needed — run /switch-org to connect or change an org.
+> No manual configuration needed — run /switch-org to connect or change an org. Do NOT use /setup-demo-scout for org switching.
 
 - Type: Personal demo org — destructive operations permitted with prior explanation
 
@@ -30,7 +30,7 @@ Fall back to `sf` CLI if MCP is unavailable.
 - Simple LWC — SE confirmation required
 - Simple Agentforce agents — SE confirmation required
 
-**Before deploying Flows, Apex, LWC, or Agentforce:** read @.claude/skills/_demo-deployment-rules/SKILL.md
+**Before deploying Flows, Apex, LWC, or Agentforce:** read @.claude/skills/demo-deployment-rules/SKILL.md
 
 ## NEVER Without Explicit SE Confirmation
 - Delete existing metadata or records
@@ -66,8 +66,8 @@ sf data create record --sobject PermissionSetAssignment --values "PermissionSetI
 
 ## File Locations
 - Per-org history: `orgs/[alias]-[customer]/` (audits, change logs, specs)
-- Lessons learned: @.claude/skills/_demo-lessons/SKILL.md
-- Deployment rules: @.claude/skills/_demo-deployment-rules/SKILL.md
-- Org audit format: @.claude/skills/_demo-org-audit/SKILL.md
-- Change log template: @.claude/skills/_demo-change-log/SKILL.md
-- Spec output format: @.claude/skills/_demo-spec-format/SKILL.md
+- Lessons learned: @.claude/skills/demo-lessons/SKILL.md
+- Deployment rules: @.claude/skills/demo-deployment-rules/SKILL.md
+- Org audit format: @.claude/skills/demo-org-audit/SKILL.md
+- Change log template: @.claude/skills/demo-change-log/SKILL.md
+- Spec output format: @.claude/skills/demo-spec-format/SKILL.md

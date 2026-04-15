@@ -1,0 +1,27 @@
+---
+name: pipeline-lessons
+description: >
+  Accumulated lessons about the SF Demo Prep pipeline itself —
+  Claude Code constraints, file structure decisions, MCP quirks, and
+  slash command design. Loaded only by /project-sparring.
+  Add new lessons at the end of the section.
+---
+
+# Pipeline Lessons
+
+- 2026-04-13: CLAUDE.md should stay under 100 lines. Domain-specific instructions belong in skills loaded on demand, not in the root file.
+- 2026-04-13: Slash commands using `context: fork` run in isolated context windows — their length doesn't stack onto the main session. But they do load CLAUDE.md plus their own instructions, so total context at fork start matters.
+- 2026-04-13: MCP can't be tested from bash hooks — it lives inside Claude Code's runtime. Use a lightweight SOQL probe (`SELECT Id FROM Organization LIMIT 1`) as the first step of any slash command that depends on MCP.
+- 2026-04-13: `say` command speaks out loud through active audio output. Never use in distributed tooling — use `osascript` notifications only.
+- 2026-04-13: `.claude/agents/` defines subagents for CLI-driven sessions (`claude --agent <name>`), not for VS Code extension chat. The `model:` frontmatter in commands/skills only applies to the initial invocation, not subsequent messages. For model persistence in VS Code, use `/model <alias>` after invoking the command. The `/model` switch preserves full conversation history.
+- 2026-04-14: ~~WebFetch and WebSearch are Claude Code tools available to any command — they just need to be listed in `allowed-tools`. They're especially valuable for Opus commands (sparring, architect) where the context window can absorb the extra tokens and the model can judge when a lookup is worth the cost. Sonnet execution commands generally don't need them.~~ Superseded — see below.
+- 2026-04-14: WebFetch and WebSearch don't work on AWS Bedrock. WebFetch uses Haiku internally for content processing; Bedrock doesn't support on-demand Haiku invocations. Both tools were added and removed in the same day. If the provider ever changes to Anthropic API direct, re-add them — the integration worked at the tool level, only the infrastructure blocked it.
+- 2026-04-14: Auto mode (`--enable-auto-mode`) requires Anthropic API direct — not available on Bedrock, Vertex, or Foundry. The classifier runs server-side on Anthropic infrastructure. For Bedrock users, `bypassPermissions` is the closest alternative for reducing permission fatigue. Monitor Anthropic's release notes for Bedrock auto mode support.
+- 2026-04-14: `bypassPermissions` (formerly `--dangerously-skip-permissions`) is acceptable for demo org work where blast radius is low. The SE confirmation gates in deployment-rules are prompt-level, not permission-level — they remain enforced regardless of permission mode. This is the key safety layer for scout-building.
+- 2026-04-14: Prefer `permissions.allow` rules over `bypassPermissions` mode. Allow rules are persistent, targeted, and don't require the SE to remember a startup flag. They also survive session restarts. For this pipeline, pre-allowing all MCP tools + common Bash patterns eliminates prompts without disabling the permission system entirely. Put them in `.claude/settings.json` (committed, distributes with repo), not `settings.local.json` (gitignored, local only).
+- 2026-04-14: Bedrock blocks all Anthropic-hosted platform features: auto mode classifier, WebFetch/WebSearch Haiku sub-processor. The model itself works fine — it's the surrounding infrastructure that's missing. When evaluating new Claude Code features, check the provider requirements first. Monitor Anthropic release notes for Bedrock auto mode support — when it ships, it replaces `permissions.allow` as the primary permission strategy.
+- 2026-04-14: CLAUDE.md must not contain per-user editable values (org alias, username, etc.) — distributed users get merge conflicts on every `git pull`. Org identity lives in `sf config`; session-startup.sh bridges it into conversation context dynamically. Committed files must be stable templates that never change per-user.
+- 2026-04-14: Critical user actions (model switching, org confirmation) must be standalone blocking gates with osascript notifications — not lines embedded in multi-item output blocks. New users in VS Code are overwhelmed and will skip the third item in a three-item message every time.
+- 2026-04-14: Final bookkeeping steps (LOGs, change logs, lessons) must complete before the "done" signal to the SE. Sonnet treats SE interaction as a natural stopping point — any step that comes after the message saying "complete" or "done" will be skipped. Structure commands so the completion notification is always the last thing that fires, with all logging and bookkeeping as preceding substeps.
+- 2026-04-14: `permissions.allow` patterns for Bash match against the full command string using glob syntax. `Bash(sf config:*)` is wrong — the actual command uses spaces, not colons: `Bash(sf config *)`. Colon-separated patterns silently fail to match, causing unexpected permission prompts with no error message.
+- 2026-04-15: VS Code throws errors on `.claude/skills/` folder names with leading underscores. The `_demo-*` convention was chosen to visually separate internal skills from community skills, but it causes tooling issues. Use a plain prefix (`demo-`, `pipeline-`) instead — still visually distinct, no VS Code complaints.

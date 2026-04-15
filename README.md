@@ -17,7 +17,7 @@ cd ~/Projects/sf-demo-scout && bash install.sh
 
 The install script sets up Homebrew, Node.js, Python, Salesforce CLI, the SFDX project structure, community Salesforce skills, Agentforce ADLC skills, and shell environment variables for Claude Code model routing.
 
-After install, open the project in VS Code, start Claude Code, and run `/setup-demo-scout` to connect your first demo org and run an initial audit.
+After install, open the project in VS Code, start Claude Code, and run `/setup-demo-scout` to connect your first demo org.
 
 ## Demo Loop
 
@@ -32,7 +32,7 @@ Supporting commands:
 
 | Command | What it does |
 |---|---|
-| `/setup-demo-scout` | One-time setup: connects org, updates CLAUDE.md, runs first audit |
+| `/setup-demo-scout` | One-time setup: connects demo org |
 | `/switch-org` | Switch active demo org (re-authenticates, updates config) |
 
 ### What it deploys
@@ -66,14 +66,14 @@ Pipeline change history lives in `pipeline-changes/`:
 Skills are domain-specific instruction sets loaded on demand by commands. They keep `CLAUDE.md` lean (under 100 lines) while giving each command deep context.
 
 **Demo reference skills** (internal — loaded by commands, not user-invocable):
-- `_demo-lessons` — accumulated sparring/building lessons
-- `_demo-deployment-rules` — gates for Flows, Apex, LWC, Agentforce
-- `_demo-org-audit` — audit format and procedure
-- `_demo-change-log` — change log template
-- `_demo-spec-format` — spec output format
+- `demo-lessons` — accumulated sparring/building lessons
+- `demo-deployment-rules` — gates for Flows, Apex, LWC, Agentforce
+- `demo-org-audit` — audit format and procedure
+- `demo-change-log` — change log template
+- `demo-spec-format` — spec output format
 
 **Pipeline reference skills** (internal):
-- `_pipeline-lessons` — pipeline architecture lessons
+- `pipeline-lessons` — pipeline architecture lessons
 
 **Community skills** (installed by `install.sh`):
 - `sf-flow`, `sf-metadata`, `sf-permissions`, `sf-deploy`, `sf-apex`, `sf-soql`, `sf-data`, `sf-debug` — from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills)
