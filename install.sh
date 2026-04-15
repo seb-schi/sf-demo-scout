@@ -40,7 +40,26 @@ else
   echo "✅ Node.js found ($NODE_VERSION)."
 fi
 
-# --- 3. Python 3.9+ (required for Agentforce ADLC skills) ---
+# --- 3. Claude Code ---
+echo ""
+echo "🔍 Checking Claude Code..."
+if command -v claude &>/dev/null; then
+  CLAUDE_VERSION=$(claude --version 2>/dev/null | head -1)
+  echo "✅ Claude Code found ($CLAUDE_VERSION)."
+else
+  echo "📦 Claude Code not found. Installing..."
+  curl -fsSL https://claude.ai/install.sh | bash
+  # The installer puts the binary in ~/.local/bin
+  export PATH="$HOME/.local/bin:$PATH"
+  if command -v claude &>/dev/null; then
+    echo "✅ Claude Code installed."
+  else
+    echo "⚠️  Claude Code install may have failed. Try manually:"
+    echo "     curl -fsSL https://claude.ai/install.sh | bash"
+  fi
+fi
+
+# --- 4. Python 3.9+ (required for Agentforce ADLC skills) ---
 echo ""
 echo "🔍 Checking Python 3.9+..."
 if command -v python3 &>/dev/null; then
@@ -60,7 +79,7 @@ else
   echo "✅ Python 3.13 installed."
 fi
 
-# --- 4. Salesforce CLI ---
+# --- 5. Salesforce CLI ---
 echo ""
 echo "🔍 Checking Salesforce CLI..."
 if ! command -v sf &>/dev/null; then
@@ -72,7 +91,7 @@ else
   echo "✅ Salesforce CLI found ($SF_VERSION)."
 fi
 
-# --- 5. SFDX Project ---
+# --- 6. SFDX Project ---
 echo ""
 echo "🔍 Checking SFDX project..."
 if [ ! -f "$REPO_DIR/sfdx-project.json" ]; then
@@ -90,7 +109,7 @@ else
   echo "✅ SFDX project already exists."
 fi
 
-# --- 6. Salesforce Skills (Jaganpro/sf-skills) ---
+# --- 7. Salesforce Skills (Jaganpro/sf-skills) ---
 echo ""
 echo "🔍 Installing Salesforce skills..."
 SKILLS_BASE_URL="https://raw.githubusercontent.com/Jaganpro/sf-skills/main/skills"
@@ -107,7 +126,7 @@ for SKILL in sf-flow sf-metadata sf-permissions sf-deploy sf-apex sf-soql sf-dat
   fi
 done
 
-# --- 7. Agentforce ADLC Skills (SalesforceAIResearch/agentforce-adlc) ---
+# --- 8. Agentforce ADLC Skills (SalesforceAIResearch/agentforce-adlc) ---
 echo ""
 echo "🔍 Installing Agentforce ADLC skills..."
 ADLC_REPO="https://github.com/SalesforceAIResearch/agentforce-adlc.git"
@@ -136,7 +155,7 @@ done
 
 cd "$REPO_DIR"
 
-# --- 8. Shell Environment Variables ---
+# --- 9. Shell Environment Variables ---
 echo ""
 echo "🔍 Checking shell environment..."
 
@@ -150,6 +169,9 @@ append_if_missing() {
     echo "  ✅ Already set: $key"
   fi
 }
+
+# Claude Code PATH (installer puts binary in ~/.local/bin)
+append_if_missing 'PATH="$HOME/.local/bin' 'export PATH="$HOME/.local/bin:$PATH"'
 
 # Bedrock essentials (Embark guide Step 6 — catch SEs who skipped it)
 append_if_missing "AWS_PROFILE" "export AWS_PROFILE=claude"
@@ -182,7 +204,7 @@ sed -i '' 's/CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096/CLAUDE_CODE_MAX_OUTPUT_TOKENS=81
 
 source "$ZSHRC" 2>/dev/null || true
 
-# --- 9. session-startup.sh permissions ---
+# --- 10. session-startup.sh permissions ---
 echo ""
 echo "🔍 Checking hook permissions..."
 HOOK="$REPO_DIR/.claude/hooks/session-startup.sh"
