@@ -23,7 +23,8 @@
       "mcp__Salesforce_DX__run_code_analyzer",
       "mcp__Salesforce_DX__get_username",
       "Edit",
-      "Write"
+      "Write",
+      "Agent"
     ]
   },
   "hooks": {

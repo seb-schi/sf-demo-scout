@@ -26,7 +26,7 @@ Prepare a customer demo in two steps:
 | Command | Model | What it does |
 |---|---|---|
 | `/scout-sparring` | Opus 4.6 | Discovery sparring — takes customer context, audits the org, produces a structured demo spec |
-| `/scout-building` | Sonnet 4.6 | Deploys the spec to the org autonomously, writes a change log with rollback instructions |
+| `/scout-building` | Opus 4.6 | Orchestrates spec deployment via Sonnet sub-agents (org config → flows/apex/lwc → agentforce), writes a consolidated change log |
 
 Supporting commands:
 
@@ -76,7 +76,8 @@ Skills are domain-specific instruction sets loaded on demand by commands. They k
 - `pipeline-lessons` — pipeline architecture lessons
 
 **Community skills** (installed by `install.sh`):
-- `sf-flow`, `sf-metadata`, `sf-permissions`, `sf-deploy`, `sf-apex`, `sf-soql`, `sf-data`, `sf-debug` — from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills)
+- `sf-flow`, `sf-permissions`, `sf-deploy`, `sf-apex`, `sf-soql`, `sf-data`, `sf-debug` — from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills)
+- `generating-custom-field`, `generating-custom-object`, `generating-permission-set` — from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library)
 - `developing-agentforce`, `testing-agentforce`, `observing-agentforce` — from [SalesforceAIResearch/agentforce-adlc](https://github.com/SalesforceAIResearch/agentforce-adlc)
 
 ## How it connects to Salesforce

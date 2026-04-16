@@ -115,7 +115,7 @@ echo "🔍 Installing Salesforce skills..."
 SKILLS_BASE_URL="https://raw.githubusercontent.com/Jaganpro/sf-skills/main/skills"
 SKILLS_DIR="$REPO_DIR/.claude/skills"
 
-for SKILL in sf-flow sf-metadata sf-permissions sf-deploy sf-apex sf-soql sf-data sf-debug; do
+for SKILL in sf-flow sf-permissions sf-deploy sf-apex sf-soql sf-data sf-debug; do
   echo "  📦 Installing $SKILL..."
   mkdir -p "$SKILLS_DIR/$SKILL"
   if curl -fsSL "$SKILLS_BASE_URL/$SKILL/SKILL.md" -o "$SKILLS_DIR/$SKILL/SKILL.md"; then
@@ -125,6 +125,35 @@ for SKILL in sf-flow sf-metadata sf-permissions sf-deploy sf-apex sf-soql sf-dat
     echo "       curl -fsSL $SKILLS_BASE_URL/$SKILL/SKILL.md -o $SKILLS_DIR/$SKILL/SKILL.md"
   fi
 done
+
+# --- 7.5 Metadata Generation Skills (forcedotcom/afv-library) ---
+echo ""
+echo "🔍 Installing AFV metadata skills..."
+AFV_REPO="https://github.com/forcedotcom/afv-library.git"
+AFV_TMP="/tmp/afv-library"
+
+# Clone or update the AFV repo
+if [ -d "$AFV_TMP" ]; then
+  echo "  📦 Updating afv-library..."
+  cd "$AFV_TMP" && git pull --quiet 2>/dev/null || true
+else
+  echo "  📦 Cloning afv-library..."
+  git clone --depth 1 --quiet "$AFV_REPO" "$AFV_TMP" 2>/dev/null
+fi
+
+# Copy the three skill directories
+for AFV_SKILL in generating-custom-field generating-custom-object generating-permission-set; do
+  if [ -d "$AFV_TMP/skills/$AFV_SKILL" ]; then
+    echo "  📦 Installing $AFV_SKILL..."
+    mkdir -p "$SKILLS_DIR/$AFV_SKILL"
+    cp -r "$AFV_TMP/skills/$AFV_SKILL/"* "$SKILLS_DIR/$AFV_SKILL/"
+    echo "  ✅ $AFV_SKILL installed."
+  else
+    echo "  ⚠️  $AFV_SKILL not found in repo — check https://github.com/forcedotcom/afv-library"
+  fi
+done
+
+cd "$REPO_DIR"
 
 # --- 8. Agentforce ADLC Skills (SalesforceAIResearch/agentforce-adlc) ---
 echo ""

@@ -6,7 +6,7 @@ description: >
   Produces a structured spec for /scout-building to deploy.
   Activate with /scout-sparring.
 model: opus
-allowed-tools: Read, Grep, Glob, Write, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs
+allowed-tools: Read, Grep, Glob, Write, Edit, Bash, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs
 ---
 
 # Scout Sparring — Demo Discovery & Spec Generation
@@ -99,20 +99,7 @@ Based on the SE's response to "what brings you in today?", classify the intent.
 
 ### Audit Routing
 
-Check `orgs/[alias]-[customer]/` for existing audits and change logs.
-
-**If recent audit exists (≤7 days old):**
-> "Last audit was [N] days ago ([audit filename]). Have you made significant changes to this org outside Scout since then?"
-- SE says no → reuse existing audit
-- SE says yes → run fresh audit
-
-**If audit exists but is stale (>7 days old):**
-> "Last audit is [N] days old. I'll run a fresh one unless nothing's changed — skip the audit?"
-- Default: run fresh audit
-- SE explicitly says skip → reuse (respect SE judgment)
-
-**If no audit exists:**
-Read `.claude/skills/demo-org-audit/SKILL.md` for the format and procedure, then run the audit immediately — no question asked.
+Check `orgs/[alias]-[customer]/` for existing audits and change logs. Reuse a recent audit (≤7 days) if the SE confirms no significant manual changes were made since. Run a fresh audit if the existing one is stale (>7 days) or absent — read `.claude/skills/demo-org-audit/SKILL.md` for the format and procedure. Respect SE judgment if they explicitly ask to skip a fresh audit.
 
 After the audit (fresh or reused), surface the ★-flagged items:
 > "Primary build surface for this org:
@@ -167,7 +154,7 @@ After the SE answers, review the existing audit and any prior specs/change logs 
 
 Only surface genuine concerns — don't re-litigate prior decisions that are working fine.
 
-Then proceed to Stage 3i.
+Then proceed to Stage 6i.
 
 ---
 
@@ -185,23 +172,17 @@ Challenge the SE if they push for new objects or apps when existing ones would s
 
 Evaluate: genuine Salesforce strength? Achievable within build boundaries? Resonates with stakeholders? Complete story? Manual work realistic?
 
-**MANDATORY GATE 1 — send this as a standalone message, then stop:**
+**MANDATORY GATE — send this as a standalone message, then stop:**
 
-> "If you had half the prep time, what would you cut?"
+> "If you had half the prep time, what would you cut — and which specific customer statement tells you the rest is essential?"
 
-Wait for the SE's answer. Then produce a concrete reduced-scope version of the scenario based on their answer:
+Wait for the SE's answer. Evaluate BOTH halves:
 
-> "Here's what the demo looks like with those cuts: [reduced scenario summary]. Is this still a viable demo, or did we cut something load-bearing?"
+1. **Prioritization:** Produce a concrete reduced-scope version based on what they'd cut: "Here's what the demo looks like with those cuts: [reduced scenario summary]. Is this still a viable demo, or did we cut something load-bearing?" If the SE cannot articulate what to cut, that's a signal the scenario is either too thin or the SE hasn't internalised the customer's priorities — say so directly.
 
-This forces a real prioritisation decision. If the SE cannot articulate what to cut, that's a signal the scenario is either too thin or the SE hasn't internalised the customer's priorities — say so directly.
+2. **Customer evidence:** If the SE's answer doesn't reference a specific customer statement or pain point, push back on that half: "You answered what to cut, but which specific customer statement tells you the rest is essential? I want to make sure we're not building for an assumed need."
 
-**MANDATORY GATE 2 — send as a separate message after Gate 1 is resolved:**
-
-> "Does this address what the customer actually said matters, or what we think should matter?"
-
-Wait for the answer. If the SE says "yes" without referencing specific customer statements or pain points from the discovery input, push back: "Which specific customer statement does this map to? I want to make sure we're not building for an assumed need."
-
-Once both gates are cleared, proceed to Stage 7.
+Both halves must be resolved before proceeding to Stage 7.
 
 ---
 
@@ -224,8 +205,6 @@ Once the gate is cleared, proceed to Stage 7.
 ## Stage 7: Spec Generation
 
 Read `.claude/skills/demo-spec-format/SKILL.md` for the template, then write the spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md`
-
-HHmm = local time at spec creation (e.g. 0930, 1445). This prevents silent overwrites when sparring runs multiple times in a day for the same customer.
 
 **For iteration specs:** in the Customer Context section, add these fields:
 - **Iteration on:** [prior spec filename, or "pre-Scout setup" if no prior spec exists]
