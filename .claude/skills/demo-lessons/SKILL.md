@@ -15,6 +15,9 @@ description: >
 - 2026-04-13: New custom objects are rarely necessary in SDO orgs. Standard objects like Account, Contact, and Case cover most HLS scenarios. Require explicit justification before proposing anything net-new.
 - 2026-04-13: The first layout returned by metadata retrieval is almost never the active one. Always query ProfileLayout before touching any layout.
 - 2026-04-14: Always audit what the org already covers before proposing new builds — especially for booth/conference demos with multiple target motions. SEs often don't know what's already in their demo orgs. Check existing data and apps against each target motion first; iterations should build on what exists, not duplicate it.
+- 2026-04-16: Booth demos are not World Tours — shape build scope to the event format. If visitors won't know Salesforce's product positioning, they need talk-track-first with a few strong screens, not polished end-to-end flows. Don't over-engineer.
+- 2026-04-16: Before building, check what other SEs already have. One team session surfaced three ready-made demo assets that eliminated most of the build backlog. Sparring should always ask: "who else on the team has something close to this?"
+- 2026-04-16: Industry POV sessions and internal strategy transcripts are gold for demo scenario design. Feed them into sparring to extract use cases and validate demo relevance against what the field team is actually hearing from customers.
 
 ## Building Lessons
 - 2026-04-13: Required fields must be excluded from FLS in permission sets — the API rejects them and the deployment fails silently.
