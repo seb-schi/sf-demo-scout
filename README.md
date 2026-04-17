@@ -25,8 +25,8 @@ Prepare a customer demo in two steps:
 
 | Command | Model | What it does |
 |---|---|---|
-| `/scout-sparring` | Opus 4.6 | Discovery sparring — takes customer context, audits the org, produces a structured demo spec |
-| `/scout-building` | Opus 4.6 | Orchestrates spec deployment via Sonnet sub-agents (org config → flows/apex/lwc → agentforce), writes a consolidated change log |
+| `/scout-sparring` | Opus | Discovery sparring — takes customer context, audits the org, produces a structured demo spec |
+| `/scout-building` | Opus | Orchestrates spec deployment via Sonnet sub-agents (org config → flows/apex/lwc → agentforce), writes a consolidated change log |
 
 Supporting commands:
 
@@ -54,8 +54,8 @@ Evolve the pipeline itself:
 
 | Command | Model | What it does |
 |---|---|---|
-| `/project-sparring` | Opus 4.6 | Architectural sparring — diagnoses issues, proposes changes, writes a deployment guide |
-| `/project-building` | Sonnet 4.6 | Applies the deployment guide mechanically, appends verification log |
+| `/project-sparring` | Opus | Architectural sparring — diagnoses issues, proposes changes, writes a deployment guide |
+| `/project-building` | Sonnet | Applies the deployment guide mechanically, appends verification log |
 
 Pipeline change history lives in `pipeline-changes/`:
 - `pipeline-state.md` — current state, maintained by `/project-sparring`

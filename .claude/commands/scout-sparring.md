@@ -1,7 +1,7 @@
 ---
 name: scout-sparring
 description: >
-  Opus 4.6 sparring partner for Salesforce demo preparation.
+  Opus sparring partner for Salesforce demo preparation.
   Handles both new scenario discovery and targeted iterations on existing demos.
   Produces a structured spec for /scout-building to deploy.
   Activate with /scout-sparring.
@@ -57,13 +57,9 @@ Run a single MCP probe to confirm connectivity:
 
 ## Stage 2: Model Gate
 
-Fire a macOS notification:
-```bash
-osascript -e 'display notification "Scout Sparring requires Opus 4.6 — switch model now if needed." with title "SF Demo Scout — Model Check"'
-```
+Output as a standalone message:
 
-Then output as a standalone message:
-> "⚠️ **Scout Sparring is designed for Opus 4.6.**
+> "⚠️ **Scout Sparring is designed for Opus.**
 > Run `/model opus` now if you haven't already — your conversation history is preserved.
 >
 > Confirm you're on Opus before we continue. (yes)"

@@ -1,19 +1,11 @@
----
-name: demo-building-phase1-prompt
-description: >
-  Sub-agent prompt template for Phase 1 (Org Config) deployment.
-  Used by scout-building orchestrator — not invoked directly.
----
-
-# Phase 1 Sub-Agent Prompt Template
-
-The orchestrator reads this template, replaces `{{placeholders}}`, and passes
-the result as the `prompt` parameter to `Agent(model="sonnet")`.
-
----
-
 You are deploying Salesforce metadata to org {{ORG_ALIAS}} ({{ORG_USERNAME}}).
 Use MCP tools (deploy_metadata, retrieve_metadata, run_soql_query, assign_permission_set) for all operations.
+
+## Skills Available
+Invoke these skills via the Skill tool when you need detailed metadata rules:
+- `generating-custom-object` — custom object XML rules
+- `generating-custom-field` — custom field XML rules (Master-Detail, Roll-up Summary, formulas)
+- `generating-permission-set` — permission set XML rules (required-field FLS exclusion, tab naming, agent access)
 
 ## Deployment Rules
 - Deploy in small increments — never batch unrelated changes.
@@ -33,30 +25,26 @@ Assign via MCP assign_permission_set after deploying the permission set.
 ## Your Spec
 {{SPEC_SECTIONS}}
 
-## Reference: Custom Object Metadata Rules
-{{GENERATING_CUSTOM_OBJECT_SKILL}}
-
-## Reference: Custom Field Metadata Rules
-{{GENERATING_CUSTOM_FIELD_SKILL}}
-
-## Reference: Permission Set Metadata Rules
-{{GENERATING_PERMISSION_SET_SKILL}}
-
 ## Output Format
-When done, report EXACTLY in this format:
+When done, return EXACTLY one fenced JSON block matching this schema. Do not include any prose outside the block.
 
-DEPLOYED:
-- [Component Type]: [API Name] — [status: SUCCESS or FAILED (attempt N)]
-
-SKIPPED:
-- [Component Type]: [API Name] — [error message]
-
-PERMISSION SET:
-- Name: [API name]
-- Assigned to: [username] — [SUCCESS/FAILED]
-
-DATA SEEDED:
-- [Object]: [N] records — [SUCCESS/FAILED]
-
-ISSUES:
-- [any warnings, workarounds, or notes]
+```json
+{
+  "phase": 1,
+  "deployed": [
+    {"type": "CustomObject|CustomField|RecordType|Layout|CustomTab|CustomApplication", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null}
+  ],
+  "skipped": [
+    {"type": "string", "api_name": "string", "reason": "string"}
+  ],
+  "permission_set": {
+    "api_name": "string",
+    "assigned_to": "string",
+    "status": "SUCCESS|FAILED|NOT_APPLICABLE"
+  },
+  "data_seeded": [
+    {"object": "string", "records": 0, "status": "SUCCESS|FAILED"}
+  ],
+  "issues": ["string"]
+}
+```

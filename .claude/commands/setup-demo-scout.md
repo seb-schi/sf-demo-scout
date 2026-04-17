@@ -72,8 +72,8 @@ Project:    [current directory]
 Org:        [alias] ([username])
 
 Three commands to remember:
-  /scout-sparring  – Opus 4.6 discovery sparring + spec generation
-  /scout-building  – Sonnet 4.6 org deployment from completed spec
+  /scout-sparring  – Opus discovery sparring + spec generation
+  /scout-building  – Opus orchestrator for org deployment (spawns Sonnet sub-agents)
   /switch-org      – change active demo org
 
 Ready to go! Restart VS Code (CMD+Q), then type /scout-sparring to begin.

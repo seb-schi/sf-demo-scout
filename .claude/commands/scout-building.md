@@ -1,7 +1,7 @@
 ---
 name: scout-building
 description: >
-  Opus orchestrator for SF Demo Prep deployment.
+  Orchestrator for SF Demo Prep deployment.
   Parses a completed spec from /scout-sparring, delegates deployment to
   Sonnet sub-agents in phases, and writes a consolidated change log.
   Activate with /scout-building.
@@ -16,7 +16,7 @@ You are the orchestrator. You do NOT deploy metadata directly. You parse the spe
 construct sub-agent prompts from templates, spawn sub-agents, validate their results,
 and write the change log.
 
-Read @.claude/skills/demo-lessons/SKILL.md — focus on the **Building Lessons** section. Do not repeat known mistakes.
+Read `.claude/skills/demo-lessons/SKILL.md` — focus on the **Building Lessons** section. Do not repeat known mistakes.
 
 ---
 
@@ -60,12 +60,12 @@ Run a single MCP probe to confirm connectivity:
 
 ## Step 2: Model Gate
 
-Fire a macOS notification:
-```bash
-osascript -e 'display notification "Scout Building requires Opus 4.6 — switch model now if needed." with title "SF Demo Scout — Model Check"'
-```
+Output as a standalone message:
 
-> "**Run `/model opus` now if you haven't already.** Confirm you're on Opus. (yes)"
+> "⚠️ **This command is designed for Opus.**
+> Run `/model opus` now if you haven't already — your conversation history is preserved.
+>
+> Confirm you're on Opus before we continue. (yes)"
 
 **Wait for the SE's confirmation before proceeding.**
 
@@ -144,28 +144,24 @@ If only Phase 1 applies:
 ### Sub-Agent Output Validation
 
 After EVERY sub-agent returns, validate its output before proceeding:
-1. Check that the output contains the expected sections (DEPLOYED, SKIPPED, PERMISSION SET/ROLLBACK COMMANDS, ISSUES).
-2. If the output is missing expected sections, is truncated, or is incoherent: treat the phase as FAILED. Show the raw output to the SE:
+1. Extract the fenced `json` block from the sub-agent's response.
+2. Parse it. If parsing succeeds and the top-level keys match the phase schema (`deployed`, `skipped`, `issues` minimum), validation passes.
+3. If no valid JSON block is found, or parsing fails, or required keys are missing: treat the phase as FAILED. Show the raw output to the SE:
    > "Sub-agent returned unexpected output for Phase [N]. Raw output below. Retry with a fresh sub-agent, or skip this phase?"
-3. If retry also produces invalid output: record as FAILED in the change log and tell the SE to start a fresh session for this phase.
+4. If retry also produces invalid output: record as FAILED in the change log and tell the SE to start a fresh session for this phase.
 
 ### Template Usage
 
 When constructing sub-agent prompts from template files:
-- The frontmatter (YAML between `---` markers) and the meta-description paragraph are for you — do not include them in the sub-agent prompt.
-- Use only the content below the second `---` separator as the prompt body.
+- Template files in `.claude/prompts/` are plain markdown — read the file and use the entire content as the prompt body.
 - Replace all `{{PLACEHOLDER}}` strings with actual content.
-- If a reference section is not needed (e.g., Apex skill when no Apex is in scope), remove the entire section header and placeholder from the prompt.
+- Do NOT inject skill file contents as strings. Sub-agents inherit Skill tool access and can invoke skills by name directly.
 
 ### Phase 1: Org Config (Sonnet sub-agent)
 
 **Prepare the sub-agent prompt:**
-1. Read `.claude/skills/demo-building-phase1-prompt/SKILL.md` — this is the prompt template.
-2. Read the AFV skill files and inject their content into the template placeholders:
-   - `.claude/skills/generating-custom-object/SKILL.md` -> `{{GENERATING_CUSTOM_OBJECT_SKILL}}`
-   - `.claude/skills/generating-custom-field/SKILL.md` -> `{{GENERATING_CUSTOM_FIELD_SKILL}}`
-   - `.claude/skills/generating-permission-set/SKILL.md` -> `{{GENERATING_PERMISSION_SET_SKILL}}`
-3. Fill remaining placeholders:
+1. Read `.claude/prompts/phase1.md` — this is the prompt template.
+2. Fill placeholders:
    - `{{ORG_ALIAS}}` and `{{ORG_USERNAME}}` from Step 3
    - `{{SPEC_SECTIONS}}` — paste the relevant spec sections (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning App / Tabs)
 
@@ -187,12 +183,8 @@ List what will be deployed from the spec and ask:
 Wait for confirmation. If no, record as skipped. If yes:
 
 **Prepare the sub-agent prompt:**
-1. Read `.claude/skills/demo-building-phase2-prompt/SKILL.md` — this is the prompt template.
-2. Read skill files and inject into placeholders:
-   - `.claude/skills/sf-flow/SKILL.md` -> `{{SF_FLOW_SKILL}}`
-   - `.claude/skills/sf-apex/SKILL.md` -> `{{SF_APEX_SKILL}}` (only if Apex is in scope — if not, remove the entire "Reference: Apex Generation Rules" section from the prompt)
-   - Read `.claude/skills/demo-deployment-rules/SKILL.md`, extract the Flow Rules, Apex Rules, and LWC Rules sections -> `{{DEPLOYMENT_RULES_GATED}}`
-3. Fill remaining placeholders:
+1. Read `.claude/prompts/phase2.md` — this is the prompt template.
+2. Fill placeholders:
    - `{{ORG_ALIAS}}` and `{{ORG_USERNAME}}`
    - `{{PHASE1_SUMMARY}}` — summary from Phase 1 (objects, fields, permission set deployed)
    - `{{SPEC_SECTIONS}}` — paste the Flows, Apex, and LWC spec sections
@@ -215,9 +207,8 @@ Present the agent details from the spec and ask:
 Wait for confirmation. If no, record as skipped. If yes:
 
 **Prepare the sub-agent prompt:**
-1. Read `.claude/skills/demo-building-phase3-prompt/SKILL.md` — this is the prompt template.
-2. Read `.claude/skills/developing-agentforce/SKILL.md` -> `{{DEVELOPING_AGENTFORCE_SKILL}}`
-3. Fill remaining placeholders:
+1. Read `.claude/prompts/phase3.md` — this is the prompt template.
+2. Fill placeholders:
    - `{{ORG_ALIAS}}` and `{{ORG_USERNAME}}`
    - `{{PRIOR_PHASES_SUMMARY}}` — summary from Phase 1 and Phase 2
    - `{{SPEC_SECTIONS}}` — paste the Agentforce spec section
@@ -233,7 +224,7 @@ Spawn: `Agent(description="Phase 3: Agentforce deployment", model="sonnet", prom
 ### 8a: Write Change Log
 
 Consolidate results from all phases into a single change log.
-Use the template in @.claude/skills/demo-change-log/SKILL.md
+Use the template in `.claude/skills/demo-change-log/SKILL.md` (read it when writing the log).
 
 The change log must include:
 - Everything from all sub-agent reports (deployed, skipped, permission set, data, issues)

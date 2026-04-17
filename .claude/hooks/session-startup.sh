@@ -98,8 +98,8 @@ fi
 # --- 6. Ready ---
 OUTPUT+="---\n"
 OUTPUT+="**Ready.**\n"
-OUTPUT+="  /scout-sparring  — Opus 4.6 discovery sparring + spec generation\n"
-OUTPUT+="  /scout-building  — Sonnet 4.6 org deployment from completed spec\n"
+OUTPUT+="  /scout-sparring  — Opus discovery sparring + spec generation\n"
+OUTPUT+="  /scout-building  — Opus orchestrator for org deployment\n"
 OUTPUT+="  /switch-org      — change active demo org\n"
 
 echo -e "$OUTPUT"
