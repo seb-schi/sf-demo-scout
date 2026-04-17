@@ -28,6 +28,11 @@ if [ -z "$DEFAULT_ORG" ] || [ "$DEFAULT_ORG" = "null" ]; then
   OUTPUT+="## ⚠️ No default Salesforce org set.\n"
   OUTPUT+="$ORG_COUNT org(s) available. To connect:\n"
   OUTPUT+="  sf org login web --alias [name] --set-default\n\n"
+elif ! echo "$ORG_LIST" | grep -q "\"alias\":\"$DEFAULT_ORG\""; then
+  LOCAL_CONFIG=".sf/config.json"
+  OUTPUT+="## ⚠️ Configured target-org '$DEFAULT_ORG' is not in the connected org list.\n"
+  OUTPUT+="   This usually means a stale entry in $LOCAL_CONFIG (local scope overrides global).\n"
+  OUTPUT+="   Fix: run /switch-org to reset, or edit $LOCAL_CONFIG manually.\n\n"
 else
   ORG_DISPLAY=$(sf org display --target-org "$DEFAULT_ORG" --json 2>/dev/null)
   if [ -n "$ORG_DISPLAY" ]; then

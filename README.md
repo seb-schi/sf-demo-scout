@@ -33,7 +33,8 @@ Supporting commands:
 | Command | What it does |
 |---|---|
 | `/setup-demo-scout` | One-time setup: connects demo org |
-| `/switch-org` | Switch active demo org (re-authenticates, updates config) |
+| `/switch-org` | Switch active demo org (re-authenticates, updates project-local config) |
+| `/sync-skills` | Pull latest external skills per `.claude/skills-manifest.yaml` (adds, updates, prunes orphans) |
 
 ### What it deploys
 
@@ -75,10 +76,12 @@ Skills are domain-specific instruction sets loaded on demand by commands. They k
 **Pipeline reference skills** (internal):
 - `pipeline-lessons` — pipeline architecture lessons
 
-**Community skills** (installed by `install.sh`):
+**Community skills** — declared in `.claude/skills-manifest.yaml`, synced by `install.sh` and `/sync-skills`:
 - `sf-flow`, `sf-permissions`, `sf-deploy`, `sf-apex`, `sf-soql`, `sf-data`, `sf-debug` — from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills)
 - `generating-custom-field`, `generating-custom-object`, `generating-permission-set` — from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library)
 - `developing-agentforce`, `testing-agentforce`, `observing-agentforce` — from [SalesforceAIResearch/agentforce-adlc](https://github.com/SalesforceAIResearch/agentforce-adlc)
+
+The manifest is the single source of truth. To add, remove, or pin a version, edit the YAML and run `/sync-skills`. Session startup detects drift (orphans on disk, missing folders, upstream changes) and prompts you to re-sync.
 
 ## How it connects to Salesforce
 
@@ -92,8 +95,11 @@ CLAUDE.md                     ← root instructions (under 100 lines)
 .claude/
   commands/                   ← slash commands
   skills/                     ← domain-specific instruction sets
-  settings.json               ← permission allow rules, session hooks
+  prompts/                    ← sub-agent prompt templates (phase1/2/3)
+  scripts/                    ← shared scripts (sync-skills.sh)
   hooks/                      ← session startup checks
+  skills-manifest.yaml        ← declarative source of truth for external skills
+  settings.json               ← permission allow rules, session hooks
 orgs/                         ← per-org artifacts (audits, specs, change logs)
 pipeline-changes/             ← pipeline evolution history
 force-app/                    ← SFDX project (for metadata operations)

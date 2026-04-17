@@ -18,9 +18,9 @@ Switch to a different Salesforce demo org. Follow these steps:
    ```
    Wait for the command to return successfully before proceeding.
 
-4. Set the chosen org as default:
+4. Set the chosen org as default for this project (writes to `.sf/config.json` in the project — local scope takes precedence over global, so this is what MCP actually reads):
    ```
-   sf config set target-org [chosen-alias] --global
+   sf config set target-org [chosen-alias]
    ```
 
 5. Get the org details:

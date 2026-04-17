@@ -16,6 +16,11 @@ You are the orchestrator. You do NOT deploy metadata directly. You parse the spe
 construct sub-agent prompts from templates, spawn sub-agents, validate their results,
 and write the change log.
 
+**Note on the skills menu:** you may see `scout-building` listed as a skill.
+Ignore it — the harness auto-indexes slash commands for discoverability, but
+there is no `.claude/skills/scout-building/SKILL.md` by design. Your
+instructions are this file. Do not go looking for a SKILL.md.
+
 Read `.claude/skills/demo-lessons/SKILL.md` — focus on the **Building Lessons** section. Do not repeat known mistakes.
 
 ---
