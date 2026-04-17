@@ -1,0 +1,67 @@
+# External skill manifest for SF Demo Scout.
+# Single source of truth for skills pulled from third-party repos.
+# Edit this file to add, remove, or pin skills.
+# After editing, run /sync-skills to apply.
+#
+# Homegrown skills (demo-*, pipeline-lessons) are NOT listed here —
+# they live in the repo and update via git pull.
+
+sources:
+  jaganpro:
+    repo: https://github.com/Jaganpro/sf-skills
+    type: raw
+    raw_base: https://raw.githubusercontent.com/Jaganpro/sf-skills/main/skills
+  afv:
+    repo: https://github.com/forcedotcom/afv-library
+    type: clone
+    branch: main
+  adlc:
+    repo: https://github.com/SalesforceAIResearch/agentforce-adlc
+    type: clone
+    branch: main
+
+skills:
+  # Jaganpro/sf-skills — single SKILL.md file per skill, fetched via raw URL
+  - name: sf-flow
+    source: jaganpro
+    path: sf-flow/SKILL.md
+  - name: sf-permissions
+    source: jaganpro
+    path: sf-permissions/SKILL.md
+  - name: sf-deploy
+    source: jaganpro
+    path: sf-deploy/SKILL.md
+  - name: sf-apex
+    source: jaganpro
+    path: sf-apex/SKILL.md
+  - name: sf-soql
+    source: jaganpro
+    path: sf-soql/SKILL.md
+  - name: sf-data
+    source: jaganpro
+    path: sf-data/SKILL.md
+  - name: sf-debug
+    source: jaganpro
+    path: sf-debug/SKILL.md
+
+  # forcedotcom/afv-library — full skill directories, cloned
+  - name: generating-custom-field
+    source: afv
+    path: skills/generating-custom-field
+  - name: generating-custom-object
+    source: afv
+    path: skills/generating-custom-object
+  - name: generating-permission-set
+    source: afv
+    path: skills/generating-permission-set
+
+  # SalesforceAIResearch/agentforce-adlc — full skill directories, cloned
+  - name: developing-agentforce
+    source: adlc
+    path: skills/developing-agentforce
+  - name: testing-agentforce
+    source: adlc
+    path: skills/testing-agentforce
+  - name: observing-agentforce
+    source: adlc
+    path: skills/observing-agentforce

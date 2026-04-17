@@ -109,78 +109,26 @@ else
   echo "✅ SFDX project already exists."
 fi
 
-# --- 7. Salesforce Skills (Jaganpro/sf-skills) ---
+# --- 7. External Skills (manifest-driven) ---
 echo ""
-echo "🔍 Installing Salesforce skills..."
-SKILLS_BASE_URL="https://raw.githubusercontent.com/Jaganpro/sf-skills/main/skills"
-SKILLS_DIR="$REPO_DIR/.claude/skills"
+echo "🔍 Syncing external skills from manifest..."
 
-for SKILL in sf-flow sf-permissions sf-deploy sf-apex sf-soql sf-data sf-debug; do
-  echo "  📦 Installing $SKILL..."
-  mkdir -p "$SKILLS_DIR/$SKILL"
-  if curl -fsSL "$SKILLS_BASE_URL/$SKILL/SKILL.md" -o "$SKILLS_DIR/$SKILL/SKILL.md"; then
-    echo "  ✅ $SKILL installed."
-  else
-    echo "  ⚠️  $SKILL install failed. Run manually:"
-    echo "       curl -fsSL $SKILLS_BASE_URL/$SKILL/SKILL.md -o $SKILLS_DIR/$SKILL/SKILL.md"
-  fi
-done
-
-# --- 7.5 Metadata Generation Skills (forcedotcom/afv-library) ---
-echo ""
-echo "🔍 Installing AFV metadata skills..."
-AFV_REPO="https://github.com/forcedotcom/afv-library.git"
-AFV_TMP="/tmp/afv-library"
-
-# Clone or update the AFV repo
-if [ -d "$AFV_TMP" ]; then
-  echo "  📦 Updating afv-library..."
-  cd "$AFV_TMP" && git pull --quiet 2>/dev/null || true
-else
-  echo "  📦 Cloning afv-library..."
-  git clone --depth 1 --quiet "$AFV_REPO" "$AFV_TMP" 2>/dev/null
+# Ensure pyyaml is available for sync-skills.sh manifest parser
+if ! python3 -c 'import yaml' 2>/dev/null; then
+  echo "  📦 Installing pyyaml (required for manifest parsing)..."
+  pip3 install --quiet --user pyyaml 2>/dev/null || pip3 install --quiet --break-system-packages pyyaml 2>/dev/null || true
 fi
 
-# Copy the three skill directories
-for AFV_SKILL in generating-custom-field generating-custom-object generating-permission-set; do
-  if [ -d "$AFV_TMP/skills/$AFV_SKILL" ]; then
-    echo "  📦 Installing $AFV_SKILL..."
-    mkdir -p "$SKILLS_DIR/$AFV_SKILL"
-    cp -r "$AFV_TMP/skills/$AFV_SKILL/"* "$SKILLS_DIR/$AFV_SKILL/"
-    echo "  ✅ $AFV_SKILL installed."
-  else
-    echo "  ⚠️  $AFV_SKILL not found in repo — check https://github.com/forcedotcom/afv-library"
-  fi
-done
-
-cd "$REPO_DIR"
-
-# --- 8. Agentforce ADLC Skills (SalesforceAIResearch/agentforce-adlc) ---
-echo ""
-echo "🔍 Installing Agentforce ADLC skills..."
-ADLC_REPO="https://github.com/SalesforceAIResearch/agentforce-adlc.git"
-ADLC_TMP="/tmp/agentforce-adlc"
-
-# Clone or update the ADLC repo
-if [ -d "$ADLC_TMP" ]; then
-  echo "  📦 Updating agentforce-adlc..."
-  cd "$ADLC_TMP" && git pull --quiet 2>/dev/null || true
+SYNC_SCRIPT="$REPO_DIR/.claude/scripts/sync-skills.sh"
+if [ -f "$SYNC_SCRIPT" ]; then
+  # Invoke via `bash` so we don't depend on the exec bit being set yet —
+  # the chmod step runs later in this script.
+  bash "$SYNC_SCRIPT" | grep -E '^(SYNCED|PRUNED|FAILED)=' | sed 's/^/  /' || true
+  echo "  ✅ Skill sync complete (see lines above for details)."
 else
-  echo "  📦 Cloning agentforce-adlc..."
-  git clone --depth 1 --quiet "$ADLC_REPO" "$ADLC_TMP" 2>/dev/null
+  echo "  ⚠️  Sync script not found at $SYNC_SCRIPT"
+  echo "       Check your clone is complete, then re-run: bash install.sh"
 fi
-
-# Copy the three skill directories
-for ADLC_SKILL in developing-agentforce testing-agentforce observing-agentforce; do
-  if [ -d "$ADLC_TMP/skills/$ADLC_SKILL" ]; then
-    echo "  📦 Installing $ADLC_SKILL..."
-    mkdir -p "$SKILLS_DIR/$ADLC_SKILL"
-    cp -r "$ADLC_TMP/skills/$ADLC_SKILL/"* "$SKILLS_DIR/$ADLC_SKILL/"
-    echo "  ✅ $ADLC_SKILL installed."
-  else
-    echo "  ⚠️  $ADLC_SKILL not found in repo — check https://github.com/SalesforceAIResearch/agentforce-adlc"
-  fi
-done
 
 cd "$REPO_DIR"
 
@@ -233,15 +181,23 @@ sed -i '' 's/CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096/CLAUDE_CODE_MAX_OUTPUT_TOKENS=81
 
 source "$ZSHRC" 2>/dev/null || true
 
-# --- 10. session-startup.sh permissions ---
+# --- 10. Script permissions ---
 echo ""
-echo "🔍 Checking hook permissions..."
+echo "🔍 Checking script permissions..."
 HOOK="$REPO_DIR/.claude/hooks/session-startup.sh"
 if [ -f "$HOOK" ]; then
   chmod +x "$HOOK"
   echo "✅ session-startup.sh is executable."
 else
   echo "⚠️  session-startup.sh not found at $HOOK — check your clone is complete."
+fi
+
+SYNC_SCRIPT="$REPO_DIR/.claude/scripts/sync-skills.sh"
+if [ -f "$SYNC_SCRIPT" ]; then
+  chmod +x "$SYNC_SCRIPT"
+  echo "✅ sync-skills.sh is executable."
+else
+  echo "⚠️  sync-skills.sh not found at $SYNC_SCRIPT — check your clone is complete."
 fi
 
 # --- Done ---
@@ -257,4 +213,6 @@ echo "  4. Type: claude"
 echo "  5. Once Claude Code starts, type: /setup-demo-scout"
 echo ""
 echo "Claude Code will connect your demo org and run your first audit. ☕"
+echo ""
+echo "To pull the latest skills from upstream later, run: /sync-skills"
 echo ""
