@@ -8,6 +8,10 @@
         "--toolsets", "orgs,metadata,data,users,lwc-experts,code-analysis",
         "--allow-non-ga-tools"
       ]
+    },
+    "Salesforce Docs": {
+      "type": "http",
+      "url": "https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp"
     }
   }
 }

@@ -67,11 +67,15 @@ Pipeline change history lives in `pipeline-changes/`:
 Skills are domain-specific instruction sets loaded on demand by commands. They keep `CLAUDE.md` lean (under 100 lines) while giving each command deep context.
 
 **Demo reference skills** (internal — loaded by commands, not user-invocable):
-- `demo-lessons` — accumulated sparring/building lessons
 - `demo-deployment-rules` — gates for Flows, Apex, LWC, Agentforce
 - `demo-org-audit` — audit format and procedure
-- `demo-change-log` — change log template
-- `demo-spec-format` — spec output format
+- `demo-docs-consultation` — decision tree for Salesforce Docs MCP consultation
+
+**Demo prompt fragments** (internal — eager-loaded or read at specific steps):
+- `.claude/prompts/sparring-lessons.md`, `.claude/prompts/building-lessons.md` — mistakes to avoid
+- `.claude/prompts/spec-template.md` — sparring spec output format
+- `.claude/prompts/change-log-template.md` — building change log format
+- `.claude/prompts/phase1.md`, `phase2.md`, `phase3.md` — sub-agent prompt templates
 
 **Pipeline reference skills** (internal):
 - `pipeline-lessons` — pipeline architecture lessons

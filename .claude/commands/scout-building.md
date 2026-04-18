@@ -6,8 +6,7 @@ description: >
   Sonnet sub-agents in phases, and writes a consolidated change log.
   Activate with /scout-building.
 model: opus
-context: fork
-allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, AskUserQuestion, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__deploy_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__assign_permission_set, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_DX__run_code_analyzer
+allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, AskUserQuestion, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__deploy_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__assign_permission_set, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_DX__run_code_analyzer, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch
 ---
 
 # Scout Building — Opus Orchestrator
@@ -21,7 +20,9 @@ Ignore it — the harness auto-indexes slash commands for discoverability, but
 there is no `.claude/skills/scout-building/SKILL.md` by design. Your
 instructions are this file. Do not go looking for a SKILL.md.
 
-Read `.claude/skills/demo-lessons/SKILL.md` — focus on the **Building Lessons** section. Do not repeat known mistakes.
+Read `.claude/prompts/building-lessons.md` — these are mistakes from previous building sessions. Do not repeat known mistakes.
+
+**Docs consultation on error:** when a sub-agent reports a deployment failure with an error message not in `building-lessons` and not self-evident, consult Salesforce Docs MCP BEFORE asking the SE to retry or skip. Load `.claude/skills/demo-docs-consultation/SKILL.md` for the decision tree. Record every consultation for the change log.
 
 ---
 
@@ -229,13 +230,14 @@ Spawn: `Agent(description="Phase 3: Agentforce deployment", model="sonnet", prom
 ### 8a: Write Change Log
 
 Consolidate results from all phases into a single change log.
-Use the template in `.claude/skills/demo-change-log/SKILL.md` (read it when writing the log).
+Use the template in `.claude/prompts/change-log-template.md` (read it when writing the log).
 
 The change log must include:
 - Everything from all sub-agent reports (deployed, skipped, permission set, data, issues)
 - Rollback commands from Phase 2 and Phase 3
 - Which phases ran and which were skipped
 - Any phases that FAILED validation (raw output preserved)
+- **Docs Consulted** section — aggregate `docs_consulted` arrays from every sub-agent's JSON output, plus any orchestrator-level error-recovery consultations. If nothing was consulted, write "None — no unfamiliar errors encountered."
 
 ### 8b: Propose Lessons
 
@@ -253,7 +255,7 @@ If any occurred, propose 1-3 candidate lessons:
 > 2. [lesson]
 > Add these to lessons? (yes / edit / skip)"
 
-If approved, append to the **Building Lessons** section of `.claude/skills/demo-lessons/SKILL.md` with today's date. If the deployment was clean, skip silently.
+If approved, append to `.claude/prompts/building-lessons.md` with today's date. If the deployment was clean, skip silently.
 
 ### 8c: Done
 

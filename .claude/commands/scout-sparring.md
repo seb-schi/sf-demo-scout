@@ -6,7 +6,7 @@ description: >
   Produces a structured spec for /scout-building to deploy.
   Activate with /scout-sparring.
 model: opus
-allowed-tools: Read, Grep, Glob, Write, Edit, Bash, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs
+allowed-tools: Read, Grep, Glob, Write, Edit, Bash, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch
 ---
 
 # Scout Sparring — Demo Discovery & Spec Generation
@@ -19,7 +19,7 @@ Push back hard during sparring — this is where the quality of the demo is deci
 
 ## Before You Start
 
-Read @.claude/skills/demo-lessons/SKILL.md — focus on the **Sparring Lessons** section. These are mistakes from previous sessions. Do not repeat them.
+Read @.claude/prompts/sparring-lessons.md — these are mistakes from previous sparring sessions. Do not repeat them.
 
 ## Objective
 
@@ -198,9 +198,27 @@ Once the gate is cleared, proceed to Stage 7.
 
 ---
 
-## Stage 7: Spec Generation
+## Stage 7: Feasibility Pass (Docs Consultation)
 
-Read `.claude/skills/demo-spec-format/SKILL.md` for the template, then write the spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md`
+Before writing the spec, check agreed scope against current Salesforce documentation. Read `.claude/skills/demo-docs-consultation/SKILL.md` — follow the decision tree.
+
+Scan the scenario for:
+- Release-gated features (Agent Script capabilities, Flow features, Data Cloud features, anything shipped in the last 2-3 releases)
+- Novel metadata types you have not deployed this session
+- SE-referenced concepts you cannot immediately name
+
+For each YES item: run one `salesforce_docs_search` and capture URL + question + verdict. Do NOT consult docs for items in the decision tree's NO list (custom field/object/permset XML, standard object structure, customer-asserted facts).
+
+If docs contradict a scope item, surface it to the SE before proceeding:
+> "Docs say [finding] — this affects [scope item]. Adjust, or proceed as-is?"
+
+Wait for SE response. Once resolved, proceed to Stage 8.
+
+## Stage 8: Spec Generation
+
+Read `.claude/prompts/spec-template.md` for the format, then write the spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md`
+
+Populate the **Release Notes & Citations** section with every consultation from Stage 7 (URL, question, verdict). If Stage 7 produced no consultations, write "None — scenario uses established patterns only."
 
 **For iteration specs:** in the Customer Context section, add these fields:
 - **Iteration on:** [prior spec filename, or "pre-Scout setup" if no prior spec exists]
@@ -220,6 +238,7 @@ Before telling the SE the spec is ready, review the session for moments where:
 - A gate question revealed a gap in the SE's reasoning (or yours)
 - The audit surfaced something unexpected about the org
 - An iteration conflict check revealed quality issues with existing work
+- A docs consultation contradicted or sharpened the scope
 
 If any of these occurred, propose 1-3 candidate lessons:
 
@@ -228,10 +247,14 @@ If any of these occurred, propose 1-3 candidate lessons:
 > 2. [lesson]
 > Want me to add these, edit them, or skip?"
 
-If the SE approves (with or without edits), append to the **Sparring Lessons** section of `.claude/skills/demo-lessons/SKILL.md` with today's date. If nothing noteworthy happened, skip silently.
+If the SE approves (with or without edits), append to `.claude/prompts/sparring-lessons.md` with today's date. If nothing noteworthy happened, skip silently.
 
 ### Done
 
 **Do not send this until lessons are resolved (or skipped):**
 
-> "Spec saved. Run **/scout-building** to deploy — it will cross-check against the audit and flag conflicts."
+> "Spec saved.
+>
+> **Open a fresh Claude Code window** before running `/scout-building` — keeps sparring context out of the deployment session. The spec file on disk is all building needs.
+>
+> Then run `/scout-building` in the new window — it will cross-check against the audit and flag conflicts."

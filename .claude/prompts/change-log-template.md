@@ -1,10 +1,3 @@
----
-name: demo-change-log
-description: >
-  Template for the mandatory change log after every deployment.
-  Used by /scout-building.
----
-
 # Change Log — Template
 
 Save to: `orgs/[alias]-[customer]/changes-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`
@@ -45,6 +38,12 @@ Rollback: sf project delete source --metadata GenAiPlanner:[Name] / BotDefinitio
 
 ## Issues Encountered
 [Errors, workarounds, second attempts]
+
+## Docs Consulted
+Aggregated from sub-agent `docs_consulted` arrays + any orchestrator-level error-recovery consultations.
+- **Phase:** [1|2|3|orchestrator] — **Question:** [one line]
+  - **URL:** [doc URL]
+  - **Verdict:** [what the doc confirmed/contradicted/left ambiguous]
 
 ## SE Must Do Next (in order)
 1. [Specific steps with UI paths]

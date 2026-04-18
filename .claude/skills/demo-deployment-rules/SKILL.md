@@ -1,148 +1,139 @@
 ---
 name: demo-deployment-rules
 description: >
-  Rules for deploying Flows, Apex, LWC, Agentforce, and Page Layouts in SF Demo Prep.
-  Read before deploying any of these metadata types.
+  Sub-agent-facing deployment rules for Flows, Apex, LWC, Agentforce,
+  and Page Layouts in SF Demo Prep. Loaded on-demand by phase1/2/3
+  sub-agents via the Skill tool before touching a metadata category.
 ---
 
-# Deployment Rules — Flows, Apex, LWC, Agentforce, Page Layouts
+# Deployment Rules — Sub-Agent Reference
 
-**Confirmation model:** one upfront confirmation per category before deployment begins. Once confirmed, deploy the full category autonomously — do not ask for input on individual files, MCP calls, or sub-steps.
+You are a phase sub-agent reading this skill because you are about to deploy
+one of the gated metadata categories. The SE has already confirmed this
+deployment via the orchestrator — do not re-prompt. Your job is to follow
+the per-category rules below exactly.
 
-**Notification pattern:** before presenting any confirmation gate, fire a macOS notification so the SE is alerted even if VS Code is in the background:
-```bash
-osascript -e 'display notification "[plain English description]" with title "SF Demo Scout — Input Needed"'
-```
+**Two-attempt rule:** if a deployment fails twice, STOP that item, record it
+as SKIPPED in your JSON output with the error message, and continue with
+remaining items. Do not wrestle with a broken deploy.
 
-Note: macOS notifications require Terminal or VS Code to have notification permissions enabled in System Settings → Notifications. If notifications are not appearing, check this setting.
-
-**Two-attempt rule:** if deployment fails twice, STOP, add to SE Manual Checklist, continue with remaining items.
+**Unfamiliar errors:** if the error message is not self-evident and not
+already in `building-lessons`, invoke the `demo-docs-consultation` skill
+before the second attempt. Record the consultation in `docs_consulted`.
 
 ---
 
-## Page Layout Rules
+## Page Layout Rules (Phase 1)
 
-Before modifying any page layout, identify which layout is actually active for the demo user.
-Never retrieve "whichever layout comes first" — SDO orgs have many layouts per object and the first one is rarely the active one.
+Before modifying any page layout, identify which layout is actually active
+for the demo user. Never retrieve "whichever layout comes first" — SDO orgs
+have many layouts per object and the first one is rarely the active one.
 
-1. Query `ProfileLayout` via Tooling API to find the layout assigned to System Administrator for the target object and record type:
+1. Query `ProfileLayout` via Tooling API to find the layout assigned to
+   System Administrator for the target object and record type:
    ```
    SELECT Layout.Name, RecordType.DeveloperName
    FROM ProfileLayout
    WHERE SobjectType = '[Object]'
    AND Profile.Name = 'System Administrator'
    ```
-2. Retrieve only the layout(s) returned by that query — not all layouts for the object
-3. Modify and redeploy only the active layout
-4. If multiple record types are in scope, run the query per record type and retrieve each assigned layout separately
-
-Page layout modifications are safe operations — no SE confirmation required. But the ProfileLayout query is mandatory before every layout touch.
-
----
-
-## Flow Rules
-
-Scope: single-object, record-triggered only. No screen flows, scheduled flows, or subflows.
-
-**Before deploying, fire notification and ask:**
-```bash
-osascript -e 'display notification "About to deploy flow: [FlowName] on [Object] — [plain English description]" with title "SF Demo Scout — Input Needed"'
-```
-> "About to deploy: [plain English description of what the flow does]. Proceed? (yes/no)"
-
-Wait for confirmation. If yes, proceed with the full flow deployment autonomously:
-1. Read `.claude/skills/sf-flow/SKILL.md` before generating any Flow XML
-2. Validate generated XML against the sf-flow skill's 110-point checklist — work through it mentally, flag failures in the change log
-3. Deploy as Draft first (`<status>Draft</status>`), confirm success, then activate
-4. Check for existing flows on the same object via MCP `retrieve_metadata` — flag execution order conflicts in change log
-5. Rollback: `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]`
-
-**Complex flows always go to SE Manual Checklist:**
-screen flows, scheduled/time-based flows, multi-object flows, subflows.
+2. Retrieve only the layout(s) returned by that query — not all layouts for
+   the object.
+3. Modify and redeploy only the active layout.
+4. If multiple record types are in scope, run the query per record type and
+   retrieve each assigned layout separately.
 
 ---
 
-## Apex Rules
+## Flow Rules (Phase 2)
 
-Scope: single-trigger, single-object. No cross-object Apex. No test classes (demo org).
+Scope: single-object, record-triggered only. No screen flows, scheduled
+flows, or subflows. (The orchestrator filters the spec; if a complex flow
+reaches you, skip it and note "out of scope for autonomous deploy.")
 
-**Before deploying, fire notification and ask:**
-```bash
-osascript -e 'display notification "About to deploy Apex: [ClassName/TriggerName] — [plain English description]" with title "SF Demo Scout — Input Needed"'
-```
-> "About to deploy: [plain English description]. Proceed? (yes/no)"
+1. Invoke the `sf-flow` skill before generating any Flow XML — it holds the
+   110-point validation checklist.
+2. Validate generated XML against that checklist — work through it mentally,
+   flag failures in the `issues` array of your JSON output.
+3. Deploy as Draft first (`<status>Draft</status>`), confirm success, then
+   activate.
+4. Check for existing flows on the same object via MCP `retrieve_metadata` —
+   flag execution order conflicts in `issues`.
+5. Rollback command (record in `rollback_commands` array):
+   `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]`
 
-Wait for confirmation. If yes, proceed autonomously:
-1. Run `run_code_analyzer` before deploying (if MCP available)
-2. Rollback:
+---
+
+## Apex Rules (Phase 2)
+
+Scope: single-trigger, single-object. No cross-object Apex. No test classes
+(demo org context).
+
+1. Invoke `sf-apex` skill for generation rules.
+2. Run `run_code_analyzer` before deploying (if MCP available). Record any
+   high-severity findings in `issues`.
+3. Rollback commands:
    - `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]`
    - `sf project delete source --metadata ApexTrigger:[TriggerName] --target-org [alias]`
 
 ---
 
-## LWC Rules
+## LWC Rules (Phase 2)
 
-Scope: demo-specific UI — Customer 360 Cards, custom record views, branded components.
+Scope: demo-specific UI — Customer 360 Cards, custom record views, branded
+components.
 
-**Before deploying, fire notification and ask:**
-```bash
-osascript -e 'display notification "About to deploy LWC: [ComponentName] — [plain English description]" with title "SF Demo Scout — Input Needed"'
-```
-> "About to deploy: [plain English description]. Proceed? (yes/no)"
-
-Wait for confirmation. If yes, proceed autonomously:
-1. Use MCP LWC expert tools when available (scaffolding, SLDS, validation)
-2. Run `run_code_analyzer` before deploying (if MCP available)
-3. Rollback: `sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org [alias]`
+1. Use MCP LWC expert tools when available (scaffolding, SLDS, validation).
+2. Run `run_code_analyzer` before deploying (if MCP available). Record
+   high-severity findings in `issues`.
+3. Rollback command:
+   `sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org [alias]`
 
 ---
 
-## Agentforce Rules
+## Agentforce Rules (Phase 3)
 
-Two paths depending on whether the agent is new or existing. Both use the ADLC skill suite (`developing-agentforce`, `testing-agentforce`, `observing-agentforce`). Deploy Agentforce **last** in any session — the ADLC skills are large and consume significant context.
-
-**Context check:** Before loading any Agentforce skill, assess remaining context. If the session has already deployed org config (fields, layouts, data, flows, permissions), write a partial change log first. If context is tight, save the partial log and tell the SE to start a fresh session for the agent deployment.
+Two paths depending on whether the agent is new or already exists in the
+org. Both use the ADLC skill suite (`developing-agentforce`,
+`testing-agentforce`, `observing-agentforce`).
 
 ### New Agent (Agent Script path)
 
 Scope: single agent, topic-based routing with Apex or Flow backing actions.
 
-**Before deploying, fire notification and ask:**
-```bash
-osascript -e 'display notification "About to deploy new Agentforce agent: [AgentName] — [plain English description]" with title "SF Demo Scout — Input Needed"'
-```
-> "About to deploy new agent: [plain English description of agent scope, topics, actions]. Proceed? (yes/no)"
-
-Wait for confirmation. If yes, proceed autonomously:
-1. Load `developing-agentforce` skill — follow its "Create an Agent" workflow
-2. Check for existing agents via MCP `retrieve_metadata` — flag conflicts in change log
-3. Run `run_code_analyzer` on Apex backing actions (if MCP available)
-4. Validate via `sf agent validate authoring-bundle` before publishing
-5. Preview with `sf agent preview` and live actions before publishing
-6. Publish, then activate
-7. Rollback:
-   - New agent: `sf project delete source --metadata AiAuthoringBundle:[AgentName] --target-org [alias]`
-   - Backing Apex: `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]`
+1. Invoke `developing-agentforce` skill — follow its "Create an Agent"
+   workflow.
+2. Check for existing agents via MCP `retrieve_metadata` — flag conflicts
+   in `issues`.
+3. Run `run_code_analyzer` on Apex backing actions (if MCP available).
+4. Validate via `sf agent validate authoring-bundle` before publishing.
+5. Preview with `sf agent preview` before publishing.
+6. Publish, then activate.
+7. Rollback commands:
+   - `sf project delete source --metadata AiAuthoringBundle:[AgentName] --target-org [alias]`
+   - `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]` (backing Apex)
 
 ### Modify Existing Agent (version-safe path)
 
-For agents already in the org (e.g., SDO/IDO pre-installed agents). Uses Agent Script — retrieve the existing agent, comprehend it, modify, publish as a new version.
+For agents already in the org (e.g., SDO/IDO pre-installed agents). Every
+publish creates a new version; previous versions remain activatable, so
+rollback is instant via `sf agent activate --version-number N`.
 
-**Before deploying, fire notification and ask:**
-```bash
-osascript -e 'display notification "About to modify existing agent: [AgentName] (currently v[N]) — [plain English description]" with title "SF Demo Scout — Input Needed"'
-```
-> "⚠️ About to modify existing agent [AgentName] (currently v[N]). This agent may be part of pre-installed demo scenarios. Changes will publish as v[N+1]. Rollback: `sf agent activate --api-name [AgentName] --version-number [N]`. Proceed? (yes/no)"
+1. Invoke `developing-agentforce` skill — follow its "Modify an Existing
+   Agent" workflow.
+2. Note the current active version number before any changes (rollback
+   target).
+3. Comprehend existing agent structure, update Agent Spec.
+4. Validate and preview before publishing.
+5. Publish (creates new version), then activate.
+6. Rollback commands:
+   - `sf agent deactivate --json --api-name [AgentName] --target-org [alias]`
+   - `sf agent activate --json --api-name [AgentName] --version-number [N] --target-org [alias]`
 
-Wait for confirmation. If yes, proceed autonomously:
-1. Load `developing-agentforce` skill — follow its "Modify an Existing Agent" workflow
-2. Note the current active version number before any changes (rollback target)
-3. Comprehend existing agent structure, update Agent Spec
-4. Validate and preview before publishing
-5. Publish (creates new version), then activate
-6. Rollback: `sf agent deactivate --json --api-name [AgentName]` then `sf agent activate --json --api-name [AgentName] --version-number [N]`
+### Always Out of Scope (skip with reason)
 
-### Always SE Manual Checklist
+If the spec asks for any of the following, skip with reason
+"out of scope for autonomous deploy — SE Manual Checklist":
 - Multi-agent orchestration
 - Custom model/LLM config
 - Channel assignment and configuration

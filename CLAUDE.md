@@ -17,6 +17,11 @@ Salesforce DX MCP Server configured in .mcp.json. Prefer MCP over CLI:
 - `run_code_analyzer` — quality gate for Apex/LWC
 - LWC expert tools — scaffolding, SLDS, validation
 
+Salesforce Docs MCP Server (also in .mcp.json) for official documentation lookup:
+- `salesforce_docs_search` — semantic search across Salesforce doc collections; returns ranked excerpts with source URLs
+- `salesforce_docs_fetch` — retrieve a full doc page by `documentPath`
+Use during sparring to verify release-gated features before speccing, and during deployment to diagnose unfamiliar error messages. Optional — if the endpoint is unavailable, Scout degrades gracefully.
+
 Fall back to `sf` CLI if MCP is unavailable.
 
 ## Allowed Operations
@@ -30,7 +35,7 @@ Fall back to `sf` CLI if MCP is unavailable.
 - Simple LWC — SE confirmation required
 - Simple Agentforce agents — SE confirmation required
 
-**Before deploying Flows, Apex, LWC, or Agentforce:** read @.claude/skills/demo-deployment-rules/SKILL.md
+**Deployment rules** for Flows, Apex, LWC, Agentforce, and Page Layouts live in @.claude/skills/demo-deployment-rules/SKILL.md — phase sub-agents load it on-demand.
 
 ## NEVER Without Explicit SE Confirmation
 - Delete existing metadata or records
@@ -66,8 +71,9 @@ sf data create record --sobject PermissionSetAssignment --values "PermissionSetI
 
 ## File Locations
 - Per-org history: `orgs/[alias]-[customer]/` (audits, change logs, specs)
-- Lessons learned: @.claude/skills/demo-lessons/SKILL.md
+- Sparring lessons: @.claude/prompts/sparring-lessons.md
+- Building lessons: @.claude/prompts/building-lessons.md
 - Deployment rules: @.claude/skills/demo-deployment-rules/SKILL.md
 - Org audit format: @.claude/skills/demo-org-audit/SKILL.md
-- Change log template: @.claude/skills/demo-change-log/SKILL.md
-- Spec output format: @.claude/skills/demo-spec-format/SKILL.md
+- Spec template: @.claude/prompts/spec-template.md
+- Change log template: @.claude/prompts/change-log-template.md
