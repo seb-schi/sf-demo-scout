@@ -20,15 +20,15 @@ else
 fi
 
 # --- 2. Salesforce Org Check ---
-DEFAULT_ORG=$(sf config get target-org --json 2>/dev/null | grep -o '"value":"[^"]*"' | head -1 | cut -d'"' -f4)
+DEFAULT_ORG=$(sf config get target-org --json 2>/dev/null | grep -oE '"value"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)
 ORG_LIST=$(sf org list --json 2>/dev/null)
-ORG_COUNT=$(echo "$ORG_LIST" | grep -c '"alias"' 2>/dev/null || echo "0")
+ORG_COUNT=$(echo "$ORG_LIST" | grep -cE '"alias"[[:space:]]*:' 2>/dev/null || echo "0")
 
 if [ -z "$DEFAULT_ORG" ] || [ "$DEFAULT_ORG" = "null" ]; then
   OUTPUT+="## ⚠️ No default Salesforce org set.\n"
   OUTPUT+="$ORG_COUNT org(s) available. To connect:\n"
   OUTPUT+="  sf org login web --alias [name] --set-default\n\n"
-elif ! echo "$ORG_LIST" | grep -q "\"alias\":\"$DEFAULT_ORG\""; then
+elif ! echo "$ORG_LIST" | grep -qE "\"alias\"[[:space:]]*:[[:space:]]*\"$DEFAULT_ORG\""; then
   LOCAL_CONFIG=".sf/config.json"
   OUTPUT+="## ⚠️ Configured target-org '$DEFAULT_ORG' is not in the connected org list.\n"
   OUTPUT+="   This usually means a stale entry in $LOCAL_CONFIG (local scope overrides global).\n"
@@ -36,9 +36,9 @@ elif ! echo "$ORG_LIST" | grep -q "\"alias\":\"$DEFAULT_ORG\""; then
 else
   ORG_DISPLAY=$(sf org display --target-org "$DEFAULT_ORG" --json 2>/dev/null)
   if [ -n "$ORG_DISPLAY" ]; then
-    USERNAME=$(echo "$ORG_DISPLAY" | grep -o '"username":"[^"]*"' | head -1 | cut -d'"' -f4)
-    ORG_ID=$(echo "$ORG_DISPLAY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
-    INSTANCE_URL=$(echo "$ORG_DISPLAY" | grep -o '"instanceUrl":"[^"]*"' | head -1 | cut -d'"' -f4)
+    USERNAME=$(echo "$ORG_DISPLAY" | grep -oE '"username"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)
+    ORG_ID=$(echo "$ORG_DISPLAY" | grep -oE '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)
+    INSTANCE_URL=$(echo "$ORG_DISPLAY" | grep -oE '"instanceUrl"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)
 
     OUTPUT+="## ✅ Active Org\n"
     OUTPUT+="- **Alias:** $DEFAULT_ORG\n"

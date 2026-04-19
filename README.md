@@ -38,9 +38,9 @@ Supporting commands:
 
 ### What it deploys
 
-Safe operations run autonomously: custom objects, fields, record types, permission sets, page layout changes, Lightning app/tab config, and demo data seeding.
+Safe operations run autonomously: custom objects, fields (including picklist value additions), record types, queues, permission sets, page layout changes, Lightning app/tab config, and demo data seeding.
 
-Gated operations require a single SE confirmation before the category deploys: Flows (record-triggered only), Apex, LWC, and Agentforce agents. Complex flows, screen flows, and multi-agent orchestration are always deferred to an SE Manual Checklist.
+Gated operations require a single SE confirmation before the category deploys: Flows (record-triggered only), Apex, LWC, and Agentforce agents (with post-activation smoke testing). Complex flows, screen flows, multi-agent orchestration, and Agentforce channel assignment are always deferred to an SE Manual Checklist.
 
 ### Artifacts
 

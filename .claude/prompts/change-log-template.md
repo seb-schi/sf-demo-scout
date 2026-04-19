@@ -36,6 +36,12 @@ Rollback: sf project delete source --metadata LightningComponentBundle:[Name] --
 [Names, description]
 Rollback: sf project delete source --metadata GenAiPlanner:[Name] / BotDefinition:[Name] --target-org [alias]
 
+## Agentforce Smoke Test Results (if any)
+[Utterances sent, pass/fail per utterance, issues observed]
+
+## Execution Order Check
+[Per-object list of active flows after deployment. Flag objects with multiple after-save record-triggered flows and note execution order risks.]
+
 ## Issues Encountered
 [Errors, workarounds, second attempts]
 

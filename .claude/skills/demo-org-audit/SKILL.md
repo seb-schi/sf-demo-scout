@@ -2,7 +2,7 @@
 name: demo-org-audit
 description: >
   Format and procedure for auditing a Salesforce demo org.
-  Used by /scout-sparring and /setup-demo-scout.
+  Used by /scout-sparring (via its audit sub-agent prompt template at .claude/prompts/audit.md).
 ---
 
 # Org Audit — Format & Procedure

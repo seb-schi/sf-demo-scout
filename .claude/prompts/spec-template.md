@@ -57,10 +57,15 @@ Docs consulted during sparring (Feasibility Pass — Stage 7). Empty if scenario
 - RecordTypeVisibility, TabVisibility, AppVisibility
 - Assign to running user
 
+### Queues (if applicable)
+- Queue: [ApiName], Label: [Label]
+- Objects: [Case, Lead, etc. — which objects this queue receives]
+- Members: assign to running user
+
 ### Data Seeding
 - Object: [name], Records: [count]
 - Key values: [field]: [value] — (reason)
-- ⚠️ Replace with realistic values before demo
+- ⚠️ Review and customize seed data for customer-specific values (names, product SKUs, dates) before demo
 
 ### Page Layouts
 - [Object] — [RecordType] — Active layout: [layout name from audit ★]
@@ -98,6 +103,7 @@ Docs consulted during sparring (Feasibility Pass — Stage 7). Empty if scenario
 - Backing Apex classes: [name] — [InvocableMethod description]
 - Existing agents in org: (from audit — note conflicts)
 - If modifying existing: current version v[N], rollback: `sf agent activate --version-number [N]`
+- Smoke test utterances: [3-5 test messages to validate agent after activation]
 - ⚠️ Channel assignment: SE Manual Checklist
 
 ## SE Manual Checklist
@@ -107,15 +113,15 @@ Docs consulted during sparring (Feasibility Pass — Stage 7). Empty if scenario
 
 ### Agentforce Manual Steps
 - [ ] Assign agent to channels (Messaging, Experience Cloud, etc.)
-- [ ] Production-scale test suite via Testing Center
+- [ ] Production-scale test suite via Testing Center (batch regression — Mode B)
 - [ ] Multi-agent orchestration (if applicable)
 
 ### Must Do Before Demo
-- [ ] Build complex flows
+- [ ] Build complex flows (screen, scheduled, multi-object, subflows)
 - [ ] Complete Agentforce manual steps (channel assignment, production testing)
-- [ ] Arrange layouts in App Builder
-- [ ] Add LWC to pages, configure Path
-- [ ] Replace seed data
+- [ ] Arrange field positions and sections in App Builder
+- [ ] Place LWC on Lightning pages, configure Path component
+- [ ] Review and customize seed data for customer-specific values
 - [ ] Review all ⚠️ items
 - [ ] Test full demo end-to-end
 

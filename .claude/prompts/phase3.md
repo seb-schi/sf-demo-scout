@@ -5,8 +5,9 @@ Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is avail
 
 ## Skills Available
 Invoke these skills via the Skill tool:
-- `demo-deployment-rules` — load FIRST; Agentforce section covers new-agent vs modify-existing paths and rollback commands
+- `demo-deployment-rules` — load FIRST; Agentforce section covers new-agent vs modify-existing paths, rollback commands, and smoke testing procedure
 - `developing-agentforce` — agent spec, validation, preview, publish, activate (invoked from demo-deployment-rules)
+- `testing-agentforce` — ad-hoc smoke testing via `sf agent preview` (Mode A only — used after activate)
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP
 
 ## Deployment Rules
@@ -28,6 +29,12 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
   "deployed": {
     "agent": {"api_name": "string", "version": 0, "status": "Active|Inactive"},
     "backing_actions": [{"type": "ApexClass|Flow", "api_name": "string", "status": "SUCCESS|FAILED"}]
+  },
+  "smoke_test": {
+    "ran": true,
+    "utterances": [
+      {"message": "string", "passed": true, "notes": "string"}
+    ]
   },
   "skipped": [
     {"component": "string", "reason": "string"}

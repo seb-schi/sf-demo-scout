@@ -6,7 +6,7 @@ description: >
   Produces a structured spec for /scout-building to deploy.
   Activate with /scout-sparring.
 model: opus
-allowed-tools: Read, Grep, Glob, Write, Edit, Bash, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch
+allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch
 ---
 
 # Scout Sparring — Demo Discovery & Spec Generation
@@ -37,9 +37,9 @@ SDO and IDO orgs already have significant metadata installed. The default approa
 
 **Default assumption:** every entity in the scenario maps to an existing standard object unless the SE names a domain concept that has no structural equivalent in any standard or installed object. If you find yourself proposing a new custom object, state which existing object you considered first and why it was insufficient. Make this reasoning visible in the spec.
 
-**Claude Code can build:** custom fields on standard or custom objects, record types, permission sets, Lightning app modifications, custom tabs, single-object data seeding, page layout field additions on active layouts, simple record-triggered flows, simple Apex, simple LWC, Agentforce agents via Agent Script (topics, actions, backing Apex, publish, activate, preview testing). Agentforce is a first-class deployment option — proactively suggest it when the scenario involves account-level data retrieval, knowledge lookup, rep enablement, or customer self-service. Existing agents can be modified with version-based rollback.
+**Claude Code can build:** custom fields on standard or custom objects (including adding picklist values to existing fields), record types, permission sets, queues with object routing, Lightning app modifications, custom tabs, single-object data seeding, page layout field additions on active layouts, simple record-triggered flows, simple Apex, simple LWC, Agentforce agents via Agent Script (topics, actions, backing Apex, publish, activate, ad-hoc smoke testing via `sf agent preview`). Agentforce is a first-class deployment option — proactively suggest it when the scenario involves account-level data retrieval, knowledge lookup, rep enablement, or customer self-service. Existing agents can be modified with version-based rollback.
 
-**SE builds manually:** screen/scheduled/multi-object flows, subflows, page layout visual arrangement, OmniStudio, reports/dashboards, complex Apex/LWC, multi-agent orchestration, Agentforce channel assignment, production-scale agent test suites.
+**SE builds manually:** screen/scheduled/multi-object flows, subflows, page layout visual arrangement (field positioning and sections in App Builder), OmniStudio, reports/dashboards, complex Apex/LWC, multi-agent orchestration, Agentforce channel assignment, production-scale agent test suites (Testing Center batch regression).
 
 ---
 
@@ -47,7 +47,7 @@ SDO and IDO orgs already have significant metadata installed. The default approa
 
 Run a single MCP probe to confirm connectivity:
 - Call `run_soql_query` with: `SELECT Id FROM Organization LIMIT 1`
-- If it returns a result → MCP is active, proceed to Stage 2
+- If it returns a result → MCP is active, proceed to Stage 2. **The probe is ground truth.** Ignore any conflicting signal from the startup banner (e.g. "no default org set") — banner parsing can lag the CLI's actual state.
 - If it fails or times out → warn the SE:
   > "⚠️ MCP is not responding. Quit VS Code fully (CMD+Q), reopen, and run /scout-sparring again.
   > If this persists, check that .mcp.json exists in the project root."
@@ -95,7 +95,31 @@ Based on the SE's response to "what brings you in today?", classify the intent.
 
 ### Audit Routing
 
-Check `orgs/[alias]-[customer]/` for existing audits and change logs. Reuse a recent audit (≤7 days) if the SE confirms no significant manual changes were made since. Run a fresh audit if the existing one is stale (>7 days) or absent — read `.claude/skills/demo-org-audit/SKILL.md` for the format and procedure. Respect SE judgment if they explicitly ask to skip a fresh audit.
+Check `orgs/[alias]-[customer]/` for existing audits and change logs.
+
+**Reuse branch (≤7 days old, SE confirms no manual changes):** read the audit markdown file directly. Extract the ★-flagged items from it.
+
+**Fresh audit branch (stale >7 days or absent):** delegate execution to a Sonnet sub-agent. Opus 4.7 cannot absorb the raw metadata payloads from SDO-scale orgs without context overflow — the sub-agent writes the audit file and returns a compact summary.
+
+1. Read `.claude/prompts/audit.md` — this is the sub-agent prompt template.
+2. Compute the timestamp: local date `YYYY-MM-DD` and time `HHMM`.
+3. Fill placeholders: `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`.
+4. Spawn: `Agent(description="Org audit", model="sonnet", prompt=[constructed prompt])`
+5. When the sub-agent returns, extract the fenced JSON block. Parse it.
+   - `status: SUCCESS` or `status: PARTIAL` → run the spot-check pass (step 5a) before proceeding.
+   - `status: FAILED` or missing/malformed JSON → show the raw output, ask the SE to retry the audit in a fresh window or skip the audit entirely.
+6. **Spot-check pass (2 targeted queries — always run after SUCCESS or PARTIAL):**
+   Run these two SOQL queries in parallel:
+   - `SELECT COUNT() FROM BotDefinition` — agent count
+   - `SELECT COUNT() FROM FlowDefinitionView WHERE IsActive = true` — active flow count
+   Compare each count against the sub-agent's JSON fields (`agents_found` array length and `active_flow_count`).
+   - **Flow count:** the sub-agent now runs this same SOQL query internally and reports it as `active_flow_count`. A mismatch means the sub-agent's count query failed or was skipped — flag it.
+   - **Agent count:** compare against `agents_found` array length. If spot-check finds >0 but sub-agent reported 0, query `SELECT DeveloperName, MasterLabel, Type FROM BotDefinition` and include the results in the audit summary directly.
+   - For any mismatch >20% or zero-vs-nonzero: flag to the SE: "Sub-agent reported [X] but spot-check found [Y]. The [section] may be incomplete."
+   If both spot-checks align, proceed with confidence.
+7. Do NOT re-read the full audit markdown file — the JSON summary plus spot-check corrections have everything Stage 4 needs. Opus loads the file only if the SE later asks a question that requires it.
+
+Respect SE judgment if they explicitly ask to skip a fresh audit.
 
 After the audit (fresh or reused), surface the ★-flagged items:
 > "Primary build surface for this org:

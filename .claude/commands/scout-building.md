@@ -33,8 +33,9 @@ Each sub-agent gets a complete brief — spec section + relevant skills + deploy
 works independently. You track results and handle failures.
 
 **Safe operations — fully autonomous (no SE input required):**
-- Custom fields on standard or custom objects
+- Custom fields on standard or custom objects (including picklist value additions)
 - Record types
+- Queues with object routing (Queue + QueueSobject metadata)
 - Page layout field additions (active layout only — always query ProfileLayout first)
 - Lightning app modifications and custom tabs
 - Permission sets and assignment
@@ -221,7 +222,23 @@ Wait for confirmation. If no, record as skipped. If yes:
 
 Spawn: `Agent(description="Phase 3: Agentforce deployment", model="sonnet", prompt=[constructed prompt])`
 
-**After Phase 3 returns:** Validate output. Parse results.
+**After Phase 3 returns:** Validate output. Parse results — check `smoke_test` object for pass/fail.
+
+---
+
+## Step 7b: Post-Deployment Execution Order Check
+
+After all phases complete (or after Phase 1 if Phases 2/3 were skipped), run one final verification:
+
+For each object that received new flows in Phase 2, query active flows:
+```
+SELECT DeveloperName, TriggerType, ProcessType FROM FlowDefinitionView WHERE IsActive = true AND TriggerObjectOrEventLabel = '[Object]'
+```
+
+If multiple after-save record-triggered flows exist on the same object, flag in the change log:
+> "⚠️ [Object] has [N] active after-save flows: [names]. Check execution order in Setup > Process Automation > Flow Trigger Explorer."
+
+This check also runs for objects that already had active flows in the audit — the goal is to catch conflicts introduced by this deployment.
 
 ---
 

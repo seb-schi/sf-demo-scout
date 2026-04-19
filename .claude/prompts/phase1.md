@@ -5,9 +5,10 @@ Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is avail
 ## Skills Available
 Invoke these skills via the Skill tool when you need detailed metadata rules:
 - `generating-custom-object` — custom object XML rules
-- `generating-custom-field` — custom field XML rules (Master-Detail, Roll-up Summary, formulas)
+- `generating-custom-field` — custom field XML rules (Master-Detail, Roll-up Summary, formulas, picklist value additions)
 - `generating-permission-set` — permission set XML rules (required-field FLS exclusion, tab naming, agent access)
-- `demo-deployment-rules` — load BEFORE touching any page layout; contains the mandatory ProfileLayout query rule
+- `sf-data` — data seeding patterns, bulk operations, realistic test data generation
+- `demo-deployment-rules` — load BEFORE touching any page layout; contains the mandatory ProfileLayout query rule and Queue deployment rules
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
 
 ## Deployment Rules
@@ -35,7 +36,7 @@ When done, return EXACTLY one fenced JSON block matching this schema. Do not inc
 {
   "phase": 1,
   "deployed": [
-    {"type": "CustomObject|CustomField|RecordType|Layout|CustomTab|CustomApplication", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null}
+    {"type": "CustomObject|CustomField|RecordType|Layout|CustomTab|CustomApplication|Queue", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null}
   ],
   "skipped": [
     {"type": "string", "api_name": "string", "reason": "string"}

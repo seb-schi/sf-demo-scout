@@ -12,6 +12,7 @@
       "Bash(mv *)",
       "Bash(mkdir *)",
       "Bash(grep *)",
+      "Bash(awk *)",
       "Bash(python3 *)",
       "Bash(python3)",
       "Bash(wc -l *)",

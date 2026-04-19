@@ -23,6 +23,39 @@ before the second attempt. Record the consultation in `docs_consulted`.
 
 ---
 
+## Queue Rules (Phase 1)
+
+Scope: queues needed for case/lead/custom object routing in the demo scenario.
+
+1. Deploy Queue metadata via `deploy_metadata`. The XML structure:
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <Queue xmlns="http://soap.sforce.com/2006/04/metadata">
+       <fullName>Queue_Api_Name</fullName>
+       <name>Queue Label</name>
+       <queueSobject>
+           <sobjectType>Case</sobjectType>
+       </queueSobject>
+   </Queue>
+   ```
+   Multiple `<queueSobject>` elements for queues that receive multiple object types.
+2. After deploying, verify via SOQL: `SELECT Id, Name FROM Group WHERE Type = 'Queue' AND DeveloperName = '[ApiName]'`
+3. If the spec asks to add the running user as a queue member, use:
+   `sf data create record --sobject GroupMember --values "GroupId=[QueueId] UserOrGroupId=[UserId]" --target-org [alias]`
+
+---
+
+## Picklist Value Additions (Phase 1)
+
+When the spec asks to add values to an existing picklist field (standard or custom):
+
+1. Retrieve the current field metadata via `retrieve_metadata`.
+2. Add new `<value>` elements to the existing `<valueSet>` — do NOT remove existing values.
+3. For standard value sets (e.g., Case.Type uses `CaseType` StandardValueSet), retrieve and modify the StandardValueSet, not the field directly.
+4. Deploy the updated metadata. Verify by querying: `SELECT ApiName, Value FROM StandardValueSet WHERE ...` or by checking the field describe.
+
+---
+
 ## Page Layout Rules (Phase 1)
 
 Before modifying any page layout, identify which layout is actually active
@@ -130,6 +163,19 @@ rollback is instant via `sf agent activate --version-number N`.
    - `sf agent deactivate --json --api-name [AgentName] --target-org [alias]`
    - `sf agent activate --json --api-name [AgentName] --version-number [N] --target-org [alias]`
 
+### Smoke Test (after activate — both paths)
+
+After the agent is activated, run an ad-hoc smoke test using `testing-agentforce` skill (Mode A):
+
+1. Read the spec's "Smoke test utterances" list. If no utterances are specified, generate 3 based on the agent's topic descriptions.
+2. Start a preview session: `sf agent preview start --json --authoring-bundle [AgentName] -o [alias]`
+3. Send each utterance: `sf agent preview send --json --session-id [ID] --utterance "[message]" --authoring-bundle [AgentName] -o [alias]`
+4. End the session: `sf agent preview end --json --session-id [ID] --authoring-bundle [AgentName] -o [alias]`
+5. Evaluate each response: did the agent select the correct topic? Did it invoke the expected backing action? Was the response coherent?
+6. Record results in the `smoke_test` object of your JSON output.
+
+A failed smoke test does NOT block deployment — the agent is already active. Record failures in `issues` and flag for the SE.
+
 ### Always Out of Scope (skip with reason)
 
 If the spec asks for any of the following, skip with reason
@@ -137,4 +183,4 @@ If the spec asks for any of the following, skip with reason
 - Multi-agent orchestration
 - Custom model/LLM config
 - Channel assignment and configuration
-- Production-scale test suites
+- Production-scale test suites (Testing Center batch regression — Mode B)
