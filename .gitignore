@@ -30,6 +30,8 @@ force-app/
 .claude/skills/generating-custom-object/
 .claude/skills/generating-permission-set/
 pipeline-changes/
+temp-*
+manifest/
 
 # Editor
 .vscode/

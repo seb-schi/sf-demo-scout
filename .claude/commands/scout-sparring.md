@@ -99,25 +99,59 @@ Check `orgs/[alias]-[customer]/` for existing audits and change logs.
 
 **Reuse branch (≤7 days old, SE confirms no manual changes):** read the audit markdown file directly. Extract the ★-flagged items from it.
 
-**Fresh audit branch (stale >7 days or absent):** delegate execution to a Sonnet sub-agent. Opus 4.7 cannot absorb the raw metadata payloads from SDO-scale orgs without context overflow — the sub-agent writes the audit file and returns a compact summary.
+**Fresh audit branch (stale >7 days or absent):** delegate to 3 parallel Sonnet sub-agents. Each writes a fragment file and returns a compact JSON summary. Opus never reads the raw markdown — it uses the JSON summaries for sparring and writes the Notable Gaps narrative.
 
-1. Read `.claude/prompts/audit.md` — this is the sub-agent prompt template.
-2. Compute the timestamp: local date `YYYY-MM-DD` and time `HHMM`.
-3. Fill placeholders: `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`.
-4. Spawn: `Agent(description="Org audit", model="sonnet", prompt=[constructed prompt])`
-5. When the sub-agent returns, extract the fenced JSON block. Parse it.
-   - `status: SUCCESS` or `status: PARTIAL` → run the spot-check pass (step 5a) before proceeding.
-   - `status: FAILED` or missing/malformed JSON → show the raw output, ask the SE to retry the audit in a fresh window or skip the audit entirely.
-6. **Spot-check pass (2 targeted queries — always run after SUCCESS or PARTIAL):**
-   Run these two SOQL queries in parallel:
+1. Compute the timestamp: local date `YYYY-MM-DD` and time `HHMM`.
+2. **Pre-spawn setup (orchestrator runs directly):**
+   a. Clean stale fragments: `rm -f orgs/[alias]-[customer]/audit-fragment-*.md`
+   b. Resolve the default app — 2 SOQL queries:
+      - `SELECT AppDefinitionId FROM UserAppInfo WHERE UserId = '[current user Id from Stage 3]'`
+      - `SELECT DurableId, Label, DeveloperName FROM AppDefinition WHERE DurableId = '[AppDefinitionId]'`
+      Then retrieve the app's tabs: `retrieve_metadata` with type `CustomApplication`, member `[DeveloperName]`. Extract `<tabs>` elements.
+      Record: `DEFAULT_APP` (label), `DEFAULT_APP_DEVELOPER_NAME`, `DEFAULT_APP_TABS` (list of tab API names).
+      If the queries fail, set `DEFAULT_APP` to "UNKNOWN" and `DEFAULT_APP_TABS` to the 6 core objects only.
+3. Read these 3 prompt templates:
+   - `.claude/prompts/audit-standard-objects.md`
+   - `.claude/prompts/audit-apps-flows-agents.md`
+   - `.claude/prompts/audit-custom-objects.md`
+4. Fill placeholders in each: `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`.
+5. Spawn all 3 in parallel:
+   - `Agent(description="Org audit: standard objects", model="sonnet", prompt=[standard objects prompt])`
+   - `Agent(description="Org audit: apps/flows/agents", model="sonnet", prompt=[apps/flows/agents prompt])`
+   - `Agent(description="Org audit: custom objects", model="sonnet", prompt=[custom objects prompt])`
+6. As each sub-agent returns, extract the fenced JSON block. Parse it.
+   - `status: SUCCESS` or `status: PARTIAL` → collect the JSON.
+   - `status: FAILED` or missing/malformed JSON → flag that sub-agent's section as failed.
+   - If 2+ sub-agents fail → show the raw outputs, ask the SE to retry in a fresh window or skip the audit entirely.
+7. **Spot-check pass (2 targeted queries — always run after sub-agents return):**
+   Run these SOQL queries in parallel:
    - `SELECT COUNT() FROM BotDefinition` — agent count
    - `SELECT COUNT() FROM FlowDefinitionView WHERE IsActive = true` — active flow count
-   Compare each count against the sub-agent's JSON fields (`agents_found` array length and `active_flow_count`).
-   - **Flow count:** the sub-agent now runs this same SOQL query internally and reports it as `active_flow_count`. A mismatch means the sub-agent's count query failed or was skipped — flag it.
-   - **Agent count:** compare against `agents_found` array length. If spot-check finds >0 but sub-agent reported 0, query `SELECT DeveloperName, MasterLabel, Type FROM BotDefinition` and include the results in the audit summary directly.
+   Compare each against the sub-agent JSON fields:
+   - **Flow count:** compare spot-check count against apps/flows/agents sub-agent's `active_flow_count`. Mismatch means the sub-agent's count query failed — flag it.
+   - **Agent count:** compare spot-check count against apps/flows/agents sub-agent's `agents_found` array length. If spot-check finds >0 but sub-agent reported 0, query `SELECT DeveloperName, MasterLabel, Type FROM BotDefinition` and include the results in the consolidated summary.
    - For any mismatch >20% or zero-vs-nonzero: flag to the SE: "Sub-agent reported [X] but spot-check found [Y]. The [section] may be incomplete."
-   If both spot-checks align, proceed with confidence.
-7. Do NOT re-read the full audit markdown file — the JSON summary plus spot-check corrections have everything Stage 4 needs. Opus loads the file only if the SE later asks a question that requires it.
+   Default app is not spot-checked here — the orchestrator resolved it authoritatively in step 2b.
+8. **Consolidation (no raw markdown reading):**
+   Merge the 3 JSON summaries + spot-check corrections into one consolidated summary:
+   - `default_app`: from orchestrator step 2b (ground truth)
+   - `default_app_tabs`: from orchestrator step 2b (ground truth)
+   - `active_layouts`: union of standard objects + custom objects sub-agent arrays
+   - `relevant_custom_objects`: from custom objects sub-agent
+   - `agents_found`: from apps/flows/agents sub-agent (corrected by spot-check if needed)
+   - `active_flow_count`: from spot-check (ground truth)
+   - `notable_gaps`: collect `issues` arrays from all 3 sub-agents
+   - `demo_surface_notes`: collect `demo_surface_notes` arrays from all 3 sub-agents — these are the non-error observations Opus uses to write the Notable Gaps narrative
+9. **Notable Gaps narrative:** Using the consolidated JSON summary — especially `demo_surface_notes` from all 3 sub-agents — write a "Notable Gaps and Risks" section. This is where Opus adds cross-cutting synthesis: what the org's metadata means for the demo scenario, not just what went wrong. Append to the audit file via Bash:
+   ```
+   cat orgs/[alias]-[customer]/audit-fragment-standard-objects.md \
+       orgs/[alias]-[customer]/audit-fragment-apps-flows-agents.md \
+       orgs/[alias]-[customer]/audit-fragment-custom-objects.md \
+       > orgs/[alias]-[customer]/audit-[YYYY-MM-DD]-[HHMM].md
+   ```
+   Then append the Notable Gaps section (written by Opus from the JSON summaries) to the end of that file.
+10. Delete the 3 fragment files after successful concatenation.
+11. **★ marker validation:** Grep the consolidated audit file for `★`. If 0 matches, flag to the SE: "The audit file has no ★ markers — build surface identification may have failed."
 
 Respect SE judgment if they explicitly ask to skip a fresh audit.
 
