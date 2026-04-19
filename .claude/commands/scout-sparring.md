@@ -225,6 +225,33 @@ Gather these from prior stages — they drive search topic inference:
 - **SE discovery answers:** pain points (Stage 5/5i), industry cloud named by SE (question 2), feature requests (question 6), build surface confirmation
 - **Intent:** new scenario vs. iteration (determines search depth)
 
+### Step 0 — Object Capability Pre-Flight
+
+For every managed or industry-cloud standard object the scenario will touch (identified from audit ★ items + SE discovery answers), run this query:
+
+```sql
+SELECT QualifiedApiName, IsQueryable, IsCreateable, IsCustomizable
+FROM EntityDefinition WHERE QualifiedApiName IN ('Inquiry', 'HealthcareProvider', ...)
+```
+
+Then check queue eligibility for any object the spec might route to a queue:
+
+```sql
+SELECT SobjectType FROM QueueSobject GROUP BY SobjectType
+```
+
+Record the results as explicit constraints. These go into the spec's "Claude Code Instructions" section as a `### Platform Constraints` block:
+
+```
+### Platform Constraints (from pre-flight)
+- Inquiry: IsCreateable=false (managed RT), not queueable
+- HealthcareProvider: IsCreateable=true, not queueable
+```
+
+Any object where `IsCreateable = false` or `IsQueryable = false` or is not queueable (when the scenario needs queuing) must have its spec items adjusted BEFORE proposing the scenario in Stage 7. Do not defer these constraints to building — they reshape the spec.
+
+**Skip this step for standard unmanaged objects** (Account, Contact, Case, Lead, Opportunity) — their capabilities are stable and well-known.
+
 ### Step 1 — Infer Search Topics
 
 Based on audit + discovery, infer 3-7 doc search topics. Categories:

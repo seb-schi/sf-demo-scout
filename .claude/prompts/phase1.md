@@ -8,21 +8,58 @@ Invoke these skills via the Skill tool when you need detailed metadata rules:
 - `generating-custom-field` — custom field XML rules (Master-Detail, Roll-up Summary, formulas, picklist value additions)
 - `generating-permission-set` — permission set XML rules (required-field FLS exclusion, tab naming, agent access)
 - `sf-data` — data seeding patterns, bulk operations, realistic test data generation
-- `demo-deployment-rules` — load BEFORE touching any page layout; contains the mandatory ProfileLayout query rule and Queue deployment rules
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
 
 ## Deployment Rules
+
+**Two-attempt rule:** if a deployment fails twice, STOP that item, record it as SKIPPED in your JSON output with the error message, and continue with remaining items.
+
+**Unfamiliar errors:** if the error message is not self-evident and not already in the spec's Platform Constraints section, invoke the `demo-docs-consultation` skill before the second attempt. Record the consultation in `docs_consulted`.
+
 - Deploy in small increments — never batch unrelated changes.
 - After each deploy: confirm success via MCP feedback.
-- On failure: before the second attempt, if the error message is unfamiliar (not self-evident from the component name), invoke the `demo-docs-consultation` skill and run one `salesforce_docs_search` on the error. Apply the finding to the retry. Record the consultation in `docs_consulted`. If it still fails on the second attempt, record as SKIPPED with the error message and continue.
-- Page layouts: invoke the `demo-deployment-rules` skill and follow the Page Layout Rules section before touching any layout.
+
+### Queue Rules
+Scope: queues needed for case/lead/custom object routing.
+1. Deploy Queue metadata via `deploy_metadata`:
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <Queue xmlns="http://soap.sforce.com/2006/04/metadata">
+       <fullName>Queue_Api_Name</fullName>
+       <name>Queue Label</name>
+       <queueSobject>
+           <sobjectType>Case</sobjectType>
+       </queueSobject>
+   </Queue>
+   ```
+2. After deploying, verify: `SELECT Id, Name FROM Group WHERE Type = 'Queue' AND DeveloperName = '[ApiName]'`
+3. Queue members: `sf data create record --sobject GroupMember --values "GroupId=[QueueId] UserOrGroupId=[UserId]" --target-org [alias]`
+
+### Picklist Value Additions
+1. Retrieve the current field metadata via `retrieve_metadata`.
+2. Add new `<value>` elements to the existing `<valueSet>` — do NOT remove existing values.
+3. For standard value sets (e.g., Case.Type uses `CaseType` StandardValueSet), retrieve and modify the StandardValueSet, not the field directly.
+4. Deploy and verify.
+
+### Page Layout Rules
+Before modifying any page layout, identify which layout is actually active.
+1. Query `ProfileLayout` via Tooling API:
+   ```
+   SELECT Layout.Name, RecordType.DeveloperName
+   FROM ProfileLayout
+   WHERE SobjectType = '[Object]'
+   AND Profile.Name = 'System Administrator'
+   ```
+2. Retrieve only the layout(s) returned by that query.
+3. Modify and redeploy only the active layout.
+4. If multiple record types are in scope, run the query per record type.
 
 ## Companion Permission Set — MANDATORY
 After deploying objects, fields, record types, tabs, or apps, deploy a permission set:
 - Object CRUD for all new custom objects
 - Field Read + Edit FLS for all new fields (EXCLUDE Required fields — the API rejects FLS on required fields)
 - RecordTypeVisibility: visible=true for new record types
-- TabVisibility: DefaultOn for new custom tabs
+- TabVisibility: Visible for new custom tabs (not DefaultOn — DefaultOn is Profile-only)
 - AppVisibility: visible=true for new Lightning apps
 Assign via MCP assign_permission_set after deploying the permission set.
 

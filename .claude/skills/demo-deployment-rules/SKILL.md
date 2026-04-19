@@ -1,17 +1,19 @@
 ---
 name: demo-deployment-rules
 description: >
-  Sub-agent-facing deployment rules for Flows, Apex, LWC, Agentforce,
-  and Page Layouts in SF Demo Prep. Loaded on-demand by phase1/2/3
-  sub-agents via the Skill tool before touching a metadata category.
+  Canonical deployment rules for Flows, Apex, LWC, Agentforce, Page Layouts,
+  Queues, and Picklists in SF Demo Prep. Phase templates inline the relevant
+  sections — this skill is the source of truth and remains available for
+  edge cases or when a sub-agent needs rules outside its phase scope.
 ---
 
-# Deployment Rules — Sub-Agent Reference
+# Deployment Rules — Canonical Reference
 
-You are a phase sub-agent reading this skill because you are about to deploy
-one of the gated metadata categories. The SE has already confirmed this
-deployment via the orchestrator — do not re-prompt. Your job is to follow
-the per-category rules below exactly.
+Phase sub-agent templates inline the rules relevant to their phase. This
+file is the canonical source of truth — if a template's inlined rules
+diverge from this file, this file wins. Sub-agents may still invoke this
+skill for rules outside their normal phase scope (e.g., a Phase 2 agent
+that needs Queue rules for a dependency check).
 
 **Two-attempt rule:** if a deployment fails twice, STOP that item, record it
 as SKIPPED in your JSON output with the error message, and continue with

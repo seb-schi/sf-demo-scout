@@ -163,6 +163,7 @@ When constructing sub-agent prompts from template files:
 - Template files in `.claude/prompts/` are plain markdown — read the file and use the entire content as the prompt body.
 - Replace all `{{PLACEHOLDER}}` strings with actual content.
 - Do NOT inject skill file contents as strings. Sub-agents inherit Skill tool access and can invoke skills by name directly.
+- Deployment rules are inlined in each phase template — sub-agents do NOT need to invoke `demo-deployment-rules` as their first action. The skill remains available for edge cases.
 
 ### Phase 1: Org Config (Sonnet sub-agent)
 

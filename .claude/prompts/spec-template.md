@@ -54,8 +54,12 @@ Docs consulted during sparring (Platform & Data Model Research — Stage 6, plus
 - Name: [Feature]_Access
 - Objects: [full CRUD]
 - FLS: Read + Edit (EXCLUDE Required fields)
-- RecordTypeVisibility, TabVisibility, AppVisibility
+- RecordTypeVisibility: visible=true, TabVisibility: Visible (not DefaultOn — DefaultOn is Profile-only), AppVisibility: visible=true
 - Assign to running user
+
+### Platform Constraints (from pre-flight — if any managed/industry objects in scope)
+- [Object]: IsCreateable=[true/false], IsQueryable=[true/false], queueable=[yes/no]
+- Impact: [how this constrains the spec — e.g. "no API data seeding", "no queue routing", "Apex must use dynamic SOQL"]
 
 ### Queues (if applicable)
 - Queue: [ApiName], Label: [Label]
