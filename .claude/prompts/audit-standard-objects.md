@@ -20,13 +20,49 @@ file and tells you the path. **Do not skip the section.** Instead:
 3. If the file is too large even for chunked reading, narrow your original query (add WHERE clauses, reduce fields) and retry.
 4. Only report "could not enumerate" after at least one parse attempt on the overflow file.
 
+## Non-Universal Standard Objects (safety net)
+
+After auditing core objects, discover additional standard objects that may indicate an industry cloud or specialized platform feature. This is a safety net — the SE identifies the industry cloud in Stage 5; this query catches objects the SE may not have mentioned.
+
+**Universal standard objects** (always present, already audited above or not demo-relevant): Account, Contact, Opportunity, Case, Lead, Order, Task, Event, User, Group, Profile, Organization, UserRole, Campaign, Pricebook2, Product2, Solution, Report, Dashboard, Document, Folder, ContentDocument, ContentVersion, Note, Attachment, FeedItem, FeedComment, CollaborationGroup, EmailMessage, CaseComment, OpportunityLineItem, QuoteLineItem, Quote, Contract, ContractLineItem.
+
+**Discovery query:**
+```
+SELECT QualifiedApiName, Label FROM EntityDefinition
+WHERE IsCustomizable = true
+AND KeyPrefix != null
+AND QualifiedApiName != null
+ORDER BY Label
+```
+From the results, filter OUT:
+1. Universal standard objects (listed above)
+2. Objects already covered in the core Standard Objects section above
+3. Managed package objects (namespace prefix pattern: `Namespace__Object__c`)
+4. Setup/system objects (Name contains 'History', 'Share', 'Feed', 'ChangeEvent', 'Tag')
+
+From the remaining objects, identify those with records:
+```
+SELECT COUNT() FROM [ObjectApiName]
+```
+Run COUNT() only for objects that look potentially demo-relevant (non-trivial names, not internal system objects). If the filtered list is very large (>50 objects), prioritize objects whose names suggest industry relevance (Healthcare*, Insurance*, Financial*, Care*, Visit, Inquiry, etc.) and sample up to 20.
+
+For each object with >0 records:
+- Label, API name, record count
+- Record types: `SELECT Name, DeveloperName FROM RecordType WHERE SobjectType = '[Object]' AND IsActive = true` — query unconditionally
+- If it has records OR record types: note in `demo_surface_notes` with the observation (e.g., "HealthcareProvider has 84 records and 2 record types — likely Life Sciences Cloud or Health Cloud")
+- Do NOT ★ these or retrieve layouts — that's the job of Stage 6 after the SE confirms which cloud is active
+
+For objects with 0 records: skip silently (universal exclusion handles the noise).
+
+Report findings in `demo_surface_notes` (not a separate JSON field). Example note: "Non-universal standard objects with data: HealthcareProvider (84), Inquiry (12), MedicalInsight (27), BoardCertification (0 records but 2 record types). Suggests Life Sciences Cloud."
+
 ## Standard Objects in Use
 
 The orchestrator has already identified the default app and its tabs:
 - **Default app:** {{DEFAULT_APP}}
 - **Default app tabs:** {{DEFAULT_APP_TABS}}
 
-For each of these standard objects: **Account, Contact, Opportunity, Case, Lead, Order** — plus any additional standard objects from the default app tabs list above (e.g. WorkOrder, Asset, ServiceAppointment).
+For each of these standard objects: **Account, Contact, Opportunity, Case, Lead, Order** — plus any additional standard objects from the default app tabs list above (e.g. WorkOrder, Asset, ServiceAppointment) that were NOT already covered in the Industry Objects section above.
 For app-driven additions: record count and active layout are sufficient — full layout field retrieval is optional unless the object looks demo-critical.
 
 For each standard object:
@@ -69,10 +105,11 @@ Never report an empty section based on a single failed or empty query.
 
 Before writing your JSON output block, verify each of these. If any fails, fix it before returning.
 
-1. **Every standard object has content.** No empty entries — if discovery failed, write what you tried and what failed.
-2. **Layout field content exists for all ★ layouts.** Every ★-marked active layout must have a "Key Fields" subsection with fields grouped by layout section. If layout XML retrieval failed, note the failure explicitly.
-3. **Related Lists present for all ★ layouts.**
-4. **Default app tabs covered.** Every standard object in the default app tabs list must have at least a record count entry.
+1. **Non-universal object scan ran.** The EntityDefinition discovery query must have been executed. Results (if any) are reported in `demo_surface_notes`, not a separate JSON field.
+2. **Every standard object has content.** No empty entries — if discovery failed, write what you tried and what failed.
+3. **Layout field content exists for all ★ layouts.** Every ★-marked active layout must have a "Key Fields" subsection with fields grouped by layout section. If layout XML retrieval failed, note the failure explicitly.
+4. **Related Lists present for all ★ layouts.**
+5. **Default app tabs covered.** Every standard object in the default app tabs list must have at least a record count entry.
 
 ## Output Format
 
@@ -85,7 +122,7 @@ Write the fragment file, then return EXACTLY one fenced JSON block. No prose out
   "active_layouts": [
     {"object": "string", "record_type": "string|null", "layout_name": "string"}
   ],
-  "demo_surface_notes": ["string — non-error observations about the org: lean/rich layouts, missing fields, objects that suggest specific demo patterns, data quality signals"],
+  "demo_surface_notes": ["string — non-error observations about the org: lean/rich layouts, missing fields, objects that suggest specific demo patterns, data quality signals, non-universal standard objects with data (industry cloud indicators)"],
   "issues": ["string — errors, failures, truncations"]
 }
 ```

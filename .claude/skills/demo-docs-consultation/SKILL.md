@@ -13,11 +13,12 @@ The Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) expo
 
 ## When to Consult — YES
 
-1. **Release-gated feature** mentioned by the SE that you cannot immediately name the release for (e.g. "Agent Script subagents", "Data Cloud zero-copy", "Flow HTTP Callout").
-2. **Novel metadata type** you haven't deployed in this session — unfamiliar XML structure, unfamiliar CLI command, unfamiliar agent-bundle element.
-3. **Unfamiliar deployment error message** — the error text isn't in `building-lessons` and isn't obvious from the component name. Consult docs BEFORE the retry attempt.
-4. **SE-referenced concept by name** you don't recognise ("is [term] the right fit here?"). One search, one citation, proceed.
-5. **Agentforce Agent Script capability check** — Agent Script ships features monthly; default to consulting docs for any non-trivial agent spec.
+1. **Industry cloud data model** — the SE named an industry cloud (Health Cloud, Life Sciences Cloud, FSC, Manufacturing Cloud, etc.). Always search for that cloud's standard data model, key objects, and recommended patterns in Stage 6. The SE knows which cloud; docs know which objects.
+2. **Release-gated feature** mentioned by the SE that you cannot immediately name the release for (e.g. "Agent Script subagents", "Data Cloud zero-copy", "Flow HTTP Callout").
+3. **Novel metadata type** you haven't deployed in this session — unfamiliar XML structure, unfamiliar CLI command, unfamiliar agent-bundle element.
+4. **Unfamiliar deployment error message** — the error text isn't in `building-lessons` and isn't obvious from the component name. Consult docs BEFORE the retry attempt.
+5. **SE-referenced concept by name** you don't recognise ("is [term] the right fit here?"). One search, one citation, proceed.
+6. **Agentforce Agent Script capability check** — Agent Script ships features monthly; default to consulting docs for any non-trivial agent spec.
 
 ## When to Consult — NO
 
@@ -48,6 +49,7 @@ If `salesforce_docs_search` fails or times out:
 
 ## Budget Guidance
 
-- **Sparring**: aim for 0–3 consultations per session. More than 5 = you're using docs as a crutch; re-anchor on audit and SE input.
+- **Sparring Stage 6 (Platform & Data Model Research)**: 3–7 consultations for new scenarios, 1–3 for iterations. This is the primary research step — invest here. More than 7 = too broad; anchor on the SE's #1 pain point.
+- **Sparring Stage 8 (residual feasibility)**: 0–2 consultations. Stage 6 should have caught most things — this is a safety net for features that emerged during scenario definition.
 - **Building**: 0 consultations is the happy path. Consultations happen on unfamiliar-error recovery, not as a pre-flight check.
-- **Phase 3 (Agentforce)** is the one exception — expect 1–2 consultations for any non-trivial agent spec (Agent Script surface changes monthly).
+- **Phase 3 (Agentforce)** is the one building exception — expect 1–2 consultations for any non-trivial agent spec (Agent Script surface changes monthly).

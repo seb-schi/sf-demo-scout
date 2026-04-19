@@ -123,6 +123,7 @@ Check `orgs/[alias]-[customer]/` for existing audits and change logs.
    - `status: SUCCESS` or `status: PARTIAL` → collect the JSON.
    - `status: FAILED` or missing/malformed JSON → flag that sub-agent's section as failed.
    - If 2+ sub-agents fail → show the raw outputs, ask the SE to retry in a fresh window or skip the audit entirely.
+   Check the standard-objects sub-agent's `demo_surface_notes` for non-universal standard objects with data — these hint at which industry cloud the org uses. Record for Stage 5.
 7. **Spot-check pass (2 targeted queries — always run after sub-agents return):**
    Run these SOQL queries in parallel:
    - `SELECT COUNT() FROM BotDefinition` — agent count
@@ -173,16 +174,17 @@ After the audit (fresh or reused), surface the ★-flagged items:
 
 Produce a structured summary: customer profile, key pain points (direct quotes), stakeholders, competitive context, gaps.
 
-Ask max 5 clarifying questions:
+Ask max 6 clarifying questions:
 1. Single most compelling pain point
-2. Salesforce clouds in scope
+2. **Which Salesforce clouds?** If this is an industry cloud (Health Cloud, Life Sciences Cloud, Financial Services Cloud, Manufacturing Cloud, Automotive Cloud, Consumer Goods Cloud, etc.), name it — it determines the data model we build on. If the audit found non-universal standard objects with data (e.g., HealthcareProvider, Inquiry, InsurancePolicy), mention them here: "The audit found [objects] — this looks like [cloud]. Confirm?"
 3. Customer's definition of success
 4. Which stakeholder's reaction matters most
 5. **Which existing app and objects from the audit should anchor the demo?** Show the ★-flagged items and ask the SE to confirm or redirect. This determines the build surface before any scenario is proposed.
+6. **Any specific Salesforce feature you want to showcase?** (Agentforce, Data Cloud, a specific Flow pattern, an industry-specific capability — or "nothing specific, you decide")
 
 **Stop and wait for answers.**
 
-Then proceed to Stage 6.
+Then proceed to Stage 6 (Platform & Data Model Research).
 
 ---
 
@@ -208,13 +210,77 @@ After the SE answers, review the existing audit and any prior specs/change logs 
 
 Only surface genuine concerns — don't re-litigate prior decisions that are working fine.
 
-Then proceed to Stage 6i.
+Then proceed to Stage 6 (Platform & Data Model Research).
 
 ---
 
-## Stage 6: Full Scenario Definition
+## Stage 6: Platform & Data Model Research
+
+Before proposing any scenario, consult Salesforce documentation to ground the design in current platform capabilities. This runs for EVERY session — industry clouds and standard orgs alike. Read `.claude/skills/demo-docs-consultation/SKILL.md` for the NO list (items that don't need docs lookup).
+
+### Inputs to Stage 6
+
+Gather these from prior stages — they drive search topic inference:
+- **Audit findings:** ★-flagged build surface, non-universal standard objects from `demo_surface_notes` (from Stage 4), existing agents, active flows, custom objects
+- **SE discovery answers:** pain points (Stage 5/5i), industry cloud named by SE (question 2), feature requests (question 6), build surface confirmation
+- **Intent:** new scenario vs. iteration (determines search depth)
+
+### Step 1 — Infer Search Topics
+
+Based on audit + discovery, infer 3-7 doc search topics. Categories:
+
+1. **Industry data model** (if SE named an industry cloud in question 2): search for that cloud's standard data model, key objects, and recommended patterns. Example: SE said "Life Sciences Cloud" → search "Life Sciences Cloud data model standard objects" to discover HealthcareProvider, Inquiry record types, MedicalInsight, recommended field patterns. Cross-reference against objects the audit found with data.
+2. **Feature-specific** (if SE named a feature in question 6): current capabilities, setup requirements, known limitations. Example: SE said "Agentforce" → search Agent Script topics, available action types, channel options.
+3. **Agentforce patterns** (if the org has existing agents or the scenario involves AI/automation): current Agent Script capabilities, available agent templates, topic routing patterns. Agentforce ships features monthly — always check current state.
+4. **Data Cloud / Analytics** (if mentioned in clouds-in-scope or pain points): current integration patterns, Data Cloud features relevant to the scenario.
+5. **Platform capabilities** (for any non-trivial feature the scenario might use): Flow capabilities, LWC patterns, custom metadata approaches that could simplify the build.
+
+For iterations: narrow to 1-3 searches focused on the specific change and its integration points.
+
+### Step 2 — SE Refinement (conditional)
+
+If the search topics are straightforward — SE named an industry cloud → search its data model, SE named a feature → search it — skip this step and go directly to Step 3. The SE will review findings in Step 4.
+
+If the topics are ambiguous, numerous (>5), or span multiple unrelated areas, present them and ask the SE to prioritize:
+
+> "Before I propose a scenario, I'll research these against current Salesforce docs:
+> 1. [topic — why it matters for this demo]
+> 2. [topic — why]
+> 3. [topic — why]
+>
+> Anything to add or remove from this list?"
+
+**Wait for SE response.** Adjust topics based on their input.
+
+### Step 3 — Execute Searches
+
+For each confirmed topic: run `salesforce_docs_search`, capture URL + question + verdict. If a search reveals related objects, standard fields, or platform patterns that affect the data model, note them — these directly shape the scenario proposal.
+
+Budget: 3-7 searches for new scenarios, 1-3 for iterations. If you find yourself exceeding 7, you're exploring too broadly — anchor on the SE's #1 pain point.
+
+### Step 4 — Surface Findings
+
+Present a structured summary of what docs revealed, grouped by impact:
+
+> **Platform research findings:**
+> - **Data model:** [which standard objects/fields map to the scenario — cite docs]
+> - **Capabilities confirmed:** [features that work as expected — cite docs]
+> - **Constraints discovered:** [limitations, prerequisites, or gotchas — cite docs]
+> - **Recommendation:** [how findings should shape the scenario — e.g., "use HealthcareProvider instead of Contact for HCPs"]
+>
+> "These findings will shape the scenario I propose next. Any questions before I proceed?"
+
+**Wait for SE confirmation**, then proceed:
+- New scenario → Stage 7
+- Iteration → Stage 7i
+
+---
+
+## Stage 7: Full Scenario Definition
 
 Propose exactly 1 scenario: name, 2-sentence business story, core capability, why it addresses the #1 pain point, what exists vs what must be built, conflicts, whether LWC or Agentforce would strengthen the demo, assumptions, risks. Actively evaluate whether an Agentforce agent would strengthen the demo — if the scenario involves data retrieval, account intelligence, guided processes, or rep enablement, propose an agent and explain why. Do not default Agentforce to the SE Manual Checklist when it can be deployed via Agent Script.
+
+**The scenario must be grounded in Stage 6 research.** Every data model choice (which object for which concept, which fields, which record types) should trace back to a doc finding or an audit ★ item. If you propose a custom object, you must show that no standard or industry object covers it — citing both the audit and the doc search.
 
 **Existing-first evaluation (mandatory before proposing any new metadata):**
 - Which parts of this scenario can be delivered by customising existing objects and layouts?
@@ -236,15 +302,15 @@ Wait for the SE's answer. Evaluate BOTH halves:
 
 2. **Customer evidence:** If the SE's answer doesn't reference a specific customer statement or pain point, push back on that half: "You answered what to cut, but which specific customer statement tells you the rest is essential? I want to make sure we're not building for an assumed need."
 
-Both halves must be resolved before proceeding to Stage 7.
+Both halves must be resolved before proceeding to Stage 8.
 
 ---
 
-## Stage 6i: Iteration Definition
+## Stage 7i: Iteration Definition
 
 Propose the change: what gets built, what exists, what conflicts, what the SE does manually.
 
-Apply the same **existing-first evaluation** as Stage 3 — even a single new component should prefer extending existing metadata over creating new.
+Apply the same **existing-first evaluation** as Stage 7 — even a single new component should prefer extending existing metadata over creating new. Ground data model choices in Stage 6 research.
 
 **ONE GATE — send as a standalone message, then stop:**
 
@@ -252,31 +318,17 @@ Apply the same **existing-first evaluation** as Stage 3 — even a single new co
 
 This forces integration thinking. If the SE can't place the change in a demo flow, say so: "If you can't describe what comes before and after, this change doesn't have a home in the demo yet. Let's figure out where it fits first."
 
-Once the gate is cleared, proceed to Stage 7.
+Once the gate is cleared, proceed to Stage 8.
 
 ---
-
-## Stage 7: Feasibility Pass (Docs Consultation)
-
-Before writing the spec, check agreed scope against current Salesforce documentation. Read `.claude/skills/demo-docs-consultation/SKILL.md` — follow the decision tree.
-
-Scan the scenario for:
-- Release-gated features (Agent Script capabilities, Flow features, Data Cloud features, anything shipped in the last 2-3 releases)
-- Novel metadata types you have not deployed this session
-- SE-referenced concepts you cannot immediately name
-
-For each YES item: run one `salesforce_docs_search` and capture URL + question + verdict. Do NOT consult docs for items in the decision tree's NO list (custom field/object/permset XML, standard object structure, customer-asserted facts).
-
-If docs contradict a scope item, surface it to the SE before proceeding:
-> "Docs say [finding] — this affects [scope item]. Adjust, or proceed as-is?"
-
-Wait for SE response. Once resolved, proceed to Stage 8.
 
 ## Stage 8: Spec Generation
 
 Read `.claude/prompts/spec-template.md` for the format, then write the spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md`
 
-Populate the **Release Notes & Citations** section with every consultation from Stage 7 (URL, question, verdict). If Stage 7 produced no consultations, write "None — scenario uses established patterns only."
+**Residual feasibility check:** Before writing, scan the final scenario for any feature or metadata type NOT already covered by Stage 6 research (e.g., a flow pattern that emerged during the gate discussion, or an Agentforce action type added after Stage 6). For each uncovered item, run a quick `salesforce_docs_search`. This is a safety net, not the primary research — Stage 6 should have caught most things.
+
+Populate the **Release Notes & Citations** section with every consultation from Stage 6 and any residual checks (URL, question, verdict). If no consultations occurred, write "None — scenario uses established patterns only."
 
 **For iteration specs:** in the Customer Context section, add these fields:
 - **Iteration on:** [prior spec filename, or "pre-Scout setup" if no prior spec exists]

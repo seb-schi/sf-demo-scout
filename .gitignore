@@ -32,6 +32,7 @@ force-app/
 pipeline-changes/
 temp-*
 manifest/
+ROADMAP.md
 
 # Editor
 .vscode/

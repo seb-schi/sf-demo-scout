@@ -20,7 +20,7 @@ Org Audit Used: audit-[YYYY-MM-DD]-[HHmm].md
 - **Competitive context:**
 
 ## Release Notes & Citations
-Docs consulted during sparring (Feasibility Pass — Stage 7). Empty if scenario uses only established patterns.
+Docs consulted during sparring (Platform & Data Model Research — Stage 6, plus any residual checks in Stage 8). Empty if scenario uses only established patterns.
 - **Question:** [one line]
   - **URL:** [doc URL]
   - **Verdict:** [what the doc confirmed, contradicted, or left ambiguous]
