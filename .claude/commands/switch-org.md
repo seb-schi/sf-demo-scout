@@ -2,6 +2,7 @@
 name: switch-org
 description: >
   Switch to a different Salesforce demo org.
+model: sonnet
 allowed-tools: Bash, Read, mcp__Salesforce_DX__run_soql_query
 ---
 

@@ -5,6 +5,7 @@ description: >
   .claude/skills-manifest.yaml. Adds new skills, updates existing ones,
   prunes orphans. Run whenever session-startup flags skill drift, or
   manually after editing the manifest.
+model: sonnet
 allowed-tools: Bash, Read
 ---
 

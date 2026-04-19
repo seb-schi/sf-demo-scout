@@ -45,7 +45,11 @@ Fall back to `sf` CLI if MCP is unavailable.
 - Complex flows (screen, scheduled, multi-object, subflows) — always SE Manual Checklist
 
 ## Working Pattern
-1. State what you will do and why before every operation
+1. Announce before every tool call or parallel batch — one line, what and why.
+   Opus 4.7 hides thinking from the SE; silence reads as stuck. This rule
+   supersedes default brevity — a short status beats a mystery pause.
+   For multi-step loops (audits, deploys), announce the shape upfront
+   ("8 counts, then 10 layouts, then 3 deploys") so the SE can track progress.
 2. Retrieve current state before writing — prefer MCP retrieve_metadata
 3. Deploy in small increments — never batch unrelated changes
 4. After each deploy: confirm success via deploy status or MCP feedback
