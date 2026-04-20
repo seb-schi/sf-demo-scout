@@ -36,20 +36,30 @@ If `retrieve_metadata` for `CustomApplication` returns too many results, retriev
 
 ## Existing Flows
 
-Use a count-first, enumerate-selectively approach — SDO orgs have hundreds of flows.
+Use a count-first, map-then-detail approach — SDO orgs have hundreds of flows.
 
 1. **Count first:** `SELECT COUNT() FROM FlowDefinitionView WHERE IsActive = true` — record this as `active_flow_count` in your JSON output.
-2. **Enumerate selectively:** query active flows on the 6 core standard objects (Account, Contact, Opportunity, Case, Lead, Order):
+2. **Map all objects with flows:**
+   ```
+   SELECT TriggerObjectOrEventLabel, COUNT(Id) ct
+   FROM FlowDefinitionView
+   WHERE IsActive = true
+   GROUP BY TriggerObjectOrEventLabel
+   HAVING COUNT(Id) > 0
+   ORDER BY COUNT(Id) DESC
+   ```
+   Record this as `flow_object_map` in your JSON output (array of `{"object": "label", "count": N}`). This is the complete picture — no flows are missed.
+3. **Enumerate details** for: (a) the 6 core standard objects (Account, Contact, Opportunity, Case, Lead, Order), plus (b) any non-universal standard objects that appear in the map (e.g., Medical Insight, Visit, Inquiry — objects NOT in the core 6 and NOT managed-package objects):
    ```
    SELECT ApiName, ProcessType, Description, TriggerObjectOrEventLabel
    FROM FlowDefinitionView
    WHERE IsActive = true AND TriggerObjectOrEventLabel = '[Object Label]'
    ```
-   Run one query per object. Use the object **label** (e.g., `'Case'`, `'Account'`), not the API name.
-3. For each enumerated flow: API name, type, trigger object, brief description.
-4. In the audit file, report: "**[active_flow_count] active flows total.** Enumerated below: flows on [list of objects queried]." Then list per-object results.
-5. Flag execution order conflicts: if an object has 3+ active record-triggered flows, add a ⚠️ note.
-6. Do NOT attempt to enumerate all flows.
+   Run one query per object. Use the object **label** (e.g., `'Case'`, `'Medical Insight'`), not the API name.
+4. For each enumerated flow: API name, type, trigger object, brief description.
+5. In the audit file, report: "**[active_flow_count] active flows total across [N] objects.** Full object map below, with details for core + non-universal objects." Then list the GROUP BY map as a table, followed by per-object detail results.
+6. Flag execution order conflicts: if an object has 3+ active record-triggered flows, add a ⚠️ note.
+7. Do NOT attempt to enumerate ALL flows — only detail-query objects from step 3.
 
 ## Existing LWC Components
 
@@ -123,6 +133,7 @@ Write the fragment file, then return EXACTLY one fenced JSON block. No prose out
     {"name": "string", "type": "string"}
   ],
   "active_flow_count": 0,
+  "flow_object_map": [{"object": "string — TriggerObjectOrEventLabel", "count": 0}],
   "lwc_total": 0,
   "lwc_no_namespace": 0,
   "demo_surface_notes": ["string — non-error observations: app organization patterns, flow density signals, LWC reuse opportunities, agent coverage gaps"],

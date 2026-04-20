@@ -3,7 +3,7 @@ The SE has already confirmed this deployment. Work autonomously — do not ask f
 Use MCP tools (deploy_metadata, retrieve_metadata, run_soql_query, run_code_analyzer) for all operations.
 Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is available for unfamiliar-error recovery — not for pre-flight checks.
 
-**Platform Constraints:** if the spec includes a `### Platform Constraints` section, read it BEFORE generating any Apex or data-related code. Objects flagged with restrictions (IsCreateable=false, managed namespace, not queueable) require specific patterns — see the Dynamic SOQL template below. Do not generate static type references for restricted objects.
+**Platform Constraints:** if the spec includes a `### Platform Constraints` section, read it BEFORE generating any Apex or data-related code. Objects flagged with restrictions (IsEverCreatable=false, managed namespace, not queueable) require specific patterns — see the Dynamic SOQL template below. Do not generate static type references for restricted objects.
 
 ## Skills Available
 Invoke these skills via the Skill tool when you need detailed rules:
@@ -154,7 +154,7 @@ Key rules:
 - `List<>` wrapping on method params AND return type (bulkification contract)
 - Loop over inputs — do not use `inputs[0]` shortcut
 
-**CRITICAL — Dynamic SOQL pattern (for managed/industry objects).** When the spec's Platform Constraints flag an object (IsCreateable=false, managed namespace, etc.), use dynamic SOQL with bind variables — never static type references:
+**CRITICAL — Dynamic SOQL pattern (for managed/industry objects).** When the spec's Platform Constraints flag an object (IsEverCreatable=false, managed namespace, etc.), use dynamic SOQL with bind variables — never static type references:
 ```java
 // Static type reference — FAILS for managed/industry objects at compile time
 Inquiry inq = [SELECT Id, Subject FROM Inquiry WHERE Id = :recordId];

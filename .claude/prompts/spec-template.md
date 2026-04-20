@@ -58,8 +58,12 @@ Docs consulted during sparring (Platform & Data Model Research — Stage 6, plus
 - Assign to running user
 
 ### Platform Constraints (from pre-flight — if any managed/industry objects in scope)
-- [Object]: IsCreateable=[true/false], IsQueryable=[true/false], queueable=[yes/no]
+- [Object]: IsEverCreatable=[true/false], IsQueryable=[true/false], queueable=[yes/no]
 - Impact: [how this constrains the spec — e.g. "no API data seeding", "no queue routing", "Apex must use dynamic SOQL"]
+
+### Data Shape (from validation — if Apex/Flow/Agent queries objects)
+- [Object]: [field] populated [X]%, [field] is [DataType] (filterable: yes/no)
+- Design impact: [how this shapes the query pattern — e.g. "join via AccountId not VisitId", "use SOSL not SOQL WHERE for text search"]
 
 ### Queues (if applicable)
 - Queue: [ApiName], Label: [Label]

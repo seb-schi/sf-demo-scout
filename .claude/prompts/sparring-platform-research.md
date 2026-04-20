@@ -18,7 +18,7 @@ For every managed or industry-cloud standard object the scenario will touch, run
 Build the IN clause from: (a) non-universal standard objects with data, reported in the audit's `demo_surface_notes`, plus (b) any managed/industry objects the SE named during Stage 5 discovery.
 
 ```sql
-SELECT QualifiedApiName, IsQueryable, IsCreateable, IsCustomizable
+SELECT QualifiedApiName, IsQueryable, IsEverCreatable, IsCustomizable
 FROM EntityDefinition WHERE QualifiedApiName IN ('<object1>', '<object2>', ...)
 ```
 
@@ -32,21 +32,21 @@ Record the results as explicit constraints for the spec's `### Platform Constrai
 
 ```
 ### Platform Constraints (from pre-flight)
-- Inquiry: IsCreateable=false (managed RT), not queueable
-- HealthcareProvider: IsCreateable=true, not queueable
+- Inquiry: IsEverCreatable=false (managed RT), not queueable
+- HealthcareProvider: IsEverCreatable=true, not queueable
 ```
 
-Any object where `IsCreateable = false` or `IsQueryable = false` or is not queueable (when the scenario needs queuing) must have its spec items adjusted BEFORE proposing the scenario. Do not defer these constraints to building — they reshape the spec.
+Any object where `IsEverCreatable = false` or `IsQueryable = false` or is not queueable (when the scenario needs queuing) must have its spec items adjusted BEFORE proposing the scenario. Do not defer these constraints to building — they reshape the spec.
 
 ## Step 0b — Docs Follow-Up for Restricted Objects
 
-For each object with at least one restriction (IsCreateable/IsQueryable/IsTriggerable = false, or not queueable), run ONE `salesforce_docs_search` query: `"[ObjectName] API limitations"` or `"[ObjectName] platform restrictions developer"`. Record:
+For each object with at least one restriction (IsEverCreatable/IsQueryable/IsTriggerable = false, or not queueable), run ONE `salesforce_docs_search` query: `"[ObjectName] API limitations"` or `"[ObjectName] platform restrictions developer"`. Record:
 - The practical workaround (e.g., "use Database.query() with .get() for field access", "records must be created via UI", "no Apex triggers — use Flow instead")
-- Whether the restriction is absolute or has conditions (e.g., "IsCreateable=false only when using managed record types — standard RT may work")
+- Whether the restriction is absolute or has conditions (e.g., "IsEverCreatable=false only when using managed record types — standard RT may work")
 
 Write the workaround into the Platform Constraints block as the `Impact` line:
 ```
-- Inquiry: IsCreateable=false (managed RT), not queueable. Impact: no API data seeding (SE manual), Apex must use Database.query() + .get() pattern, no queue routing available
+- Inquiry: IsEverCreatable=false (managed RT), not queueable. Impact: no API data seeding (SE manual), Apex must use Database.query() + .get() pattern, no queue routing available
 ```
 
 Budget: 1 docs call per restricted object (typically 1-3 objects per scenario).
@@ -85,6 +85,13 @@ If topics are ambiguous, numerous (>5), or span multiple unrelated areas, presen
 For each confirmed topic: run `salesforce_docs_search`, capture URL + question + verdict. If a search reveals related objects, standard fields, or platform patterns that affect the data model, note them — these directly shape the scenario proposal.
 
 Budget: 3-7 searches for new scenarios, 1-3 for iterations. If you find yourself exceeding 7, you're exploring too broadly — anchor on the SE's #1 pain point.
+
+**Docs-unavailable fallback:** If `salesforce_docs_search` returns 0 results for an industry-cloud object, fall back to the live org's FieldDefinition:
+```
+SELECT QualifiedApiName, DataType, Label FROM FieldDefinition
+WHERE EntityDefinition.QualifiedApiName = '[Object]'
+```
+The live org is authoritative for field structure; docs are authoritative for intended usage patterns and relationships. Note in citations: `verdict: "docs returned 0 results — org FieldDefinition describe used"`.
 
 ## Step 4 — Surface Findings
 

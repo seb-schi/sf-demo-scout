@@ -34,6 +34,7 @@ force-app/
 pipeline-changes/
 temp-*
 manifest/
+tmp_*
 
 # Editor
 .vscode/

@@ -37,7 +37,7 @@ Reporting: Report, Dashboard
 
 **Discovery query:**
 ```
-SELECT QualifiedApiName, Label, IsCreateable, IsQueryable, IsTriggerable, IsSearchable FROM EntityDefinition
+SELECT QualifiedApiName, Label, IsEverCreatable, IsQueryable, IsTriggerable, IsSearchable FROM EntityDefinition
 WHERE IsCustomizable = true
 AND KeyPrefix != null
 AND QualifiedApiName != null
@@ -58,7 +58,7 @@ Run COUNT() only for objects that look potentially demo-relevant (non-trivial na
 For each object with >0 records:
 - Label, API name, record count
 - Record types: `SELECT Name, DeveloperName FROM RecordType WHERE SobjectType = '[Object]' AND IsActive = true` — query unconditionally
-- Platform restrictions: check the EntityDefinition fields from the discovery query. If any of IsCreateable, IsQueryable, IsTriggerable, or IsSearchable is `false`, flag explicitly in `demo_surface_notes` with the restriction (e.g., "Inquiry: 12 records, IsCreateable=false, IsTriggerable=true — API data seeding blocked")
+- Platform restrictions: check the EntityDefinition fields from the discovery query. If any of IsEverCreatable, IsQueryable, IsTriggerable, or IsSearchable is `false`, flag explicitly in `demo_surface_notes` with the restriction (e.g., "Inquiry: 12 records, IsEverCreatable=false, IsTriggerable=true — API data seeding blocked")
 - If it has records OR record types: note in `demo_surface_notes` with the observation (e.g., "HealthcareProvider has 84 records and 2 record types — likely Life Sciences Cloud or Health Cloud")
 - Do NOT ★ these or retrieve layouts — that's the job of Stage 6 after the SE confirms which cloud is active
 
