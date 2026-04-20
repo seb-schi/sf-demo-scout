@@ -91,7 +91,17 @@ else
   echo "✅ Salesforce CLI found ($SF_VERSION)."
 fi
 
-# --- 6. SFDX Project ---
+# --- 6. Pre-cache MCP server ---
+echo ""
+echo "📦 Pre-caching Salesforce MCP server..."
+npx -y @salesforce/mcp --help >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+  echo "✅ Salesforce MCP server cached."
+else
+  echo "⚠️  MCP server pre-cache failed. Claude Code may need a retry on first start."
+fi
+
+# --- 7. SFDX Project ---
 echo ""
 echo "🔍 Checking SFDX project..."
 if [ ! -f "$REPO_DIR/sfdx-project.json" ]; then
@@ -109,7 +119,7 @@ else
   echo "✅ SFDX project already exists."
 fi
 
-# --- 7. External Skills (manifest-driven) ---
+# --- 8. External Skills (manifest-driven) ---
 echo ""
 echo "🔍 Syncing external skills from manifest..."
 
@@ -132,7 +142,7 @@ fi
 
 cd "$REPO_DIR"
 
-# --- 9. Shell Environment Variables ---
+# --- 10. Shell Environment Variables ---
 echo ""
 echo "🔍 Checking shell environment..."
 
@@ -181,7 +191,7 @@ sed -i '' 's/CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096/CLAUDE_CODE_MAX_OUTPUT_TOKENS=81
 
 source "$ZSHRC" 2>/dev/null || true
 
-# --- 10. Script permissions ---
+# --- 11. Script permissions ---
 echo ""
 echo "🔍 Checking script permissions..."
 HOOK="$REPO_DIR/.claude/hooks/session-startup.sh"

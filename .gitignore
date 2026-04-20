@@ -35,6 +35,7 @@ pipeline-changes/
 temp-*
 manifest/
 tmp_*
+data/
 
 # Editor
 .vscode/
