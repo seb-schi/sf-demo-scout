@@ -1,8 +1,12 @@
 ---
 name: demo-org-audit
 description: >
-  Format and procedure for auditing a Salesforce demo org.
-  Used by /scout-sparring (via 3 parallel audit sub-agent prompt templates at .claude/prompts/audit-standard-objects.md, audit-apps-flows-agents.md, audit-custom-objects.md).
+  Format and procedure for auditing a Salesforce demo org — required content,
+  priority flags, and ProfileLayout query patterns.
+  TRIGGER when: audit sub-agents need the canonical output format, section
+  structure, or ★ priority flag rules.
+  DO NOT TRIGGER when: running the audit (sub-agent prompts have inlined
+  procedures), generating specs, or deploying metadata.
 ---
 
 # Org Audit — Format & Procedure

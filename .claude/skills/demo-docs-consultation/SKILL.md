@@ -1,10 +1,12 @@
 ---
 name: demo-docs-consultation
 description: >
-  Decision tree for when to consult the Salesforce Docs MCP during sparring
-  and deployment. Loaded on-demand by scout-sparring, scout-building, and
-  the phase1/2/3 sub-agent prompts. Targeted, not ambient — every call
-  must earn its latency.
+  Decision tree for when to consult the Salesforce Docs MCP — YES/NO rules,
+  citation format, and degraded-mode handling.
+  TRIGGER when: deciding whether to call salesforce_docs_search/fetch (sparring
+  Stage 6, building error recovery, sub-agent unfamiliar-error path).
+  DO NOT TRIGGER when: actually executing a docs search (the decision is already
+  made), during audits, or for standard metadata generation.
 ---
 
 # Salesforce Docs Consultation — Decision Tree

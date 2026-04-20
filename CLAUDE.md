@@ -53,7 +53,7 @@ Fall back to `sf` CLI if MCP is unavailable.
 - Modify existing profiles or permission sets
 - Touch anything prefixed `sb_` or `managed__`
 
-**Deployment rules** for Flows, Apex, LWC, Agentforce, and Page Layouts live in @.claude/skills/demo-deployment-rules/SKILL.md — phase sub-agents load it on-demand.
+**Deployment rules** for Flows, Apex, LWC, Agentforce, and Page Layouts live in `.claude/skills/demo-deployment-rules/SKILL.md` — phase sub-agents load it on-demand.
 
 ## Working Pattern
 1. Announce before every tool call or parallel batch — one line, what and why.
@@ -86,9 +86,9 @@ sf data create record --sobject PermissionSetAssignment --values "PermissionSetI
 
 ## File Locations
 - Per-org history: `orgs/[alias]-[customer]/` (audits, change logs, specs)
-- Sparring lessons: @.claude/prompts/sparring-lessons.md
-- Building lessons: @.claude/prompts/building-lessons.md
-- Deployment rules: @.claude/skills/demo-deployment-rules/SKILL.md
-- Org audit format: @.claude/skills/demo-org-audit/SKILL.md
-- Spec template: @.claude/prompts/spec-template.md
-- Change log template: @.claude/prompts/change-log-template.md
+- Sparring lessons: `.claude/prompts/sparring-lessons.md`
+- Building lessons: `.claude/prompts/building-lessons.md`
+- Deployment rules: `.claude/skills/demo-deployment-rules/SKILL.md`
+- Org audit format: `.claude/skills/demo-org-audit/SKILL.md`
+- Spec template: `.claude/prompts/spec-template.md`
+- Change log template: `.claude/prompts/change-log-template.md`

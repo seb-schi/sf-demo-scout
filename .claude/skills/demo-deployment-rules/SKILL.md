@@ -2,9 +2,12 @@
 name: demo-deployment-rules
 description: >
   Canonical deployment rules for Flows, Apex, LWC, Agentforce, Page Layouts,
-  Queues, and Picklists in SF Demo Prep. Phase templates inline the relevant
-  sections — this skill is the source of truth and remains available for
-  edge cases or when a sub-agent needs rules outside its phase scope.
+  Queues, and Picklists in SF Demo Prep. Two-attempt rule, rollback commands,
+  and per-category deployment procedures.
+  TRIGGER when: a phase sub-agent needs deployment rules outside its inlined
+  scope, or needs to verify rollback command syntax.
+  DO NOT TRIGGER when: deploying metadata (phase prompts inline the relevant
+  rules), during sparring, or for permission set generation.
 ---
 
 # Deployment Rules — Canonical Reference

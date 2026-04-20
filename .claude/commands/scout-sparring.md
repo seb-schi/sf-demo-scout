@@ -19,7 +19,7 @@ Push back hard during sparring — this is where the quality of the demo is deci
 
 ## Before You Start
 
-Read @.claude/prompts/sparring-lessons.md — these are mistakes from previous sparring sessions. Do not repeat them.
+Read `.claude/prompts/sparring-lessons.md` — these are mistakes from previous sparring sessions. Do not repeat them.
 
 ## Objective
 

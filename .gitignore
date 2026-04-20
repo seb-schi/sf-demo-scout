@@ -21,8 +21,8 @@ force-app/
 .claude/commands/project-building.md
 .claude/settings.local.json
 .claude/.sync-state.json
+.claude/prompts/pipeline-lessons.md
 .claude/skills/sf-*/
-.claude/skills/pipeline-lessons/
 .claude/skills/developing-agentforce/
 .claude/skills/observing-agentforce/
 .claude/skills/testing-agentforce/
