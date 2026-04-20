@@ -53,6 +53,8 @@ Budget: 1 docs call per restricted object (typically 1-3 objects per scenario).
 
 **Skip this step for standard unmanaged objects** (Account, Contact, Case, Lead, Opportunity) — their capabilities are stable and well-known.
 
+**Managed-package default rule:** if an object has a non-null namespace prefix (visible in EntityDefinition or evident from the API name pattern), write `dynamic SOQL recommended (managed package)` in Platform Constraints regardless of EntityDefinition flags. EntityDefinition flags alone are insufficient — managed objects can reject static type references at compile time even when IsEverCreatable=true. If the scenario includes Agentforce actions on a managed object, add: `⚠️ Agentforce may reject managed objects at runtime — SE should confirm willingness to proceed (see building-lessons.md for known cases).`
+
 ## Step 1 — Infer Search Topics
 
 Based on audit + discovery, infer 3-7 doc search topics. Categories:

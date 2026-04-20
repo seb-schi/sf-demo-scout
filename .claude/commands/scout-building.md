@@ -193,6 +193,12 @@ Spawn: `Agent(description="Phase 2: Flows/Apex/LWC deployment", model="sonnet", 
 
 **After Phase 2 returns:** Validate output. Parse results.
 
+**Phase 2→3 Risk Review (if Phase 3 applies):** Before the Phase 3 SE gate, scan Phase 2's `discovery_notes` array. For each discovery that involves an object also used in Phase 3's Agentforce actions:
+- Cross-check against `orgs/building-lessons.md` — is this a known restriction or a new one?
+- Include the risk in the Phase 3 SE confirmation prompt (see below).
+- Pass discovery notes into `{{PRIOR_PHASES_SUMMARY}}` as explicit risk callouts, not just deployment facts. Example: "⚠️ Phase 2 discovered MedicalInsight is a managed object requiring dynamic SOQL — Agentforce execution context may also restrict it."
+If `discovery_notes` is empty or contains no Phase 3-relevant entries, proceed normally.
+
 ### Phase 3: Agentforce (Sonnet sub-agent) — if applicable
 
 **Before spawning:** Fire the SE confirmation gate.
@@ -257,6 +263,7 @@ Review the session for:
 - Unexpected conflict check findings from Step 6
 - SE corrections during gated confirmations
 - Permission set or layout issues reported by sub-agents
+- Phase 2 `discovery_notes` entries — if any describe a new platform restriction (managed object compile failure, Agentforce execution context rejection), propose adding it to `orgs/building-lessons.md` with the exact error message as a diagnostic pattern
 
 If any occurred, propose 1-3 candidate lessons:
 

@@ -45,6 +45,7 @@ For agents already in the org. Every publish creates a new version; rollback via
 4. End session: `sf agent preview end --json --session-id [ID] --authoring-bundle [AgentName] -o [alias]`
 5. Evaluate: correct topic? Expected backing action? Coherent response?
 6. Record in `smoke_test` JSON output.
+**Minimum coverage:** send at least 3 utterances (or all, if fewer than 3 in the spec). If utterance #1 fails, send at least 2 more to determine whether the failure is routing-specific or universal. Different utterances test different routing paths — only skip remaining utterances if 3+ consecutive failures produce the identical error message.
 A failed smoke test does NOT block deployment. Record failures in `issues`.
 
 ### Always Out of Scope (skip with reason "SE Manual Checklist")

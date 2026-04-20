@@ -3,7 +3,7 @@ The SE has already confirmed this deployment. Work autonomously — do not ask f
 Use MCP tools (deploy_metadata, retrieve_metadata, run_soql_query, run_code_analyzer) for all operations.
 Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is available for unfamiliar-error recovery — not for pre-flight checks.
 
-**Platform Constraints:** if the spec includes a `### Platform Constraints` section, read it BEFORE generating any Apex or data-related code. Objects flagged with restrictions (IsEverCreatable=false, managed namespace, not queueable) require specific patterns — see the Dynamic SOQL template below. Do not generate static type references for restricted objects.
+**Platform Constraints:** if the spec includes a `### Platform Constraints` section, read it BEFORE generating any Apex or data-related code. Objects flagged with restrictions (IsEverCreatable=false, managed namespace, not queueable) require specific patterns — see the Dynamic SOQL template below. Do not generate static type references for restricted objects. Note: Platform Constraints are initial assessments from sparring's EntityDefinition queries — they may be incomplete. If a deployment fails in a way that contradicts these constraints, trust the deploy-time error over the spec's assessment. Record the contradiction in `discovery_notes`.
 
 ## Skills Available
 Invoke these skills via the Skill tool when you need detailed rules:
@@ -113,6 +113,32 @@ Adapt this template for your spec. Key rules:
 - Entry conditions go in `<start><filters>`, not in `processMetadataValues`
 - For RecordType filters, use a Decision element with `$Record.RecordType.DeveloperName` — do NOT put RecordType in start filters (schema validation issues)
 - `<triggerOrder>500</triggerOrder>` is safe default for no-conflict scenarios
+
+**Common Flow variable references:**
+- Current user: `{!$User.Id}` — do NOT use `$Flow.CurrentUserID` (does not exist)
+- Current record: `{!$Record.FieldName}` in formulas, `$Record` as inputReference
+- Current date/time: `{!$Flow.CurrentDateTime}`, `{!$Flow.CurrentDate}`
+
+**Record Update (triggering record) pattern — after-save flows:**
+```xml
+<recordUpdates>
+    <name>update_triggering_record</name>
+    <label>Update Triggering Record</label>
+    <locationX>176</locationX>
+    <locationY>400</locationY>
+    <inputReference>$Record</inputReference>
+    <inputAssignments>
+        <field>FieldApiName__c</field>
+        <value>
+            <stringValue>NewValue</stringValue>
+        </value>
+    </inputAssignments>
+</recordUpdates>
+```
+Key rules for updating the triggering record:
+- Use `<inputReference>$Record</inputReference>` — NOT filters
+- Field assignments go in `<inputAssignments>`, not `<filters>`
+- This pattern works for after-save triggers — before-save triggers use `$Record` assignments directly in the start element
 
 ### Apex Rules
 Scope: single-trigger, single-object. No test classes (demo org context).
@@ -224,6 +250,9 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
     {"type": "string", "api_name": "string", "reason": "string"}
   ],
   "rollback_commands": ["string"],
+  "discovery_notes": [
+    "string — things that worked differently than the spec assumed. Include the raw error message verbatim. Example: 'MedicalInsight: spec assumed static SOQL safe, but compiler returned [Error: sObject type MedicalInsight is not supported] — switched to dynamic SOQL'"
+  ],
   "docs_consulted": [
     {"question": "string", "url": "string", "verdict": "string"}
   ],

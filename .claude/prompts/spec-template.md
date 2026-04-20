@@ -58,8 +58,10 @@ Docs consulted during sparring (Platform & Data Model Research — Stage 6, plus
 - Assign to running user
 
 ### Platform Constraints (from pre-flight — if any managed/industry objects in scope)
-- [Object]: IsEverCreatable=[true/false], IsQueryable=[true/false], queueable=[yes/no]
+- [Object]: IsEverCreatable=[true/false], IsQueryable=[true/false], queueable=[yes/no], namespace=[if managed]
 - Impact: [how this constrains the spec — e.g. "no API data seeding", "no queue routing", "Apex must use dynamic SOQL"]
+- ⚠️ Managed-package objects (non-null namespace) default to "dynamic SOQL recommended" — static SOQL only if deploy-time evidence confirms it
+- ⚠️ Agentforce + managed object: may fail at runtime even with dynamic SOQL — SE confirm before speccing
 
 ### Data Shape (from validation — if Apex/Flow/Agent queries objects)
 - [Object]: [field] populated [X]%, [field] is [DataType] (filterable: yes/no)
