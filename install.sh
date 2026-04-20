@@ -88,7 +88,9 @@ if ! command -v sf &>/dev/null; then
   echo "✅ Salesforce CLI installed."
 else
   SF_VERSION=$(sf --version | head -1)
-  echo "✅ Salesforce CLI found ($SF_VERSION)."
+  echo "✅ Salesforce CLI found ($SF_VERSION). Checking for updates..."
+  sf update 2>&1 | tail -3
+  echo "✅ Salesforce CLI up to date."
 fi
 
 # --- 6. Pre-cache MCP server ---
