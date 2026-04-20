@@ -1,97 +1,53 @@
-# Changelog
+# What's New in Demo Scout
 
-All notable changes to SF Demo Scout.
-Compare your last `update.sh` date against section headers to see what you missed.
+Check your last `update.sh` date against the headers below to see what you missed.
 
 ## 2026-04-20
 
-### Added
-- Platform restriction auto-detection from EntityDefinition flags (sparring warns before speccing)
-- Data shape validation before spec writing (checks sample records, lookup population, filterability)
-- Lessons maintenance prompt — offers trim review when lessons file exceeds 25 lines
-- Docs fallback via FieldDefinition when Salesforce Docs search returns no results
-
-### Changed
-- Update mechanism is now `update.sh` (nuke-and-reinstall) — replaces incremental git pull
-- Lessons files moved to `orgs/` so they persist across updates
-- Audit flow enumeration is data-driven (GROUP BY) instead of hardcoded object list
-- Scout sparring split into smaller on-demand files for faster context loading
-
-### Fixed
-- MCP server timeout on first launch (package now pre-cached during install)
-- Stale SF CLI causing MCP failures (install.sh now auto-updates CLI)
-- Incorrect EntityDefinition flag (IsCreatable → IsEverCreatable)
+- Scout now warns you about platform restrictions before you commit to a scenario
+- Validates that your org's data actually supports the demo story before writing a spec
+- Gently nudges you to trim your lessons file when it gets long
+- Update mechanism is now a simple `update.sh` script — just run it and you're current
+- Your personal lessons now survive updates (no more losing hard-won wisdom)
+- Fixed: MCP tools actually load on first launch now (no more mysterious silence)
+- Fixed: stale CLI versions no longer break MCP connections
 
 ## 2026-04-19
 
-### Added
-- Audit split into 3 parallel sub-agents — handles large orgs without hitting output caps
-- Queues and picklist value additions now deployable autonomously (no SE gate)
-- Agentforce smoke testing via `sf agent preview` after deployment
-- Industry object auto-detection in audit (Health Cloud, FSC, Insurance, Manufacturing)
-- Platform & data model research stage runs before scenario proposal
-
-### Changed
-- Audit prompts rewritten for accuracy (correct SOQL fields, Tooling API fallbacks)
-- Expanded automation scope — fewer items on SE Manual Checklist
-
-### Fixed
-- Session startup org detection failing on pretty-printed JSON
-- Audit silent truncation on large orgs (now uses count-first approach)
-- Audit falsely reporting "no agents" when GenAiPlanners exist
+- Audit handles large orgs without choking (split into parallel workers)
+- Scout can now deploy queues and picklist values without asking — fewer interruptions
+- Agentforce agents get a smoke test after deployment (talks to itself to verify)
+- Auto-detects industry clouds (Health Cloud, FSC, etc.) during audit
+- Platform research happens before scenario proposal — no more "great idea, impossible org"
+- Fixed: session startup no longer fails to detect your org on certain systems
+- Fixed: audit no longer silently misses flows or agents
 
 ## 2026-04-18
 
-### Added
-- Salesforce Docs MCP integration — feature verification during sparring, error diagnosis during building
-- Docs consultation decision tree (targeted lookups, not ambient)
-- Sub-agent orchestrator architecture — Opus orchestrates, Sonnet executes deployment phases
-
-### Changed
-- Sub-agent prompts no longer inject full skill file contents (10-20K tokens saved per run)
-- Spec template gains Release Notes & Citations section
-- Change log template gains Docs Consulted section
+- Salesforce Docs integration — Scout reads official docs to verify features and diagnose errors
+- New orchestrator architecture — smarter planning, faster execution
+- Spec and change log now cite which docs were consulted
 
 ## 2026-04-17
 
-### Added
-- `/sync-skills` command — pull latest external skills from manifest
-- Skill manifest (`.claude/skills-manifest.yaml`) as single source of truth for external skills
-
-### Fixed
-- `/switch-org` writing to global scope instead of local (caused MCP to read wrong org)
+- `/sync-skills` command — one command to pull the latest skill updates
+- Fixed: switching orgs now sticks (MCP was reading the wrong org)
 
 ## 2026-04-16
 
-### Added
-- Generating skills from AFV library (custom-field, custom-object, permission-set)
-- Sub-agent output validation with structured JSON and recovery gates
+- Better metadata generation (fields, objects, permission sets) via specialist skills
+- Deployment errors now get structured recovery instead of cryptic retries
 
 ## 2026-04-15
 
-### Added
-- Claude Code auto-installation in `install.sh` (fully self-contained setup)
-
-### Changed
-- Skill folders no longer use underscore prefix
-- Model gates simplified to markdown blockquotes
+- `install.sh` now installs Claude Code itself — truly one-script setup
+- Cleaner skill naming (no more ugly underscores)
 
 ## 2026-04-14
 
-### Added
-- Permission allow-rules in settings (targeted, persistent, no SE action needed)
-- Agentforce as first-class category in sparring
-- Iteration path in scout-sparring (lighter discovery for targeted changes to existing demos)
-
-### Changed
-- Session startup displays active org, username, and connection status automatically
-- Org identity read dynamically from `sf config` — no manual CLAUDE.md editing
-- Heavy skill loads deferred to on-demand (faster session startup)
-
-### Fixed
-- Stale command references and HLS/DACH hardcoding removed
-- Logging anti-pattern — all bookkeeping now completes before "done" signal
-
-### Removed
-- Manual org configuration in CLAUDE.md
-- Web tools (incompatible with Bedrock)
+- No more manual org config — Scout reads your active org automatically
+- Agentforce is a first-class citizen in sparring (not an afterthought)
+- Iteration mode — make targeted changes to existing demos without full rediscovery
+- Faster session startup (heavy files load only when needed)
+- Fixed: various stale references and hardcoded values cleaned out
+- Removed: manual org editing, broken web tools
