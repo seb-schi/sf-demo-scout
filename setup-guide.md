@@ -84,12 +84,15 @@ Build complex flows, arrange layouts, replace data → demo ready
 
 ## 🐻 Before You Start
 
-This guide picks up where the [Embark + AWS Bedrock setup guide](https://salesforce.enterprise.slack.com/docs/T01G0063H29/F0ADG6ASE81) leaves off. Before continuing, you need:
+This guide picks up where the [Embark + AWS Bedrock setup guide](https://salesforce.enterprise.slack.com/docs/T01G0063H29/F0ADG6ASE81) leaves off. You should have completed **Steps 0–5** of that guide (Embark account, AWS CLI, SSO config, use case submission, initial login). Before continuing, you need:
 
 - ✅ An active AWS SSO session (run `aws sts get-caller-identity --profile claude` — if it returns your account info, you're good)
+- ✅ Your SSO profile named **`claude`** (the Embark guide specifies this in Step 5 — our install script depends on it)
 - ✅ macOS Terminal working (you'll paste a few commands)
 
-You do **not** need Claude Code installed yet — `install.sh` handles that for you.
+You do **not** need to complete **Step 6** (environment variables) or **Step 7** (project folder + launch) from the Embark guide — Demo Scout's `install.sh` handles environment variables automatically (and sets better values), and Part 2 below replaces Step 7 with the Scout-specific setup.
+
+You also do **not** need Claude Code installed yet — `install.sh` handles that too.
 
 ---
 
@@ -129,7 +132,7 @@ In the Claude Code sidebar (or integrated terminal), type:
 
 If it shows $0.00, you're on Bedrock and everything is wired up correctly. If Claude Code doesn't start at all, run `source ~/.zshrc` in a terminal first, then restart VS Code (⌘+Q and reopen).
 
-> ⚠️ **Opus availability:** Opus is not enabled by default in all Embark accounts. `/scout-sparring` uses Opus automatically – but if your account doesn't have it provisioned, it will fall back or error. To check: run `aws bedrock list-foundation-models --region us-west-2 --profile claude | grep opus` in the terminal. The pipeline works on Sonnet too – sparring is just slightly less... opinionated.
+> ⚠️ **Opus availability:** Opus is not enabled by default in Embark AWS Bedrock accounts (this is an Embark provisioning limitation, not a Scout issue). `/scout-sparring` uses Opus automatically – but if your Embark account doesn't have it provisioned, it will fall back or error. To check: run `aws bedrock list-foundation-models --region us-west-2 --profile claude | grep opus` in the terminal. The pipeline works on Sonnet too – sparring is just slightly less... opinionated. If you need Opus, ask your Embark admin or check the [Embark guide](https://salesforce.enterprise.slack.com/docs/T01G0063H29/F0ADG6ASE81) for current provisioning status.
 
 ---
 
@@ -163,7 +166,7 @@ This runs a setup script that checks your environment and gets everything ready.
 - **Checks the Salesforce CLI** – installs it if missing. This is what Claude Code uses to talk to your org.
 - **Initialises the SFDX project structure** – sets up the folder layout Salesforce expects for metadata deployments.
 - **Installs 13 community Salesforce skills** from three open-source repos — knowledge packs that teach Claude Code Salesforce best practices: valid Flow XML, metadata deployment order, permission set construction, and Agentforce agent development end-to-end. This is what makes automated deployment reliable. (Full list in Part 6.)
-- **Sets shell environment variables** – including bumping the output token limit to 8,192 (prevents truncated deployments on complex scenarios), setting the right model strings for Opus and Sonnet via Bedrock, and configuring model aliases so `/model opus` and `/model sonnet` just work.
+- **Sets shell environment variables** – configures Bedrock auth (`AWS_PROFILE`, `CLAUDE_CODE_USE_BEDROCK`, `AWS_REGION`), bumps the output token limit from the Embark default of 4,096 to 8,192 (prevents truncated deployments on complex scenarios), and sets model aliases so `/model opus` and `/model sonnet` just work. If you already set env vars manually via the Embark guide's Step 6, `install.sh` upgrades them — no conflicts.
 - **Makes scripts executable** – the session startup hook and skill sync engine.
 
 The whole thing takes a minute or two (~90 seconds typical). You'll see a running log. When it finishes, you'll see:
