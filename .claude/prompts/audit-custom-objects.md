@@ -72,6 +72,7 @@ Never report an empty section based on a single failed or empty query.
 - Retrieve metadata in small batches.
 - Write the output file as a single Write at the end — your scope is bounded enough to fit the output cap.
 - If a single retrieve call returns an unmanageable payload, narrow the query and continue.
+- **Output budget:** if your file exceeds 250 lines, trim non-starred custom objects to a summary table (API name, label, count). Starred objects always get full layout + field content.
 
 ## Pre-Return Completeness Checklist
 

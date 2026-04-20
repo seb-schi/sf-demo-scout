@@ -45,7 +45,7 @@ Scope: queues needed for case/lead/custom object routing.
 Before modifying any page layout, identify which layout is actually active.
 1. Query `ProfileLayout` via Tooling API:
    ```
-   SELECT Layout.Name, RecordType.DeveloperName
+   SELECT Layout.Name, RecordType.Name
    FROM ProfileLayout
    WHERE SobjectType = '[Object]'
    AND Profile.Name = 'System Administrator'

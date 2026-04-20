@@ -30,7 +30,7 @@ For each app:
 - API name and label
 - Tabs included (from `<tabs>` elements in the retrieved XML)
 - Note which standard objects are already tabbed
-- ★ the default app ({{DEFAULT_APP}}) — it is the primary demo app
+- ★ the default app ({{DEFAULT_APP}} — injected by orchestrator, authoritative)
 
 If `retrieve_metadata` for `CustomApplication` returns too many results, retrieve only the ★ default app and any apps with names suggesting demo relevance. List remaining apps by name only (from `AppDefinition` SOQL: `SELECT DurableId, Label, DeveloperName FROM AppDefinition`).
 
@@ -100,6 +100,7 @@ Never report an empty section based on a single failed or empty query.
 - Retrieve metadata in small batches.
 - Write the output file as a single Write at the end — your scope is bounded enough to fit the output cap.
 - If a single retrieve call returns an unmanageable payload, narrow the query and continue.
+- **Output budget:** if your file exceeds 250 lines, summarize non-starred apps as name-only and reduce flow listings to per-object counts. The starred default app always gets full tab enumeration.
 
 ## Pre-Return Completeness Checklist
 

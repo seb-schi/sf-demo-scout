@@ -13,11 +13,13 @@ Gather from prior stages — they drive search topic inference:
 
 ## Step 0 — Object Capability Pre-Flight
 
-For every managed or industry-cloud standard object the scenario will touch (identified from audit star items + SE discovery answers), run:
+For every managed or industry-cloud standard object the scenario will touch, run:
+
+Build the IN clause from: (a) non-universal standard objects with data, reported in the audit's `demo_surface_notes`, plus (b) any managed/industry objects the SE named during Stage 5 discovery.
 
 ```sql
 SELECT QualifiedApiName, IsQueryable, IsCreateable, IsCustomizable
-FROM EntityDefinition WHERE QualifiedApiName IN ('Inquiry', 'HealthcareProvider', ...)
+FROM EntityDefinition WHERE QualifiedApiName IN ('<object1>', '<object2>', ...)
 ```
 
 Then check queue eligibility for any object the spec might route to a queue:

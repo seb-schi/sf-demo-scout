@@ -24,7 +24,16 @@ file and tells you the path. **Do not skip the section.** Instead:
 
 After auditing core objects, discover additional standard objects that may indicate an industry cloud or specialized platform feature. This is a safety net — the SE identifies the industry cloud in Stage 5; this query catches objects the SE may not have mentioned.
 
-**Universal standard objects** (always present, already audited above or not demo-relevant): Account, Contact, Opportunity, Case, Lead, Order, Task, Event, User, Group, Profile, Organization, UserRole, Campaign, Pricebook2, Product2, Solution, Report, Dashboard, Document, Folder, ContentDocument, ContentVersion, Note, Attachment, FeedItem, FeedComment, CollaborationGroup, EmailMessage, CaseComment, OpportunityLineItem, QuoteLineItem, Quote, Contract, ContractLineItem.
+**Universal standard objects** (always present, already audited above or not demo-relevant):
+
+Core business: Account, Contact, Opportunity, Case, Lead, Order, Campaign, Quote, Contract
+Activities: Task, Event
+Setup/system: User, Group, Profile, Organization, UserRole
+Content: Document, Folder, ContentDocument, ContentVersion, Note, Attachment
+Products: Pricebook2, Product2, Solution
+Line items: OpportunityLineItem, QuoteLineItem, ContractLineItem
+Social/messaging: FeedItem, FeedComment, CollaborationGroup, EmailMessage, CaseComment
+Reporting: Report, Dashboard
 
 **Discovery query:**
 ```
@@ -101,6 +110,7 @@ Never report an empty section based on a single failed or empty query.
 - Retrieve metadata in small batches.
 - Write the output file as a single Write at the end — your scope is bounded enough to fit the output cap.
 - If a single retrieve call returns an unmanageable payload, narrow the query and continue.
+- **Output budget:** if your file exceeds 300 lines, trim non-starred object entries to name + record count only (drop field lists). Starred layouts always get full field content.
 
 ## Pre-Return Completeness Checklist
 
