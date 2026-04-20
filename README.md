@@ -1,123 +1,166 @@
-# SF Demo Scout
+# SF Demo Scout 🦮
 
-Claude Code pipeline for configuring Salesforce demo orgs from customer discovery notes. Two loops: a **demo loop** (sparring → building) that prepares customer demos, and a **pipeline loop** (architect → deployment) that evolves the tooling itself.
+**Your AI-powered demo prep sidekick** — because nobody became an SE to manually configure permission sets.
 
-## Prerequisites
+SF Demo Scout turns customer discovery notes into fully configured Salesforce demo orgs. You talk about the customer, Scout handles the clicks. Think of it as a Trailblazer who actually *reads* the release notes.
 
-- macOS (Apple Silicon or Intel)
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with AWS Bedrock access
-- A Salesforce demo org (SDO, IDO, or personal developer org)
+---
 
-## Install
+## What You Need
+
+| Ingredient | Why |
+|------------|-----|
+| macOS | Apple Silicon or Intel. Sorry, Windows friends. 🍎 |
+| AWS Bedrock access | Claude Opus thinks. Claude Sonnet builds. Bedrock hosts the party. |
+| A Salesforce demo org | SDO, IDO, personal dev org — we're not picky. The messier, the more fun. |
+
+---
+
+## Install (One Time, We Promise)
 
 ```bash
 git clone https://github.com/seb-schi/sf-demo-scout ~/Projects/sf-demo-scout
 cd ~/Projects/sf-demo-scout && bash install.sh
 ```
 
-The install script sets up Homebrew, Node.js, Python, Salesforce CLI, the SFDX project structure, community Salesforce skills, Agentforce ADLC skills, and shell environment variables for Claude Code model routing.
+Go grab a coffee. ☕ The script installs Homebrew, Node.js, Python, Salesforce CLI, Claude Code itself, sets up the SFDX project, pulls 13 community skills from three open-source repos, and wires your Bedrock environment. It's idempotent — re-run it whenever your Mac gives you trust issues.
 
-After install, open the project in VS Code, start Claude Code, and run `/setup-demo-scout` to connect your first demo org.
+Then: **VS Code → Open Folder → `~/Projects/sf-demo-scout` → Open Terminal → `claude` → `/setup-demo-scout`**
 
-## Update
+That's it. You're in.
+
+## Updating
 
 ```bash
-cd ~/Projects/sf-demo-scout && bash update.sh
+bash update.sh
 ```
 
-The update script backs up your org data (audits, specs, change logs), replaces the installation with the latest version, restores your data, and re-runs the install. You can also paste `bash update.sh` in the VS Code terminal — it will open Terminal.app automatically.
+No `git pull` drama here. Scout nukes the install, re-clones fresh, and restores your org data (audits, specs, change logs). Clean slate. Zero drift. ~30 seconds. Like a metadata refresh, but for your tooling.
 
-## Demo Loop
+> 💡 Running from VS Code? It'll pop open Terminal.app for you. Close VS Code, let it cook, reopen after.
 
-Prepare a customer demo in two steps:
+---
 
-| Command | Model | What it does |
-|---|---|---|
-| `/scout-sparring` | Opus | Discovery sparring — takes customer context, audits the org, produces a structured demo spec |
-| `/scout-building` | Opus | Orchestrates spec deployment via Sonnet sub-agents (org config → flows/apex/lwc → agentforce), writes a consolidated change log |
+## How It Works
 
-Supporting commands:
+Two commands. That's the whole workflow.
 
-| Command | What it does |
-|---|---|
-| `/setup-demo-scout` | One-time setup: connects demo org |
-| `/switch-org` | Switch active demo org (re-authenticates, updates project-local config) |
-| `/sync-skills` | Pull latest external skills per `.claude/skills-manifest.yaml` (adds, updates, prunes orphans) |
+| Step | Command | What happens |
+|------|---------|--------------|
+| **Spar** | `/scout-sparring` | You share customer context. Opus audits the org, researches platform capabilities, asks smart questions, and produces a structured demo spec. |
+| **Build** | `/scout-building` | Opus reads the spec, orchestrates Sonnet sub-agents across three phases (org config → flows/apex/LWC → Agentforce), and writes a change log. |
 
-### What it deploys
+Always spar first. Always build second. It's like discovery → demo, but for configuring the demo itself. Very meta. 🤯
 
-Safe operations run autonomously: custom objects, fields (including picklist value additions), record types, queues, permission sets, page layout changes, Lightning app/tab config, and demo data seeding.
+### Supporting Cast
 
-Gated operations require a single SE confirmation before the category deploys: Flows (record-triggered only), Apex, LWC, and Agentforce agents (with post-activation smoke testing). Complex flows, screen flows, multi-agent orchestration, and Agentforce channel assignment are always deferred to an SE Manual Checklist.
+| Command | When to use it |
+|---------|---------------|
+| `/setup-demo-scout` | First time connecting an org |
+| `/switch-org` | Switching to a different demo org |
+| `/sync-skills` | Pulling latest community skills (install does this too) |
 
-### Artifacts
+---
 
-All artifacts are saved per-org in `orgs/[alias]-[customer]/`:
-- `audit-[DATE]-[HHmm].md` — org state snapshot
-- `demo-spec-[CUSTOMER]-[DATE]-[HHmm].md` — generated spec
-- `changes-[DATE]-[HHmm]-[CUSTOMER].md` — deployment change log
+## What Scout Can Do
 
-## Pipeline Loop
+### Fully autonomous (no approvals needed)
+Custom objects, fields, picklist values, record types, queues, permission sets, page layout field additions, Lightning apps & tabs, and demo data seeding. Scout does these in its sleep. If it had sleep.
 
-Evolve the pipeline itself:
+### One-time SE confirmation per category
+Record-triggered Flows, simple Apex, simple LWC, and Agentforce agents (with smoke testing!). Confirm once, Scout handles the rest.
 
-| Command | Model | What it does |
-|---|---|---|
-| `/project-sparring` | Opus | Architectural sparring — diagnoses issues, proposes changes, writes a deployment guide |
-| `/project-building` | Sonnet | Applies the deployment guide mechanically, appends verification log |
+### Still on your plate (for now 😉)
+Screen flows, scheduled flows, complex Apex/LWC, multi-agent orchestration, page layout visual arrangement, reports, dashboards, OmniStudio. Scout adds these to a Manual Checklist so you don't forget.
 
-Pipeline change history lives in `pipeline-changes/`:
-- `pipeline-state.md` — current state, maintained by `/project-sparring`
-- `[YYYY-MM-DD]/[HHmm]-[topic]-PLAN.md` — individual change plans with LOG sections
+---
 
-## Skills
+## What You Get Back
 
-Skills are domain-specific instruction sets loaded on demand by commands. They keep `CLAUDE.md` lean (under 100 lines) while giving each command deep context.
+After every run, Scout saves artifacts in `orgs/[alias]-[customer]/`:
 
-**Demo reference skills** (internal — loaded by commands, not user-invocable):
-- `demo-deployment-rules` — gates for Flows, Apex, LWC, Agentforce
-- `demo-org-audit` — audit format and procedure
-- `demo-docs-consultation` — decision tree for Salesforce Docs MCP consultation
+| File | What's inside |
+|------|---------------|
+| `audit-*.md` | Org snapshot — objects, flows, agents, layouts, gaps |
+| `demo-spec-*.md` | The deployment spec (your source of truth) |
+| `changes-*.md` | What got deployed, what to verify, what's on you |
 
-**Demo prompt fragments** (internal — eager-loaded or read at specific steps):
-- `.claude/prompts/sparring-lessons.md`, `.claude/prompts/building-lessons.md` — mistakes to avoid
-- `.claude/prompts/spec-template.md` — sparring spec output format
-- `.claude/prompts/change-log-template.md` — building change log format
-- `.claude/prompts/phase1.md`, `phase2.md`, `phase3.md` — sub-agent prompt templates
+These survive updates. They're *your* data — Scout just writes them.
 
-**Pipeline reference skills** (internal):
-- `pipeline-lessons` — pipeline architecture lessons
+---
 
-**Community skills** — declared in `.claude/skills-manifest.yaml`, synced by `install.sh` and `/sync-skills`:
-- `sf-flow`, `sf-permissions`, `sf-deploy`, `sf-apex`, `sf-soql`, `sf-data`, `sf-debug` — from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills)
-- `generating-custom-field`, `generating-custom-object`, `generating-permission-set` — from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library)
-- `developing-agentforce`, `testing-agentforce`, `observing-agentforce` — from [SalesforceAIResearch/agentforce-adlc](https://github.com/SalesforceAIResearch/agentforce-adlc)
+## The Salesforce Connection
 
-The manifest is the single source of truth. To add, remove, or pin a version, edit the YAML and run `/sync-skills`. Session startup detects drift (orphans on disk, missing folders, upstream changes) and prompts you to re-sync.
+Scout talks to your org through two MCP servers:
 
-## How it connects to Salesforce
+🔧 **Salesforce DX MCP** — metadata deployment, SOQL queries, permission sets, code analysis, LWC scaffolding. The workhorse.
 
-The pipeline uses the [Salesforce DX MCP Server](https://github.com/salesforce/salesforce-mcp) (configured in `.mcp.json`) for metadata retrieval, deployment, SOQL queries, permission set assignment, and code analysis. Falls back to `sf` CLI when MCP is unavailable.
+📚 **Salesforce Docs MCP** — semantic search across official Salesforce docs. Scout checks release notes and dev guides so you don't have to. Optional — degrades gracefully if unavailable.
 
-## Project structure
+Falls back to `sf` CLI when MCP acts up. Belt and suspenders.
+
+---
+
+## Skills & Smarts
+
+Scout's intelligence lives in **skills** — domain-specific instruction sets loaded on demand. They're why Scout knows Flow XML needs `<start><filters>` and not `processMetadataValues`, why it never sets `TabVisibility: DefaultOn`, and why it checks `EntityDefinition` flags before suggesting a trigger.
+
+**Ships with the repo** (3 demo skills):
+- `demo-deployment-rules` — the rulebook for deploying Flows, Apex, LWC, Agentforce
+- `demo-org-audit` — how to audit an org properly
+- `demo-docs-consultation` — when to look things up vs. wing it
+
+**Downloaded at install** (13 community skills):
+- 7 from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills) — SOQL, Apex, Flows, Permissions, Deploy, Data, Debug
+- 3 from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) — Custom Fields, Objects, Permission Sets
+- 3 from [SalesforceAIResearch/agentforce-adlc](https://github.com/SalesforceAIResearch/agentforce-adlc) — Agentforce dev, test, observe
+
+Manage skills declaratively: edit `.claude/skills-manifest.yaml` → run `/sync-skills`. Done.
+
+---
+
+## What's In The Box
 
 ```
-CLAUDE.md                     ← root instructions (under 100 lines)
-.mcp.json                     ← Salesforce DX MCP server config
+CLAUDE.md                       ← Root instructions (under 100 lines — we counted)
+install.sh                      ← Full setup (idempotent, run it twice if you want)
+update.sh                       ← Nuke-and-reinstall updater
 .claude/
-  commands/                   ← slash commands
-  skills/                     ← domain-specific instruction sets
-  prompts/                    ← sub-agent prompt templates (phase1/2/3)
-  scripts/                    ← shared scripts (sync-skills.sh)
-  hooks/                      ← session startup checks
-  skills-manifest.yaml        ← declarative source of truth for external skills
-  settings.json               ← permission allow rules, session hooks
-orgs/                         ← per-org artifacts (audits, specs, change logs)
-pipeline-changes/             ← pipeline evolution history
-force-app/                    ← SFDX project (for metadata operations)
-install.sh                    ← one-time setup script
+  commands/                     ← 5 slash commands (the ones you actually type)
+  skills/                       ← 3 demo skills (+ 13 community skills after install)
+  prompts/                      ← 12 sub-agent templates, lessons & reference docs
+  scripts/                      ← sync-skills.sh
+  hooks/                        ← session-startup.sh (org check on every launch)
+  settings.json                 ← Permissions & hooks config
+  skills-manifest.yaml          ← Which community skills to sync from where
 ```
 
-## Questions
+**Generated at runtime** (gitignored, yours to keep):
+```
+orgs/                           ← Your audits, specs, and change logs
+.sf/                            ← Salesforce CLI local config
+force-app/                      ← SFDX project (for metadata operations)
+.mcp.json                       ← MCP server config (generated by setup)
+```
 
-Reach out to @Sebastian Schickhoff.
+---
+
+## FAQ (Frequently Anticipated Questions)
+
+**Q: Can I use this with a sandbox?**
+A: Yes! Any org that `sf org login web` can authenticate. SDO, IDO, sandbox, dev org — Scout doesn't judge.
+
+**Q: What if I mess up my org?**
+A: Every change log includes rollback commands. Scout's like a responsible designated driver — it notes the way back.
+
+**Q: What model does it use?**
+A: Opus for thinking (sparring, orchestration), Sonnet for doing (metadata generation, deployment). Both on Bedrock.
+
+**Q: Can I use it without Agentforce?**
+A: Absolutely. Agentforce is Phase 3 — if your spec doesn't include agents, that phase simply doesn't run.
+
+---
+
+## Questions?
+
+Reach out to @Sebastian Schickhoff — preferably with a wild demo idea and a freshly-provisioned org. 🚀
