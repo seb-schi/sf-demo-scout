@@ -3,6 +3,8 @@ The SE has already confirmed this deployment. Work autonomously — do not ask f
 Use MCP tools (deploy_metadata, retrieve_metadata, run_soql_query, run_code_analyzer) for all operations.
 Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is available for unfamiliar-error recovery — not for pre-flight checks.
 
+**Platform Constraints:** if the spec includes a `### Platform Constraints` section, read it BEFORE generating any Apex or data-related code. Objects flagged with restrictions (IsCreateable=false, managed namespace, not queueable) require specific patterns — see the Dynamic SOQL template below. Do not generate static type references for restricted objects.
+
 ## Skills Available
 Invoke these skills via the Skill tool when you need detailed rules:
 - `sf-flow` — flow design and 110-point validation checklist (invoke before generating Flow XML)
@@ -116,13 +118,92 @@ Adapt this template for your spec. Key rules:
 Scope: single-trigger, single-object. No test classes (demo org context).
 1. Invoke `sf-apex` skill for generation rules.
 2. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`.
-3. Rollback: `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]`
+3. If the spec's Platform Constraints section flags any object with restrictions, follow the dynamic SOQL pattern below for that object.
+4. Rollback: `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]`
+
+**CRITICAL — InvocableMethod pattern (for Agentforce backing actions).** Use this template:
+```java
+public with sharing class ActionNameHere {
+    @InvocableMethod(label='Action Label' description='What the action does — Agentforce LLM reads this')
+    public static List<OutputParameters> execute(List<InputParameters> inputs) {
+        List<OutputParameters> outputs = new List<OutputParameters>();
+        for (InputParameters input : inputs) {
+            OutputParameters output = new OutputParameters();
+            // action logic here
+            output.result = 'value';
+            outputs.add(output);
+        }
+        return outputs;
+    }
+
+    public class InputParameters {
+        @InvocableVariable(required=true label='Input Label' description='What this input is — agent uses this to map values')
+        public String inputField;
+    }
+
+    public class OutputParameters {
+        @InvocableVariable(label='Output Label' description='What this output contains')
+        public String result;
+    }
+}
+```
+Key rules:
+- `with sharing` — Agentforce executes in user context
+- `description` on BOTH `@InvocableMethod` and every `@InvocableVariable` — the agent LLM uses these to discover and invoke the action. Missing descriptions = agent can't find/use the action.
+- Inner classes for Input/Output (not top-level classes)
+- `List<>` wrapping on method params AND return type (bulkification contract)
+- Loop over inputs — do not use `inputs[0]` shortcut
+
+**CRITICAL — Dynamic SOQL pattern (for managed/industry objects).** When the spec's Platform Constraints flag an object (IsCreateable=false, managed namespace, etc.), use dynamic SOQL with bind variables — never static type references:
+```java
+// Static type reference — FAILS for managed/industry objects at compile time
+Inquiry inq = [SELECT Id, Subject FROM Inquiry WHERE Id = :recordId];
+
+// Dynamic SOQL with bind variable — CORRECT for restricted objects
+String objectName = 'Inquiry';
+String query = 'SELECT Id, Subject FROM ' + objectName + ' WHERE Id = :recordId';
+SObject record = Database.query(query);
+String subject = (String) record.get('Subject');
+```
+Key rules:
+- Use bind variables (`:recordId`) for Id/String values — NOT string concatenation with escapeSingleQuotes
+- Use `.get('FieldName')` for all field access on the generic SObject — no casting to a typed object
+- Only the object name and field names are dynamic strings; values always use bind variables
+- This pattern is required whenever Platform Constraints mention a managed or industry object
 
 ### LWC Rules
 Scope: demo-specific UI — Customer 360 Cards, custom record views, branded components.
 1. Use MCP LWC expert tools when available (scaffolding, SLDS, validation).
 2. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`.
 3. Rollback: `sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org [alias]`
+
+**CRITICAL — LWC meta XML template.** Every component needs a `componentName.js-meta.xml`:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Component Display Name</masterLabel>
+    <description>Brief component description</description>
+    <targets>
+        <target>lightning__RecordPage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordPage">
+            <objects>
+                <object>Account</object>
+            </objects>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>
+```
+Key rules:
+- `apiVersion` is MANDATORY (Spring '25+) — always include it
+- `isExposed` must be `true` for any component placed on pages or used in builders
+- Valid demo targets: `lightning__RecordPage` (record pages), `lightning__AppPage` (app pages), `lightning__HomePage` (home page), `lightning__FlowScreen` (flow screens)
+- For Agentforce action UIs: use `lightning__AgentforceInput` (user input) or `lightning__AgentforceOutput` (display data)
+- Object filtering goes in `targetConfigs` > `targetConfig` > `objects` — limits which record pages show the component
+- `masterLabel` and `description` are optional but recommended for discoverability in App Builder
 
 ## What Phase 1 Already Deployed
 {{PHASE1_SUMMARY}}

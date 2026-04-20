@@ -24,25 +24,36 @@ Use during sparring to verify release-gated features before speccing, and during
 
 Fall back to `sf` CLI if MCP is unavailable.
 
-## Allowed Operations
-- Create/modify custom objects, fields, record types
-- Create new permission sets and assign to current user
-- Create Lightning apps and custom tabs
-- Seed demo data on single objects (no cross-object)
+## Build Boundaries
+
+### Autonomous (no SE input needed)
+- Custom objects, fields, record types
+- Permission sets and assignment
+- Lightning apps, custom tabs
+- Queues with object routing
 - Page layout field additions (active layout only — query ProfileLayout first)
-- Simple record-triggered flows — SE confirmation required
-- Simple Apex — SE confirmation required
-- Simple LWC — SE confirmation required
-- Simple Agentforce agents — SE confirmation required
+- Data seeding (single object, no cross-object)
+- Picklist value additions to existing fields
 
-**Deployment rules** for Flows, Apex, LWC, Agentforce, and Page Layouts live in @.claude/skills/demo-deployment-rules/SKILL.md — phase sub-agents load it on-demand.
+### Gated (SE confirms once per category, then autonomous)
+- Simple record-triggered flows (single-object only)
+- Simple Apex (single-trigger, single-object)
+- Simple LWC (demo-specific UI)
+- Agentforce agents via Agent Script (topics, actions, backing Apex, publish, activate, smoke test)
 
-## NEVER Without Explicit SE Confirmation
+### Always Manual (SE Manual Checklist)
+- Screen, scheduled, multi-object flows, subflows
+- Complex Apex/LWC
+- Multi-agent orchestration, channel assignment, production-scale agent testing
+- Page layout visual arrangement (field positioning, sections in App Builder)
+- Reports, dashboards, OmniStudio
+
+### NEVER Without Explicit SE Confirmation
 - Delete existing metadata or records
 - Modify existing profiles or permission sets
 - Touch anything prefixed `sb_` or `managed__`
-- Deploy flows, Apex, LWC, or Agentforce without SE confirmation
-- Complex flows (screen, scheduled, multi-object, subflows) — always SE Manual Checklist
+
+**Deployment rules** for Flows, Apex, LWC, Agentforce, and Page Layouts live in @.claude/skills/demo-deployment-rules/SKILL.md — phase sub-agents load it on-demand.
 
 ## Working Pattern
 1. Announce before every tool call or parallel batch — one line, what and why.
@@ -63,7 +74,7 @@ After every deployment creating objects, fields, record types, tabs, or apps:
 - Object CRUD for all new custom objects
 - Field Read + Edit FLS for all new fields (EXCLUDE Required fields — API rejects FLS)
 - RecordTypeVisibility: visible=true for new record types
-- TabVisibility: DefaultOn for new custom tabs
+- TabVisibility: Visible for new custom tabs (not DefaultOn — DefaultOn is Profile-only)
 - AppVisibility: visible=true for new Lightning apps
 
 Assign via MCP `assign_permission_set`. If unavailable, read alias from `sf config get target-org`:

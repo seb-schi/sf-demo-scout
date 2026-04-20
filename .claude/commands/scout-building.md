@@ -32,17 +32,9 @@ The SE approved the scope during sparring. Your job is autonomous execution via 
 Each sub-agent gets a complete brief — spec section + relevant skills + deployment rules — and
 works independently. You track results and handle failures.
 
-**Safe operations — fully autonomous (no SE input required):**
-- Custom fields on standard or custom objects (including picklist value additions)
-- Record types
-- Queues with object routing (Queue + QueueSobject metadata)
-- Page layout field additions (active layout only — always query ProfileLayout first)
-- Lightning app modifications and custom tabs
-- Permission sets and assignment
-- Data seeding (single object)
-
-**Gated operations — one upfront confirmation per category, then autonomous:**
-- Flows, Apex, LWC, Agentforce
+Build boundaries are defined in CLAUDE.md §Build Boundaries. In short:
+- **Autonomous** items -> deploy without asking
+- **Gated** items (Flows, Apex, LWC, Agentforce) -> one SE confirmation per category before spawning
 
 For each gated category: fire a macOS notification to alert the SE, present the single
 confirmation question, wait for yes/no. Only spawn the sub-agent after receiving yes.

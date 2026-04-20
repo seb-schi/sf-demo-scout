@@ -14,11 +14,12 @@ The Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) expo
 ## When to Consult — YES
 
 1. **Industry cloud data model** — the SE named an industry cloud (Health Cloud, Life Sciences Cloud, FSC, Manufacturing Cloud, etc.). Always search for that cloud's standard data model, key objects, and recommended patterns in Stage 6. The SE knows which cloud; docs know which objects.
-2. **Release-gated feature** mentioned by the SE that you cannot immediately name the release for (e.g. "Agent Script subagents", "Data Cloud zero-copy", "Flow HTTP Callout").
-3. **Novel metadata type** you haven't deployed in this session — unfamiliar XML structure, unfamiliar CLI command, unfamiliar agent-bundle element.
-4. **Unfamiliar deployment error message** — the error text isn't in `building-lessons` and isn't obvious from the component name. Consult docs BEFORE the retry attempt.
-5. **SE-referenced concept by name** you don't recognise ("is [term] the right fit here?"). One search, one citation, proceed.
-6. **Agentforce Agent Script capability check** — Agent Script ships features monthly; default to consulting docs for any non-trivial agent spec.
+2. **Object with platform restrictions** — EntityDefinition pre-flight found IsCreateable/IsQueryable/IsTriggerable/IsSearchable = false, or the object is not in QueueSobject. Search for practical workarounds so the spec carries actionable guidance (not just boolean flags) into building.
+3. **Release-gated feature** mentioned by the SE that you cannot immediately name the release for (e.g. "Agent Script subagents", "Data Cloud zero-copy", "Flow HTTP Callout").
+4. **Novel metadata type** you haven't deployed in this session — unfamiliar XML structure, unfamiliar CLI command, unfamiliar agent-bundle element.
+5. **Unfamiliar deployment error message** — the error text isn't in `building-lessons` and isn't obvious from the component name. Consult docs BEFORE the retry attempt.
+6. **SE-referenced concept by name** you don't recognise ("is [term] the right fit here?"). One search, one citation, proceed.
+7. **Agentforce Agent Script capability check** — Agent Script ships features monthly; default to consulting docs for any non-trivial agent spec.
 
 ## When to Consult — NO
 
