@@ -4,6 +4,8 @@ org-audit-*.md
 demo-spec-*.md
 deployment-summary-*.md
 deployment-log.md
+ROADMAP.md
+setup-guide.md
 
 # Salesforce-specific, per-org artefacts
 sfdx-project.json
@@ -32,7 +34,6 @@ force-app/
 pipeline-changes/
 temp-*
 manifest/
-ROADMAP.md
 
 # Editor
 .vscode/

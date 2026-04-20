@@ -1,8 +1,8 @@
 # SF Demo Scout 🦮
 
-**Your AI-powered demo prep sidekick** — because nobody became an SE to manually configure permission sets.
+**Your AI-powered demo prep sidekick** – because nobody became an SE to manually configure permission sets.
 
-SF Demo Scout is a Claude Code pipeline that *sparrs* with you about customer scenarios, then configures your Salesforce demo org to match. You bring the context, Scout brings the questions — and then handles the clicks. Think of it as a very eager junior admin who never fat-fingers a field API name.
+SF Demo Scout is a Claude Code pipeline that *spars* with you about customer scenarios, then configures your Salesforce demo org to match. You bring the context, Scout brings the questions – and then handles the clicks. Think of it as a very eager junior admin who never fat-fingers a field API name.
 
 ---
 
@@ -12,7 +12,7 @@ SF Demo Scout is a Claude Code pipeline that *sparrs* with you about customer sc
 |------------|-----|
 | macOS | Apple Silicon or Intel. Sorry, Windows friends. 🍎 |
 | AWS Bedrock access | Claude Opus thinks. Claude Sonnet builds. Bedrock hosts the party. [Embark setup guide](https://salesforce.enterprise.slack.com/docs/T01G0063H29/F0ADG6ASE81) |
-| A Salesforce demo org | SDO, IDO, personal dev org — we're not picky. The messier, the more fun. |
+| A Salesforce demo org | SDO, IDO, personal dev org – we're not picky. The messier, the more fun. |
 
 ---
 
@@ -23,7 +23,7 @@ git clone https://github.com/seb-schi/sf-demo-scout ~/Projects/sf-demo-scout
 cd ~/Projects/sf-demo-scout && bash install.sh
 ```
 
-Go grab a coffee. ☕ The script installs Homebrew, Node.js, Python, Salesforce CLI, Claude Code itself, sets up the SFDX project, pulls 13 community skills from three open-source repos, and wires your Bedrock environment. It's idempotent — safe to re-run if something went sideways the first time.
+Go grab a coffee. ☕ The script installs Homebrew, Node.js, Python, Salesforce CLI, Claude Code itself, sets up the SFDX project, pulls 13 community skills from three open-source repos, and wires your Bedrock environment. It's idempotent – safe to re-run if something went sideways the first time.
 
 Then: **VS Code → Open Folder → `~/Projects/sf-demo-scout` → Open Terminal → `claude` → `/setup-demo-scout`**
 
@@ -81,11 +81,11 @@ After every run, Scout saves artifacts in `orgs/[alias]-[customer]/`:
 
 | File | What's inside |
 |------|---------------|
-| `audit-*.md` | Org snapshot — objects, flows, agents, layouts, gaps |
+| `audit-*.md` | Org snapshot – objects, flows, agents, layouts, gaps |
 | `demo-spec-*.md` | The deployment spec (your source of truth) |
 | `changes-*.md` | What got deployed, what to verify, what's on you |
 
-These survive updates. They're *your* data — Scout just writes them.
+These survive updates. They're *your* data – Scout just writes them.
 
 ---
 
@@ -93,9 +93,9 @@ These survive updates. They're *your* data — Scout just writes them.
 
 Scout talks to your org through two MCP servers:
 
-🔧 **Salesforce DX MCP** — metadata deployment, SOQL queries, permission sets, code analysis, LWC scaffolding. The workhorse.
+🔧 **Salesforce DX MCP** – metadata deployment, SOQL queries, permission sets, code analysis, LWC scaffolding. The workhorse.
 
-📚 **Salesforce Docs MCP** — semantic search across official Salesforce docs. Scout checks release notes and dev guides so you don't have to. Optional — degrades gracefully if unavailable.
+📚 **Salesforce Docs MCP** – semantic search across official Salesforce docs. Scout checks release notes and dev guides so you don't have to. Optional – degrades gracefully if unavailable.
 
 Falls back to `sf` CLI when MCP acts up. Belt and suspenders.
 
@@ -103,17 +103,17 @@ Falls back to `sf` CLI when MCP acts up. Belt and suspenders.
 
 ## Skills & Smarts
 
-Scout's intelligence lives in **skills** — domain-specific instruction sets loaded on demand. They're why Scout knows Flow XML needs `<start><filters>` and not `processMetadataValues`, why it never sets `TabVisibility: DefaultOn`, and why it checks `EntityDefinition` flags before suggesting a trigger.
+Scout's intelligence lives in **skills** – domain-specific instruction sets loaded on demand. They're why Scout knows Flow XML needs `<start><filters>` and not `processMetadataValues`, why it never sets `TabVisibility: DefaultOn`, and why it checks `EntityDefinition` flags before suggesting a trigger.
 
 **Ships with the repo** (3 demo skills):
-- `demo-deployment-rules` — the rulebook for deploying Flows, Apex, LWC, Agentforce
-- `demo-org-audit` — how to audit an org properly
-- `demo-docs-consultation` — when to look things up vs. wing it
+- `demo-deployment-rules` – the rulebook for deploying Flows, Apex, LWC, Agentforce
+- `demo-org-audit` – how to audit an org properly
+- `demo-docs-consultation` – when to look things up vs. wing it
 
 **Downloaded at install** (13 community skills):
-- 7 from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills) — SOQL, Apex, Flows, Permissions, Deploy, Data, Debug
-- 3 from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) — Custom Fields, Objects, Permission Sets
-- 3 from [SalesforceAIResearch/agentforce-adlc](https://github.com/SalesforceAIResearch/agentforce-adlc) — Agentforce dev, test, observe
+- 7 from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills) – SOQL, Apex, Flows, Permissions, Deploy, Data, Debug
+- 3 from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) – Custom Fields, Objects, Permission Sets
+- 3 from [SalesforceAIResearch/agentforce-adlc](https://github.com/SalesforceAIResearch/agentforce-adlc) – Agentforce dev, test, observe
 
 Manage skills declaratively: edit `.claude/skills-manifest.yaml` → run `/sync-skills`. Done.
 
@@ -122,7 +122,7 @@ Manage skills declaratively: edit `.claude/skills-manifest.yaml` → run `/sync-
 ## What's In The Box
 
 ```
-CLAUDE.md                       ← Root instructions (under 100 lines — we counted)
+CLAUDE.md                       ← Root instructions (under 100 lines – we counted)
 install.sh                      ← Full setup (idempotent, run it twice if you want)
 update.sh                       ← Nuke-and-reinstall updater
 .claude/
@@ -148,19 +148,19 @@ force-app/                      ← SFDX project (for metadata operations)
 ## FAQ (Frequently Anticipated Questions)
 
 **Q: Can I use this with a sandbox?**
-A: Yes! Any org that `sf org login web` can authenticate. SDO, IDO, sandbox, dev org — Scout doesn't judge. **But:** this is built for demo orgs, not customer orgs. Scout deploys metadata freely and assumes it won't break anything irreplaceable. Don't point it at production. Yet. 😏
+A: Yes! Any org that `sf org login web` can authenticate. SDO, IDO, sandbox, dev org – Scout doesn't judge. **But:** this is built for demo orgs, not customer orgs. Scout deploys metadata freely and assumes it won't break anything irreplaceable. Don't point it at production. Yet. 😏
 
 **Q: What if I mess up my org?**
-A: Every change log includes rollback commands. Scout's like a responsible designated driver — it notes the way back.
+A: Every change log includes rollback commands. Scout's like a responsible designated driver – it notes the way back.
 
 **Q: What model does it use?**
 A: Opus for thinking (sparring, orchestration), Sonnet for doing (metadata generation, deployment). Both on Bedrock.
 
 **Q: Can I use it without Agentforce?**
-A: Absolutely. Agentforce is Phase 3 — if your spec doesn't include agents, that phase simply doesn't run.
+A: Absolutely. Agentforce is Phase 3 – if your spec doesn't include agents, that phase simply doesn't run.
 
 ---
 
 ## Questions?
 
-Reach out to @Sebastian Schickhoff — preferably with a wild demo idea and a freshly-provisioned org. 🚀
+Reach out to @Sebastian Schickhoff – preferably with a wild demo idea and a freshly-provisioned org. 🚀

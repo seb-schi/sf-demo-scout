@@ -1,8 +1,24 @@
 # 🚀 SF Demo Scout – Setup & Usage Guide
 
-*A Claude Code pipeline that sparrs with you about customer scenarios, then configures your Salesforce demo org to match. Less clicking through Setup. More time on what actually matters: the customer conversation.*
+*A Claude Code pipeline that spars with you about customer scenarios, then configures your Salesforce demo org to match. Less clicking through Setup. More time on what actually matters: the customer conversation.*
 
 > ⚠️ **Data classification reminder:** Embark accounts are rated for internal data only. Do not use real customer data in this pipeline. Fake it till you make it — Scout won't tell anyone.
+
+---
+
+## ⚡ TL;DR — Just Get Me Running
+
+```bash
+# 1. Complete the Embark + AWS Bedrock setup guide first (link below)
+# 2. Then:
+git clone https://github.com/seb-schi/sf-demo-scout ~/Projects/sf-demo-scout
+cd ~/Projects/sf-demo-scout && bash install.sh
+# 3. Open ~/Projects/sf-demo-scout in VS Code
+# 4. Open Claude Code sidebar → type: /setup-demo-scout
+# 5. After setup: /scout-sparring → /scout-building → done
+```
+
+Need details? Keep reading. Need it to just work? The four commands above are all you need.
 
 ---
 
@@ -68,7 +84,12 @@ Build complex flows, arrange layouts, replace data → demo ready
 
 ## 🐻 Before You Start
 
-This guide picks up where the [Embark + AWS Bedrock setup guide](https://salesforce.enterprise.slack.com/docs/T01G0063H29/F0ADG6ASE81) leaves off. Before continuing, you should be able to type `claude` in macOS Terminal and get a response. If you can't, complete that guide first.
+This guide picks up where the [Embark + AWS Bedrock setup guide](https://salesforce.enterprise.slack.com/docs/T01G0063H29/F0ADG6ASE81) leaves off. Before continuing, you need:
+
+- ✅ An active AWS SSO session (run `aws sts get-caller-identity --profile claude` — if it returns your account info, you're good)
+- ✅ macOS Terminal working (you'll paste a few commands)
+
+You do **not** need Claude Code installed yet — `install.sh` handles that for you.
 
 ---
 
@@ -90,7 +111,7 @@ Open VS Code. In the left sidebar, click the four-squares Extensions icon (or pr
 
 > 💡 The **"API Usage Billing"** label on the Claude Code welcome screen is a known cosmetic bug. Don't panic – you're not paying out of pocket. Type `/cost` in Claude Code; if it shows $0.00, you're correctly on Bedrock.
 
-## Step 3: Open the Integrated Terminal 🖥
+## Step 3: Open Claude Code 💬
 
 Here's something that trips people up: Claude Code lives in two places in VS Code – the sidebar panel and the integrated terminal. **For this pipeline, you'll use the sidebar panel.** The sidebar is where the pipeline runs best – it gives you the full chat experience with tool approvals and formatted output.
 
@@ -114,7 +135,7 @@ If it shows $0.00, you're on Bedrock and everything is wired up correctly. If Cl
 
 # Part 2: Demo Scout Setup
 
-*This is the good part. Three steps and you're done.*
+*This is the good part. Four steps and you're done.*
 
 ## Step 1: Clone the Repository 📁
 
@@ -141,20 +162,17 @@ This runs a setup script that checks your environment and gets everything ready.
 - **Checks Python 3.9+** – installs it if missing. Required for the Agentforce development skills.
 - **Checks the Salesforce CLI** – installs it if missing. This is what Claude Code uses to talk to your org.
 - **Initialises the SFDX project structure** – sets up the folder layout Salesforce expects for metadata deployments.
-- **Installs 13 community Salesforce skills** from three open-source repos:
-  - 7 core skills from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills) (sf-flow, sf-permissions, sf-deploy, sf-apex, sf-soql, sf-data, sf-debug)
-  - 3 metadata generation skills from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) (generating-custom-field, generating-custom-object, generating-permission-set)
-  - 3 Agentforce ADLC skills from [SalesforceAIResearch/agentforce-adlc](https://github.com/SalesforceAIResearch/agentforce-adlc) (developing-agentforce, testing-agentforce, observing-agentforce)
-
-  These are knowledge packs that teach Claude Code Salesforce best practices: how to generate valid Flow XML, deploy metadata in the right order, construct permission sets correctly, and build Agentforce agents end-to-end. This is what makes Flow and Agent deployment reliable.
+- **Installs 13 community Salesforce skills** from three open-source repos — knowledge packs that teach Claude Code Salesforce best practices: valid Flow XML, metadata deployment order, permission set construction, and Agentforce agent development end-to-end. This is what makes automated deployment reliable. (Full list in Part 6.)
 - **Sets shell environment variables** – including bumping the output token limit to 8,192 (prevents truncated deployments on complex scenarios), setting the right model strings for Opus and Sonnet via Bedrock, and configuring model aliases so `/model opus` and `/model sonnet` just work.
 - **Makes scripts executable** – the session startup hook and skill sync engine.
 
-The whole thing takes a minute or two. You'll see a running log. When it finishes, you'll see:
+The whole thing takes a minute or two (~90 seconds typical). You'll see a running log. When it finishes, you'll see:
 
 ```
 ✅ Install complete!
 ```
+
+**Quick check:** run `sf --version` in your terminal. If you see a version number (e.g. `@salesforce/cli/2.x.x`), you're good.
 
 If any skill install fails, the script will tell you which one. Skills are optional for the core pipeline – but sf-flow is required if you want Claude Code to deploy Flows, and the Agentforce ADLC skills are required for agent deployment. You can always re-sync later with `/sync-skills`.
 
@@ -185,18 +203,11 @@ Then sit back. 🛋️ Claude Code takes it from here. It may ask you for confir
 2. **Connects your demo org** – opens a browser for you to log in (use your demo org credentials, not Salesforce SSO / Okta)
 3. **Shows a setup summary** with your connected org and next steps
 
-**What you'll see at the end:**
+**What you'll see at the end:** A setup summary showing your connected org, the available commands, and a prompt to restart VS Code. Something like:
 
 ```
 ✅ SF Demo Prep — Setup Complete
-====================================
-Project:    ~/Projects/sf-demo-scout/
-Org:        demo-org (admin@yourorg.demo)
-
-/scout-sparring  – Opus discovery sparring + spec generation
-/scout-building  – Opus orchestrator for org deployment
-/switch-org      – change active demo org
-
+Org: demo-org (admin@yourorg.demo)
 Ready to go! Restart VS Code (CMD+Q), then type /scout-sparring to begin.
 ```
 
@@ -212,7 +223,7 @@ Ready to go! Restart VS Code (CMD+Q), then type /scout-sparring to begin.
 
 Always start by opening VS Code with the **sf-demo-scout** folder – not a parent folder. The title bar should say **sf-demo-scout**.
 
-## Phase 1: Gather Your Inputs 📋
+## Step 1: Gather Your Inputs 📋
 
 Before starting Demo Scout, make sure you have:
 
@@ -221,7 +232,7 @@ Before starting Demo Scout, make sure you have:
 
 Don't overthink this — Scout will ask you clarifying questions. Raw notes are fine. Polished briefs are also fine. Scout doesn't judge your note-taking style.
 
-## Phase 2: Demo Scout Sparring 🧠
+## Step 2: Demo Scout Sparring 🧠
 
 Launch Claude Code. The startup hook runs automatically and shows you a status dashboard – green checkmarks mean you're good to go. Then type:
 
@@ -241,9 +252,7 @@ Scout verifies it can talk to your org via MCP. If something's off, it'll tell y
 
 Scout runs a detailed audit of your connected demo org using **3 parallel sub-agents** (standard objects, apps/flows/agents, custom objects). This creates a baseline to plan and deploy against. The audit is saved to `orgs/[alias]-[customer]/` and reused by `/scout-building` later.
 
-> ⚠️ **MCP connectivity when switching orgs:** Due to limitations with VS Code and MCP servers, you must **completely restart VS Code** (⌘+Q) when switching to a new demo org for the audit (and subsequent deployment) to work correctly.
->
-> The MCP server starts up when you launch VS Code using the credentials of the last demo org used. Therefore, when you switch orgs, the MCP server remains connected to the previous org until you restart VS Code (`/switch-org` will detect this and notify you).
+> 💡 If you recently switched orgs, the audit might hit the wrong one. See Part 4 for the MCP restart gotcha.
 
 ### Stage 3 – Discovery Analysis
 
@@ -273,7 +282,7 @@ The spec is saved automatically to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]
 
 > ⚠️ If Scout marks anything **[UNVERIFIED]**, check it yourself before proceeding. Unverified capabilities must not appear in Claude Code Instructions.
 
-## Phase 3: Claude Code Deployment 🔧
+## Step 3: Claude Code Deployment 🔧
 
 Once you've reviewed the spec, **open a fresh Claude Code window** (this keeps the sparring context separate — trust us, it matters). Then type:
 
@@ -313,7 +322,7 @@ Scout will check the active model and prompt you to switch to Opus if needed. Ye
 - Type **stop** at any time to halt immediately
 - If context gets long, Scout saves progress to a partial change log and asks you to start a fresh session
 
-## Phase 4: SE Manual Work 🛠
+## Step 4: SE Manual Work 🛠
 
 Open the change log from `orgs/[alias]-[customer]/` in VS Code. Work through **"SE Must Do Next"** in order:
 
@@ -325,7 +334,7 @@ Open the change log from `orgs/[alias]-[customer]/` in VS Code. Work through **"
 
 > ⚠️ If **Apex** was deployed and something isn't working, the change log includes delete commands. Run them to roll back, then build the logic as a Flow instead.
 
-## Phase 5: Iterate If Needed 🔄
+## Step 5: Iterate If Needed 🔁
 
 After testing, if changes are needed:
 
@@ -342,19 +351,19 @@ Add picklist value "Completed" to Status__c on Patient_Visit__c
 
 ---
 
-# Part 4: Switching Demo Orgs 🔄
+# Part 4: Switching Demo Orgs 🔀
 
 Type `/switch-org` inside a Claude Code session. Scout lists all authenticated orgs, asks which you want, updates the config, and confirms the switch.
 
-Scout also verifies whether the MCP server has picked up the new org. If it hasn't (which happens when you switch without restarting), you'll see a clear warning:
+> ⚠️ **MCP connectivity when switching orgs:** The MCP server starts when VS Code launches and connects using the credentials of the *last* demo org used. When you switch orgs mid-session, the MCP server stays connected to the previous org. Scout's `/switch-org` detects this and warns you:
+>
+> *MCP is still connected to the previous org. Restart VS Code now (⌘+Q).*
 
-> ⚠️ MCP is still connected to the previous org. Restart VS Code now (⌘+Q).
-
-**Always restart VS Code after switching orgs**, then re-run `/scout-sparring`. Scout's conflict detection depends on an accurate snapshot of the target org. The sparring session will check audit freshness and prompt you if a refresh is needed.
+**Always restart VS Code (⌘+Q) after switching orgs**, then re-run `/scout-sparring`. Scout's conflict detection depends on an accurate snapshot of the target org. The sparring session will check audit freshness and prompt you if a refresh is needed.
 
 ---
 
-# Part 5: Updating Demo Scout 🔄
+# Part 5: Updating Demo Scout ⬆️
 
 When Scout detects a newer version on GitHub during session startup, it'll let you know. To update:
 
@@ -411,17 +420,16 @@ Keep all generated files in `orgs/` – they're your audit trail and your starti
 
 # Part 7: Troubleshooting 🆘
 
-### `sf: command` not found
-Run `source ~/.zshrc` in the terminal, then try again. If that doesn't work, close and reopen VS Code.
+*Ordered by how often people actually hit these.*
 
 ### Claude Code hangs with no response
-Your AWS SSO session expired. Open a new terminal tab (⌘+T) and run `aws sso login --profile claude`. Then relaunch Claude Code.
+Your AWS SSO session expired — this is the #1 issue. Open a new terminal tab (⌘+T) and run `aws sso login --profile claude`. Then relaunch Claude Code.
 
-### `/scout-sparring` gives a model error
-Your Embark account doesn't have Opus enabled. Check with your admin or try running `/scout-sparring` anyway – if it falls back to Sonnet the pipeline still works, sparring is just slightly less rigorous. To confirm Opus availability: `aws bedrock list-foundation-models --region us-west-2 --profile claude | grep opus`.
+### SSO session expired mid-session
+Same fix: open a new terminal tab (⌘+T) and run `aws sso login --profile claude`. Return to your Claude Code session and retry.
 
-### Claude Code Welcome screen still shows an old model name
-Run `/cost` – if it shows $0.00 you're on Bedrock and the label is cosmetic. If you're actually being billed, run `source ~/.zshrc` and relaunch.
+### Claude Code isn't reading CLAUDE.md / commands don't work
+Check the VS Code title bar – it must say **sf-demo-scout**. Claude Code reads instructions from whichever folder VS Code has open. If it says anything else: File → Open Folder → sf-demo-scout.
 
 ### Fields, tabs, or the app aren't visible after deployment
 The companion permission set didn't deploy or assign. Tell Claude Code:
@@ -433,11 +441,14 @@ The companion permission set didn't deploy or assign. Tell Claude Code:
 ### MCP tools not working / org audit is empty
 Check that `.mcp.json` is in the project root (not a subfolder). Restart VS Code after any changes. If the file is missing, run `/setup-demo-scout` again — it generates the MCP config.
 
-### Claude Code isn't reading CLAUDE.md
-Check the VS Code title bar – it must say **sf-demo-scout**. Claude Code reads CLAUDE.md from whichever folder VS Code has open. If it says anything else: File → Open Folder → sf-demo-scout.
+### `sf: command` not found
+Run `source ~/.zshrc` in the terminal, then try again. If that doesn't work, close and reopen VS Code.
 
-### SSO session expired mid-session
-Open a new terminal tab (⌘+T) and run `aws sso login --profile claude`. Return to your Claude Code session and retry.
+### `/scout-sparring` gives a model error
+Your Embark account doesn't have Opus enabled. Check with your admin or try running `/scout-sparring` anyway – if it falls back to Sonnet the pipeline still works, sparring is just slightly less rigorous. To confirm Opus availability: `aws bedrock list-foundation-models --region us-west-2 --profile claude | grep opus`.
+
+### Claude Code Welcome screen still shows an old model name
+Run `/cost` – if it shows $0.00 you're on Bedrock and the label is cosmetic. If you're actually being billed, run `source ~/.zshrc` and relaunch.
 
 ### Apex deployed but something broke
 The change log includes delete commands for any Apex. Run them to roll back, then build the logic as a Flow instead.
@@ -450,7 +461,20 @@ Run `/sync-skills` — it'll retry all missing or outdated skills. If a specific
 
 If sf-flow isn't installed, Claude Code won't attempt Flow deployments – it will fall back to adding them to the SE Manual Checklist instead. Same principle for Agentforce ADLC skills.
 
-### I want to add a new community skill
+### Nuclear option: start completely fresh
+If your install is truly borked beyond repair:
+```bash
+rm -rf ~/Projects/sf-demo-scout
+git clone https://github.com/seb-schi/sf-demo-scout ~/Projects/sf-demo-scout
+cd ~/Projects/sf-demo-scout && bash install.sh
+```
+Your org data lives in your Salesforce org — you'll just need to re-run `/setup-demo-scout` and your next `/scout-sparring` will regenerate the audit.
+
+---
+
+## 💡 Tips & How-Tos
+
+### Adding a new community skill
 Edit `.claude/skills-manifest.yaml` — add the repo, path, and skill name — then run `/sync-skills`. That's it.
 
 ---
