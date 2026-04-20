@@ -19,6 +19,14 @@ The install script sets up Homebrew, Node.js, Python, Salesforce CLI, the SFDX p
 
 After install, open the project in VS Code, start Claude Code, and run `/setup-demo-scout` to connect your first demo org.
 
+## Update
+
+```bash
+cd ~/Projects/sf-demo-scout && bash update.sh
+```
+
+The update script backs up your org data (audits, specs, change logs), replaces the installation with the latest version, restores your data, and re-runs the install. You can also paste `bash update.sh` in the VS Code terminal — it will open Terminal.app automatically.
+
 ## Demo Loop
 
 Prepare a customer demo in two steps:

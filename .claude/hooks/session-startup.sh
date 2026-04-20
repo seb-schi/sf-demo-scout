@@ -93,97 +93,14 @@ if git rev-parse --git-dir &>/dev/null; then
     LOCAL=$(git rev-parse HEAD 2>/dev/null)
     REMOTE=$(git rev-parse origin/main 2>/dev/null)
     if [ -n "$LOCAL" ] && [ -n "$REMOTE" ] && [ "$LOCAL" != "$REMOTE" ]; then
-      osascript -e 'display notification "SF Demo Scout has updates available. Run: git pull" with title "SF Demo Scout — Update Available"' 2>/dev/null
-      OUTPUT+="## ⚠️ SF Demo Scout has updates available.\n"
-      OUTPUT+="   Run: git pull — then restart VS Code to pick up the changes.\n\n"
+      OUTPUT+="## ⚠️ SF Demo Scout update available\n"
+      OUTPUT+="   Run \`bash update.sh\` in Terminal (or paste it here — it will open Terminal for you).\n"
+      OUTPUT+="   Your org data is preserved automatically.\n\n"
     fi
   fi
 fi
 
-# --- 6. Skill Drift Check ---
-MANIFEST=".claude/skills-manifest.yaml"
-STATE_FILE=".claude/.sync-state.json"
-if [ -f "$MANIFEST" ]; then
-  DRIFT_MSGS=""
-
-  # (a) Orphan check: skill folders on disk that aren't in the manifest or homegrown
-  if command -v python3 &>/dev/null && python3 -c 'import yaml' 2>/dev/null; then
-    EXPECTED=$(python3 -c "
-import yaml
-with open('$MANIFEST') as f:
-    m = yaml.safe_load(f) or {}
-for s in m.get('skills', []):
-    print(s['name'])
-" 2>/dev/null)
-    if [ -d ".claude/skills" ]; then
-      for DIR in .claude/skills/*/; do
-        [ -d "$DIR" ] || continue
-        FOLDER=$(basename "$DIR")
-        # Skip homegrown
-        case "$FOLDER" in demo-*|pipeline-lessons) continue ;; esac
-        if ! echo "$EXPECTED" | grep -qx "$FOLDER"; then
-          DRIFT_MSGS+="  - orphan on disk: $FOLDER (not in manifest)\n"
-        fi
-      done
-    fi
-
-    # (b) Missing check: manifest entries with no folder on disk
-    while IFS= read -r NAME; do
-      [ -z "$NAME" ] && continue
-      if [ ! -d ".claude/skills/$NAME" ]; then
-        DRIFT_MSGS+="  - missing on disk: $NAME (declared in manifest)\n"
-      fi
-    done <<< "$EXPECTED"
-  fi
-
-  # (c) Upstream staleness: compare ls-remote HEAD against last-synced SHA
-  #     Only for 'clone' type sources; skipped silently if no network or no state file.
-  if [ -f "$STATE_FILE" ] && command -v python3 &>/dev/null && python3 -c 'import yaml' 2>/dev/null; then
-    SOURCES=$(python3 -c "
-import yaml
-with open('$MANIFEST') as f:
-    m = yaml.safe_load(f) or {}
-for name, src in (m.get('sources') or {}).items():
-    if src.get('type') == 'clone':
-        print(f\"{name}|{src.get('repo','')}|{src.get('branch','main')}\")
-" 2>/dev/null)
-    while IFS='|' read -r SRC_NAME SRC_URL SRC_BRANCH; do
-      [ -z "$SRC_NAME" ] && continue
-      LAST_SHA=$(grep "\"$SRC_NAME\"" "$STATE_FILE" 2>/dev/null | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
-      [ -z "$LAST_SHA" ] && continue
-      REMOTE_SHA=$(git ls-remote "$SRC_URL" "refs/heads/$SRC_BRANCH" 2>/dev/null | awk '{print $1}')
-      if [ -n "$REMOTE_SHA" ] && [ "$REMOTE_SHA" != "$LAST_SHA" ]; then
-        DRIFT_MSGS+="  - $SRC_NAME has new commits upstream\n"
-      fi
-    done <<< "$SOURCES"
-  fi
-
-  if [ -n "$DRIFT_MSGS" ]; then
-    OUTPUT+="## ⚠️ Skill drift detected\n"
-    OUTPUT+="$DRIFT_MSGS"
-    OUTPUT+="   Run /sync-skills to reconcile.\n\n"
-  fi
-fi
-
-# --- 7. install.sh Changed Since Last Run ---
-# If install.sh changed in git since the last sync, session-startup flags it —
-# some install.sh changes (new tools, env vars) can't be applied by /sync-skills.
-if [ -f "$STATE_FILE" ] && [ -f "install.sh" ]; then
-  LAST_SYNC_TS=$(grep '"synced_at"' "$STATE_FILE" 2>/dev/null | sed 's/.*: *"\([^"]*\)".*/\1/')
-  if [ -n "$LAST_SYNC_TS" ]; then
-    # Compare install.sh mtime to last sync timestamp (both in epoch seconds)
-    INSTALL_MTIME=$(stat -f%m install.sh 2>/dev/null || stat -c%Y install.sh 2>/dev/null)
-    LAST_SYNC_EPOCH=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$LAST_SYNC_TS" +%s 2>/dev/null \
-      || date -d "$LAST_SYNC_TS" +%s 2>/dev/null)
-    if [ -n "$INSTALL_MTIME" ] && [ -n "$LAST_SYNC_EPOCH" ] && [ "$INSTALL_MTIME" -gt "$LAST_SYNC_EPOCH" ]; then
-      OUTPUT+="## ⚠️ install.sh changed since last sync\n"
-      OUTPUT+="   Some install.sh changes can't be applied by /sync-skills (tool installs, env vars).\n"
-      OUTPUT+="   In Terminal, from the repo root, run: bash install.sh\n\n"
-    fi
-  fi
-fi
-
-# --- 8. Ready ---
+# --- 6. Ready ---
 OUTPUT+="---\n"
 OUTPUT+="**Ready.**\n"
 OUTPUT+="  /scout-sparring  — Opus discovery sparring + spec generation\n"
