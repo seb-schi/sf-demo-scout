@@ -2,7 +2,7 @@
 
 **Your AI-powered demo prep sidekick** — because nobody became an SE to manually configure permission sets.
 
-SF Demo Scout turns customer discovery notes into fully configured Salesforce demo orgs. You talk about the customer, Scout handles the clicks. Think of it as a Trailblazer who actually *reads* the release notes.
+SF Demo Scout is a Claude Code pipeline that *sparrs* with you about customer scenarios, then configures your Salesforce demo org to match. You bring the context, Scout brings the questions — and then handles the clicks. Think of it as a very eager junior admin who never fat-fingers a field API name.
 
 ---
 
@@ -11,7 +11,7 @@ SF Demo Scout turns customer discovery notes into fully configured Salesforce de
 | Ingredient | Why |
 |------------|-----|
 | macOS | Apple Silicon or Intel. Sorry, Windows friends. 🍎 |
-| AWS Bedrock access | Claude Opus thinks. Claude Sonnet builds. Bedrock hosts the party. |
+| AWS Bedrock access | Claude Opus thinks. Claude Sonnet builds. Bedrock hosts the party. [Embark setup guide](https://salesforce.enterprise.slack.com/docs/T01G0063H29/F0ADG6ASE81) |
 | A Salesforce demo org | SDO, IDO, personal dev org — we're not picky. The messier, the more fun. |
 
 ---
@@ -23,7 +23,7 @@ git clone https://github.com/seb-schi/sf-demo-scout ~/Projects/sf-demo-scout
 cd ~/Projects/sf-demo-scout && bash install.sh
 ```
 
-Go grab a coffee. ☕ The script installs Homebrew, Node.js, Python, Salesforce CLI, Claude Code itself, sets up the SFDX project, pulls 13 community skills from three open-source repos, and wires your Bedrock environment. It's idempotent — re-run it whenever your Mac gives you trust issues.
+Go grab a coffee. ☕ The script installs Homebrew, Node.js, Python, Salesforce CLI, Claude Code itself, sets up the SFDX project, pulls 13 community skills from three open-source repos, and wires your Bedrock environment. It's idempotent — safe to re-run if something went sideways the first time.
 
 Then: **VS Code → Open Folder → `~/Projects/sf-demo-scout` → Open Terminal → `claude` → `/setup-demo-scout`**
 
@@ -148,7 +148,7 @@ force-app/                      ← SFDX project (for metadata operations)
 ## FAQ (Frequently Anticipated Questions)
 
 **Q: Can I use this with a sandbox?**
-A: Yes! Any org that `sf org login web` can authenticate. SDO, IDO, sandbox, dev org — Scout doesn't judge.
+A: Yes! Any org that `sf org login web` can authenticate. SDO, IDO, sandbox, dev org — Scout doesn't judge. **But:** this is built for demo orgs, not customer orgs. Scout deploys metadata freely and assumes it won't break anything irreplaceable. Don't point it at production. Yet. 😏
 
 **Q: What if I mess up my org?**
 A: Every change log includes rollback commands. Scout's like a responsible designated driver — it notes the way back.
