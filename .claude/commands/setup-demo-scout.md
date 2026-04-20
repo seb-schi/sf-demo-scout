@@ -61,6 +61,26 @@ Extract and store:
 - `id` (this is the Org ID — use the full 18-char value)
 - `instanceUrl`
 
+## Step 3.5: Create Lesson Files
+
+If `orgs/sparring-lessons.md` does not exist, create it:
+
+```markdown
+# Sparring Lessons
+
+Accumulated lessons from scout-sparring sessions. Add new lessons at the end with today's date.
+```
+
+If `orgs/building-lessons.md` does not exist, create it:
+
+```markdown
+# Building Lessons
+
+Accumulated lessons from scout-building sessions. Add new lessons at the end with today's date.
+```
+
+If either file already exists, leave it untouched.
+
 ## Step 4: Show Setup Summary
 
 Print this summary to the terminal:

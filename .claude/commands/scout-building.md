@@ -20,7 +20,7 @@ Ignore it — the harness auto-indexes slash commands for discoverability, but
 there is no `.claude/skills/scout-building/SKILL.md` by design. Your
 instructions are this file. Do not go looking for a SKILL.md.
 
-Read `.claude/prompts/building-lessons.md` — these are mistakes from previous building sessions. Do not repeat known mistakes.
+Read `orgs/building-lessons.md` — these are mistakes from previous building sessions. Do not repeat known mistakes.
 
 **Docs consultation on error:** when a sub-agent reports a deployment failure with an error message not in `building-lessons` and not self-evident, consult Salesforce Docs MCP BEFORE asking the SE to retry or skip. Load `.claude/skills/demo-docs-consultation/SKILL.md` for the decision tree. Record every consultation for the change log.
 
@@ -265,7 +265,7 @@ If any occurred, propose 1-3 candidate lessons:
 > 2. [lesson]
 > Add these to lessons? (yes / edit / skip)"
 
-If approved, append to `.claude/prompts/building-lessons.md` with today's date. If the deployment was clean, skip silently.
+If approved, append to `orgs/building-lessons.md` with today's date. If the deployment was clean, skip silently.
 
 ### 8c: Done
 
