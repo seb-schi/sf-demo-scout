@@ -11,7 +11,7 @@ SF Demo Scout is a Claude Code pipeline that *spars* with you about customer sce
 | Ingredient | Why |
 |------------|-----|
 | macOS | Apple Silicon or Intel. Sorry, Windows friends. 🍎 |
-| AWS Bedrock access | Claude Opus thinks. Claude Sonnet builds. Bedrock hosts the party. Complete Steps 0–5 of the [Embark setup guide](https://salesforce.enterprise.slack.com/docs/T01G0063H29/F0ADG6ASE81) first. |
+| AWS Bedrock access | Claude Opus thinks. Claude Sonnet builds. Bedrock hosts the party. Complete the [Embark setup guide](https://salesforce.enterprise.slack.com/docs/T01G0063H29/F0ADG6ASE81) first. |
 | A Salesforce demo org | SDO, IDO, personal dev org – we're not picky. The messier, the more fun. |
 
 ---
