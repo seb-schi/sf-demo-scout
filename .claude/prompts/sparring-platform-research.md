@@ -8,14 +8,14 @@ Read `.claude/skills/demo-docs-consultation/SKILL.md` for the NO list (items tha
 
 Gather from prior stages — they drive search topic inference:
 - **Audit findings:** star-flagged build surface, non-universal standard objects from `demo_surface_notes` (Stage 4), existing agents, active flows, custom objects
-- **SE discovery answers:** pain points (Stage 5/5i), industry cloud named by SE (question 2), feature requests (question 6), build surface confirmation
+- **SE discovery answers:** pain points (Stage 4/4i), industry cloud named by SE (question 2), feature requests (question 6), build surface confirmation
 - **Intent:** new scenario vs. iteration (determines search depth)
 
 ## Step 0 — Object Capability Pre-Flight
 
 For every managed or industry-cloud standard object the scenario will touch, run:
 
-Build the IN clause from: (a) non-universal standard objects with data, reported in the audit's `demo_surface_notes`, plus (b) any managed/industry objects the SE named during Stage 5 discovery.
+Build the IN clause from: (a) non-universal standard objects with data, reported in the audit's `demo_surface_notes`, plus (b) any managed/industry objects the SE named during Stage 4 discovery.
 
 ```sql
 SELECT QualifiedApiName, IsQueryable, IsEverCreatable, IsCustomizable
@@ -107,4 +107,4 @@ Present a structured summary of what docs revealed, grouped by impact:
 >
 > "These findings will shape the scenario I propose next. Any questions before I proceed?"
 
-**Wait for SE confirmation**, then return to the main command for Stage 7/7i.
+**Wait for SE confirmation**, then return to the main command for Stage 6/6i.

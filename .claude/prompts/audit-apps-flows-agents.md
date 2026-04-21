@@ -39,16 +39,13 @@ If `retrieve_metadata` for `CustomApplication` returns too many results, retriev
 Use a count-first, map-then-detail approach — SDO orgs have hundreds of flows.
 
 1. **Count first:** `SELECT COUNT() FROM FlowDefinitionView WHERE IsActive = true` — record this as `active_flow_count` in your JSON output.
-2. **Map all objects with flows:**
+2. **Map all objects with flows:** FlowDefinitionView does not support aggregate functions (COUNT, GROUP BY). Instead, retrieve all active flows:
    ```
-   SELECT TriggerObjectOrEventLabel, COUNT(Id) ct
+   SELECT ApiName, TriggerObjectOrEventLabel
    FROM FlowDefinitionView
    WHERE IsActive = true
-   GROUP BY TriggerObjectOrEventLabel
-   HAVING COUNT(Id) > 0
-   ORDER BY COUNT(Id) DESC
    ```
-   Record this as `flow_object_map` in your JSON output (array of `{"object": "label", "count": N}`). This is the complete picture — no flows are missed.
+   If this overflows to a temp file, read it and parse with Python/jq. Count per `TriggerObjectOrEventLabel` client-side. Record as `flow_object_map` in your JSON output (array of `{"object": "label", "count": N}`, sorted by count descending). This is the complete picture — no flows are missed.
 3. **Enumerate details** for: (a) the 6 core standard objects (Account, Contact, Opportunity, Case, Lead, Order), plus (b) any non-universal standard objects that appear in the map (e.g., Medical Insight, Visit, Inquiry — objects NOT in the core 6 and NOT managed-package objects):
    ```
    SELECT ApiName, ProcessType, Description, TriggerObjectOrEventLabel

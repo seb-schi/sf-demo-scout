@@ -2,6 +2,12 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-04-21
+
+- Reuse-org mode — reuse an org from a prior customer without wasted research steps
+- Audit is cheaper on large orgs (skips layout retrieval for non-starred layouts, tighter object queries)
+- Fixed: flow audit no longer wastes a query on an unsupported GROUP BY
+
 ## 2026-04-20
 
 - Scout now warns you about platform restrictions before you commit to a scenario

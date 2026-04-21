@@ -22,7 +22,7 @@ file and tells you the path. **Do not skip the section.** Instead:
 
 ## Non-Universal Standard Objects (safety net)
 
-After auditing core objects, discover additional standard objects that may indicate an industry cloud or specialized platform feature. This is a safety net — the SE identifies the industry cloud in Stage 5; this query catches objects the SE may not have mentioned.
+After auditing core objects, discover additional standard objects that may indicate an industry cloud or specialized platform feature. This is a safety net — the SE identifies the industry cloud in Stage 4; this query catches objects the SE may not have mentioned.
 
 **Universal standard objects** (always present, already audited above or not demo-relevant):
 
@@ -41,8 +41,10 @@ SELECT QualifiedApiName, Label, IsEverCreatable, IsQueryable, IsTriggerable, IsS
 WHERE IsCustomizable = true
 AND KeyPrefix != null
 AND QualifiedApiName != null
+AND IsLayoutable = true
 ORDER BY Label
 ```
+`IsLayoutable = true` filters out metadata containers (ApexClass, FlowDefinition, CustomField), system junction objects, and internal platform objects that will never be demo-relevant. Industry cloud objects (HealthcareProvider, Inquiry, CareProgram, etc.) are all layoutable.
 From the results, filter OUT:
 1. Universal standard objects (listed above)
 2. Objects already covered in the core Standard Objects section above
@@ -60,7 +62,7 @@ For each object with >0 records:
 - Record types: `SELECT Name, DeveloperName FROM RecordType WHERE SobjectType = '[Object]' AND IsActive = true` — query unconditionally
 - Platform restrictions: check the EntityDefinition fields from the discovery query. If any of IsEverCreatable, IsQueryable, IsTriggerable, or IsSearchable is `false`, flag explicitly in `demo_surface_notes` with the restriction (e.g., "Inquiry: 12 records, IsEverCreatable=false, IsTriggerable=true — API data seeding blocked")
 - If it has records OR record types: note in `demo_surface_notes` with the observation (e.g., "HealthcareProvider has 84 records and 2 record types — likely Life Sciences Cloud or Health Cloud")
-- Do NOT ★ these or retrieve layouts — that's the job of Stage 6 after the SE confirms which cloud is active
+- Do NOT ★ these or retrieve layouts — that's the job of Stage 5 after the SE confirms which cloud is active
 
 For objects with 0 records: skip silently (universal exclusion handles the noise).
 
@@ -88,8 +90,8 @@ For each standard object:
   ```
   List the active layout name for each record type. ★ these — they are the primary build surface.
   Note: entries with `RecordType = null` are the default/no-record-type assignment.
-- **Key fields on the ★ active layout** — retrieve the layout XML via `retrieve_metadata` (type: `Layout`, member: `[LayoutName as returned by ProfileLayout]`). List fields grouped by layout section. For each field, annotate `(Required)` if the `<required>` element is true, and `(Readonly)` if `<behavior>` is Readonly. These annotations directly affect permission set generation (Required fields must be excluded from FLS) and data seeding instructions (Required fields need values). This is the highest-value content in the audit — do not skip it.
-- **Related Lists on the ★ active layout** — from the same layout XML, list the `<relatedList>` entries on one line (e.g., "Related Lists: Cases, Contacts, Opportunities, Orders").
+- **Key fields on the ★ active layout** — retrieve the layout XML via `retrieve_metadata` (type: `Layout`, member: `[LayoutName as returned by ProfileLayout]`) **ONLY for ★-marked layouts**. For non-starred layouts (e.g., additional record type assignments that are not the primary build surface), list the layout name and record type assignment from the ProfileLayout results only — do NOT call `retrieve_metadata` for them. For each ★ layout, list fields grouped by layout section. For each field, annotate `(Required)` if the `<required>` element is true, and `(Readonly)` if `<behavior>` is Readonly. These annotations directly affect permission set generation (Required fields must be excluded from FLS) and data seeding instructions (Required fields need values). This is the highest-value content in the audit — do not skip it.
+- **Related Lists on the ★ active layout** — from the same layout XML (already retrieved above for ★ layouts only), list the `<relatedList>` entries on one line (e.g., "Related Lists: Cases, Contacts, Opportunities, Orders").
 
 ## ★ Priority Markers
 

@@ -4,7 +4,7 @@ description: >
   Decision tree for when to consult the Salesforce Docs MCP — YES/NO rules,
   citation format, and degraded-mode handling.
   TRIGGER when: deciding whether to call salesforce_docs_search/fetch (sparring
-  Stage 6, building error recovery, sub-agent unfamiliar-error path).
+  Stage 5, building error recovery, sub-agent unfamiliar-error path).
   DO NOT TRIGGER when: actually executing a docs search (the decision is already
   made), during audits, or for standard metadata generation.
 ---
@@ -15,7 +15,7 @@ The Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) expo
 
 ## When to Consult — YES
 
-1. **Industry cloud data model** — the SE named an industry cloud (Health Cloud, Life Sciences Cloud, FSC, Manufacturing Cloud, etc.). Always search for that cloud's standard data model, key objects, and recommended patterns in Stage 6. The SE knows which cloud; docs know which objects.
+1. **Industry cloud data model** — the SE named an industry cloud (Health Cloud, Life Sciences Cloud, FSC, Manufacturing Cloud, etc.). Always search for that cloud's standard data model, key objects, and recommended patterns in Stage 5. The SE knows which cloud; docs know which objects.
 2. **Object with platform restrictions** — EntityDefinition pre-flight found IsEverCreatable/IsQueryable/IsTriggerable/IsSearchable = false, or the object is not in QueueSobject. Search for practical workarounds so the spec carries actionable guidance (not just boolean flags) into building.
 3. **Release-gated feature** mentioned by the SE that you cannot immediately name the release for (e.g. "Agent Script subagents", "Data Cloud zero-copy", "Flow HTTP Callout").
 4. **Novel metadata type** you haven't deployed in this session — unfamiliar XML structure, unfamiliar CLI command, unfamiliar agent-bundle element.
@@ -52,7 +52,7 @@ If `salesforce_docs_search` fails or times out:
 
 ## Budget Guidance
 
-- **Sparring Stage 6 (Platform & Data Model Research)**: 3–7 consultations for new scenarios, 1–3 for iterations. This is the primary research step — invest here. More than 7 = too broad; anchor on the SE's #1 pain point.
-- **Sparring Stage 8 (residual feasibility)**: 0–2 consultations. Stage 6 should have caught most things — this is a safety net for features that emerged during scenario definition.
+- **Sparring Stage 5 (Platform & Data Model Research)**: 3–7 consultations for new scenarios, 1–3 for iterations. This is the primary research step — invest here. More than 7 = too broad; anchor on the SE's #1 pain point.
+- **Sparring Stage 7 (residual feasibility)**: 0–2 consultations. Stage 5 should have caught most things — this is a safety net for features that emerged during scenario definition.
 - **Building**: 0 consultations is the happy path. Consultations happen on unfamiliar-error recovery, not as a pre-flight check.
 - **Phase 3 (Agentforce)** is the one building exception — expect 1–2 consultations for any non-trivial agent spec (Agent Script surface changes monthly).

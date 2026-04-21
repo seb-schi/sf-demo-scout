@@ -33,7 +33,7 @@ As each sub-agent returns, extract the fenced JSON block. Parse it.
 - `status: FAILED` or missing/malformed JSON -> flag that sub-agent's section as failed.
 - If 2+ sub-agents fail -> show the raw outputs, ask the SE to retry in a fresh window or skip the audit entirely.
 
-Check the standard-objects sub-agent's `demo_surface_notes` for non-universal standard objects with data — these hint at which industry cloud the org uses. Record for Stage 5.
+Check the standard-objects sub-agent's `demo_surface_notes` for non-universal standard objects with data — these hint at which industry cloud the org uses. Record for Stage 4.
 
 ## Spot-Check Pass (2 targeted queries — always run)
 
