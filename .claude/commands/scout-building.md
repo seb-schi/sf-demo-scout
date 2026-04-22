@@ -161,7 +161,13 @@ When constructing sub-agent prompts from template files:
 
 **Prepare the sub-agent prompt:**
 1. Read `.claude/prompts/phase1.md` — this is the prompt template.
-2. Fill placeholders:
+2. **Trim irrelevant sections** — scan the spec and strip conditional blocks the sub-agent won't need:
+   - No new queues in spec → remove everything between `<!-- IF:QUEUES -->` and `<!-- /IF:QUEUES -->` (inclusive)
+   - No layout changes in spec (no fields to add, no layout modifications) → remove `<!-- IF:LAYOUTS -->` block
+   - No companion permission set needed (no new objects, fields, record types, tabs, or apps) → remove `<!-- IF:PERMSET -->` block
+   - No structural metadata at all (only picklist additions + data seeding) → remove `<!-- IF:STRUCTURAL -->` block (the 3 metadata generation skill references)
+   Remove the marker comments themselves along with the content. Leave unmarked sections untouched.
+3. Fill placeholders:
    - `{{ORG_ALIAS}}` and `{{ORG_USERNAME}}` from Step 3
    - `{{SPEC_SECTIONS}}` — paste the relevant spec sections (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning App / Tabs)
 
@@ -231,7 +237,7 @@ After all phases complete (or after Phase 1 if Phases 2/3 were skipped), run one
 
 For each object that received new flows in Phase 2, query active flows:
 ```
-SELECT DeveloperName, TriggerType, ProcessType FROM FlowDefinitionView WHERE IsActive = true AND TriggerObjectOrEventLabel = '[Object]'
+SELECT ApiName, TriggerType, ProcessType FROM FlowDefinitionView WHERE IsActive = true AND TriggerObjectOrEventLabel = '[Object]'
 ```
 
 If multiple after-save record-triggered flows exist on the same object, flag in the change log:

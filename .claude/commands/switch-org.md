@@ -9,9 +9,10 @@ allowed-tools: Bash, Read, mcp__Salesforce_DX__run_soql_query
 Switch to a different Salesforce demo org. Follow these steps:
 
 1. Run `sf org list` to show all available orgs
-2. Ask the SE which org they want to use (show the list clearly with aliases and usernames)
-3. If the desired org is already in the list, skip to step 5.
-   If not, tell the SE:
+2. Ask the SE which org they want to use (show the list clearly with aliases and usernames). After the list, add:
+   > "Pick an org from the list, or type **new** to connect a different org."
+3. If the SE picks an existing org, skip to step 5.
+   If the SE types "new" or names an org not in the list, ask for an alias, then:
    > "I'll open a browser now — log in with your demo org credentials."
    Then run (in the foreground — wait for it to complete before continuing):
    ```

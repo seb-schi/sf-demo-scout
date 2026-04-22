@@ -4,9 +4,11 @@ Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is avail
 
 ## Skills Available
 Invoke these skills via the Skill tool when you need detailed metadata rules:
+<!-- IF:STRUCTURAL -->
 - `generating-custom-object` — custom object XML rules
 - `generating-custom-field` — custom field XML rules (Master-Detail, Roll-up Summary, formulas, picklist value additions)
 - `generating-permission-set` — permission set XML rules (required-field FLS exclusion, tab naming, agent access)
+<!-- /IF:STRUCTURAL -->
 - `sf-data` — data seeding patterns, bulk operations, realistic test data generation
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
 
@@ -19,6 +21,7 @@ Invoke these skills via the Skill tool when you need detailed metadata rules:
 - Deploy in small increments — never batch unrelated changes.
 - After each deploy: confirm success via MCP feedback.
 
+<!-- IF:QUEUES -->
 ### Queue Rules
 Scope: queues needed for case/lead/custom object routing.
 1. Deploy Queue metadata via `deploy_metadata`:
@@ -34,6 +37,7 @@ Scope: queues needed for case/lead/custom object routing.
    ```
 2. After deploying, verify: `SELECT Id, Name FROM Group WHERE Type = 'Queue' AND DeveloperName = '[ApiName]'`
 3. Queue members: `sf data create record --sobject GroupMember --values "GroupId=[QueueId] UserOrGroupId=[UserId]" --target-org [alias]`
+<!-- /IF:QUEUES -->
 
 ### Picklist Value Additions
 1. Retrieve the current field metadata via `retrieve_metadata`.
@@ -41,6 +45,7 @@ Scope: queues needed for case/lead/custom object routing.
 3. For standard value sets (e.g., Case.Type uses `CaseType` StandardValueSet), retrieve and modify the StandardValueSet, not the field directly.
 4. Deploy and verify.
 
+<!-- IF:LAYOUTS -->
 ### Page Layout Rules
 Before modifying any page layout, identify which layout is actually active.
 1. Query `ProfileLayout` via Tooling API:
@@ -53,7 +58,9 @@ Before modifying any page layout, identify which layout is actually active.
 2. Retrieve only the layout(s) returned by that query.
 3. Modify and redeploy only the active layout.
 4. If multiple record types are in scope, run the query per record type.
+<!-- /IF:LAYOUTS -->
 
+<!-- IF:PERMSET -->
 ## Companion Permission Set — MANDATORY
 After deploying objects, fields, record types, tabs, or apps, deploy a permission set:
 - Object CRUD for all new custom objects
@@ -62,6 +69,7 @@ After deploying objects, fields, record types, tabs, or apps, deploy a permissio
 - TabVisibility: Visible for new custom tabs (not DefaultOn — DefaultOn is Profile-only)
 - AppVisibility: visible=true for new Lightning apps
 Assign via MCP assign_permission_set after deploying the permission set.
+<!-- /IF:PERMSET -->
 
 ## Your Spec
 {{SPEC_SECTIONS}}
