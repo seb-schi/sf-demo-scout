@@ -26,25 +26,6 @@ Read `orgs/building-lessons.md` — these are mistakes from previous building se
 
 ---
 
-## Deployment Philosophy
-
-The SE approved the scope during sparring. Your job is autonomous execution via sub-agents.
-Each sub-agent gets a complete brief — spec section + relevant skills + deployment rules — and
-works independently. You track results and handle failures.
-
-Build boundaries are defined in CLAUDE.md §Build Boundaries. In short:
-- **Autonomous** items -> deploy without asking
-- **Gated** items (Flows, Apex, LWC, Agentforce) -> one SE confirmation per category before spawning
-
-For each gated category: fire a macOS notification to alert the SE, present the single
-confirmation question, wait for yes/no. Only spawn the sub-agent after receiving yes.
-
-```bash
-osascript -e 'display notification "[what you are about to deploy]" with title "SF Demo Scout — Input Needed"'
-```
-
----
-
 ## Step 1: MCP Probe
 
 Run a single MCP probe to confirm connectivity:
@@ -151,22 +132,13 @@ After EVERY sub-agent returns, validate its output before proceeding:
 
 ### Template Usage
 
-When constructing sub-agent prompts from template files:
-- Template files in `.claude/prompts/` are plain markdown — read the file and use the entire content as the prompt body.
-- Replace all `{{PLACEHOLDER}}` strings with actual content.
-- Do NOT inject skill file contents as strings. Sub-agents inherit Skill tool access and can invoke skills by name directly.
-- Deployment rules are inlined in each phase template — sub-agents do NOT need to invoke `demo-deployment-rules` as their first action. The skill remains available for edge cases.
+Read the template file from `.claude/prompts/`, replace all `{{PLACEHOLDER}}` strings with actual content, and pass the result as the sub-agent prompt. Do not inject skill file contents — sub-agents invoke skills by name.
 
 ### Phase 1: Org Config (Sonnet sub-agent)
 
 **Prepare the sub-agent prompt:**
 1. Read `.claude/prompts/phase1.md` — this is the prompt template.
-2. **Trim irrelevant sections** — scan the spec and strip conditional blocks the sub-agent won't need:
-   - No new queues in spec → remove everything between `<!-- IF:QUEUES -->` and `<!-- /IF:QUEUES -->` (inclusive)
-   - No layout changes in spec (no fields to add, no layout modifications) → remove `<!-- IF:LAYOUTS -->` block
-   - No companion permission set needed (no new objects, fields, record types, tabs, or apps) → remove `<!-- IF:PERMSET -->` block
-   - No structural metadata at all (only picklist additions + data seeding) → remove `<!-- IF:STRUCTURAL -->` block (the 3 metadata generation skill references)
-   Remove the marker comments themselves along with the content. Leave unmarked sections untouched.
+2. Strip conditional blocks matching unused spec sections — see `<!-- IF:QUEUES/LAYOUTS/PERMSET/STRUCTURAL -->` markers in `phase1.md`. Remove each block (and its marker comments) when the spec has no matching content.
 3. Fill placeholders:
    - `{{ORG_ALIAS}}` and `{{ORG_USERNAME}}` from Step 3
    - `{{SPEC_SECTIONS}}` — paste the relevant spec sections (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning App / Tabs)
@@ -233,17 +205,7 @@ Spawn: `Agent(description="Phase 3: Agentforce deployment", model="sonnet", prom
 
 ## Step 7b: Post-Deployment Execution Order Check
 
-After all phases complete (or after Phase 1 if Phases 2/3 were skipped), run one final verification:
-
-For each object that received new flows in Phase 2, query active flows:
-```
-SELECT ApiName, TriggerType, ProcessType FROM FlowDefinitionView WHERE IsActive = true AND TriggerObjectOrEventLabel = '[Object]'
-```
-
-If multiple after-save record-triggered flows exist on the same object, flag in the change log:
-> "⚠️ [Object] has [N] active after-save flows: [names]. Check execution order in Setup > Process Automation > Flow Trigger Explorer."
-
-This check also runs for objects that already had active flows in the audit — the goal is to catch conflicts introduced by this deployment.
+Read `.claude/prompts/post-deployment-check.md` and execute the procedure. Flag findings in the change log.
 
 ---
 
@@ -284,37 +246,7 @@ If approved, append to `orgs/building-lessons.md` with today's date. Then count 
 
 **Do NOT output the brief until 8a and 8b are complete.**
 
-Synthesize a handover brief from the spec (Customer Context + Scenario) and the change log results. Output to terminal only — no file.
-
-Format (output as plain text, not a blockquote):
-
-**Demo Handover — [Customer]**
-
-**What Was Built**
-[1-2 sentences in business terms — from the spec scenario, not component names]
-
-**Demo Story**
-1. [Open with... — entry point and context-setting]
-2. [Show... — core capability in action]
-3. [Then... — supporting workflow or automation]
-4. [Close with... — value moment tied to pain point]
-
-(Derive from spec's Business story + Core capability + Pain point addressed.
-Use "Show the customer..." framing. 3-5 steps.)
-
-**Before You Demo**
-- [ ] [SE Manual Checklist items from spec + change log "SE Must Do Next", rephrased with Setup navigation paths where applicable]
-
-**Your Files**
-All files for this demo live in one folder. To open it in Finder:
-```
-open orgs/[alias]-[customer]/
-```
-- `demo-spec-[...].md` — full build spec (what and why)
-- `changes-[...].md` — deployment log (what actually happened, rollback commands)
-- `audit-[...].md` — org snapshot before deployment
-
-Copy the spec and change log into your preferred AI tool (Gemini, ChatGPT, Slackbot) to rehearse talking points or generate a demo script.
+Read `.claude/prompts/demo-handover-brief.md` for the format, then synthesize and output the brief to the terminal (no file written).
 
 Then fire the notification:
 

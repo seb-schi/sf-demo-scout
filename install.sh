@@ -172,7 +172,7 @@ append_if_missing "CLAUDE_CODE_MAX_OUTPUT_TOKENS" "export CLAUDE_CODE_MAX_OUTPUT
 append_if_missing "MAX_THINKING_TOKENS" "export MAX_THINKING_TOKENS=1024"
 
 # Model aliases
-append_if_missing "ANTHROPIC_DEFAULT_OPUS_MODEL" "export ANTHROPIC_DEFAULT_OPUS_MODEL=us.anthropic.claude-opus-4-6-v1"
+append_if_missing "ANTHROPIC_DEFAULT_OPUS_MODEL" "export ANTHROPIC_DEFAULT_OPUS_MODEL=us.anthropic.claude-opus-4-7"
 append_if_missing "ANTHROPIC_DEFAULT_SONNET_MODEL" "export ANTHROPIC_DEFAULT_SONNET_MODEL=us.anthropic.claude-sonnet-4-6"
 append_if_missing "ANTHROPIC_DEFAULT_HAIKU_MODEL" "export ANTHROPIC_DEFAULT_HAIKU_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0"
 
