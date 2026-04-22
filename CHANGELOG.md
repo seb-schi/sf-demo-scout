@@ -4,6 +4,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-04-22
 
+- Demo Handover Brief — after deployment, Scout summarizes what was built in business terms, outlines a demo story, lists your to-dos, and shows where your files live (with a Finder shortcut)
 - Smarter deployments for simple specs — Scout no longer sends irrelevant rules to sub-agents (queues, layouts, permission sets) when the spec doesn't need them
 - `/switch-org` now offers to connect a new org directly — no need to guess
 - Sparring responses are more concise — same depth of judgment, fewer words

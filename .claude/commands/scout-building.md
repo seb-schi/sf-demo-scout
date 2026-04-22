@@ -280,10 +280,44 @@ If any occurred, propose 1-3 candidate lessons:
 
 If approved, append to `orgs/building-lessons.md` with today's date. Then count lines in the file — if it exceeds 25 lines, read `.claude/prompts/lessons-maintenance.md` and follow its procedure. If the deployment was clean, skip silently.
 
-### 8c: Done
+### 8c: Demo Handover Brief
 
-**Do NOT fire the completion notification until 8a and 8b are complete.**
+**Do NOT output the brief until 8a and 8b are complete.**
+
+Synthesize a handover brief from the spec (Customer Context + Scenario) and the change log results. Output to terminal only — no file.
+
+Format (output as plain text, not a blockquote):
+
+**Demo Handover — [Customer]**
+
+**What Was Built**
+[1-2 sentences in business terms — from the spec scenario, not component names]
+
+**Demo Story**
+1. [Open with... — entry point and context-setting]
+2. [Show... — core capability in action]
+3. [Then... — supporting workflow or automation]
+4. [Close with... — value moment tied to pain point]
+
+(Derive from spec's Business story + Core capability + Pain point addressed.
+Use "Show the customer..." framing. 3-5 steps.)
+
+**Before You Demo**
+- [ ] [SE Manual Checklist items from spec + change log "SE Must Do Next", rephrased with Setup navigation paths where applicable]
+
+**Your Files**
+All files for this demo live in one folder. To open it in Finder:
+```
+open orgs/[alias]-[customer]/
+```
+- `demo-spec-[...].md` — full build spec (what and why)
+- `changes-[...].md` — deployment log (what actually happened, rollback commands)
+- `audit-[...].md` — org snapshot before deployment
+
+Copy the spec and change log into your preferred AI tool (Gemini, ChatGPT, Slackbot) to rehearse talking points or generate a demo script.
+
+Then fire the notification:
 
 ```bash
-osascript -e 'display notification "Deployment complete. Review the change log." with title "SF Demo Scout — Done"'
+osascript -e 'display notification "Deployment complete — check the handover brief." with title "SF Demo Scout — Done"'
 ```
