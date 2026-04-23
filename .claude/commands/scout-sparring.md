@@ -50,16 +50,16 @@ Run a single MCP probe to confirm connectivity:
   > If this persists, check that .mcp.json exists in the project root."
   Stop. Do not proceed without MCP.
 
-**Check for pending update:** Read `.claude/.update-available`. If it exists, parse `commits_behind=<N>` and `recent_changes=<bullets separated by ` | `>`. If the file does not exist, skip to the no-update gate below.
+**Check for pending update:** Read `.claude/.update-available`. If it exists, parse `commits_behind=<N>` and `recent_changes=<bullets separated by ` | `>`.
 
-### Gate — update pending
+### Model gate
 
-If `.claude/.update-available` exists, emit this as a standalone message:
+Emit as a standalone message. Include the bracketed update block only if `.claude/.update-available` exists; omit the block entirely otherwise.
 
 > "Scout Sparring is designed for Opus.
 > Run `/model opus` now if you haven't already — your conversation history is preserved.
 >
-> ---
+> [--- *include only if update flag exists* ---
 >
 > ⚠️ **SF Demo Scout update available** ([N] commit(s) behind main)
 >
@@ -71,20 +71,11 @@ If `.claude/.update-available` exists, emit this as a standalone message:
 > To update: run `bash update.sh` in Terminal (your org data is preserved). VS Code will close — reopen after.
 > To proceed without updating: reply `proceed` (dismissed for this session only).
 >
-> ---
+> ---]
 >
-> Confirm you're on Opus AND tell me update vs. proceed."
+> Confirm you're on Opus[, and if an update is pending, tell me update vs. proceed]. (yes)"
 
-Substitute `[N]` with `commits_behind` and the bullets with the three items from `recent_changes` (split on ` | `). If `recent_changes` is empty, omit the "Recent changes" block entirely. Do not write to or delete the flag file — the next `session-startup.sh` run refreshes it.
-
-### Gate — no update pending
-
-If `.claude/.update-available` does not exist, emit this as a standalone message:
-
-> "Scout Sparring is designed for Opus.
-> Run `/model opus` now if you haven't already — your conversation history is preserved.
->
-> Confirm you're on Opus before we continue. (yes)"
+Substitution rules when the flag exists: `[N]` = `commits_behind`; bullets split on ` | ` (use exactly as many as present, up to 3). If `recent_changes` is empty, omit the "Recent changes" lines but keep the dividers. Do not write to or delete the flag file — the next `session-startup.sh` run refreshes it.
 
 **Wait for the SE's confirmation before proceeding to Stage 2.** If the SE chose to update, they will close VS Code — do not advance. If they replied `proceed`, advance normally.
 
@@ -216,27 +207,7 @@ Both halves must be resolved before proceeding to Stage 6b.
 
 ## Stage 6b: Data Shape Validation
 
-For every object the scenario's Apex, Flow, or Agentforce action will **query or write to** (not objects that only receive new fields or layouts), validate that the data matches the design assumptions. Runs inline — no sub-agent needed.
-
-**Procedure per object:**
-
-1. **Sample real records** — `SELECT [key fields from scenario] FROM [Object] LIMIT 5`. If a field errors (e.g., "No such column"), that itself is a finding.
-2. **Check lookup population** — for any lookup field the scenario depends on (e.g., `VisitId`, `AccountId`): `SELECT COUNT(Id) FROM [Object] WHERE [LookupField] != null`. If 0% populated, the scenario's join path is broken.
-3. **Check field filterability** — for any field the scenario uses in a WHERE clause or GROUP BY: `SELECT QualifiedApiName, DataType FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName = '[Object]' AND QualifiedApiName = '[Field]'`. Long Text Area and rich text fields are not filterable — if the scenario depends on filtering them, flag it.
-
-**Budget:** 3-6 SOQL queries per action-relevant object. Most scenarios touch 1-3 objects. Queries are fast and sequential (each informs the next).
-
-**Surface findings to the SE:**
-
-> "Data shape validation for [objects]:
-> - [Object]: [field] populated on [X]% of records, [field] is [DataType] (not filterable in WHERE) ...
-> - [Object]: sample records look healthy, all assumed fields present and populated.
->
-> [If problems found:] This affects [scenario element]. Options: [workaround A] or [adjust scenario to B]. Which way?"
-
-**Wait for SE response** if any problems require a design change. Then proceed to Stage 7.
-
-If all objects check out cleanly, proceed to Stage 7 without stopping.
+Read `.claude/prompts/sparring-data-shape.md` and execute the procedure. It validates that real data matches the scenario's design assumptions for every object Apex/Flow/Agentforce will query or write to. Proceed to Stage 7 after — stopping for SE input only if problems require a design change.
 
 ---
 

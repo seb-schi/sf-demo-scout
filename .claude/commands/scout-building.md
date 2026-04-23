@@ -130,69 +130,46 @@ After EVERY sub-agent returns, validate its output before proceeding:
    > "Sub-agent returned unexpected output for Phase [N]. Raw output below. Retry with a fresh sub-agent, or skip this phase?"
 4. If retry also produces invalid output: record as FAILED in the change log and tell the SE to start a fresh session for this phase.
 
-### Template Usage
+### Phase Prep Procedure
 
-Read the template file from `.claude/prompts/`, replace all `{{PLACEHOLDER}}` strings with actual content, and pass the result as the sub-agent prompt. Do not inject skill file contents — sub-agents invoke skills by name.
+Every phase follows the same prep flow. Per-phase inputs are in the table below.
 
-### Phase 1: Org Config (Sonnet sub-agent)
+1. Read the template file from `.claude/prompts/`.
+2. If the template has `<!-- IF:... -->` markers, strip blocks whose tag has no matching content in the spec (marker comments included).
+3. Replace every `{{PLACEHOLDER}}` with the content listed in the phase's row below. Do not inject skill file contents — sub-agents invoke skills by name via the Skill tool.
+4. Spawn: `Agent(description="[row's description]", model="sonnet", prompt=[constructed prompt])`.
+5. Validate output (see Sub-Agent Output Validation above) before moving on.
 
-**Prepare the sub-agent prompt:**
-1. Read `.claude/prompts/phase1.md` — this is the prompt template.
-2. Strip conditional blocks matching unused spec sections — see `<!-- IF:QUEUES/LAYOUTS/PERMSET/STRUCTURAL -->` markers in `phase1.md`. Remove each block (and its marker comments) when the spec has no matching content.
-3. Fill placeholders:
-   - `{{ORG_ALIAS}}` and `{{ORG_USERNAME}}` from Step 3
-   - `{{SPEC_SECTIONS}}` — paste the relevant spec sections (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning App / Tabs)
+| Phase | Template | IF markers | Placeholders | Agent description |
+|-------|----------|------------|--------------|-------------------|
+| 1 | `.claude/prompts/phase1.md` | `QUEUES`, `LAYOUTS`, `PERMSET`, `STRUCTURAL` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning App / Tabs) | `Phase 1: Org Config deployment` |
+| 2 | `.claude/prompts/phase2.md` | `FLOWS`, `APEX`, `LWC` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PHASE1_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Flows, Apex, LWC sections) | `Phase 2: Flows/Apex/LWC deployment` |
+| 3 | `.claude/prompts/phase3.md` | *(none)* | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PRIOR_PHASES_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Agentforce section) | `Phase 3: Agentforce deployment` |
 
-Spawn: `Agent(description="Phase 1: Org Config deployment", model="sonnet", prompt=[constructed prompt])`
+### Phase 1: Org Config
 
-**After Phase 1 returns:** Validate output (see Sub-Agent Output Validation above). Parse deployed items, failures, and skipped items. If critical items failed (objects that Phase 2/3 depend on), warn the SE before continuing.
+Run the Phase Prep Procedure for Phase 1. After it returns, if critical items failed (objects that Phase 2/3 depend on), warn the SE before continuing.
 
-### Phase 2: Flows / Apex / LWC (Sonnet sub-agent) — if applicable
+### Phase 2: Flows / Apex / LWC — if applicable
 
-**Before spawning:** Fire the SE confirmation gate.
-
-List what will be deployed from the spec and ask:
+**SE gate before spawning.** List what will be deployed and ask:
 > "About to deploy: [plain English list]. Proceed? (yes/no)"
 
-Wait for confirmation. If no, record as skipped. If yes:
+If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 2.
 
-**Prepare the sub-agent prompt:**
-1. Read `.claude/prompts/phase2.md` — this is the prompt template.
-2. Strip conditional blocks matching unused spec sections — see `<!-- IF:FLOWS/APEX/LWC -->` markers in `phase2.md`. Remove each block (and its marker comments) when the spec has no matching content.
-3. Fill placeholders:
-   - `{{ORG_ALIAS}}` and `{{ORG_USERNAME}}`
-   - `{{PHASE1_SUMMARY}}` — summary from Phase 1 (objects, fields, permission set deployed)
-   - `{{SPEC_SECTIONS}}` — paste the Flows, Apex, and LWC spec sections
+**Phase 2→3 Risk Review (if Phase 3 applies):** Before the Phase 3 SE gate, scan Phase 2's `discovery_notes`. For each discovery involving an object also used in Phase 3's Agentforce actions:
+- Cross-check against `orgs/building-lessons.md` — known restriction or new one?
+- Include the risk in the Phase 3 SE confirmation prompt (below).
+- Fold discovery notes into `{{PRIOR_PHASES_SUMMARY}}` as explicit risk callouts, not just deployment facts. Example: "⚠️ Phase 2 discovered MedicalInsight is a managed object requiring dynamic SOQL — Agentforce execution context may also restrict it."
 
-Spawn: `Agent(description="Phase 2: Flows/Apex/LWC deployment", model="sonnet", prompt=[constructed prompt])`
-
-**After Phase 2 returns:** Validate output. Parse results.
-
-**Phase 2→3 Risk Review (if Phase 3 applies):** Before the Phase 3 SE gate, scan Phase 2's `discovery_notes` array. For each discovery that involves an object also used in Phase 3's Agentforce actions:
-- Cross-check against `orgs/building-lessons.md` — is this a known restriction or a new one?
-- Include the risk in the Phase 3 SE confirmation prompt (see below).
-- Pass discovery notes into `{{PRIOR_PHASES_SUMMARY}}` as explicit risk callouts, not just deployment facts. Example: "⚠️ Phase 2 discovered MedicalInsight is a managed object requiring dynamic SOQL — Agentforce execution context may also restrict it."
 If `discovery_notes` is empty or contains no Phase 3-relevant entries, proceed normally.
 
-### Phase 3: Agentforce (Sonnet sub-agent) — if applicable
+### Phase 3: Agentforce — if applicable
 
-**Before spawning:** Fire the SE confirmation gate.
-
-Present the agent details from the spec and ask:
+**SE gate before spawning.** Present the agent details from the spec and ask:
 > "About to deploy: [agent name, topics, actions]. Proceed? (yes/no)"
 
-Wait for confirmation. If no, record as skipped. If yes:
-
-**Prepare the sub-agent prompt:**
-1. Read `.claude/prompts/phase3.md` — this is the prompt template.
-2. Fill placeholders:
-   - `{{ORG_ALIAS}}` and `{{ORG_USERNAME}}`
-   - `{{PRIOR_PHASES_SUMMARY}}` — summary from Phase 1 and Phase 2
-   - `{{SPEC_SECTIONS}}` — paste the Agentforce spec section
-
-Spawn: `Agent(description="Phase 3: Agentforce deployment", model="sonnet", prompt=[constructed prompt])`
-
-**After Phase 3 returns:** Validate output. Parse results — check `smoke_test` object for pass/fail.
+If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 3. After it returns, check `smoke_test` in the output for pass/fail.
 
 ---
 

@@ -4,6 +4,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-04-23
 
+- Leaner sparring and deployment commands — Scout loads less into memory at the start of a session, leaving more room for the actual demo work
 - Update notices now surface inside `/scout-sparring` when you start a session — harder to miss, easier to act on
 - Screen flows now autonomous — Scout can build simple screen flows end-to-end (up to 3 screens by default, 5 if you justify during sparring). Scout also writes a quick test and runs it automatically; you just walk through once in the UI to sanity-check the look and feel
 - LWC, Apex testing, and Flex Credit estimation added — Scout now follows Salesforce's PICKLES guidelines when building Lightning Web Components, auto-fixes failing Apex tests up to 3 times before giving up, and gives you a public-price cost estimate when your scenario uses Agentforce or Data Cloud
