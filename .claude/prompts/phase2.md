@@ -9,6 +9,8 @@ Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is avail
 Invoke these skills via the Skill tool when you need detailed rules:
 - `sf-flow` — flow design and 110-point validation checklist (invoke before generating Flow XML)
 - `sf-apex` — Apex generation rules and 150-point scoring (invoke only if Apex is in scope)
+- `sf-lwc` — LWC scaffolding with PICKLES methodology and 165-point scoring (invoke before generating any LWC bundle — SLDS 2, accessibility, wire patterns)
+- `sf-testing` — Apex test execution and agentic test-fix loops (invoke when Apex deployment tests fail — up to 3 automated fix iterations before skipping)
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
 
 ## Deployment Rules
@@ -145,7 +147,8 @@ Scope: single-trigger, single-object. No test classes (demo org context).
 1. Invoke `sf-apex` skill for generation rules.
 2. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`.
 3. If the spec's Platform Constraints section flags any object with restrictions, follow the dynamic SOQL pattern below for that object.
-4. Rollback: `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]`
+4. If compile or runtime tests fail on the first deploy attempt, invoke `sf-testing` before the second attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). The two-attempt rule still applies: one sf-testing loop counts as one attempt.
+5. Rollback: `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]`
 
 **CRITICAL — InvocableMethod pattern (for Agentforce backing actions).** Use this template:
 ```java
@@ -199,9 +202,10 @@ Key rules:
 
 ### LWC Rules
 Scope: demo-specific UI — Customer 360 Cards, custom record views, branded components.
-1. Use MCP LWC expert tools when available (scaffolding, SLDS, validation).
-2. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`.
-3. Rollback: `sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org [alias]`
+1. Invoke `sf-lwc` skill BEFORE generating any component file. The skill enforces PICKLES methodology, SLDS 2 compliance, dark mode support, accessibility (WCAG/ARIA), and Jest test patterns across a 165-point rubric.
+2. Use MCP LWC expert tools when available (scaffolding, SLDS, validation) — these complement sf-lwc's guidance.
+3. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`.
+4. Rollback: `sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org [alias]`
 
 **CRITICAL — LWC meta XML template.** Every component needs a `componentName.js-meta.xml`:
 ```xml

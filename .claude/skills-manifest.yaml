@@ -43,6 +43,15 @@ skills:
   - name: sf-debug
     source: jaganpro
     path: sf-debug/SKILL.md
+  - name: sf-lwc
+    source: jaganpro
+    path: sf-lwc/SKILL.md
+  - name: sf-testing
+    source: jaganpro
+    path: sf-testing/SKILL.md
+  - name: sf-flex-estimator
+    source: jaganpro
+    path: sf-flex-estimator/SKILL.md
 
   # forcedotcom/afv-library — full skill directories, cloned
   - name: generating-custom-field

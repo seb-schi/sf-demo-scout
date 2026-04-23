@@ -64,6 +64,7 @@ Based on audit + discovery, infer 3-7 doc search topics. Categories:
 3. **Agentforce patterns** (if the org has existing agents or scenario involves AI/automation): current Agent Script capabilities, available agent templates, topic routing patterns. Agentforce ships features monthly — always check current state.
 4. **Data Cloud / Analytics** (if mentioned): current integration patterns, relevant features.
 5. **Platform capabilities** (for non-trivial features): Flow capabilities, LWC patterns, custom metadata approaches.
+6. **Flex Credit cost** (if scenario includes Agentforce actions OR Data Cloud meters): invoke `sf-flex-estimator` skill to produce a public-price estimate. Surface the estimate in Step 4 findings so the SE can factor cost into the scope decision. Skip for pure-config scenarios (no AI, no Data Cloud).
 
 For iterations: narrow to 1-3 searches focused on the specific change and its integration points.
 

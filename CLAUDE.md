@@ -15,7 +15,7 @@ Salesforce DX MCP Server configured in .mcp.json. Prefer MCP over CLI:
 - `assign_permission_set` — assign permission sets
 - `list_all_orgs` — verify org connections
 - `run_code_analyzer` — quality gate for Apex/LWC
-- LWC expert tools — scaffolding, SLDS, validation
+- LWC expert tools — scaffolding, SLDS, validation (complemented by the `sf-lwc` skill for PICKLES methodology and 165-point scoring)
 
 Salesforce Docs MCP Server (also in .mcp.json) for official documentation lookup:
 - `salesforce_docs_search` — semantic search across Salesforce doc collections; returns ranked excerpts with source URLs
