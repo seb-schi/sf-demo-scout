@@ -36,7 +36,7 @@ Screen-flow component whitelist: DisplayText, Section, InputField (Text / LargeT
 7. Check for existing flows on the same object via `retrieve_metadata` — flag execution order conflicts.
 8. Rollback: `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]` (plus `QuickAction:[Name]` if deployed).
 
-**CRITICAL — Flow XML pattern.** Do NOT use `processMetadataValues`. Use this record-triggered after-save template:
+**CRITICAL — Flow XML must not use `processMetadataValues`.** Use this record-triggered after-save template:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <Flow xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -119,7 +119,7 @@ Screen-flow component whitelist: DisplayText, Section, InputField (Text / LargeT
 ```
 Adapt this template for your spec. Key rules:
 - Use `<triggerType>RecordAfterSave</triggerType>` (not RecordBeforeSave) for any flow that creates/updates related records
-- Entry conditions go in `<start><filters>`, not in `processMetadataValues`
+- Entry conditions go in `<start><filters>`
 - For RecordType filters, use a Decision element with `$Record.RecordType.DeveloperName` — do NOT put RecordType in start filters (schema validation issues)
 - `<triggerOrder>500</triggerOrder>` is safe default for no-conflict scenarios
 
@@ -149,7 +149,7 @@ Key rules for updating the triggering record:
 - Field assignments go in `<inputAssignments>`, not `<filters>`
 - This pattern works for after-save triggers — before-save triggers use `$Record` assignments directly in the start element
 
-**CRITICAL — Screen Flow inline fallback template** (use only if the Jaganpro asset at `.claude/skills/sf-flow/assets/screen-flow-template.xml` is missing). Single-screen example; extend to 2-3 screens by adding more `<screens>` blocks with `allowBack=true` and `connector` to the next screen. Root-level elements must stay in alphabetical order:
+**Screen Flow inline fallback template** (use only if the Jaganpro asset at `.claude/skills/sf-flow/assets/screen-flow-template.xml` is missing). Single-screen example; extend to 2-3 screens by adding more `<screens>` blocks with `allowBack=true` and `connector` to the next screen. Root-level elements must stay in alphabetical order:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <Flow xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -237,7 +237,7 @@ Key rules for screen flows:
 - Custom input validation (optional): add `<validationRule>` inside the `<fields>` block with `<formulaExpression>` (Boolean) and `<errorMessage>`.
 - For Update/Get terminal DML, swap `recordCreates` for `recordUpdates` or `recordLookups`. In `recordLookups`, always specify `<queriedFields>` explicitly — never `<storeOutputAutomatically>true</storeOutputAutomatically>` on screen flows (data-leak risk, especially on Experience Cloud).
 
-**CRITICAL — FlowTest template for screen flows** (one test per deployed screen flow, happy-path only). Save as `[FlowApiName]_Test.flowTest-meta.xml`, deploy alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`:
+**FlowTest template for screen flows** (one test per deployed screen flow, happy-path only). Save as `[FlowApiName]_Test.flowTest-meta.xml`, deploy alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <FlowTest xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -277,7 +277,7 @@ Scope: single-trigger, single-object. No test classes (demo org context).
 4. If compile or runtime tests fail on the first deploy attempt, invoke `sf-testing` before the second attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). The two-attempt rule still applies: one sf-testing loop counts as one attempt.
 5. Rollback: `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]`
 
-**CRITICAL — InvocableMethod pattern (for Agentforce backing actions).** Use this template:
+**InvocableMethod pattern (for Agentforce backing actions).** Use this template:
 ```java
 public with sharing class ActionNameHere {
     @InvocableMethod(label='Action Label' description='What the action does — Agentforce LLM reads this')
@@ -310,7 +310,7 @@ Key rules:
 - `List<>` wrapping on method params AND return type (bulkification contract)
 - Loop over inputs — do not use `inputs[0]` shortcut
 
-**CRITICAL — Dynamic SOQL pattern (for managed/industry objects).** When the spec's Platform Constraints flag an object (IsEverCreatable=false, managed namespace, etc.), use dynamic SOQL with bind variables — never static type references:
+**Dynamic SOQL pattern (for managed/industry objects).** When the spec's Platform Constraints flag an object (IsEverCreatable=false, managed namespace, etc.), use dynamic SOQL with bind variables — never static type references:
 ```java
 // Static type reference — FAILS for managed/industry objects at compile time
 Inquiry inq = [SELECT Id, Subject FROM Inquiry WHERE Id = :recordId];
@@ -336,7 +336,7 @@ Scope: demo-specific UI — Customer 360 Cards, custom record views, branded com
 3. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`.
 4. Rollback: `sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org [alias]`
 
-**CRITICAL — LWC meta XML template.** Every component needs a `componentName.js-meta.xml`:
+**LWC meta XML template.** Every component needs a `componentName.js-meta.xml`:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">

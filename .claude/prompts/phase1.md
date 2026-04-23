@@ -39,11 +39,13 @@ Scope: queues needed for case/lead/custom object routing.
 3. Queue members: `sf data create record --sobject GroupMember --values "GroupId=[QueueId] UserOrGroupId=[UserId]" --target-org [alias]`
 <!-- /IF:QUEUES -->
 
+<!-- IF:PICKLISTS -->
 ### Picklist Value Additions
 1. Retrieve the current field metadata via `retrieve_metadata`.
 2. Add new `<value>` elements to the existing `<valueSet>` — do NOT remove existing values.
 3. For standard value sets (e.g., Case.Type uses `CaseType` StandardValueSet), retrieve and modify the StandardValueSet, not the field directly.
 4. Deploy and verify.
+<!-- /IF:PICKLISTS -->
 
 <!-- IF:LAYOUTS -->
 ### Page Layout Rules

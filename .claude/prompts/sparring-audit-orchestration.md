@@ -19,7 +19,9 @@ Read these 3 prompt templates:
 - `.claude/prompts/audit-apps-flows-agents.md`
 - `.claude/prompts/audit-custom-objects.md`
 
-Fill placeholders in each: `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`.
+Read `.claude/prompts/audit-shared.md` once — its content fills `{{AUDIT_SHARED_RULES}}` in all 3 sub-agent prompts.
+
+Fill placeholders in each: `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`, `{{AUDIT_SHARED_RULES}}`.
 
 Spawn all 3 in parallel:
 - `Agent(description="Org audit: standard objects", model="sonnet", prompt=[standard objects prompt])`
