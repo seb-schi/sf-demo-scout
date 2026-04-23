@@ -92,6 +92,25 @@ Docs consulted during sparring (Platform & Data Model Research — Stage 5, plus
 - Flow name: [ApiName], Type: Record-Triggered
 - Object: [single], Trigger: [when], Logic: [steps]
 
+### Screen Flows (if applicable)
+- ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
+- Plain English: [what the user sees and accomplishes]
+- Flow name: [ApiName], Type: Screen Flow
+- Screen count: [1-3 default; if 4-5, add SE justification sentence below]
+- SE justification (only if >3 screens): [why the extra screens are essential to the demo]
+- Target object: [object for terminal DML, or "none" for display-only]
+- Screens (in order):
+  - Screen 1: [label]
+    - Fields: [name] ([type: Text/Number/Email/Date/Picklist/RadioButtons/Checkbox/CheckboxGroup/MultiSelectPicklist/DisplayText/Section], required: yes/no, help text: [optional], default: [optional])
+    - Validation (optional): formula `[Boolean expression]` — error: `[message]`
+  - Screen 2: ...
+  - Screen N: ...
+- Terminal DML: [Create | Update | Get | None]
+  - If Create/Update: target object field assignments: [field: source]
+  - If Get: queriedFields: [explicit list — never storeOutputAutomatically]
+- QuickAction wiring: [yes (label: [button label], layout: [active layout name from audit]) | no — SE will wire manually]
+- Smoke test: Scout auto-generates happy-path FlowTest; SE does a one-time visual walkthrough in the Lightning UI
+
 ### Apex (if applicable)
 - ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
 - Plain English: [description]
@@ -127,7 +146,8 @@ Docs consulted during sparring (Platform & Data Model Research — Stage 5, plus
 - [ ] Multi-agent orchestration (if applicable)
 
 ### Must Do Before Demo
-- [ ] Build complex flows (screen, scheduled, multi-object, subflows)
+- [ ] Build complex flows (scheduled, multi-object, subflows, screen flows outside autonomous whitelist)
+- [ ] Screen-flow visual QA: walk through each autonomous screen flow once in the Lightning UI (labels, button order, help text read sensibly)
 - [ ] Complete Agentforce manual steps (channel assignment, production testing)
 - [ ] Arrange field positions and sections in App Builder
 - [ ] Place LWC on Lightning pages, configure Path component

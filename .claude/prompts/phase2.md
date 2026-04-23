@@ -21,13 +21,20 @@ Invoke these skills via the Skill tool when you need detailed rules:
 
 Deploy in small increments. One component per deploy call.
 
+<!-- IF:FLOWS -->
 ### Flow Rules
-Scope: single-object, record-triggered only. If a complex flow (screen, scheduled, subflow) reaches you, skip it: "out of scope for autonomous deploy."
+Autonomous scope: **record-triggered** (single-object) and **screen flows** (≤3 linear screens by default, ≤5 when the spec's Screen Flow section carries SE justification). Scheduled, multi-object, subflow, or any flow using components outside the whitelist below → skip with reason "out of scope for autonomous deploy."
 
-1. Invoke `sf-flow` skill before generating Flow XML.
-2. Deploy as Draft first (`<status>Draft</status>`), confirm success, then activate.
-3. Check for existing flows on the same object via `retrieve_metadata` — flag execution order conflicts.
-4. Rollback: `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]`
+Screen-flow component whitelist: DisplayText, Section, InputField (Text / LargeTextArea / Number / Email / Date / DateTime / Password), Picklist, RadioButtons, Checkbox, CheckboxGroup, MultiSelectPicklist. Anything else (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) → skip.
+
+1. Invoke `sf-flow` skill before generating Flow XML. For screen flows, also skim `.claude/skills/sf-flow/references/xml-gotchas.md` (root-level alphabetical ordering, fault-connector self-reference, relationship-field trap, storeOutputAutomatically data leak).
+2. Prefer the Jaganpro templates at `.claude/skills/sf-flow/assets/` (`screen-flow-template.xml`, `record-triggered-after-save.xml`, `record-triggered-before-save.xml`) if present. Inline fallback templates below.
+3. Deploy as Draft first (`<status>Draft</status>`), confirm success.
+4. **Record-triggered:** activate after clean Draft deploy.
+5. **Screen flows:** generate a happy-path FlowTest XML, run `sf flow run test --class-names [FlowApiName] --target-org [alias] --json`. Pass → activate. Fail twice → skip activation, record in `issues`. (Testing guide: `.claude/skills/sf-flow/references/testing-guide.md` section 5.)
+6. **Screen flows with QuickAction wiring** (spec requests it): deploy a `QuickAction` (actionType=Flow) pointing at the flow's API name; retrieve the target object's active Layout, add the QuickAction under `<quickActionListItems>`, redeploy the layout.
+7. Check for existing flows on the same object via `retrieve_metadata` — flag execution order conflicts.
+8. Rollback: `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]` (plus `QuickAction:[Name]` if deployed).
 
 **CRITICAL — Flow XML pattern.** Do NOT use `processMetadataValues`. Use this record-triggered after-save template:
 ```xml
@@ -142,6 +149,126 @@ Key rules for updating the triggering record:
 - Field assignments go in `<inputAssignments>`, not `<filters>`
 - This pattern works for after-save triggers — before-save triggers use `$Record` assignments directly in the start element
 
+**CRITICAL — Screen Flow inline fallback template** (use only if the Jaganpro asset at `.claude/skills/sf-flow/assets/screen-flow-template.xml` is missing). Single-screen example; extend to 2-3 screens by adding more `<screens>` blocks with `allowBack=true` and `connector` to the next screen. Root-level elements must stay in alphabetical order:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <description>Brief description</description>
+    <environments>Default</environments>
+    <interviewLabel>Flow_Label-{!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Flow Label</label>
+    <processType>Flow</processType>
+    <!-- Terminal DML after the last input screen -->
+    <recordCreates>
+        <name>Create_Record</name>
+        <label>Create Record</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Screen_Complete</targetReference>
+        </connector>
+        <inputAssignments>
+            <field>Name</field>
+            <value><elementReference>var_RecordName</elementReference></value>
+        </inputAssignments>
+        <object>Account</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordCreates>
+    <screens>
+        <name>Screen_Input</name>
+        <label>Enter Details</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <allowBack>false</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <connector>
+            <targetReference>Create_Record</targetReference>
+        </connector>
+        <fields>
+            <name>Input_RecordName</name>
+            <dataType>String</dataType>
+            <fieldText>Record Name</fieldText>
+            <fieldType>InputField</fieldType>
+            <isRequired>true</isRequired>
+        </fields>
+        <showFooter>true</showFooter>
+        <showHeader>true</showHeader>
+    </screens>
+    <screens>
+        <name>Screen_Complete</name>
+        <label>Success</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <allowBack>false</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <fields>
+            <name>Complete_Message</name>
+            <fieldType>DisplayText</fieldType>
+            <fieldText>&lt;p&gt;Record created.&lt;/p&gt;</fieldText>
+        </fields>
+        <showFooter>true</showFooter>
+        <showHeader>true</showHeader>
+    </screens>
+    <start>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Screen_Input</targetReference>
+        </connector>
+    </start>
+    <status>Draft</status>
+    <variables>
+        <name>var_RecordName</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+</Flow>
+```
+Key rules for screen flows:
+- Root-level element order is strictly alphabetical (apiVersion → description → environments → interviewLabel → label → processType → recordCreates/recordUpdates/recordLookups → screens → start → status → variables). All elements of the same type must be grouped.
+- Every screen needs `allowFinish=true`. `allowBack=true` on middle/last screens; `allowBack=false` on the first screen or after DML commits (prevents duplicate creation).
+- Variable naming convention: `var_` for regular vars, `rec_` for records, `col_` for collections, `inp_` for inputs, `out_` for outputs.
+- `<processType>Flow</processType>` identifies this as a screen flow.
+- Custom input validation (optional): add `<validationRule>` inside the `<fields>` block with `<formulaExpression>` (Boolean) and `<errorMessage>`.
+- For Update/Get terminal DML, swap `recordCreates` for `recordUpdates` or `recordLookups`. In `recordLookups`, always specify `<queriedFields>` explicitly — never `<storeOutputAutomatically>true</storeOutputAutomatically>` on screen flows (data-leak risk, especially on Experience Cloud).
+
+**CRITICAL — FlowTest template for screen flows** (one test per deployed screen flow, happy-path only). Save as `[FlowApiName]_Test.flowTest-meta.xml`, deploy alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<FlowTest xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Happy-path smoke test for [FlowApiName]</description>
+    <flowApiName>[FlowApiName]</flowApiName>
+    <label>[FlowApiName] Happy Path</label>
+    <testPoints>
+        <assertions>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Flow.FaultMessage</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue><booleanValue>true</booleanValue></rightValue>
+            </conditions>
+            <errorMessage>Flow produced a fault on the happy path</errorMessage>
+        </assertions>
+        <elementApiName>Create_Record</elementApiName>
+        <parameters>
+            <leftValueReference>var_RecordName</leftValueReference>
+            <type>Input</type>
+            <value><stringValue>Test Record</stringValue></value>
+        </parameters>
+        <testPointName>AfterCreate</testPointName>
+        <type>FinalOutput</type>
+    </testPoints>
+</FlowTest>
+```
+Adapt: `flowApiName` is the flow under test. One `<parameters>` block per required input variable, with a value that satisfies all validation rules. Assertion checks `$Flow.FaultMessage IS NULL` — passes if the flow runs to completion without a fault. For recordCreates/recordUpdates, add a second assertion on the created record's key field if the test should also validate DML outcome.
+<!-- /IF:FLOWS -->
+
+<!-- IF:APEX -->
 ### Apex Rules
 Scope: single-trigger, single-object. No test classes (demo org context).
 1. Invoke `sf-apex` skill for generation rules.
@@ -199,7 +326,9 @@ Key rules:
 - Use `.get('FieldName')` for all field access on the generic SObject — no casting to a typed object
 - Only the object name and field names are dynamic strings; values always use bind variables
 - This pattern is required whenever Platform Constraints mention a managed or industry object
+<!-- /IF:APEX -->
 
+<!-- IF:LWC -->
 ### LWC Rules
 Scope: demo-specific UI — Customer 360 Cards, custom record views, branded components.
 1. Invoke `sf-lwc` skill BEFORE generating any component file. The skill enforces PICKLES methodology, SLDS 2 compliance, dark mode support, accessibility (WCAG/ARIA), and Jest test patterns across a 165-point rubric.
@@ -234,6 +363,7 @@ Key rules:
 - For Agentforce action UIs: use `lightning__AgentforceInput` (user input) or `lightning__AgentforceOutput` (display data)
 - Object filtering goes in `targetConfigs` > `targetConfig` > `objects` — limits which record pages show the component
 - `masterLabel` and `description` are optional but recommended for discoverability in App Builder
+<!-- /IF:LWC -->
 
 ## What Phase 1 Already Deployed
 {{PHASE1_SUMMARY}}

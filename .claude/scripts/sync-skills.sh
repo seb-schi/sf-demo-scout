@@ -46,7 +46,12 @@ for s in m.get("skills", []):
     else:
         extra = src.get("branch", "main")
         url = src.get("repo", "")
-    print(f"{s['name']}|{src_name}|{s['path']}|{src_type}|{url}|{extra}")
+    # Support both single 'path' and multi-file 'paths' list (raw sources only).
+    if "paths" in s:
+        joined = ";".join(s["paths"])
+        print(f"{s['name']}|{src_name}|{joined}|{src_type}|{url}|{extra}|multi")
+    else:
+        print(f"{s['name']}|{src_name}|{s['path']}|{src_type}|{url}|{extra}|single")
 PYEOF
 )
 
@@ -60,18 +65,46 @@ SYNCED=()
 CLONED_SOURCES=()
 
 # --- Sync each skill ---
-while IFS='|' read -r NAME SRC_NAME SKILL_PATH SRC_TYPE SRC_URL EXTRA; do
+while IFS='|' read -r NAME SRC_NAME SKILL_PATH SRC_TYPE SRC_URL EXTRA MODE; do
   [ -z "$NAME" ] && continue
   TARGET="$SKILLS_DIR/$NAME"
   mkdir -p "$TARGET"
 
   if [ "$SRC_TYPE" = "raw" ]; then
-    # Raw: EXTRA is raw_base, SKILL_PATH is the file path under that base
-    URL="$EXTRA/$SKILL_PATH"
-    if curl -fsSL "$URL" -o "$TARGET/SKILL.md"; then
-      SYNCED+=("$NAME")
+    # Raw: EXTRA is raw_base.
+    # single mode: SKILL_PATH is one file, fetched as SKILL.md at the skill root.
+    # multi mode: SKILL_PATH is a ';'-separated list; first path is SKILL.md,
+    # remainder keep their relative path under the skill root.
+    if [ "$MODE" = "multi" ]; then
+      IFS=';' read -ra PATH_LIST <<< "$SKILL_PATH"
+      FIRST=1
+      SKILL_FAILED=0
+      for P in "${PATH_LIST[@]}"; do
+        URL="$EXTRA/$P"
+        if [ $FIRST -eq 1 ]; then
+          DEST="$TARGET/SKILL.md"
+          FIRST=0
+        else
+          # Strip the leading "<skill-name>/" segment if present so assets/foo.xml
+          # lands at .claude/skills/<name>/assets/foo.xml, not .../<name>/<name>/assets/foo.xml.
+          REL="${P#${NAME}/}"
+          DEST="$TARGET/$REL"
+          mkdir -p "$(dirname "$DEST")"
+        fi
+        if ! curl -fsSL "$URL" -o "$DEST"; then
+          FAILED+=("$NAME ($URL)")
+          SKILL_FAILED=1
+          break
+        fi
+      done
+      [ $SKILL_FAILED -eq 0 ] && SYNCED+=("$NAME")
     else
-      FAILED+=("$NAME ($URL)")
+      URL="$EXTRA/$SKILL_PATH"
+      if curl -fsSL "$URL" -o "$TARGET/SKILL.md"; then
+        SYNCED+=("$NAME")
+      else
+        FAILED+=("$NAME ($URL)")
+      fi
     fi
   elif [ "$SRC_TYPE" = "clone" ]; then
     CLONE_DIR="$TMP_DIR/$SRC_NAME"

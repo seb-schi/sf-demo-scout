@@ -70,9 +70,9 @@ have many layouts per object and the first one is rarely the active one.
 1. Query `ProfileLayout` via Tooling API to find the layout assigned to
    System Administrator for the target object and record type:
    ```
-   SELECT Layout.Name, RecordType.DeveloperName
+   SELECT Layout.Name, RecordType.Name
    FROM ProfileLayout
-   WHERE SobjectType = '[Object]'
+   WHERE TableEnumOrId = '[Object]'
    AND Profile.Name = 'System Administrator'
    ```
 2. Retrieve only the layout(s) returned by that query — not all layouts for
@@ -85,20 +85,61 @@ have many layouts per object and the first one is rarely the active one.
 
 ## Flow Rules (Phase 2)
 
-Scope: single-object, record-triggered only. No screen flows, scheduled
-flows, or subflows. (The orchestrator filters the spec; if a complex flow
-reaches you, skip it and note "out of scope for autonomous deploy.")
+Two autonomous flow types: **record-triggered** (single-object) and **screen flows**
+(≤3 linear screens by default, ≤5 when the spec's Screen Flow section carries SE
+justification). Scheduled flows, subflows, and multi-object flows still route to the
+SE Manual Checklist — if one reaches you, skip it and note "out of scope for
+autonomous deploy."
 
+### Both Types
 1. Invoke the `sf-flow` skill before generating any Flow XML — it holds the
-   110-point validation checklist.
-2. Validate generated XML against that checklist — work through it mentally,
-   flag failures in the `issues` array of your JSON output.
-3. Deploy as Draft first (`<status>Draft</status>`), confirm success, then
-   activate.
-4. Check for existing flows on the same object via MCP `retrieve_metadata` —
+   110-point validation checklist and the reference assets.
+2. Before generating, skim `.claude/skills/sf-flow/references/xml-gotchas.md`
+   if present — it covers root-level alphabetical ordering, fault-connector
+   self-reference, relationship-field traps in recordLookups, and the
+   `storeOutputAutomatically` data-leak risk. These are deployment blockers.
+3. Validate generated XML against the sf-flow checklist. Flag failures in the
+   `issues` array of your JSON output.
+4. Deploy as Draft first (`<status>Draft</status>`). Confirm success.
+5. Check for existing flows on the same object via MCP `retrieve_metadata` —
    flag execution order conflicts in `issues`.
-5. Rollback command (record in `rollback_commands` array):
+6. Rollback command (record in `rollback_commands` array):
    `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]`
+
+### Record-Triggered Flow
+- Source template: `.claude/skills/sf-flow/assets/record-triggered-after-save.xml`
+  (after-save) or `record-triggered-before-save.xml` (before-save). Fall back to
+  the inline template in `phase2.md` if the asset is missing.
+- Activate after Draft deploys cleanly.
+
+### Screen Flow
+- Source template: `.claude/skills/sf-flow/assets/screen-flow-template.xml`.
+- Whitelisted screen components: DisplayText, Section, InputField (Text,
+  LargeTextArea, Number, Email, Date, DateTime, Password), Picklist,
+  RadioButtons, Checkbox, CheckboxGroup, MultiSelectPicklist. Any other
+  component in the spec → skip with reason "component outside autonomous
+  whitelist."
+- Terminal DML is one of: recordCreates, recordUpdates, recordLookups
+  (specify `<queriedFields>` — never `<storeOutputAutomatically>` in screen
+  flows, per xml-gotchas).
+- Multi-screen flows: collect ALL input across screens first (variables),
+  perform DML after the final input screen. Each screen breaks the transaction
+  boundary — premature DML cannot be rolled back by later navigation.
+- Custom input validation allowed: Boolean formula + custom error message per
+  input (per Salesforce docs — "Improve Data Quality by Validating User Input").
+- **Deployment validation (autonomous):** after Draft deploys, generate a
+  happy-path FlowTest XML (inputs populated to satisfy validation, assertion on
+  the terminal DML outcome) and run `sf flow run test --class-names [FlowApiName]
+  --target-org [alias] --json`. If the test passes, activate. If it fails twice,
+  skip activation and record the failure in `issues` — do not activate a flow
+  that failed its own smoke test. See `.claude/skills/sf-flow/references/testing-guide.md`
+  section 5 for FlowTest XML patterns.
+- **QuickAction wiring (if the spec's Screen Flow section requests it):** deploy
+  a `QuickAction` metadata file alongside the flow, set to action type `Flow`
+  with the flow's API name. Add the QuickAction to the object's active page
+  layout (`retrieve_metadata` → add under `<quickActionListItems>` → redeploy).
+  This is what makes the flow reachable from the UI; spec-level buttons are
+  meaningless without it.
 
 ---
 

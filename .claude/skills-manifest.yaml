@@ -21,10 +21,22 @@ sources:
     branch: main
 
 skills:
-  # Jaganpro/sf-skills — single SKILL.md file per skill, fetched via raw URL
+  # Jaganpro/sf-skills — raw URL fetch.
+  # Use `path:` for skills that are a single SKILL.md.
+  # Use `paths:` (list) when the skill ships assets/references we depend on.
+  # The first entry becomes SKILL.md at the skill root; subsequent entries
+  # preserve their relative path (leading "<skill-name>/" is stripped).
   - name: sf-flow
     source: jaganpro
-    path: sf-flow/SKILL.md
+    paths:
+      - sf-flow/SKILL.md
+      - sf-flow/assets/screen-flow-template.xml
+      - sf-flow/assets/record-triggered-before-save.xml
+      - sf-flow/assets/record-triggered-after-save.xml
+      - sf-flow/assets/autolaunched-flow-template.xml
+      - sf-flow/references/xml-gotchas.md
+      - sf-flow/references/form-building-guide.md
+      - sf-flow/references/testing-guide.md
   - name: sf-permissions
     source: jaganpro
     path: sf-permissions/SKILL.md

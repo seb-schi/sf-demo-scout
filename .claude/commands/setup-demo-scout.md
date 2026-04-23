@@ -2,6 +2,7 @@
 name: setup-demo-scout
 description: >
   Connect your demo org. Run once after cloning the repo.
+model: sonnet
 allowed-tools: Bash, Read, Write, mcp__Salesforce_DX__list_all_orgs
 ---
 

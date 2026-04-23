@@ -4,9 +4,13 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-04-23
 
-- **Skill adoption wave** — three new community skills adopted: `sf-lwc` (PICKLES methodology + 165-point scoring, required before any LWC component generation), `sf-testing` (agentic Apex test-fix loops, up to 3 automated fix iterations before skipping), `sf-flex-estimator` (Flex Credit cost projections when scenario includes Agentforce or Data Cloud). Run `/sync-skills` to pull the new SKILL.md files.
-- **LLMGW Migration** — Scout now uses LLMGW (the company-wide Claude gateway) instead of Embark/AWS SSO. No more `aws sso login` on session start. Install script no longer installs Claude Code itself — use the official Solutions installer first. Default repo location changed from `~/Projects` to `~/claude-projects` to match official install guide.
-- Command cleanup — `/scout-building` Phase 2 / Phase 3 SE gates no longer fire macOS notifications during active deployments — the blockquote prompt in chat is sufficient, matching the pattern already applied to model gates.
+- Screen flows now autonomous — Scout can build simple screen flows end-to-end (up to 3 screens by default, 5 if you justify during sparring). Scout also writes a quick test and runs it automatically; you just walk through once in the UI to sanity-check the look and feel
+- LWC, Apex testing, and Flex Credit estimation added — Scout now follows Salesforce's PICKLES guidelines when building Lightning Web Components, auto-fixes failing Apex tests up to 3 times before giving up, and gives you a public-price cost estimate when your scenario uses Agentforce or Data Cloud
+- Scout now uses LLMGW (the company-wide Claude gateway) — no more `aws sso login` at session start. If you're setting up fresh, use the official Solutions installer first. Default repo location moved to `~/claude-projects`
+- Smarter Phase 2 deployments — Scout no longer sends Flow, Apex, or LWC rules to the sub-agent when your spec doesn't need them
+- Fixed: audit page-layout query was silently returning no results for custom objects in three places — layouts are now detected correctly
+- Fixed: Agentforce rollback command in the change log template had the wrong metadata type
+- Minor cleanup: `/scout-building` no longer fires macOS notifications during active deployments (the chat prompt is enough)
 
 ## 2026-04-22
 

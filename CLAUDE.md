@@ -37,16 +37,19 @@ Fall back to `sf` CLI if MCP is unavailable.
 
 ### Gated (SE confirms once per category, then autonomous)
 - Simple record-triggered flows (single-object only)
+- Simple screen flows (≤3 linear screens by default; up to 5 when SE justifies during sparring; whitelisted components; single terminal DML; optional QuickAction wiring)
 - Simple Apex (single-trigger, single-object)
 - Simple LWC (demo-specific UI)
 - Agentforce agents via Agent Script (topics, actions, backing Apex, publish, activate, smoke test)
 
 ### Always Manual (SE Manual Checklist)
-- Screen, scheduled, multi-object flows, subflows
+- Complex screen flows (branching across screens, subflows, reactive across screens with formula dependencies, custom LWC screen components, File Upload, Repeater, Data Table, Kanban Board)
+- Scheduled, multi-object flows, subflows
 - Complex Apex/LWC
 - Multi-agent orchestration, channel assignment, production-scale agent testing
 - Page layout visual arrangement (field positioning, sections in App Builder)
 - Reports, dashboards, OmniStudio
+- Screen-flow visual QA (one-time walkthrough in a record page after Scout deploys)
 
 ### NEVER Without Explicit SE Confirmation
 - Delete existing metadata or records

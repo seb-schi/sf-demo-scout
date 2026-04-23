@@ -34,7 +34,8 @@ Rollback: sf project delete source --metadata LightningComponentBundle:[Name] --
 
 ## Agentforce Deployed (if any)
 [Names, description]
-Rollback: sf project delete source --metadata GenAiPlanner:[Name] / BotDefinition:[Name] --target-org [alias]
+Rollback: sf project delete source --metadata AiAuthoringBundle:[AgentName] --target-org [alias]
+(plus `ApexClass:[ClassName]` for each backing action. For existing-agent modifications, rollback is `sf agent activate --version-number [N]` — see phase 3 sub-agent output.)
 
 ## Agentforce Smoke Test Results (if any)
 [Utterances sent, pass/fail per utterance, issues observed]

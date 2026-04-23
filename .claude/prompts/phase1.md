@@ -52,7 +52,7 @@ Before modifying any page layout, identify which layout is actually active.
    ```
    SELECT Layout.Name, RecordType.Name
    FROM ProfileLayout
-   WHERE SobjectType = '[Object]'
+   WHERE TableEnumOrId = '[Object]'
    AND Profile.Name = 'System Administrator'
    ```
 2. Retrieve only the layout(s) returned by that query.

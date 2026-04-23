@@ -134,7 +134,7 @@ Ask max 6 clarifying questions:
 3. Customer's definition of success
 4. Which stakeholder's reaction matters most
 5. **Which existing app and objects from the audit should anchor the demo?** Show the star-flagged items and ask the SE to confirm or redirect.
-6. **Any specific Salesforce feature you want to showcase?** (Agentforce, Data Cloud, a specific Flow pattern, an industry-specific capability — or "nothing specific, you decide")
+6. **Any specific Salesforce feature you want to showcase?** (Agentforce, Data Cloud, a specific Flow pattern, a guided screen flow / wizard, an industry-specific capability — or "nothing specific, you decide")
 
 **Stop and wait for answers.**
 

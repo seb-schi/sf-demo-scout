@@ -11,6 +11,7 @@
       "Bash(ls *)",
       "Bash(mv *)",
       "Bash(mkdir *)",
+      "Bash(curl *)",
       "Bash(grep *)",
       "Bash(awk *)",
       "Bash(python3 *)",

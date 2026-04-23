@@ -29,9 +29,9 @@ For each standard object commonly used in demos (Account, Contact, Opportunity, 
 - Record types available
 - **Active page layout per record type** — query ProfileLayout via Tooling API:
   ```
-  SELECT Layout.Name, RecordType.DeveloperName
+  SELECT Layout.Name, RecordType.Name
   FROM ProfileLayout
-  WHERE SobjectType = '[Object]'
+  WHERE TableEnumOrId = '[Object]'
   AND Profile.Name = 'System Administrator'
   ```
   List the active layout name for each record type. Flag these explicitly — they are the primary build surface.

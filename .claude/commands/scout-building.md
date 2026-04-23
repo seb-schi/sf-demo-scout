@@ -158,7 +158,8 @@ Wait for confirmation. If no, record as skipped. If yes:
 
 **Prepare the sub-agent prompt:**
 1. Read `.claude/prompts/phase2.md` — this is the prompt template.
-2. Fill placeholders:
+2. Strip conditional blocks matching unused spec sections — see `<!-- IF:FLOWS/APEX/LWC -->` markers in `phase2.md`. Remove each block (and its marker comments) when the spec has no matching content.
+3. Fill placeholders:
    - `{{ORG_ALIAS}}` and `{{ORG_USERNAME}}`
    - `{{PHASE1_SUMMARY}}` — summary from Phase 1 (objects, fields, permission set deployed)
    - `{{SPEC_SECTIONS}}` — paste the Flows, Apex, and LWC spec sections
