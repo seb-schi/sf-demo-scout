@@ -5,6 +5,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 ## 2026-04-23
 
 - **LLMGW Migration** — Scout now uses LLMGW (the company-wide Claude gateway) instead of Embark/AWS SSO. No more `aws sso login` on session start. Install script no longer installs Claude Code itself — use the official Solutions installer first. Default repo location changed from `~/Projects` to `~/claude-projects` to match official install guide.
+- Command cleanup — `/scout-building` Phase 2 / Phase 3 SE gates no longer fire macOS notifications during active deployments — the blockquote prompt in chat is sufficient, matching the pattern already applied to model gates.
 
 ## 2026-04-22
 

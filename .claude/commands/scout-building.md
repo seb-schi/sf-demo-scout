@@ -151,10 +151,6 @@ Spawn: `Agent(description="Phase 1: Org Config deployment", model="sonnet", prom
 
 **Before spawning:** Fire the SE confirmation gate.
 
-```bash
-osascript -e 'display notification "About to deploy Flows/Apex/LWC — review the list and confirm." with title "SF Demo Scout — Input Needed"'
-```
-
 List what will be deployed from the spec and ask:
 > "About to deploy: [plain English list]. Proceed? (yes/no)"
 
@@ -180,10 +176,6 @@ If `discovery_notes` is empty or contains no Phase 3-relevant entries, proceed n
 ### Phase 3: Agentforce (Sonnet sub-agent) — if applicable
 
 **Before spawning:** Fire the SE confirmation gate.
-
-```bash
-osascript -e 'display notification "About to deploy Agentforce agent — review and confirm." with title "SF Demo Scout — Input Needed"'
-```
 
 Present the agent details from the spec and ask:
 > "About to deploy: [agent name, topics, actions]. Proceed? (yes/no)"
