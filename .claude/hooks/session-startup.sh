@@ -84,14 +84,27 @@ if [ ! -f "CLAUDE.md" ]; then
 fi
 
 # --- 5. GitHub Update Check ---
+# Writes .claude/.update-available when behind main so /scout-sparring
+# can surface the notice in its Stage 1 gate. Deleted when current.
+FLAG_FILE=".claude/.update-available"
 if git rev-parse --git-dir &>/dev/null; then
   if git fetch origin main --quiet --depth=1 2>/dev/null; then
     LOCAL=$(git rev-parse HEAD 2>/dev/null)
     REMOTE=$(git rev-parse origin/main 2>/dev/null)
     if [ -n "$LOCAL" ] && [ -n "$REMOTE" ] && [ "$LOCAL" != "$REMOTE" ]; then
-      OUTPUT+="## ⚠️ SF Demo Scout update available\n"
-      OUTPUT+="   Run \`bash update.sh\` in Terminal (or paste it here — it will open Terminal for you).\n"
-      OUTPUT+="   Your org data is preserved automatically.\n\n"
+      COMMITS_BEHIND=$(git rev-list --count "$LOCAL..$REMOTE" 2>/dev/null || echo "?")
+      # Extract the first 3 bullets under the most recent ## YYYY-MM-DD header in CHANGELOG.md
+      RECENT=$(awk '
+        /^## [0-9]{4}-[0-9]{2}-[0-9]{2}/ { if (seen) exit; seen=1; next }
+        seen && /^- / { print; count++; if (count==3) exit }
+      ' CHANGELOG.md 2>/dev/null | sed 's/^- //' | tr '\n' '|' | sed 's/|$//' | sed 's/|/ | /g')
+      {
+        echo "commits_behind=$COMMITS_BEHIND"
+        echo "recent_changes=$RECENT"
+      } > "$FLAG_FILE"
+      OUTPUT+="## ⚠️ SF Demo Scout update available ($COMMITS_BEHIND commit(s) behind) — /scout-sparring will prompt you.\n\n"
+    else
+      rm -f "$FLAG_FILE"
     fi
   fi
 fi

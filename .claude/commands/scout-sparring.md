@@ -50,14 +50,43 @@ Run a single MCP probe to confirm connectivity:
   > If this persists, check that .mcp.json exists in the project root."
   Stop. Do not proceed without MCP.
 
-After MCP confirms, output as a standalone message:
+**Check for pending update:** Read `.claude/.update-available`. If it exists, parse `commits_behind=<N>` and `recent_changes=<bullets separated by ` | `>`. If the file does not exist, skip to the no-update gate below.
+
+### Gate — update pending
+
+If `.claude/.update-available` exists, emit this as a standalone message:
+
+> "Scout Sparring is designed for Opus.
+> Run `/model opus` now if you haven't already — your conversation history is preserved.
+>
+> ---
+>
+> ⚠️ **SF Demo Scout update available** ([N] commit(s) behind main)
+>
+> Recent changes:
+> - [bullet 1]
+> - [bullet 2]
+> - [bullet 3]
+>
+> To update: run `bash update.sh` in Terminal (your org data is preserved). VS Code will close — reopen after.
+> To proceed without updating: reply `proceed` (dismissed for this session only).
+>
+> ---
+>
+> Confirm you're on Opus AND tell me update vs. proceed."
+
+Substitute `[N]` with `commits_behind` and the bullets with the three items from `recent_changes` (split on ` | `). If `recent_changes` is empty, omit the "Recent changes" block entirely. Do not write to or delete the flag file — the next `session-startup.sh` run refreshes it.
+
+### Gate — no update pending
+
+If `.claude/.update-available` does not exist, emit this as a standalone message:
 
 > "Scout Sparring is designed for Opus.
 > Run `/model opus` now if you haven't already — your conversation history is preserved.
 >
 > Confirm you're on Opus before we continue. (yes)"
 
-**Wait for the SE's confirmation before proceeding to Stage 2.**
+**Wait for the SE's confirmation before proceeding to Stage 2.** If the SE chose to update, they will close VS Code — do not advance. If they replied `proceed`, advance normally.
 
 ---
 
