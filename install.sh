@@ -40,23 +40,21 @@ else
   echo "✅ Node.js found ($NODE_VERSION)."
 fi
 
-# --- 3. Claude Code ---
+# --- 3. Claude Code (prerequisite — installed via LLMGW installer) ---
 echo ""
 echo "🔍 Checking Claude Code..."
 if command -v claude &>/dev/null; then
   CLAUDE_VERSION=$(claude --version 2>/dev/null | head -1)
   echo "✅ Claude Code found ($CLAUDE_VERSION)."
 else
-  echo "📦 Claude Code not found. Installing..."
-  curl -fsSL https://claude.ai/install.sh | bash
-  # The installer puts the binary in ~/.local/bin
-  export PATH="$HOME/.local/bin:$PATH"
-  if command -v claude &>/dev/null; then
-    echo "✅ Claude Code installed."
-  else
-    echo "⚠️  Claude Code install may have failed. Try manually:"
-    echo "     curl -fsSL https://claude.ai/install.sh | bash"
-  fi
+  echo ""
+  echo "❌ Claude Code not found."
+  echo "   Install it first using the 'Installing Claude Code for Solutions' canvas:"
+  echo "     macOS/Linux: curl -fsSL https://plugins.codegen.salesforceresearch.ai/claude/install.sh | bash"
+  echo "     Windows:     irm https://plugins.codegen.salesforceresearch.ai/claude/install.ps1 | iex"
+  echo ""
+  echo "   Then re-run: bash install.sh"
+  exit 1
 fi
 
 # --- 4. Python 3.9+ (required for Agentforce ADLC skills) ---
@@ -162,11 +160,6 @@ append_if_missing() {
 # Claude Code PATH (installer puts binary in ~/.local/bin)
 append_if_missing 'PATH="$HOME/.local/bin' 'export PATH="$HOME/.local/bin:$PATH"'
 
-# Bedrock essentials (Embark guide Step 6 — catch SEs who skipped it)
-append_if_missing "AWS_PROFILE" "export AWS_PROFILE=claude"
-append_if_missing "CLAUDE_CODE_USE_BEDROCK" "export CLAUDE_CODE_USE_BEDROCK=1"
-append_if_missing "AWS_REGION" "export AWS_REGION=us-west-2"
-
 # Claude Code configuration
 append_if_missing "CLAUDE_CODE_MAX_OUTPUT_TOKENS" "export CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192"
 append_if_missing "MAX_THINKING_TOKENS" "export MAX_THINKING_TOKENS=1024"
@@ -219,7 +212,7 @@ echo "✅ Install complete!"
 echo ""
 echo "Next steps:"
 echo "  1. Open VSCode"
-echo "  2. File → Open Folder → select: $REPO_DIR"
+echo "  2. File → Open Folder → select: ~/claude-projects/sf-demo-scout"
 echo "  3. Open the integrated terminal (Ctrl+\`)"
 echo "  4. Type: claude"
 echo "  5. Once Claude Code starts, type: /setup-demo-scout"

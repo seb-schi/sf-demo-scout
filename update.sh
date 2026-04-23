@@ -6,7 +6,7 @@
 set -e
 
 REPO_NAME="sf-demo-scout"
-PROJECTS_DIR="$HOME/Projects"
+PROJECTS_DIR="$HOME/claude-projects"
 REPO_DIR="$PROJECTS_DIR/$REPO_NAME"
 BACKUP_DIR="$PROJECTS_DIR/.sf-demo-scout-backup"
 TMP_SCRIPT="/tmp/sf-demo-scout-update.sh"

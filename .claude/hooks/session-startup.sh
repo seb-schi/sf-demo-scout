@@ -2,21 +2,17 @@
 # SF Demo Prep — Session Startup Script
 # Lives at: .claude/hooks/session-startup.sh
 # Runs automatically via SessionStart hook when Claude Code launches.
-# Handles: AWS SSO refresh, Salesforce org check, org folder + audit status.
+# Handles: LLMGW auth check, Salesforce org check, org folder + audit status.
 
 OUTPUT=""
 
-# --- 1. AWS SSO Check & Refresh ---
-if ! aws sts get-caller-identity --profile claude &>/dev/null; then
-  echo "⏳ AWS SSO session expired. Refreshing..." >&2
-  aws sso login --profile claude 2>&1
-  if ! aws sts get-caller-identity --profile claude &>/dev/null; then
-    OUTPUT+="## ⚠️ AWS SSO login failed. Run manually: aws sso login --profile claude\n\n"
-  else
-    OUTPUT+="## ✅ AWS SSO refreshed successfully.\n\n"
-  fi
+# --- 1. LLMGW Auth Check ---
+SETTINGS_FILE="$HOME/.claude/settings.json"
+if [ -f "$SETTINGS_FILE" ] && grep -q '"ANTHROPIC_AUTH_TOKEN"' "$SETTINGS_FILE" 2>/dev/null; then
+  OUTPUT+="## ✅ LLMGW auth token present.\n\n"
 else
-  OUTPUT+="## ✅ AWS SSO session active.\n\n"
+  OUTPUT+="## ⚠️ No LLMGW auth token found in ~/.claude/settings.json\n"
+  OUTPUT+="   Run the Claude Code installer first: see the 'Installing Claude Code for Solutions' canvas.\n\n"
 fi
 
 # --- 2. Salesforce Org Check ---

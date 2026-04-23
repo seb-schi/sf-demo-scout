@@ -13,33 +13,19 @@ connect the demo org and verify the connection.
 
 Do not create or overwrite any existing config files. They are already correct.
 
-## Step 1: Check AWS SSO
-
-```bash
-aws sts get-caller-identity --profile claude
-```
-
-If this fails, stop and tell the SE:
-
-> "Your AWS SSO session isn't active. Open Terminal and run:
-> `aws sso login --profile claude`
-> Then come back and type `/setup-demo-scout` again."
-
-Do not proceed until AWS is confirmed active.
-
-## Step 2: Check for Existing Org Connection
+## Step 1: Check for Existing Org Connection
 
 ```bash
 sf config get target-org --json
 sf org display --json
 ```
 
-If the org is authenticated and healthy, skip to Step 4 — tell the SE:
+If the org is authenticated and healthy, skip to Step 3 — tell the SE:
 > "Found an existing org connection: [alias] ([username]). Skipping login."
 
-If no org is set, or auth has expired, proceed to Step 3.
+If no org is set, or auth has expired, proceed to Step 2.
 
-## Step 3: Connect the Demo Org
+## Step 2: Connect the Demo Org
 
 Tell the SE:
 > "I'll open a browser now — log in with your **demo org credentials** (not your Salesforce SSO / Okta login). This is the org you want to demo from."
@@ -61,7 +47,7 @@ Extract and store:
 - `id` (this is the Org ID — use the full 18-char value)
 - `instanceUrl`
 
-## Step 3.5: Create Lesson Files
+## Step 2.5: Create Lesson Files
 
 If `orgs/sparring-lessons.md` does not exist, create it:
 
@@ -81,7 +67,7 @@ Accumulated lessons from scout-building sessions. Add new lessons at the end wit
 
 If either file already exists, leave it untouched.
 
-## Step 4: Show Setup Summary
+## Step 3: Show Setup Summary
 
 Print this summary to the terminal:
 

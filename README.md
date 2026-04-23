@@ -11,7 +11,7 @@ SF Demo Scout is a Claude Code pipeline that *spars* with you about customer sce
 | Ingredient | Why |
 |------------|-----|
 | macOS | Apple Silicon or Intel. Sorry, Windows friends. 🍎 |
-| AWS Bedrock access | Claude Opus thinks. Claude Sonnet builds. Bedrock hosts the party. Complete the [Embark setup guide](https://salesforce.enterprise.slack.com/docs/T01G0063H29/F0ADG6ASE81) first. |
+| Claude Code via LLMGW | Opus thinks. Sonnet builds. Install Claude Code first using the **Installing Claude Code for Solutions** canvas (one command, one Google sign-in). |
 | A Salesforce demo org | SDO, IDO, personal dev org – we're not picky. The messier, the more fun. |
 
 ---
@@ -19,13 +19,13 @@ SF Demo Scout is a Claude Code pipeline that *spars* with you about customer sce
 ## Install (One Time, We Promise)
 
 ```bash
-git clone https://github.com/seb-schi/sf-demo-scout ~/Projects/sf-demo-scout
-cd ~/Projects/sf-demo-scout && bash install.sh
+git clone https://github.com/seb-schi/sf-demo-scout ~/claude-projects/sf-demo-scout
+cd ~/claude-projects/sf-demo-scout && bash install.sh
 ```
 
-Go grab a coffee. ☕ The script installs Homebrew, Node.js, Python, Salesforce CLI, Claude Code itself, sets up the SFDX project, pulls 13 community skills from three open-source repos, and wires your Bedrock environment. It's idempotent – safe to re-run if something went sideways the first time.
+Go grab a coffee. ☕ The script installs Homebrew, Node.js, Python, Salesforce CLI, sets up the SFDX project, and pulls 13 community skills from three open-source repos. It's idempotent – safe to re-run if something went sideways the first time.
 
-Then: **VS Code → Open Folder → `~/Projects/sf-demo-scout` → Open Terminal → `claude` → `/setup-demo-scout`**
+Then: **VS Code → Open Folder → `~/claude-projects/sf-demo-scout` → Open Terminal → `claude` → `/setup-demo-scout`**
 
 That's it. You're in.
 
@@ -154,7 +154,7 @@ A: Yes! Any org that `sf org login web` can authenticate. SDO, IDO, sandbox, dev
 A: Every change log includes rollback commands. Scout's like a responsible designated driver – it notes the way back.
 
 **Q: What model does it use?**
-A: Opus for thinking (sparring, orchestration), Sonnet for doing (metadata generation, deployment). Both on Bedrock.
+A: Opus for thinking (sparring, orchestration), Sonnet for doing (metadata generation, deployment). Both via LLMGW.
 
 **Q: Can I use it without Agentforce?**
 A: Absolutely. Agentforce is Phase 3 – if your spec doesn't include agents, that phase simply doesn't run.
