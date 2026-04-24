@@ -1,22 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(sf *)",
-      "Bash(osascript -e *)",
-      "Bash(ls *)",
-      "Bash(mv *)",
-      "Bash(mkdir *)",
-      "Bash(curl *)",
-      "Bash(grep *)",
-      "Bash(awk *)",
-      "Bash(python3 *)",
-      "Bash(python3)",
-      "Bash(wc -l *)",
-      "Bash(bash .claude/scripts/sync-skills.sh)",
-      "Bash(bash .claude/scripts/sync-skills.sh *)",
-      "Bash(bash .claude/scripts/sync-skills.sh | *)",
       "mcp__Salesforce_DX__*",
       "mcp__slack__slack_*",
+      "Bash",
       "Edit",
       "Write",
       "Agent"

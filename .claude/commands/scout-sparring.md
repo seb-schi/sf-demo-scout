@@ -140,30 +140,7 @@ After the audit (fresh or reused), surface the star-flagged items:
 ² Skip Stage 6b unless the scenario has Apex, Flows, or Agentforce actions (i.e., objects queried or written to programmatically).
 
 For **iteration intent**: read `.claude/prompts/sparring-iteration.md` and execute Stage 4i, then return here for Stage 5.
-For **new scenario** and **reuse-org**: proceed to Stage 3.5 below.
-
----
-
-## Stage 3.5: Slack Context (optional — New & Reuse-org only)
-
-Iteration intent skips this stage entirely — customer context was
-gathered in the prior sparring session, and iterations are targeted
-changes, not fresh discovery.
-
-For **New** and **Reuse-org** intents:
-
-Read `.claude/prompts/sparring-slack-context.md` and execute the
-procedure. It handles:
-- Availability probe (bash `claude mcp list` check)
-- Light Context gate (≤5 inline calls, ~3K tokens)
-- Deep Research gate (Sonnet sub-agent, separate opt-in)
-
-Both gates are opt-in and independent. The SE can take both, one, or
-neither. Findings feed Stage 4 discovery and Stage 6 scenario
-proposal. The Deep Research brief (if run) is cited in the spec's
-Slack Research Briefs block.
-
-After Stage 3.5, proceed to Stage 4.
+For **new scenario** and **reuse-org**: proceed to Stage 4 below.
 
 ---
 
@@ -180,6 +157,21 @@ Ask max 6 clarifying questions:
 6. **Any specific Salesforce feature you want to showcase?** (Agentforce, Data Cloud, a specific Flow pattern, a guided screen flow / wizard, an industry-specific capability — or "nothing specific, you decide")
 
 **Stop and wait for answers.**
+
+### Optional Slack context (new scenario and reuse-org only)
+
+After the SE answers the discovery questions, if the intent is **New**
+or **Reuse-org**, offer an optional Slack context pull:
+
+Read `.claude/prompts/sparring-slack-context.md` and execute the
+procedure. It runs an availability probe, loads Slack sources from
+markdown files, offers collection on first use, and gates the skim
+behind an explicit SE yes/deep/broad/n reply. Iteration intent skips
+this entirely.
+
+Slack findings (if any) feed scenario proposal as **context only** —
+attributed, never asserted. SE knowledge and Salesforce docs remain
+authoritative.
 
 Then proceed to Stage 5 (Platform & Data Model Research).
 

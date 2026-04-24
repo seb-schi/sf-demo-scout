@@ -11,7 +11,7 @@ same name — there is no SKILL.md backing it.
 - Customer: {{CUSTOMER}}
 - Org alias: {{ORG_ALIAS}}
 - Output path: {{OUTPUT_PATH}}
-- Known channel IDs (optional, comma-separated): {{KNOWN_CHANNELS}}
+- Slack sources (markdown list of channels and canvases, or `none`): {{SLACK_SOURCES}}
 
 ## Tools Available
 - mcp__slack__slack_search_channels
@@ -25,15 +25,32 @@ same name — there is no SKILL.md backing it.
 - Max 8 tool calls total. Prefer breadth over depth.
 - If you hit call 7 with gaps, write what you have and return.
 
+## Epistemic Stance
+
+Read `.claude/prompts/slack-epistemic-framing.md` and apply its rules
+to every section of your brief. Your brief describes what Slack
+surfaced — it does not assert what is true about the customer.
+
+Sub-agent specifics (beyond the shared framing):
+- If Slack content appears to contradict a Salesforce doc or the org
+  audit, flag the conflict explicitly in the brief's Summary section.
+- Redact personal phone numbers, home addresses, and compensation
+  figures from the brief even if they appear in Slack.
+
 ## Search Strategy
 
 Goal: build a narrative of the customer's internal footprint — who
 owns the account, known pain points, demo history, consumption
 signals, and Org62 pointers the SE can traverse manually.
 
-1. If KNOWN_CHANNELS is non-empty, read those first (skip step 2).
-   Otherwise, `slack_search_channels` with `query="{{CUSTOMER}}"`,
+1. Parse SLACK_SOURCES: extract channel names (lines with `#word`) and
+   canvas URLs (lines with `https://*slack.com/docs/*`). If SLACK_SOURCES
+   is `none` or empty, fall back to `slack_search_channels` with
+   `query="{{CUSTOMER}}"`,
    `channel_types="public_channel,private_channel"`, `limit=10`.
+   If sources exist, skip the broad channel search and use only the
+   SE-curated list. Read each listed canvas via `slack_read_canvas`
+   (budget: up to 2).
 2. Pick the top 2-3 most relevant channels. Prefer ZC: shared
    channels, regional account channels, or named account channels.
    Skip sev2/incident and event-planning channels unless clearly
@@ -55,8 +72,6 @@ signals, and Org62 pointers the SE can traverse manually.
 - Ignore bot-only posts, join/leave messages, scheduled reminders.
 - Prefer posts with reactions, thread length > 2, or from SEs/architects.
 - De-duplicate near-identical messages (cross-posted recaps).
-- Redact: do not copy personal phone numbers, home addresses, or
-  compensation figures into the brief even if they appear in Slack.
 
 ## Output — Markdown Brief (write to OUTPUT_PATH)
 

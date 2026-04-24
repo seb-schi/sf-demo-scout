@@ -26,7 +26,8 @@ Docs consulted during sparring (Platform & Data Model Research — Stage 5, plus
   - **Verdict:** [what the doc confirmed, contradicted, or left ambiguous]
 
 ### Slack Research Briefs
-- `slack-research-[YYYY-MM-DD]-[HHmm].md` — [1-line synthesis of identified pains + demo history]
+Context only — Slack content is medium-confidence and attributed to source messages. Docs and SE knowledge take precedence in the spec body.
+- `slack-research-[YYYY-MM-DD]-[HHmm].md` — [1-line synthesis of what Slack surfaced, not what is asserted as true]
 - (or: "None — no Slack research invoked this session.")
 
 ## Scenario: [Name]

@@ -6,7 +6,7 @@ description: >
   Sonnet sub-agents in phases, and writes a consolidated change log.
   Activate with /scout-building.
 model: opus
-allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, AskUserQuestion, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__deploy_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__assign_permission_set, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_DX__run_code_analyzer, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch
+allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, AskUserQuestion, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__deploy_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__assign_permission_set, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_DX__run_code_analyzer, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch, mcp__slack__slack_create_canvas
 ---
 
 # Scout Building — Opus Orchestrator
@@ -216,7 +216,25 @@ If approved, append to `orgs/building-lessons.md` with today's date. Then count 
 
 **Do NOT output the brief until 8a and 8b are complete.**
 
-Read `.claude/prompts/demo-handover-brief.md` for the format, then synthesize and output the brief to the terminal (no file written).
+Read `.claude/prompts/demo-handover-brief.md` for the format, then synthesize the brief. Output it to the terminal as plain text (no file written).
+
+**Then check the Slack handover-canvas toggle:**
+
+1. Read `orgs/slack-sources.md` if it exists.
+2. Look for a line matching `Handover Canvas:` (case-insensitive). If the
+   value is `on`, proceed to step 3. Otherwise (`off`, missing line,
+   missing file): skip to the notification.
+3. Probe Slack MCP availability: bash `claude mcp list 2>/dev/null | grep -qE '^slack:.*✓ Connected' && echo OK || echo MISSING`.
+   - On `MISSING`: tell the SE *"Handover canvas skipped — Slack MCP not connected."* and continue to the notification.
+   - On `OK`: proceed.
+4. Call `mcp__slack__slack_create_canvas` with:
+   - `title`: `Demo Handover — [Customer] — [YYYY-MM-DD]`
+   - `content`: the same markdown brief you output to the terminal, reformatted for Canvas-flavored Markdown (plain headers, lists, links — no Slack-message syntax). The canvas lands in the SE's personal Slack; no channel targeting needed.
+5. Capture the returned canvas link. Append one line to the terminal output AFTER the brief:
+   ```
+   📋 Slack canvas: [canvas URL] — refine before sharing with customer.
+   ```
+6. On any canvas-create error, surface one line: *"Canvas write failed: [reason]. Brief is still above."* Do not retry.
 
 Then fire the notification:
 

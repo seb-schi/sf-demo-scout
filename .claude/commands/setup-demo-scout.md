@@ -48,7 +48,7 @@ Extract and store:
 - `id` (this is the Org ID — use the full 18-char value)
 - `instanceUrl`
 
-## Step 2.5: Create Lesson Files
+## Step 2.5: Create Starter Files
 
 If `orgs/sparring-lessons.md` does not exist, create it:
 
@@ -66,7 +66,31 @@ If `orgs/building-lessons.md` does not exist, create it:
 Accumulated lessons from scout-building sessions. Add new lessons at the end with today's date.
 ```
 
-If either file already exists, leave it untouched.
+If `orgs/slack-sources.md` does not exist, create it with this content:
+
+```markdown
+# Slack Sources — General
+
+Channels and canvases useful across demo prep sessions in this account team's
+Slack. Scout reads this file when pulling Slack context during /scout-sparring.
+
+**Slack is background colour, not ground truth.** SE knowledge and Salesforce
+documentation take precedence in specs and handovers. Slack content gets
+attributed to source messages so you can trace where something came from —
+it is not synthesised into assertive claims.
+
+Handover Canvas: off  <!-- on / off — when on, /scout-building writes the demo handover to a new Slack canvas you own -->
+
+## Channels
+
+<!-- Add channels you find useful across customers. One per line. Format: - #channel-name — short note on why it helps -->
+
+## Canvases
+
+<!-- Add Slack canvas URLs you reference regularly. One per line. Format: - [Canvas title](full-canvas-url) — short note -->
+```
+
+If any of the three files already exist, leave them untouched.
 
 ## Step 3: Show Setup Summary
 
