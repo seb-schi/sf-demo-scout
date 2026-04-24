@@ -6,7 +6,7 @@ description: >
   Produces a structured spec for /scout-building to deploy.
   Activate with /scout-sparring.
 model: opus
-allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch, mcp__slack__slack_search_channels, mcp__slack__slack_search_users, mcp__slack__slack_search_public_and_private, mcp__slack__slack_read_channel, mcp__slack__slack_read_thread, mcp__slack__slack_read_canvas
+allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch, mcp__slack__slack_search_channels, mcp__slack__slack_search_public_and_private, mcp__slack__slack_read_channel, mcp__slack__slack_read_canvas
 ---
 
 # Scout Sparring — Demo Discovery & Spec Generation
@@ -158,20 +158,26 @@ Ask max 6 clarifying questions:
 
 **Stop and wait for answers.**
 
-### Optional Slack context (new scenario and reuse-org only)
+### Slack lookup (new scenario and reuse-org only; iteration skips)
 
 After the SE answers the discovery questions, if the intent is **New**
-or **Reuse-org**, offer an optional Slack context pull:
+or **Reuse-org**, weave one additional question naturally into the
+conversation — no gate, no menu:
 
-Read `.claude/prompts/sparring-slack-context.md` and execute the
-procedure. It runs an availability probe, loads Slack sources from
-markdown files, offers collection on first use, and gates the skim
-behind an explicit SE yes/deep/broad/n reply. Iteration intent skips
-this entirely.
+> "What type of demo org is this (LSDO, Evident SDO, Makana, etc.), and
+> are there any setup canvases you'd like me to reference — for demo
+> storylines, scenario integration, post-spin steps? Just name them and
+> I'll pull them. You can also name a specific channel if there's
+> chatter worth looking at, otherwise we'll move on."
 
-Slack findings (if any) feed scenario proposal as **context only** —
-attributed, never asserted. SE knowledge and Salesforce docs remain
-authoritative.
+If the SE names one or more canvases or a channel: read
+`.claude/prompts/sparring-slack-lookup.md` and execute its procedure
+with the names as inputs. If the SE skips or doesn't mention Slack:
+move on to Stage 5 without ceremony.
+
+Slack findings feed scenario proposal as **context only** — attributed,
+never asserted. Canvas content may shape demo storylines directly (its
+intended use); SE knowledge and Salesforce docs remain authoritative.
 
 Then proceed to Stage 5 (Platform & Data Model Research).
 

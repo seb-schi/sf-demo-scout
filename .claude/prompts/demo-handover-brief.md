@@ -32,4 +32,4 @@ open orgs/[alias]-[customer]/
 
 Copy the spec and change log into your preferred AI tool (Gemini, ChatGPT, Slackbot) to rehearse talking points or generate a demo script.
 
-**Caller note (not part of the rendered brief):** after outputting the brief, scout-building checks the handover-canvas toggle in `orgs/slack-sources.md` and optionally writes this same content to a Slack canvas owned by the SE. See `scout-building.md` Step 8c for the procedure.
+**Caller note (not part of the rendered brief):** after outputting the brief, scout-building offers the SE a y/n to write this same content to a Slack canvas in their personal Slack. See `scout-building.md` Step 8c for the procedure.

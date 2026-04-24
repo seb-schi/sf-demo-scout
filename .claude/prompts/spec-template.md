@@ -25,10 +25,10 @@ Docs consulted during sparring (Platform & Data Model Research — Stage 5, plus
   - **URL:** [doc URL]
   - **Verdict:** [what the doc confirmed, contradicted, or left ambiguous]
 
-### Slack Research Briefs
-Context only — Slack content is medium-confidence and attributed to source messages. Docs and SE knowledge take precedence in the spec body.
-- `slack-research-[YYYY-MM-DD]-[HHmm].md` — [1-line synthesis of what Slack surfaced, not what is asserted as true]
-- (or: "None — no Slack research invoked this session.")
+### Slack References
+Context only — Slack content is medium-confidence and attributed to source messages. Docs and SE knowledge take precedence in the spec body. List each canvas or channel the SE named during sparring, with a 1-line synthesis of what it surfaced.
+- [Canvas title or #channel-name] — [1-line synthesis of what it surfaced, not what is asserted as true]
+- (or: "None — no Slack references pulled this session.")
 
 ## Scenario: [Name]
 **Business story:**

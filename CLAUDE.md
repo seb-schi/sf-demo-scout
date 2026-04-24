@@ -22,10 +22,11 @@ Salesforce Docs MCP Server (also in .mcp.json) for official documentation lookup
 - `salesforce_docs_fetch` — retrieve a full doc page by `documentPath`
 Use during sparring to verify release-gated features before speccing, and during deployment to diagnose unfamiliar error messages. Optional — if the endpoint is unavailable, Scout degrades gracefully.
 
-Slack MCP Server (user-scope, registered by install.sh) for customer-context research during sparring:
-- `slack_search_channels`, `slack_search_users`, `slack_search_public_and_private` — discover channels and surface chatter
-- `slack_read_channel`, `slack_read_thread`, `slack_read_canvas` — pull content for synthesis
-Use in scout-sparring Stage 2.5 (light context) and Stage 2.6 (deep research sub-agent). Hard-degrades to "not available" banner if not authenticated. OAuth lives in `~/.claude.json`, survives `update.sh`.
+Slack MCP Server (user-scope, registered by install.sh) for SE-named canvas/channel lookups during sparring and handover-canvas writes after deployment:
+- `slack_search_public_and_private`, `slack_search_channels` — resolve canvas titles and channel names the SE mentions
+- `slack_read_canvas`, `slack_read_channel` — pull content for scenario context
+- `slack_create_canvas` — write the demo handover brief to the SE's personal Slack (scout-building Step 8c)
+Used in scout-sparring Stage 4 (inline ask, New/Reuse-org only) and scout-building Step 8c (y/n handover canvas offer). Hard-degrades to "not available" if not authenticated. OAuth token lives in macOS Keychain (`Claude Code-credentials`); MCP registration in `~/.claude.json` — both survive `update.sh`.
 
 Fall back to `sf` CLI if MCP is unavailable.
 

@@ -4,8 +4,8 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-04-24
 
-- Slack integration — opt-in customer research during sparring, framed as context not truth. Curate channels and canvases in `orgs/slack-sources.md` (shared across customers) or the per-customer file
-- Demo handover can write to a Slack canvas you own — toggle `Handover Canvas: on` in `orgs/slack-sources.md`. Lands in your personal Slack, never a customer channel
+- Slack integration simplified — no more sources files to curate. During sparring Scout asks inline which canvases (and optionally one channel) to reference; handover canvas is a y/n prompt after deploy
+- Slack integration drift cleanup — CLAUDE.md Slack section now matches the current integration (inline Stage 4 ask + handover canvas), broken canvas-search tool name fixed, dead tool grants pruned from sparring permissions
 - Opus sessions no longer truncate on long reasoning — thinking budget raised
 - `.zshrc` config managed by Scout — model IDs and token limits update automatically on install/update; conflicting old lines get commented out with a dated note
 - Cleaner install output — fixed a section-numbering gap, removed a no-op shell-reload step

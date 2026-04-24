@@ -218,23 +218,22 @@ If approved, append to `orgs/building-lessons.md` with today's date. Then count 
 
 Read `.claude/prompts/demo-handover-brief.md` for the format, then synthesize the brief. Output it to the terminal as plain text (no file written).
 
-**Then check the Slack handover-canvas toggle:**
+**Then offer the Slack handover canvas:**
 
-1. Read `orgs/slack-sources.md` if it exists.
-2. Look for a line matching `Handover Canvas:` (case-insensitive). If the
-   value is `on`, proceed to step 3. Otherwise (`off`, missing line,
-   missing file): skip to the notification.
-3. Probe Slack MCP availability: bash `claude mcp list 2>/dev/null | grep -qE '^slack:.*✓ Connected' && echo OK || echo MISSING`.
-   - On `MISSING`: tell the SE *"Handover canvas skipped — Slack MCP not connected."* and continue to the notification.
-   - On `OK`: proceed.
-4. Call `mcp__slack__slack_create_canvas` with:
+1. Probe Slack MCP availability: bash `claude mcp list 2>/dev/null | grep -qE '^slack:.*✓ Connected' && echo OK || echo MISSING`.
+   - On `MISSING`: skip silently to the notification (no prompt — nothing to offer).
+   - On `OK`: proceed to step 2.
+2. Ask the SE inline:
+   > "Write the handover brief to a Slack canvas in your personal Slack? (y/n)"
+   Wait for the reply. On `n` or silence: skip to the notification.
+3. On `y`: call `mcp__slack__slack_create_canvas` with:
    - `title`: `Demo Handover — [Customer] — [YYYY-MM-DD]`
    - `content`: the same markdown brief you output to the terminal, reformatted for Canvas-flavored Markdown (plain headers, lists, links — no Slack-message syntax). The canvas lands in the SE's personal Slack; no channel targeting needed.
-5. Capture the returned canvas link. Append one line to the terminal output AFTER the brief:
+4. Capture the returned canvas link. Append one line to the terminal output AFTER the brief:
    ```
    📋 Slack canvas: [canvas URL] — refine before sharing with customer.
    ```
-6. On any canvas-create error, surface one line: *"Canvas write failed: [reason]. Brief is still above."* Do not retry.
+5. On any canvas-create error, surface one line: *"Canvas write failed: [reason]. Brief is still above."* Do not retry.
 
 Then fire the notification:
 
