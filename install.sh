@@ -101,7 +101,31 @@ else
   echo "⚠️  MCP server pre-cache failed. Claude Code may need a retry on first start."
 fi
 
-# --- 7. SFDX Project ---
+# --- 7. Slack MCP Registration (user-scope, persistent across update.sh) ---
+echo ""
+echo "🔍 Checking Slack MCP registration..."
+if command -v claude &>/dev/null; then
+  if claude mcp list 2>/dev/null | grep -qE '^[[:space:]]*slack[[:space:]]*:'; then
+    echo "✅ Slack MCP already registered (user scope)."
+  else
+    echo "📦 Registering Slack MCP (user scope — persists across update.sh)..."
+    if claude mcp add -s user -t http \
+        --client-id 188160004832.9210129962818 \
+        --callback-port 3118 \
+        slack https://mcp.slack.com/mcp >/dev/null 2>&1; then
+      echo "✅ Slack MCP registered. Authenticate in your first Claude Code session:"
+      echo "   run /mcp, select 'slack', choose 'Authenticate', complete OAuth in browser."
+    else
+      echo "⚠️  Slack MCP registration failed. You can add it manually later:"
+      echo "   claude mcp add -s user -t http --client-id 188160004832.9210129962818 \\"
+      echo "     --callback-port 3118 slack https://mcp.slack.com/mcp"
+    fi
+  fi
+else
+  echo "⚠️  Skipping Slack MCP registration — 'claude' CLI not found (see section 3)."
+fi
+
+# --- 8. SFDX Project ---
 echo ""
 echo "🔍 Checking SFDX project..."
 if [ ! -f "$REPO_DIR/sfdx-project.json" ]; then
@@ -119,7 +143,7 @@ else
   echo "✅ SFDX project already exists."
 fi
 
-# --- 8. External Skills (manifest-driven) ---
+# --- 9. External Skills (manifest-driven) ---
 echo ""
 echo "🔍 Syncing external skills from manifest..."
 
@@ -142,7 +166,7 @@ fi
 
 cd "$REPO_DIR"
 
-# --- 9. Shell Environment Variables ---
+# --- 10. Shell Environment Variables ---
 echo ""
 echo "🔍 Checking shell environment..."
 
@@ -229,7 +253,7 @@ if grep -q "^\s*export\s*ANTHROPIC_MODEL\s*=" "$ZSHRC" 2>/dev/null; then
   echo "     Remove it manually: edit ~/.zshrc and delete the line."
 fi
 
-# --- 10. Script permissions ---
+# --- 11. Script permissions ---
 echo ""
 echo "🔍 Checking script permissions..."
 HOOK="$REPO_DIR/.claude/hooks/session-startup.sh"
@@ -258,7 +282,8 @@ echo "  1. Open VSCode"
 echo "  2. File → Open Folder → select: ~/claude-projects/sf-demo-scout"
 echo "  3. Open the integrated terminal (Ctrl+\`)"
 echo "  4. Type: claude"
-echo "  5. Once Claude Code starts, type: /setup-demo-scout"
+echo "  5. In Claude Code, run /mcp → select 'slack' → 'Authenticate' → complete OAuth in browser"
+echo "  6. Then type: /setup-demo-scout"
 echo ""
 echo "Claude Code will connect your demo org and run your first audit. ☕"
 echo ""

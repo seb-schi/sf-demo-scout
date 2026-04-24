@@ -6,7 +6,7 @@ description: >
   Produces a structured spec for /scout-building to deploy.
   Activate with /scout-sparring.
 model: opus
-allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch
+allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch, mcp__slack__slack_search_channels, mcp__slack__slack_search_users, mcp__slack__slack_search_public_and_private, mcp__slack__slack_read_channel, mcp__slack__slack_read_thread, mcp__slack__slack_read_canvas
 ---
 
 # Scout Sparring — Demo Discovery & Spec Generation
@@ -140,7 +140,30 @@ After the audit (fresh or reused), surface the star-flagged items:
 ² Skip Stage 6b unless the scenario has Apex, Flows, or Agentforce actions (i.e., objects queried or written to programmatically).
 
 For **iteration intent**: read `.claude/prompts/sparring-iteration.md` and execute Stage 4i, then return here for Stage 5.
-For **new scenario** and **reuse-org**: proceed to Stage 4 below.
+For **new scenario** and **reuse-org**: proceed to Stage 3.5 below.
+
+---
+
+## Stage 3.5: Slack Context (optional — New & Reuse-org only)
+
+Iteration intent skips this stage entirely — customer context was
+gathered in the prior sparring session, and iterations are targeted
+changes, not fresh discovery.
+
+For **New** and **Reuse-org** intents:
+
+Read `.claude/prompts/sparring-slack-context.md` and execute the
+procedure. It handles:
+- Availability probe (bash `claude mcp list` check)
+- Light Context gate (≤5 inline calls, ~3K tokens)
+- Deep Research gate (Sonnet sub-agent, separate opt-in)
+
+Both gates are opt-in and independent. The SE can take both, one, or
+neither. Findings feed Stage 4 discovery and Stage 6 scenario
+proposal. The Deep Research brief (if run) is cited in the spec's
+Slack Research Briefs block.
+
+After Stage 3.5, proceed to Stage 4.
 
 ---
 

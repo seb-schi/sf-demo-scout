@@ -25,6 +25,10 @@ Docs consulted during sparring (Platform & Data Model Research — Stage 5, plus
   - **URL:** [doc URL]
   - **Verdict:** [what the doc confirmed, contradicted, or left ambiguous]
 
+### Slack Research Briefs
+- `slack-research-[YYYY-MM-DD]-[HHmm].md` — [1-line synthesis of identified pains + demo history]
+- (or: "None — no Slack research invoked this session.")
+
 ## Scenario: [Name]
 **Business story:**
 **Core capability:**

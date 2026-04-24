@@ -1,12 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(sf config *)",
-      "Bash(sf org *)",
-      "Bash(sf data *)",
-      "Bash(sf project *)",
-      "Bash(sf template *)",
-      "Bash(sf agent *)",
+      "Bash(sf *)",
       "Bash(osascript -e *)",
       "Bash(ls *)",
       "Bash(mv *)",
@@ -20,13 +15,8 @@
       "Bash(bash .claude/scripts/sync-skills.sh)",
       "Bash(bash .claude/scripts/sync-skills.sh *)",
       "Bash(bash .claude/scripts/sync-skills.sh | *)",
-      "mcp__Salesforce_DX__run_soql_query",
-      "mcp__Salesforce_DX__retrieve_metadata",
-      "mcp__Salesforce_DX__deploy_metadata",
-      "mcp__Salesforce_DX__assign_permission_set",
-      "mcp__Salesforce_DX__list_all_orgs",
-      "mcp__Salesforce_DX__run_code_analyzer",
-      "mcp__Salesforce_DX__get_username",
+      "mcp__Salesforce_DX__*",
+      "mcp__slack__slack_*",
       "Edit",
       "Write",
       "Agent"

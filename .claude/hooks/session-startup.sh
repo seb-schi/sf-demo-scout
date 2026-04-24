@@ -15,7 +15,25 @@ else
   OUTPUT+="   Run the Claude Code installer first: see the 'Installing Claude Code for Solutions' canvas.\n\n"
 fi
 
-# --- 2. Salesforce Org Check ---
+# --- 2. Slack MCP Auth State ---
+# OAuth token lives in macOS Keychain (Claude Code-credentials),
+# not in ~/.claude.json — the JSON file only records registration.
+# `claude mcp list` actively probes the connection.
+# Silent when connected; one-line hint when registered-but-not-connected.
+# Silent when not registered at all (opt-in feature).
+if command -v claude &>/dev/null; then
+  SLACK_STATUS=$(claude mcp list 2>/dev/null | grep -E '^slack:' || true)
+  if [ -n "$SLACK_STATUS" ]; then
+    if echo "$SLACK_STATUS" | grep -q "✓ Connected"; then
+      : # Connected — stay silent.
+    else
+      OUTPUT+="## ℹ️ Slack MCP registered but not connected.\n"
+      OUTPUT+="   Run \`/mcp\` in this session, select 'slack', choose 'Authenticate'.\n\n"
+    fi
+  fi
+fi
+
+# --- 3. Salesforce Org Check ---
 DEFAULT_ORG=$(sf config get target-org --json 2>/dev/null | grep -oE '"value"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)
 ORG_LIST=$(sf org list --json 2>/dev/null)
 ORG_COUNT=$(echo "$ORG_LIST" | grep -cE '"alias"[[:space:]]*:' 2>/dev/null || echo "0")
@@ -43,7 +61,7 @@ else
     OUTPUT+="- **Instance:** $INSTANCE_URL\n"
     OUTPUT+="$ORG_COUNT org(s) available. Switch: /switch-org\n\n"
 
-    # --- 3. Org Folder + Audit Check ---
+    # --- 4. Org Folder + Audit Check ---
     # Find customer folders for this org alias (pattern: orgs/[alias]-[customer]/)
     ORG_FOLDERS=$(ls -d orgs/${DEFAULT_ORG}-*/ 2>/dev/null)
     if [ -n "$ORG_FOLDERS" ]; then
@@ -78,12 +96,12 @@ else
   fi
 fi
 
-# --- 4. CLAUDE.md Presence Check ---
+# --- 5. CLAUDE.md Presence Check ---
 if [ ! -f "CLAUDE.md" ]; then
   OUTPUT+="## ⚠️ No CLAUDE.md found. Are you in the sf-demo-prep project directory?\n\n"
 fi
 
-# --- 5. GitHub Update Check ---
+# --- 6. GitHub Update Check ---
 # Writes .claude/.update-available when behind main so /scout-sparring
 # can surface the notice in its Stage 1 gate. Deleted when current.
 FLAG_FILE=".claude/.update-available"
@@ -109,7 +127,7 @@ if git rev-parse --git-dir &>/dev/null; then
   fi
 fi
 
-# --- 6. Ready ---
+# --- 7. Ready ---
 OUTPUT+="---\n"
 OUTPUT+="**Ready.**\n"
 OUTPUT+="  /scout-sparring  — Opus discovery sparring + spec generation\n"

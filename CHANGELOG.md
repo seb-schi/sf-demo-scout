@@ -4,6 +4,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-04-24
 
+- Slack MCP integration (opt-in) — Scout can now pull customer context from Slack during sparring. A Light Context pass (≤5 searches, ~30s) surfaces the account channel, recent chatter, and Org62 pointers; a Deep Research pass spawns a Sonnet sub-agent that writes a full account brief to disk (pain points, demo history, stack signals, key contacts, Org62 links). Both gated, both opt-in, both skipped on Iteration sessions. Register via `install.sh`, authenticate once via `/mcp` — persists across `update.sh`
 - Opus sparring and review sessions no longer truncate on multi-file reasoning — thinking budget quadrupled (Sonnet deploys see a small uptick only on hard errors)
 - Cleaner install output — fixed a section-numbering gap and removed a no-op shell-reload step
 - `.zshrc` config managed by Scout — install/update always writes the current model IDs and token limits, so you automatically pick up version bumps. Any conflicting pre-existing lines get commented out with a dated note rather than silently overridden

@@ -22,6 +22,11 @@ Salesforce Docs MCP Server (also in .mcp.json) for official documentation lookup
 - `salesforce_docs_fetch` — retrieve a full doc page by `documentPath`
 Use during sparring to verify release-gated features before speccing, and during deployment to diagnose unfamiliar error messages. Optional — if the endpoint is unavailable, Scout degrades gracefully.
 
+Slack MCP Server (user-scope, registered by install.sh) for customer-context research during sparring:
+- `slack_search_channels`, `slack_search_users`, `slack_search_public_and_private` — discover channels and surface chatter
+- `slack_read_channel`, `slack_read_thread`, `slack_read_canvas` — pull content for synthesis
+Use in scout-sparring Stage 2.5 (light context) and Stage 2.6 (deep research sub-agent). Hard-degrades to "not available" banner if not authenticated. OAuth lives in `~/.claude.json`, survives `update.sh`.
+
 Fall back to `sf` CLI if MCP is unavailable.
 
 ## Build Boundaries
