@@ -156,28 +156,17 @@ Ask max 6 clarifying questions:
 5. **Which existing app and objects from the audit should anchor the demo?** Show the star-flagged items and ask the SE to confirm or redirect.
 6. **Any specific Salesforce feature you want to showcase?** (Agentforce, Data Cloud, a specific Flow pattern, a guided screen flow / wizard, an industry-specific capability — or "nothing specific, you decide")
 
+**For New and Reuse-org intents only** (iteration skips): append a single-line italicised P.S. right after Q6 in the same message. No header, no blockquote, no numbered slot — it must read as a by-the-way, not a 7th question. Use an em-dash lead-in and lean on "no need":
+
+> *— also, if there's a setup canvas worth peeking at for this org, just name it and I'll look it up on Slack. No need if nothing comes to mind. What flavour of demo org is this, by the way (SDO, IDO, ...)?*
+
 **Stop and wait for answers.**
 
-### Slack lookup (new scenario and reuse-org only; iteration skips)
+### Slack lookup handling
 
-After the SE answers the discovery questions, if the intent is **New**
-or **Reuse-org**, weave one additional question naturally into the
-conversation — no gate, no menu:
+If the SE's reply names one or more canvases or a channel: read `.claude/prompts/sparring-slack-lookup.md` and execute its procedure with the names as inputs. If the SE answers only 1-6 and doesn't mention Slack: move on to Stage 5 without ceremony — do not re-ask.
 
-> "What type of demo org is this (LSDO, Evident SDO, Makana, etc.), and
-> are there any setup canvases you'd like me to reference — for demo
-> storylines, scenario integration, post-spin steps? Just name them and
-> I'll pull them. You can also name a specific channel if there's
-> chatter worth looking at, otherwise we'll move on."
-
-If the SE names one or more canvases or a channel: read
-`.claude/prompts/sparring-slack-lookup.md` and execute its procedure
-with the names as inputs. If the SE skips or doesn't mention Slack:
-move on to Stage 5 without ceremony.
-
-Slack findings feed scenario proposal as **context only** — attributed,
-never asserted. Canvas content may shape demo storylines directly (its
-intended use); SE knowledge and Salesforce docs remain authoritative.
+Slack findings feed scenario proposal as **context only** — attributed, never asserted. Canvas content may shape demo storylines directly (its intended use); SE knowledge and Salesforce docs remain authoritative.
 
 Then proceed to Stage 5 (Platform & Data Model Research).
 
