@@ -146,45 +146,88 @@ cd "$REPO_DIR"
 echo ""
 echo "🔍 Checking shell environment..."
 
-append_if_missing() {
-  local key="$1"
-  local line="$2"
-  if ! grep -q "$key" "$ZSHRC" 2>/dev/null; then
-    echo "$line" >> "$ZSHRC"
-    echo "  ➕ Added: $key"
-  else
-    echo "  ✅ Already set: $key"
-  fi
-}
+# Claude Code PATH (installer puts binary in ~/.local/bin).
+# PATH stays outside the managed block — it's an append and SEs often
+# already have their own entry.
+if ! grep -q 'PATH="$HOME/.local/bin' "$ZSHRC" 2>/dev/null; then
+  echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$ZSHRC"
+  echo "  ➕ Added: ~/.local/bin to PATH"
+else
+  echo "  ✅ PATH already includes ~/.local/bin"
+fi
 
-# Claude Code PATH (installer puts binary in ~/.local/bin)
-append_if_missing 'PATH="$HOME/.local/bin' 'export PATH="$HOME/.local/bin:$PATH"'
+# Scout-managed block: values Scout owns outright.
+# Rewritten fresh on every install/update so SEs always pick up the
+# current canonical values (models, token limits) without per-key
+# migration hacks.
+SCOUT_KEYS=(
+  CLAUDE_CODE_MAX_OUTPUT_TOKENS
+  MAX_THINKING_TOKENS
+  ANTHROPIC_DEFAULT_OPUS_MODEL
+  ANTHROPIC_DEFAULT_SONNET_MODEL
+  ANTHROPIC_DEFAULT_HAIKU_MODEL
+)
+BLOCK_BEGIN="# BEGIN SF-DEMO-SCOUT"
+BLOCK_END="# END SF-DEMO-SCOUT"
+TODAY=$(date +%Y-%m-%d)
 
-# Claude Code configuration
-append_if_missing "CLAUDE_CODE_MAX_OUTPUT_TOKENS" "export CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192"
-append_if_missing "MAX_THINKING_TOKENS" "export MAX_THINKING_TOKENS=4096"
+touch "$ZSHRC"
 
-# Model aliases
-append_if_missing "ANTHROPIC_DEFAULT_OPUS_MODEL" "export ANTHROPIC_DEFAULT_OPUS_MODEL=us.anthropic.claude-opus-4-7"
-append_if_missing "ANTHROPIC_DEFAULT_SONNET_MODEL" "export ANTHROPIC_DEFAULT_SONNET_MODEL=us.anthropic.claude-sonnet-4-6"
-append_if_missing "ANTHROPIC_DEFAULT_HAIKU_MODEL" "export ANTHROPIC_DEFAULT_HAIKU_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0"
+# (a) Comment out pre-existing Scout-owned exports that live OUTSIDE the
+# managed block. Uses a Python pass for safe multi-line state tracking.
+python3 - "$ZSHRC" "$TODAY" "$BLOCK_BEGIN" "$BLOCK_END" "${SCOUT_KEYS[@]}" <<'PYEOF'
+import re, sys
+path, today, begin, end, *keys = sys.argv[1:]
+with open(path) as f:
+    lines = f.readlines()
+key_re = re.compile(r'^\s*export\s+(' + '|'.join(re.escape(k) for k in keys) + r')\s*=')
+in_block = False
+out = []
+redacted = 0
+for line in lines:
+    stripped = line.rstrip('\n')
+    if stripped == begin:
+        in_block = True
+        out.append(line); continue
+    if stripped == end:
+        in_block = False
+        out.append(line); continue
+    if not in_block and key_re.match(line):
+        out.append(f"# [sf-demo-scout {today}] superseded by managed block: {stripped}\n")
+        redacted += 1
+    else:
+        out.append(line)
+with open(path, 'w') as f:
+    f.writelines(out)
+print(f"REDACTED={redacted}")
+PYEOF
 
-# Warn about common issues
-if grep -q "ANTHROPIC_MODEL" "$ZSHRC" 2>/dev/null; then
+# (b) Delete the previous managed block (if any).
+if grep -q "^$BLOCK_BEGIN\$" "$ZSHRC"; then
+  sed -i '' "/^$BLOCK_BEGIN\$/,/^$BLOCK_END\$/d" "$ZSHRC"
+fi
+
+# (c) Append the fresh managed block.
+{
+  echo ""
+  echo "$BLOCK_BEGIN"
+  echo "# Managed by install.sh — do not edit. Run update.sh to refresh."
+  echo "export CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192"
+  echo "export MAX_THINKING_TOKENS=4096"
+  echo "export ANTHROPIC_DEFAULT_OPUS_MODEL=us.anthropic.claude-opus-4-7"
+  echo "export ANTHROPIC_DEFAULT_SONNET_MODEL=us.anthropic.claude-sonnet-4-6"
+  echo "export ANTHROPIC_DEFAULT_HAIKU_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0"
+  echo "$BLOCK_END"
+} >> "$ZSHRC"
+echo "  ✅ Scout-managed block refreshed in $ZSHRC"
+
+# Legacy warning: ANTHROPIC_MODEL is not a Claude Code variable and is
+# not in our managed set. If the SE has one lingering, flag it — they
+# need to delete it manually.
+if grep -q "^\s*export\s*ANTHROPIC_MODEL\s*=" "$ZSHRC" 2>/dev/null; then
   echo "  ⚠️  Found ANTHROPIC_MODEL in .zshrc — this is not a Claude Code variable."
-  echo "     The default model is set via ANTHROPIC_DEFAULT_SONNET_MODEL."
-  echo "     Remove the ANTHROPIC_MODEL line from ~/.zshrc"
+  echo "     Remove it manually: edit ~/.zshrc and delete the line."
 fi
-
-if [ "$(grep -c "CLAUDE_CODE_MAX_OUTPUT_TOKENS" "$ZSHRC" 2>/dev/null)" -gt 1 ]; then
-  echo "  ⚠️  CLAUDE_CODE_MAX_OUTPUT_TOKENS appears more than once in .zshrc."
-  echo "     Keep only one: export CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192"
-fi
-
-# If MAX_OUTPUT_TOKENS was previously set to 4096, bump it
-sed -i '' 's/CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096/CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192/' "$ZSHRC" 2>/dev/null || true
-# If MAX_THINKING_TOKENS was previously set to 1024, bump it
-sed -i '' 's/MAX_THINKING_TOKENS=1024/MAX_THINKING_TOKENS=4096/' "$ZSHRC" 2>/dev/null || true
 
 # --- 10. Script permissions ---
 echo ""

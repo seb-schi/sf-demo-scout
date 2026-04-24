@@ -6,7 +6,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 - Opus sparring and review sessions no longer truncate on multi-file reasoning — thinking budget quadrupled (Sonnet deploys see a small uptick only on hard errors)
 - Cleaner install output — fixed a section-numbering gap and removed a no-op shell-reload step
-- `/project-sparring` now writes CHANGELOG entries only after you confirm the deployment succeeded, and matches the existing terse style
+- `.zshrc` config managed by Scout — install/update always writes the current model IDs and token limits, so you automatically pick up version bumps. Any conflicting pre-existing lines get commented out with a dated note rather than silently overridden
 
 ## 2026-04-23
 
