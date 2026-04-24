@@ -142,7 +142,7 @@ fi
 
 cd "$REPO_DIR"
 
-# --- 10. Shell Environment Variables ---
+# --- 9. Shell Environment Variables ---
 echo ""
 echo "🔍 Checking shell environment..."
 
@@ -162,7 +162,7 @@ append_if_missing 'PATH="$HOME/.local/bin' 'export PATH="$HOME/.local/bin:$PATH"
 
 # Claude Code configuration
 append_if_missing "CLAUDE_CODE_MAX_OUTPUT_TOKENS" "export CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192"
-append_if_missing "MAX_THINKING_TOKENS" "export MAX_THINKING_TOKENS=1024"
+append_if_missing "MAX_THINKING_TOKENS" "export MAX_THINKING_TOKENS=4096"
 
 # Model aliases
 append_if_missing "ANTHROPIC_DEFAULT_OPUS_MODEL" "export ANTHROPIC_DEFAULT_OPUS_MODEL=us.anthropic.claude-opus-4-7"
@@ -183,10 +183,10 @@ fi
 
 # If MAX_OUTPUT_TOKENS was previously set to 4096, bump it
 sed -i '' 's/CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096/CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192/' "$ZSHRC" 2>/dev/null || true
+# If MAX_THINKING_TOKENS was previously set to 1024, bump it
+sed -i '' 's/MAX_THINKING_TOKENS=1024/MAX_THINKING_TOKENS=4096/' "$ZSHRC" 2>/dev/null || true
 
-source "$ZSHRC" 2>/dev/null || true
-
-# --- 11. Script permissions ---
+# --- 10. Script permissions ---
 echo ""
 echo "🔍 Checking script permissions..."
 HOOK="$REPO_DIR/.claude/hooks/session-startup.sh"

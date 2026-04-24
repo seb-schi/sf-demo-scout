@@ -2,6 +2,12 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-04-24
+
+- Opus sparring and review sessions no longer truncate on multi-file reasoning — thinking budget quadrupled (Sonnet deploys see a small uptick only on hard errors)
+- Cleaner install output — fixed a section-numbering gap and removed a no-op shell-reload step
+- `/project-sparring` now writes CHANGELOG entries only after you confirm the deployment succeeded, and matches the existing terse style
+
 ## 2026-04-23
 
 - Leaner prompts — Scout's audit sub-agents share a single rule block instead of three copies, and the Phase 2 template drops over-eager "CRITICAL" warnings so the one that matters stands out
