@@ -4,6 +4,7 @@ handle standard objects and apps/flows/agents/LWC in parallel.
 
 Target org: {{ORG_ALIAS}} ({{ORG_USERNAME}})
 Output file: orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/audit-fragment-custom-objects.md
+Progress log agent-id: custom-objects
 
 ## Tools
 - `retrieve_metadata` — for layout XML retrieval

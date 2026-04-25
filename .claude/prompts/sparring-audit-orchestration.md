@@ -5,7 +5,11 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 ## Pre-Spawn Setup (orchestrator runs directly)
 
 1. Clean stale fragments: `rm -f orgs/[alias]-[customer]/audit-fragment-*.md`
-2. Resolve the default app — 2 SOQL queries:
+2. Initialize progress log — truncate the file and write a header so the SE-facing link opens to a non-empty file:
+   ```
+   printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\n\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[alias]-[customer]" > orgs/[alias]-[customer]/.audit-progress.log
+   ```
+3. Resolve the default app — 2 SOQL queries:
    - `SELECT AppDefinitionId FROM UserAppInfo WHERE UserId = '[current user Id from Stage 3]'`
    - `SELECT DurableId, Label, DeveloperName FROM AppDefinition WHERE DurableId = '[AppDefinitionId]'`
    Then retrieve the app's tabs: `retrieve_metadata` with type `CustomApplication`, member `[DeveloperName]`. Extract `<tabs>` elements.
@@ -27,6 +31,12 @@ Spawn all 3 in parallel:
 - `Agent(description="Org audit: standard objects", model="sonnet", prompt=[standard objects prompt])`
 - `Agent(description="Org audit: apps/flows/agents", model="sonnet", prompt=[apps/flows/agents prompt])`
 - `Agent(description="Org audit: custom objects", model="sonnet", prompt=[custom objects prompt])`
+
+**Immediately after spawning, emit this SE-facing note** (single message, exactly this format — fill in the real path):
+
+> Audit sub-agents running in parallel. Live status → [.audit-progress.log](orgs/[alias]-[customer]/.audit-progress.log) — click to open, VS Code auto-updates as sub-agents append. Typical runtime 5-10 min on SDO-scale orgs.
+
+Then wait for all 3 to return. Do not read the progress log — it is SE-facing only.
 
 ## Post-Return Processing
 

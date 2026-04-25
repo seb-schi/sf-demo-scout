@@ -4,6 +4,7 @@ sub-agents handle standard objects and custom objects/permsets in parallel.
 
 Target org: {{ORG_ALIAS}} ({{ORG_USERNAME}})
 Output file: orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/audit-fragment-apps-flows-agents.md
+Progress log agent-id: apps-flows-agents
 
 ## Tools
 - `retrieve_metadata` — for app XML, GenAiPlannerBundle

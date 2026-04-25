@@ -4,6 +4,7 @@ and custom objects/permsets in parallel.
 
 Target org: {{ORG_ALIAS}} ({{ORG_USERNAME}})
 Output file: orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/audit-fragment-standard-objects.md
+Progress log agent-id: standard-objects
 
 ## Tools
 - `retrieve_metadata` — for layout XML retrieval
