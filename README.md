@@ -23,7 +23,7 @@ git clone https://github.com/seb-schi/sf-demo-scout ~/claude-projects/sf-demo-sc
 cd ~/claude-projects/sf-demo-scout && bash install.sh
 ```
 
-Go grab a coffee. ☕ The script installs Homebrew, Node.js, Python, Salesforce CLI, sets up the SFDX project, and pulls 13 community skills from three open-source repos. It's idempotent – safe to re-run if something went sideways the first time.
+Go grab a coffee. ☕ The script installs Homebrew, Node.js, Python, Salesforce CLI, sets up the SFDX project, registers the Slack MCP server, and pulls 16 community skills from three open-source repos. It's idempotent – safe to re-run if something went sideways the first time.
 
 Then: **VS Code → Open Folder → `~/claude-projects/sf-demo-scout` → Open Terminal → `claude` → `/setup-demo-scout`**
 
@@ -68,10 +68,10 @@ Always spar first. Always build second. It's like discovery → demo, but for co
 Custom objects, fields, picklist values, record types, queues, permission sets, page layout field additions, Lightning apps & tabs, and demo data seeding. Scout does these in its sleep. If it had sleep.
 
 ### One-time SE confirmation per category
-Record-triggered Flows, simple Apex, simple LWC, and Agentforce agents (with smoke testing!). Confirm once, Scout handles the rest.
+Record-triggered Flows, simple screen flows (≤3 linear screens, up to 5 with justification), simple Apex, simple LWC, and Agentforce agents (with smoke testing!). Confirm once, Scout handles the rest.
 
 ### Still on your plate (for now 😉)
-Screen flows, scheduled flows, complex Apex/LWC, multi-agent orchestration, page layout visual arrangement, reports, dashboards, OmniStudio. Scout adds these to a Manual Checklist so you don't forget.
+Complex screen flows (branching, subflows, File Upload, Data Table, custom LWC screen components), scheduled flows, multi-object flows, complex Apex/LWC, multi-agent orchestration, page layout visual arrangement, reports, dashboards, OmniStudio. Scout adds these to a Manual Checklist so you don't forget.
 
 ---
 
@@ -91,11 +91,13 @@ These survive updates. They're *your* data – Scout just writes them.
 
 ## The Salesforce Connection
 
-Scout talks to your org through two MCP servers:
+Scout talks to your org through three MCP servers:
 
 🔧 **Salesforce DX MCP** – metadata deployment, SOQL queries, permission sets, code analysis, LWC scaffolding. The workhorse.
 
 📚 **Salesforce Docs MCP** – semantic search across official Salesforce docs. Scout checks release notes and dev guides so you don't have to. Optional – degrades gracefully if unavailable.
+
+💬 **Slack MCP** – optional. Lets Scout skim a setup canvas or channel you name during sparring, and write the post-deployment handover brief to a canvas in your personal Slack. Registered user-scope by `install.sh`; after the first install, run `/mcp` in Claude Code, select `slack`, and complete the OAuth flow in your browser. Skip OAuth and Scout silently carries on without it.
 
 Falls back to `sf` CLI when MCP acts up. Belt and suspenders.
 
@@ -110,8 +112,8 @@ Scout's intelligence lives in **skills** – domain-specific instruction sets lo
 - `demo-org-audit` – how to audit an org properly
 - `demo-docs-consultation` – when to look things up vs. wing it
 
-**Downloaded at install** (13 community skills):
-- 7 from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills) – SOQL, Apex, Flows, Permissions, Deploy, Data, Debug
+**Downloaded at install** (16 community skills):
+- 10 from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills) – SOQL, Apex, Flows, Permissions, Deploy, Data, Debug, LWC, Testing, Flex Estimator
 - 3 from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) – Custom Fields, Objects, Permission Sets
 - 3 from [SalesforceAIResearch/agentforce-adlc](https://github.com/SalesforceAIResearch/agentforce-adlc) – Agentforce dev, test, observe
 
@@ -127,7 +129,7 @@ install.sh                      ← Full setup (idempotent, run it twice if you 
 update.sh                       ← Nuke-and-reinstall updater
 .claude/
   commands/                     ← 5 slash commands (the ones you actually type)
-  skills/                       ← 3 demo skills (+ 13 community skills after install)
+  skills/                       ← 3 demo skills (+ 16 community skills after install)
   prompts/                      ← 12 sub-agent templates, lessons & reference docs
   scripts/                      ← sync-skills.sh
   hooks/                        ← session-startup.sh (org check on every launch)

@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-04-25
+
+- README caught up for the US launch — skill count corrected (16, not 13), sf-lwc/sf-testing/sf-flex-estimator listed, Slack MCP documented with first-session OAuth step, simple screen flows moved from "manual" to "confirm-once" to match actual behavior
+
 ## 2026-04-24
 
 - Slack integration simplified — no more sources files to curate. During sparring Scout asks inline which canvases (and optionally one channel) to reference; handover canvas is a y/n prompt after deploy
