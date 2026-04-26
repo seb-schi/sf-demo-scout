@@ -4,21 +4,15 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-04-26
 
-- `/setup-demo-scout` now prompts for an alias instead of defaulting to `demo-org` — no more silent overwrites when you already have a `demo-org` alias
-- `/scout-sparring` now follows a deterministic rule for customer folder names — same customer lands in the same folder every time, even with punctuation, diacritics, or ampersands in the name
-- `/scout-sparring` checks for existing folders before creating a new one — if Scout finds a similar match, it asks before splitting the customer across two folders
-- `/scout-building` pre-deployment check is cleaner — `yes/no` instead of an undefined third "skip flagged" option that did different things in different sessions
-- `/sync-skills` retired — skill updates now happen automatically as part of `update.sh`, no separate command to remember
-- Safer by default — a narrow deny list now blocks Claude from recursively deleting your `orgs/` folder, nuking `~/.sf/` auth, force-pushing, or issuing destructive `sf org` operations. Normal Scout flow is unchanged
-- Fixed: screen-flow smoke tests now invoke the correct `_Test` class — first-time screen-flow deploys were running against the wrong name
-- Fixed: audit orchestrator no longer references an undefined "user Id from Stage 3" — resolves cleanly from the Stage 2 username
-- Post-deployment execution-order check now also covers objects that already had active flows before this deployment — catches conflicts, not just new-flow stacks
-- Spec filename reordered to `demo-spec-YYYY-MM-DD-HHmm-CUSTOMER.md` — customer folder now sorts chronologically
-- Handover brief no longer suggests pasting your spec into ChatGPT/Gemini — Scout's Slack canvas covers the handoff
-- `/scout-sparring`'s lessons-share message now points at `#sf-demo-scout` instead of a personal handle
-- Internal: launch-followup backlog captured for post-launch week 1 (sub-agent timeout path, orchestrator-level Companion PS check, audit-mismatch resilience)
-- `/setup-demo-scout` now detects whether your Slack MCP is authenticated and walks you through `/mcp-auth` if not — no more hunting for a working auth command in the install output
-- Cleaner `.zshrc` — Scout no longer leaves `# [sf-demo-scout ...] superseded by managed block` comments behind on every update; existing ones get swept automatically on next install
+- Friendlier setup — `/setup-demo-scout` asks for your org alias (no more overwriting an existing `demo-org`) and checks Slack is connected, walking you through the fix if not
+- Smarter sparring — `/scout-sparring` confirms the default app before auditing (no more getting stuck on Q Branch or other SE home-bases that aren't your demo surface), uses consistent customer folder names across sessions, and checks for existing matches before creating new ones
+- Tidier customer folders — spec filenames now sort chronologically (date-time first), and the live audit progress log is removed automatically once the audit completes
+- Deterministic seed counts — spec template requires a single integer (`5`, not `3-5`) so building doesn't have to guess
+- Cleaner prompts — `/scout-building` pre-deployment check is a straight yes/no, handover brief no longer suggests pasting into ChatGPT/Gemini (the Slack canvas handles it), and the lessons-share message points at `#sf-demo-scout` instead of a personal handle
+- `/sync-skills` retired — skill updates happen automatically during `update.sh` now
+- Safer by default — a narrow deny list blocks destructive operations on your `orgs/` folder, `~/.sf/` auth, and force-pushes. Normal Scout flow unchanged
+- Cleaner `.zshrc` — no more stale "superseded by managed block" comments piling up; existing ones get swept on next install
+- Fixed: screen-flow smoke tests invoke the correct `_Test` class, audit orchestrator no longer references an undefined user Id, and post-deployment checks now cover objects that already had active flows before the deploy
 
 ## 2026-04-25
 

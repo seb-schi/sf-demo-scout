@@ -10,12 +10,22 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\n\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[alias]-[customer]" > orgs/[alias]-[customer]/.audit-progress.log
    ```
 3. Resolve the current user Id: `run_soql_query` with `SELECT Id FROM User WHERE Username = '[username from Stage 2]' LIMIT 1`. Record as `CURRENT_USER_ID`.
-4. Resolve the default app — 2 SOQL queries:
+4. Resolve the candidate default app — 2 SOQL queries:
    - `SELECT AppDefinitionId FROM UserAppInfo WHERE UserId = '[CURRENT_USER_ID]'`
    - `SELECT DurableId, Label, DeveloperName FROM AppDefinition WHERE DurableId = '[AppDefinitionId]'`
-   Then retrieve the app's tabs: `retrieve_metadata` with type `CustomApplication`, member `[DeveloperName]`. Extract `<tabs>` elements.
-   Record: `DEFAULT_APP` (label), `DEFAULT_APP_DEVELOPER_NAME`, `DEFAULT_APP_TABS` (list of tab API names).
-   If the queries fail, set `DEFAULT_APP` to "UNKNOWN" and `DEFAULT_APP_TABS` to the 6 core objects only.
+   Record the Label as `CANDIDATE_APP` and the DeveloperName as `CANDIDATE_APP_DEVELOPER_NAME`.
+
+5. **Confirm with the SE before retrieve.** The user's currently-open app is not always the right audit surface — common offenders are SE home-bases like Q Branch, Demo Wizard, and setup apps that exist in most demo orgs but are out of scope for customer demos. Emit exactly this message, then wait for the SE's reply:
+
+   > "Detected default app: **[CANDIDATE_APP]**. Audit into this app, or is a different app the demo surface? Reply `yes` to proceed, or name the app to audit instead (e.g. `Service Console`, `Sales`)."
+
+   - If the SE replies `yes` (or equivalent): keep `CANDIDATE_APP` / `CANDIDATE_APP_DEVELOPER_NAME`.
+   - If the SE names a different app: re-query `SELECT DurableId, Label, DeveloperName FROM AppDefinition WHERE Label = '[SE's input]' OR DeveloperName = '[SE's input]' LIMIT 1`. Replace `CANDIDATE_APP` / `CANDIDATE_APP_DEVELOPER_NAME` with the result. If the query returns 0 rows, tell the SE "No app matching `[input]` — reply with a different name or `skip` to audit core objects only" and loop.
+   - If the SE replies `skip`: set `DEFAULT_APP` to "UNKNOWN" and `DEFAULT_APP_TABS` to the 6 core objects only. Skip step 6.
+
+6. Retrieve the confirmed app's tabs: `retrieve_metadata` with type `CustomApplication`, member `[CANDIDATE_APP_DEVELOPER_NAME]`. Extract `<tabs>` elements.
+   Record: `DEFAULT_APP` = `CANDIDATE_APP`, `DEFAULT_APP_DEVELOPER_NAME` = `CANDIDATE_APP_DEVELOPER_NAME`, `DEFAULT_APP_TABS` = list of tab API names.
+   **On retrieve failure, short-circuit to core-6 immediately.** Set `DEFAULT_APP_TABS` to the 6 core objects only and continue. Do NOT attempt AppTabDefinition, AppMenuItem, or other Tooling API fallbacks — they are unreliable for custom/managed apps and waste orchestrator budget. The SE already confirmed the app name; a retrieve failure means the app's metadata is not accessible (managed package, permission boundary), and core-6 is the correct answer.
 
 ## Sub-Agent Dispatch
 
@@ -90,4 +100,5 @@ Append the Notable Gaps section (written by Opus from the JSON summaries) to the
 ## Cleanup & Validation
 
 1. Delete the 3 fragment files after successful concatenation.
-2. **Star marker validation:** Grep the consolidated audit file for `★`. If 0 matches, flag to the SE: "The audit file has no ★ markers — build surface identification may have failed."
+2. **Star marker validation:** Grep the consolidated audit file for `★`. If 0 matches, flag to the SE: "The audit file has no ★ markers — build surface identification may have failed." Keep the progress log in place — SE may need the heartbeat history to debug which sub-agent failed to star-flag.
+3. Delete the progress log — `rm -f orgs/[alias]-[customer]/.audit-progress.log`. Run this only after star-marker validation passes; on validation failure, leave the log so the SE can inspect sub-agent heartbeats.

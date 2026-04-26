@@ -81,6 +81,7 @@ Context only — Slack content is medium-confidence and attributed to source mes
 - Object: [name], Records: [count]
 - Key values: [field]: [value] — (reason)
 - ⚠️ Review and customize seed data for customer-specific values (names, product SKUs, dates) before demo
+- **Record counts must be single integers, not ranges.** `Records: 5` — not `Records: 3-5`. Building needs a deterministic count; if genuinely unsure, pick the upper bound of what the demo story needs.
 
 ### Page Layouts
 - [Object] — [RecordType] — Active layout: [layout name from audit ★]
