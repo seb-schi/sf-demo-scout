@@ -17,6 +17,8 @@ Check your last `update.sh` date against the headers below to see what you misse
 - Handover brief no longer suggests pasting your spec into ChatGPT/Gemini — Scout's Slack canvas covers the handoff
 - `/scout-sparring`'s lessons-share message now points at `#sf-demo-scout` instead of a personal handle
 - Internal: launch-followup backlog captured for post-launch week 1 (sub-agent timeout path, orchestrator-level Companion PS check, audit-mismatch resilience)
+- `/setup-demo-scout` now detects whether your Slack MCP is authenticated and walks you through `/mcp-auth` if not — no more hunting for a working auth command in the install output
+- Cleaner `.zshrc` — Scout no longer leaves `# [sf-demo-scout ...] superseded by managed block` comments behind on every update; existing ones get swept automatically on next install
 
 ## 2026-04-25
 

@@ -102,6 +102,10 @@ else
 fi
 
 # --- 7. Slack MCP Registration (user-scope, persistent across update.sh) ---
+# Registration only — auth is handled by /setup-demo-scout, which detects
+# auth state and instructs the SE to run /mcp-auth inside their first
+# Claude Code session. /mcp → Authenticate is NOT the right path for the
+# Slack MCP (confirmed internally — the TUI flow is a no-op for Slack).
 echo ""
 echo "🔍 Checking Slack MCP registration..."
 if command -v claude &>/dev/null; then
@@ -113,8 +117,7 @@ if command -v claude &>/dev/null; then
         --client-id 188160004832.9210129962818 \
         --callback-port 3118 \
         slack https://mcp.slack.com/mcp >/dev/null 2>&1; then
-      echo "✅ Slack MCP registered. Authenticate in your first Claude Code session:"
-      echo "   run /mcp, select 'slack', choose 'Authenticate', complete OAuth in browser."
+      echo "✅ Slack MCP registered. /setup-demo-scout will walk you through auth."
     else
       echo "⚠️  Slack MCP registration failed. You can add it manually later:"
       echo "   claude mcp add -s user -t http --client-id 188160004832.9210129962818 \\"
@@ -193,21 +196,25 @@ SCOUT_KEYS=(
 )
 BLOCK_BEGIN="# BEGIN SF-DEMO-SCOUT"
 BLOCK_END="# END SF-DEMO-SCOUT"
-TODAY=$(date +%Y-%m-%d)
 
 touch "$ZSHRC"
 
-# (a) Comment out pre-existing Scout-owned exports that live OUTSIDE the
-# managed block. Uses a Python pass for safe multi-line state tracking.
-python3 - "$ZSHRC" "$TODAY" "$BLOCK_BEGIN" "$BLOCK_END" "${SCOUT_KEYS[@]}" <<'PYEOF'
+# (a) Remove pre-existing Scout-owned exports that live OUTSIDE the
+# managed block (the block below writes the canonical values, so no
+# SE data is lost — Scout-owned keys have fixed values). Also sweeps
+# any legacy "superseded by managed block" redaction comments from
+# prior install.sh versions so .zshrc stays clean across updates.
+python3 - "$ZSHRC" "$BLOCK_BEGIN" "$BLOCK_END" "${SCOUT_KEYS[@]}" <<'PYEOF'
 import re, sys
-path, today, begin, end, *keys = sys.argv[1:]
+path, begin, end, *keys = sys.argv[1:]
 with open(path) as f:
     lines = f.readlines()
 key_re = re.compile(r'^\s*export\s+(' + '|'.join(re.escape(k) for k in keys) + r')\s*=')
+legacy_re = re.compile(r'^# \[sf-demo-scout \d{4}-\d{2}-\d{2}\] superseded by managed block: ')
 in_block = False
 out = []
-redacted = 0
+removed_exports = 0
+swept_legacy = 0
 for line in lines:
     stripped = line.rstrip('\n')
     if stripped == begin:
@@ -217,13 +224,16 @@ for line in lines:
         in_block = False
         out.append(line); continue
     if not in_block and key_re.match(line):
-        out.append(f"# [sf-demo-scout {today}] superseded by managed block: {stripped}\n")
-        redacted += 1
-    else:
-        out.append(line)
+        removed_exports += 1
+        continue
+    if legacy_re.match(line):
+        swept_legacy += 1
+        continue
+    out.append(line)
 with open(path, 'w') as f:
     f.writelines(out)
-print(f"REDACTED={redacted}")
+print(f"REMOVED_EXPORTS={removed_exports}")
+print(f"SWEPT_LEGACY_COMMENTS={swept_legacy}")
 PYEOF
 
 # (b) Delete the previous managed block (if any).
@@ -282,8 +292,7 @@ echo "  1. Open VSCode"
 echo "  2. File → Open Folder → select: ~/claude-projects/sf-demo-scout"
 echo "  3. Open the integrated terminal (Ctrl+\`)"
 echo "  4. Type: claude"
-echo "  5. In Claude Code, run /mcp → select 'slack' → 'Authenticate' → complete OAuth in browser"
-echo "  6. Then type: /setup-demo-scout"
+echo "  5. Then type: /setup-demo-scout"
 echo ""
-echo "Claude Code will connect your demo org and run your first audit. ☕"
+echo "/setup-demo-scout will connect your demo org, authenticate Slack, and run your first audit. ☕"
 echo ""

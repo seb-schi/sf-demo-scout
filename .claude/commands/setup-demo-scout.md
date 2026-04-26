@@ -14,6 +14,37 @@ connect the demo org and verify the connection.
 
 Do not create or overwrite any existing config files. They are already correct.
 
+## Step 0: Slack MCP Auth Check
+
+The Slack MCP is registered at user scope by `install.sh` but OAuth must complete inside a Claude Code session. Detect auth state before anything else so the SE knows whether to run `/mcp-auth` now or proceed.
+
+Run this probe:
+
+```bash
+security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null | \
+  python3 -c "import json,sys; d=json.loads(sys.stdin.read()); oauth=d.get('mcpOAuth',{}); slack=[k for k in oauth if k.startswith('slack')]; tok=oauth[slack[0]].get('accessToken') if slack else None; print('authenticated' if tok else 'needs_auth')" 2>/dev/null || echo "needs_auth"
+```
+
+Interpret the single-word output:
+
+- `authenticated` — Slack MCP is ready. Tell the SE:
+  > "Slack MCP is authenticated. Proceeding to org setup."
+  Continue to Step 1.
+
+- `needs_auth` (or any other output) — tell the SE:
+  > "Slack MCP needs authentication before we continue. It powers customer canvas lookups during sparring and the post-deployment handover canvas.
+  >
+  > **Run `/mcp-auth` in this session now.** A browser window will open for Salesforce SSO.
+  >
+  > For headless/SSH environments, use `/mcp-device-auth` instead.
+  >
+  > When you're back, type `continue` and I'll verify and proceed to org setup. If you'd rather skip Slack entirely for now, type `skip` — Slack features will stay dormant until you re-run `/setup-demo-scout`."
+
+Wait for the SE's reply.
+
+- If `continue`: re-run the probe. If `authenticated`, proceed to Step 1. If still `needs_auth`, tell the SE Slack auth didn't complete and ask whether to retry or skip.
+- If `skip`: acknowledge and proceed to Step 1.
+
 ## Step 1: Check for Existing Org Connection
 
 ```bash
