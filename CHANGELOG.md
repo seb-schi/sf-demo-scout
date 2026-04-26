@@ -4,6 +4,9 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-04-26
 
+- Smarter Phase 3 deployments — `/scout-building` now tries standard Agentforce actions before falling back to Apex (with evidence required in the change log), discloses the auto-created Einstein Agent User in the pre-deploy gate, and enumerates backing actions verbatim from the spec so Apex additions are visible at confirmation time
+- More honest Phase 3 reporting — deployment logs now surface actions that couldn't be verified in preview (stateless-preview gaps, Knowledge grounding pending Data Library creation) as a distinct category, and the handover brief adds a 30-second citation check for Knowledge-grounded agents
+- Self-healing schema validation — when a sub-agent mangles its JSON envelope but the deployment actually completed, Scout probes the org (BotDefinition for agents, SOQL for objects/fields, retrieve_metadata for flows/Apex/LWC) to confirm before forcing a retry, so cosmetic output drift no longer risks re-publishing an active agent
 - Friendlier setup — `/setup-demo-scout` asks for your org alias (no more overwriting an existing `demo-org`) and checks Slack is connected, walking you through the fix if not
 - Smarter sparring — `/scout-sparring` confirms the default app before auditing (no more getting stuck on Q Branch or other SE home-bases that aren't your demo surface), uses consistent customer folder names across sessions, and checks for existing matches before creating new ones
 - Tidier customer folders — spec filenames now sort chronologically (date-time first), and the live audit progress log is removed automatically once the audit completes

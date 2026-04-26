@@ -15,6 +15,8 @@ Invoke these skills via the Skill tool:
 
 **Unfamiliar errors:** if the error message is not self-evident, invoke the `demo-docs-consultation` skill before the second attempt. Record the consultation in `docs_consulted`.
 
+**Standard action before Apex fallback:** if the spec lists backing actions as standard (Get Records, Update Record, Create Record, Knowledge grounding, @utils.*), attempt the standard action first — configure it in the Agent Spec, validate, and run preview against an utterance that would exercise it. Only fall back to an Apex invocable if the standard action fails during `sf agent validate` or `sf agent preview`. Record the failure evidence in `issues` with the exact error or observed behaviour ("Update Record rejected Hardware_Status__c picklist write: [error]"). Pre-emptive Apex fallback without standard-action evidence is a schema-level violation — if the spec says "no Apex" and you deploy Apex, `issues` must carry the triggering error verbatim.
+
 ### New Agent (Agent Script path)
 Scope: single agent, topic-based routing with Apex or Flow backing actions.
 1. Invoke `developing-agentforce` skill — follow its "Create an Agent" workflow.
@@ -61,14 +63,15 @@ A failed smoke test does NOT block deployment. Record failures in `issues`.
 {{SPEC_SECTIONS}}
 
 ## Output Format
-Return EXACTLY one fenced JSON block matching this schema. Do not include any prose outside the block.
+Return EXACTLY one fenced JSON block matching this schema. Do not include any prose outside the block. Every top-level key is REQUIRED even if empty.
 
 ```json
 {
   "phase": 3,
   "deployed": {
     "agent": {"api_name": "string", "version": 0, "status": "Active|Inactive"},
-    "backing_actions": [{"type": "ApexClass|Flow", "api_name": "string", "status": "SUCCESS|FAILED"}]
+    "backing_actions": [{"type": "ApexClass|Flow|StandardAction", "api_name": "string", "status": "SUCCESS|FAILED"}],
+    "agent_user": {"username": "string", "created_by_cli": true}
   },
   "smoke_test": {
     "ran": true,
@@ -76,13 +79,25 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
       {"message": "string", "passed": true, "notes": "string"}
     ]
   },
+  "actions_unverified_in_preview": [
+    {"action": "string", "reason": "string — see Schema notes below for full definition and required wording for Knowledge grounding"}
+  ],
   "skipped": [
     {"component": "string", "reason": "string"}
   ],
   "rollback_commands": ["string"],
+  "discovery_notes": [
+    "string — things that worked differently than the spec assumed, including validate/publish/activate-time fixes (not just deploy-time errors). Include the raw error or symptom verbatim. Examples: 'nested if syntax rejected at publish — flattened to sequential checks', 'viewAllRecords permission rejected by Einstein Agent license during PS assignment', 'outbound_route_name required flow:// prefix — undocumented in Agent Script reference I loaded'. Also record standard-action-to-Apex fallbacks here with the triggering error."
+  ],
   "docs_consulted": [
     {"question": "string", "url": "string", "verdict": "string"}
   ],
   "issues": ["string"]
 }
 ```
+
+**Schema notes:**
+- `deployed.agent_user` — record the Einstein Agent User the `sf agent` CLI auto-creates during publish. The orchestrator surfaces this to the SE post-deploy.
+- `deployed.backing_actions[].type = StandardAction` — use this when a standard action (Get Records, Update Record, Knowledge grounding) is wired in the Agent Spec without an Apex class.
+- `actions_unverified_in_preview` — distinct from `smoke_test` failures. Populate when an action is deployed and syntactically correct but `sf agent preview` can't exercise it (stateless preview, missing session context, Knowledge grounding requiring a Data Library the SE must create). Include every Knowledge-grounded topic here with the reason "Knowledge grounding unverified — Data Library must be created manually" until Data Library auto-provisioning is available.
+- `discovery_notes` — covers the full deploy→validate→publish→activate lifecycle. If the sub-agent applied an inline fix at any stage, it belongs here. Publish-time fixes are not optional prose — they are required structured output.

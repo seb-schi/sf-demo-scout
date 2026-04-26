@@ -40,6 +40,10 @@ Rollback: sf project delete source --metadata AiAuthoringBundle:[AgentName] --ta
 ## Agentforce Smoke Test Results (if any)
 [Utterances sent, pass/fail per utterance, issues observed]
 
+## Actions Unverified in Preview (if any)
+Aggregated from the Phase 3 sub-agent's `actions_unverified_in_preview` array (see `.claude/prompts/phase3.md` for the canonical definition). The SE must verify each entry manually — in a live Messaging Session for session-context-dependent actions, or in Builder after creating dependent resources (e.g. Data Libraries for Knowledge grounding).
+- **[Action name]** — [reason]
+
 ## Execution Order Check
 [Per-object list of active flows after deployment. Flag objects with multiple after-save record-triggered flows and note execution order risks.]
 

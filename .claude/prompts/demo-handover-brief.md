@@ -21,6 +21,11 @@ Use "Show the customer..." framing. 3-5 steps.)
 **Before You Demo**
 - [ ] [SE Manual Checklist items from spec + change log "SE Must Do Next", rephrased with Setup navigation paths where applicable]
 
+**For each `actions_unverified_in_preview` entry in the change log, append a checklist item.** The canonical definition of this field lives in `.claude/prompts/phase3.md`. Formatting rules:
+- **Knowledge grounding entry:** append verbatim:
+  - [ ] After creating the Data Library, run one grounded utterance in Builder (e.g. an utterance that should pull from a specific Knowledge article) and confirm a citation or source reference appears in the response. If the response is plausible prose without a source, the Data Library is not linked — fix before demo.
+- **Any other entry** (MessagingSession-dependent actions, etc.): append one line per entry in the form `- [ ] [action name]: [reason from the entry]`.
+
 **Your Files**
 All files for this demo live in one folder. To open it in Finder:
 ```

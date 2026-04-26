@@ -125,12 +125,7 @@ If only Phase 1 applies:
 
 ### Sub-Agent Output Validation
 
-After EVERY sub-agent returns, validate its output before proceeding:
-1. Extract the fenced `json` block from the sub-agent's response.
-2. Parse it. If parsing succeeds and the top-level keys match the phase schema (`deployed`, `skipped`, `issues` minimum), validation passes.
-3. If no valid JSON block is found, or parsing fails, or required keys are missing: treat the phase as FAILED. Show the raw output to the SE:
-   > "Sub-agent returned unexpected output for Phase [N]. Raw output below. Retry with a fresh sub-agent, or skip this phase?"
-4. If retry also produces invalid output: record as FAILED in the change log and tell the SE to start a fresh session for this phase.
+After EVERY sub-agent returns, load `.claude/prompts/sub-agent-validation.md` and run the validation procedure before proceeding. The procedure covers JSON parse checks, per-phase required-keys lists, empirical org-probe queries for schema-drift-with-successful-deployment, and the retry-or-skip gate when the org confirms an incomplete deployment.
 
 ### Phase Prep Procedure
 
@@ -168,10 +163,22 @@ If `discovery_notes` is empty or contains no Phase 3-relevant entries, proceed n
 
 ### Phase 3: Agentforce — if applicable
 
-**SE gate before spawning.** Present the agent details from the spec and ask:
-> "About to deploy: [agent name, topics, actions]. Proceed? (yes/no)"
+**SE gate before spawning.** Enumerate from the spec verbatim — do not paraphrase action types. Pull `Backing Apex classes:` / `Backing actions:` / `Knowledge grounding:` fields from the spec's Agentforce section exactly as written. The SE must be able to see at decision time whether the plan is "no Apex" or "Apex fallback allowed."
 
-If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 3. After it returns, check `smoke_test` in the output for pass/fail.
+> "About to deploy:
+> - **Agent:** [agent api_name] ([topic count] topics: [list])
+> - **Backing actions (from spec):** [enumerate verbatim — e.g. 'standard Get Records, standard Update Record, Knowledge grounding via Data Libraries; NO Apex in v1' OR 'Apex invocable LGInverterGetWarranty + standard Update Record']
+> - **New Einstein Agent User:** `[expected username pattern]@[orgid].ext` will be created by `sf agent` CLI during publish (standard Agentforce procedure)
+>
+> Proceed? (yes/no)"
+
+If the spec carries an explicit "no Apex" directive, add one extra line:
+> "⚠️ Spec forbids Apex backing actions. If the sub-agent hits a standard-action failure during validate/preview, it will fall back to Apex and record the triggering error in `issues`. You'll see the deviation in the change log."
+
+If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 3. After it returns:
+1. Check `smoke_test` in the output for pass/fail.
+2. Surface `actions_unverified_in_preview` to the SE explicitly — these are the actions the sub-agent deployed but could not exercise in stateless preview. They are NOT smoke-test failures; they are verification gaps the SE must close manually in a live Messaging Session. If the list is non-empty, include it in the change log's Issues Encountered section and in the handover brief's SE checklist.
+3. Cross-check `deployed.backing_actions` types against the spec. If the spec said "no Apex" and `backing_actions` contains any `type: ApexClass`, the sub-agent invoked the fallback path — verify `discovery_notes` or `issues` carries the triggering standard-action error. If it doesn't, flag as a deviation in the change log (the sub-agent skipped the evidence rule).
 
 ---
 
@@ -199,11 +206,12 @@ The change log must include:
 
 Review the session for:
 - Two-attempt failures reported by sub-agents (what failed and why)
-- Sub-agent output validation failures (what went wrong)
+- Sub-agent output validation failures — especially schema-drift-with-successful-deployment (the sub-agent emitted the wrong envelope but the org probe passed). Candidate lesson: the drift vector itself (what the sub-agent emitted vs what the schema required), so the next author can tighten the prompt.
 - Unexpected conflict check findings from Step 6
 - SE corrections during gated confirmations
 - Permission set or layout issues reported by sub-agents
-- Phase 2 `discovery_notes` entries — if any describe a new platform restriction (managed object compile failure, Agentforce execution context rejection), propose adding it to `orgs/building-lessons.md` with the exact error message as a diagnostic pattern
+- Phase 2 AND Phase 3 `discovery_notes` entries — if any describe a new platform restriction, validate/publish/activate-time workaround, or standard-action-to-Apex fallback, propose adding it to `orgs/building-lessons.md` with the exact error message or symptom as a diagnostic pattern. Phase 3 publish-time fixes (nested-if syntax, license-restricted permissions, CLI prefix requirements) are high-value lessons — they recur across every Agentforce deployment.
+- `actions_unverified_in_preview` entries — if a new category appears (e.g. a new stateless-preview gap not seen before), propose a lesson so future Phase 3 prompts can pre-emptively warn.
 
 If any occurred, propose 1-3 candidate lessons:
 
