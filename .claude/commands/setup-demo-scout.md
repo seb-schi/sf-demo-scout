@@ -21,26 +21,31 @@ sf config get target-org --json
 sf org display --json
 ```
 
-If the org is authenticated and healthy, skip to Step 3 — tell the SE:
+If the org is authenticated and healthy, tell the SE:
 > "Found an existing org connection: [alias] ([username]). Skipping login."
+
+Then skip to Step 2.5 — starter files must always run (this command is re-invoked on every `update.sh`, and the starter files must exist before `/scout-sparring` can read them).
 
 If no org is set, or auth has expired, proceed to Step 2.
 
 ## Step 2: Connect the Demo Org
 
-Tell the SE:
+Ask the SE for an alias first:
+> "What alias should I use for this org? (short, lowercase, e.g. `lsdo-apr26`, `evident-sdo`, `karl-storz-service`)"
+
+Wait for the reply. Then tell the SE:
 > "I'll open a browser now — log in with your **demo org credentials** (not your Salesforce SSO / Okta login). This is the org you want to demo from."
 
-Then run:
+Then run (substitute the alias the SE provided):
 
 ```bash
-sf org login web --alias demo-org --set-default
+sf org login web --alias [alias] --set-default
 ```
 
 Wait for the browser login to complete. Then retrieve org details:
 
 ```bash
-sf org display --target-org demo-org --json
+sf org display --target-org [alias] --json
 ```
 
 Extract and store:

@@ -90,7 +90,7 @@ Output as a single message, then wait for the SE's reply:
 >
 > Which customer is this for, and what brings you in today?"
 
-Wait for the SE's reply. Convert the customer name to lowercase-hyphenated format (e.g. "Deutsche Fachpflege" -> `deutsche-fachpflege`).
+Wait for the SE's reply. Read `.claude/prompts/sparring-customer-normalization.md` and execute the procedure — it normalizes the customer name to a folder-safe slug and prompts the SE on existing-folder matches.
 
 **Org folder:** `orgs/[alias]-[customer]/`
 

@@ -62,7 +62,7 @@ Present both in a single message:
 - One folder -> "Active org: [alias] ([username]). Customer: [customer]. Deploying here. Type 'switch' to change, or confirm."
 - Multiple folders -> "Active org: [alias] ([username]). Multiple customers found: [list]. Which one?" Wait.
 
-Wait for confirmation. Switch -> tell SE to run `/switch-org` first.
+Wait for confirmation. If the SE wants to switch orgs: *"Stopping. Run `/switch-org` in a fresh session to change orgs, then re-run `/scout-building`."* Stop — do not proceed.
 
 ---
 
@@ -99,7 +99,9 @@ Cross-check spec against audit:
 
 > "Pre-deployment check complete. [N] items to review:
 > [issue] — [risk]
-> Proceed? (yes / yes, skip flagged / no)"
+> Proceed? (yes/no)"
+
+If the SE answers `no`: tell them *"Stopping. Re-run `/scout-sparring` to revise the spec, or edit it manually and re-run `/scout-building`."* Stop.
 
 Wait for go-ahead. This is the last SE input required before Phase 1.
 

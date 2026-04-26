@@ -132,7 +132,6 @@ OUTPUT+="---\n"
 OUTPUT+="**Ready.**\n"
 OUTPUT+="  /scout-sparring  — Opus discovery sparring + spec generation\n"
 OUTPUT+="  /scout-building  — Opus orchestrator for org deployment\n"
-OUTPUT+="  /sync-skills     — pull latest external skills (per manifest)\n"
 OUTPUT+="  /switch-org      — change active demo org\n"
 
 echo -e "$OUTPUT"

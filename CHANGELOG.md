@@ -2,6 +2,16 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-04-26
+
+- `/setup-demo-scout` now prompts for an alias instead of defaulting to `demo-org` — no more silent overwrites when you already have a `demo-org` alias
+- `/scout-sparring` now follows a deterministic rule for customer folder names — same customer lands in the same folder every time, even with punctuation, diacritics, or ampersands in the name
+- `/scout-sparring` checks for existing folders before creating a new one — if Scout finds a similar match, it asks before splitting the customer across two folders
+- `/scout-building` pre-deployment check is cleaner — `yes/no` instead of an undefined third "skip flagged" option that did different things in different sessions
+- `/sync-skills` retired — skill updates now happen automatically as part of `update.sh`, no separate command to remember
+- Safer by default — a narrow deny list now blocks Claude from recursively deleting your `orgs/` folder, nuking `~/.sf/` auth, force-pushing, or issuing destructive `sf org` operations. Normal Scout flow is unchanged
+- Internal: launch-followup backlog captured for post-launch week 1 (sub-agent timeout path, orchestrator-level Companion PS check, audit-mismatch resilience)
+
 ## 2026-04-25
 
 - README caught up for the US launch — skill count corrected (16, not 13), sf-lwc/sf-testing/sf-flex-estimator listed, Slack MCP documented with first-session OAuth step, simple screen flows moved from "manual" to "confirm-once" to match actual behavior
