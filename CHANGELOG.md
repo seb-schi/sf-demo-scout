@@ -13,6 +13,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 - Deterministic seed counts — spec template requires a single integer (`5`, not `3-5`) so building doesn't have to guess
 - Cleaner prompts — `/scout-building` pre-deployment check is a straight yes/no, handover brief no longer suggests pasting into ChatGPT/Gemini (the Slack canvas handles it), and the lessons-share message points at `#sf-demo-scout` instead of a personal handle
 - `/sync-skills` retired — skill updates happen automatically during `update.sh` now
+- README refreshed for launch — reflects the retired `/sync-skills` command, the Slack OAuth flow via `/setup-demo-scout` Step 0, and updated file/command counts
 - Safer by default — a narrow deny list blocks destructive operations on your `orgs/` folder, `~/.sf/` auth, and force-pushes. Normal Scout flow unchanged
 - Cleaner `.zshrc` — no more stale "superseded by managed block" comments piling up; existing ones get swept on next install
 - Fixed: screen-flow smoke tests invoke the correct `_Test` class, audit orchestrator no longer references an undefined user Id, and post-deployment checks now cover objects that already had active flows before the deploy

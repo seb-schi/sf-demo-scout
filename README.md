@@ -1,4 +1,4 @@
-# SF Demo Scout 🦮
+# SF Demo Scout
 
 **Your AI-powered demo prep sidekick** – because nobody became an SE to manually configure permission sets.
 
@@ -58,7 +58,6 @@ Always spar first. Always build second. It's like discovery → demo, but for co
 |---------|---------------|
 | `/setup-demo-scout` | First time connecting an org |
 | `/switch-org` | Switching to a different demo org |
-| `/sync-skills` | Pulling latest community skills (install does this too) |
 
 ---
 
@@ -97,7 +96,7 @@ Scout talks to your org through three MCP servers:
 
 📚 **Salesforce Docs MCP** – semantic search across official Salesforce docs. Scout checks release notes and dev guides so you don't have to. Optional – degrades gracefully if unavailable.
 
-💬 **Slack MCP** – optional. Lets Scout skim a setup canvas or channel you name during sparring, and write the post-deployment handover brief to a canvas in your personal Slack. Registered user-scope by `install.sh`; after the first install, run `/mcp` in Claude Code, select `slack`, and complete the OAuth flow in your browser. Skip OAuth and Scout silently carries on without it.
+💬 **Slack MCP** – optional. Lets Scout skim a setup canvas or channel you name during sparring, and write the post-deployment handover brief to a canvas in your personal Slack. Registered user-scope by `install.sh`; `/setup-demo-scout` probes the macOS Keychain on first run and walks you through `/mcp-auth` (a browser-based OAuth flow) if you're not yet signed in. Skip it and Scout silently carries on without Slack.
 
 Falls back to `sf` CLI when MCP acts up. Belt and suspenders.
 
@@ -117,7 +116,7 @@ Scout's intelligence lives in **skills** – domain-specific instruction sets lo
 - 3 from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) – Custom Fields, Objects, Permission Sets
 - 3 from [SalesforceAIResearch/agentforce-adlc](https://github.com/SalesforceAIResearch/agentforce-adlc) – Agentforce dev, test, observe
 
-Manage skills declaratively: edit `.claude/skills-manifest.yaml` → run `/sync-skills`. Done.
+Manage skills declaratively: edit `.claude/skills-manifest.yaml`. Sync runs automatically during `install.sh` and `update.sh`; to re-sync mid-session without a full reinstall, run `.claude/scripts/sync-skills.sh`.
 
 ---
 
@@ -128,9 +127,9 @@ CLAUDE.md                       ← Root instructions (under 100 lines – we co
 install.sh                      ← Full setup (idempotent, run it twice if you want)
 update.sh                       ← Nuke-and-reinstall updater
 .claude/
-  commands/                     ← 5 slash commands (the ones you actually type)
+  commands/                     ← 6 slash commands (SE-facing + internal pipeline ops)
   skills/                       ← 3 demo skills (+ 16 community skills after install)
-  prompts/                      ← 12 sub-agent templates, lessons & reference docs
+  prompts/                      ← 20 sub-agent templates, lessons & reference docs
   scripts/                      ← sync-skills.sh
   hooks/                        ← session-startup.sh (org check on every launch)
   settings.json                 ← Permissions & hooks config
