@@ -8,7 +8,7 @@ HHmm = local time at change log creation (e.g. 0930, 1445).
 ```markdown
 # Change Log — [Customer] — [Date] [HHmm]
 Org: [alias] ([username])
-Spec: demo-spec-[CUSTOMER]-[DATE]-[HHmm].md
+Spec: demo-spec-[DATE]-[HHmm]-[CUSTOMER].md
 Audit used: audit-[YYYY-MM-DD]-[HHmm].md
 
 ## What Was Deployed

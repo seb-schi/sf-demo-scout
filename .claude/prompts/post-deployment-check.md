@@ -2,7 +2,7 @@
 
 Run after all phases complete (or after Phase 1 if Phases 2/3 were skipped).
 
-For each object that received new flows in Phase 2, query active flows:
+For each object that received new flows in Phase 2, AND for each object the audit reported as already carrying active flows, query active flows:
 
 ```
 SELECT ApiName, TriggerType, ProcessType FROM FlowDefinitionView WHERE IsActive = true AND TriggerObjectOrEventLabel = '[Object]'

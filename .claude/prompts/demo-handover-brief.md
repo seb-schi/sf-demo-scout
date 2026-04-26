@@ -30,6 +30,4 @@ open orgs/[alias]-[customer]/
 - `changes-[...].md` — deployment log (what actually happened, rollback commands)
 - `audit-[...].md` — org snapshot before deployment
 
-Copy the spec and change log into your preferred AI tool (Gemini, ChatGPT, Slackbot) to rehearse talking points or generate a demo script.
-
 **Caller note (not part of the rendered brief):** after outputting the brief, scout-building offers the SE a y/n to write this same content to a Slack canvas in their personal Slack. See `scout-building.md` Step 8c for the procedure.

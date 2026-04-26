@@ -10,6 +10,12 @@ Check your last `update.sh` date against the headers below to see what you misse
 - `/scout-building` pre-deployment check is cleaner — `yes/no` instead of an undefined third "skip flagged" option that did different things in different sessions
 - `/sync-skills` retired — skill updates now happen automatically as part of `update.sh`, no separate command to remember
 - Safer by default — a narrow deny list now blocks Claude from recursively deleting your `orgs/` folder, nuking `~/.sf/` auth, force-pushing, or issuing destructive `sf org` operations. Normal Scout flow is unchanged
+- Fixed: screen-flow smoke tests now invoke the correct `_Test` class — first-time screen-flow deploys were running against the wrong name
+- Fixed: audit orchestrator no longer references an undefined "user Id from Stage 3" — resolves cleanly from the Stage 2 username
+- Post-deployment execution-order check now also covers objects that already had active flows before this deployment — catches conflicts, not just new-flow stacks
+- Spec filename reordered to `demo-spec-YYYY-MM-DD-HHmm-CUSTOMER.md` — customer folder now sorts chronologically
+- Handover brief no longer suggests pasting your spec into ChatGPT/Gemini — Scout's Slack canvas covers the handoff
+- `/scout-sparring`'s lessons-share message now points at `#sf-demo-scout` instead of a personal handle
 - Internal: launch-followup backlog captured for post-launch week 1 (sub-agent timeout path, orchestrator-level Companion PS check, audit-mismatch resilience)
 
 ## 2026-04-25

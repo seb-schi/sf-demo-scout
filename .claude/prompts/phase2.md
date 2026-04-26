@@ -31,7 +31,7 @@ Screen-flow component whitelist: DisplayText, Section, InputField (Text / LargeT
 2. Prefer the Jaganpro templates at `.claude/skills/sf-flow/assets/` (`screen-flow-template.xml`, `record-triggered-after-save.xml`, `record-triggered-before-save.xml`) if present. Inline fallback templates below.
 3. Deploy as Draft first (`<status>Draft</status>`), confirm success.
 4. **Record-triggered:** activate after clean Draft deploy.
-5. **Screen flows:** generate a happy-path FlowTest XML, run `sf flow run test --class-names [FlowApiName] --target-org [alias] --json`. Pass → activate. Fail twice → skip activation, record in `issues`. (Testing guide: `.claude/skills/sf-flow/references/testing-guide.md` section 5.)
+5. **Screen flows:** generate a happy-path FlowTest XML (see FlowTest template below — save as `[FlowApiName]_Test.flowTest-meta.xml`), deploy it alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`. Pass → activate. Fail twice → skip activation, record in `issues`. (Testing guide: `.claude/skills/sf-flow/references/testing-guide.md` section 5.)
 6. **Screen flows with QuickAction wiring** (spec requests it): deploy a `QuickAction` (actionType=Flow) pointing at the flow's API name; retrieve the target object's active Layout, add the QuickAction under `<quickActionListItems>`, redeploy the layout.
 7. Check for existing flows on the same object via `retrieve_metadata` — flag execution order conflicts.
 8. Rollback: `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]` (plus `QuickAction:[Name]` if deployed).

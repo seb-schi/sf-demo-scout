@@ -9,8 +9,9 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    ```
    printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\n\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[alias]-[customer]" > orgs/[alias]-[customer]/.audit-progress.log
    ```
-3. Resolve the default app — 2 SOQL queries:
-   - `SELECT AppDefinitionId FROM UserAppInfo WHERE UserId = '[current user Id from Stage 3]'`
+3. Resolve the current user Id: `run_soql_query` with `SELECT Id FROM User WHERE Username = '[username from Stage 2]' LIMIT 1`. Record as `CURRENT_USER_ID`.
+4. Resolve the default app — 2 SOQL queries:
+   - `SELECT AppDefinitionId FROM UserAppInfo WHERE UserId = '[CURRENT_USER_ID]'`
    - `SELECT DurableId, Label, DeveloperName FROM AppDefinition WHERE DurableId = '[AppDefinitionId]'`
    Then retrieve the app's tabs: `retrieve_metadata` with type `CustomApplication`, member `[DeveloperName]`. Extract `<tabs>` elements.
    Record: `DEFAULT_APP` (label), `DEFAULT_APP_DEVELOPER_NAME`, `DEFAULT_APP_TABS` (list of tab API names).

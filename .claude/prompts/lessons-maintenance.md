@@ -21,11 +21,9 @@ Tell the SE:
 If "yes": compose this message and display it in a fenced block for the SE to copy:
 
 ```
-Hey @Sebastian Schickhoff — here are my recent Scout lessons:
+Posting recent Scout lessons to #sf-demo-scout — feel free to upstream anything useful into the pipeline.
 
 [paste full file contents, excluding the header lines]
-
-Feel free to upstream anything useful into the pipeline.
 ```
 
 If "no": done — proceed with the rest of the session.

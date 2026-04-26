@@ -223,7 +223,7 @@ Read `.claude/prompts/sparring-data-shape.md` and execute the procedure. It vali
 
 ## Stage 7: Spec Generation
 
-Read `.claude/prompts/spec-template.md` for the format, then write the spec to `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md`
+Read `.claude/prompts/spec-template.md` for the format, then write the spec to `orgs/[alias]-[customer]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`
 
 **Residual feasibility check:** Before writing, scan the final scenario for any feature or metadata type NOT already covered by Stage 5 research. For each uncovered item, run a quick `salesforce_docs_search`. This is a safety net — Stage 5 should have caught most things.
 

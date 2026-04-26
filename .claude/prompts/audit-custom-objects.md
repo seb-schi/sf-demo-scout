@@ -50,7 +50,10 @@ If the result overflows to a temp file, parse it (see Overflow File Handling). G
 ## ★ Priority Markers
 
 Star the following:
-- Any existing custom objects that look directly relevant to common demo scenarios (medical devices, field service parts, custom industry objects)
+- The active page layout for every custom object in scope (active layout is always ★ once resolved via ProfileLayout or the Tooling API Layout fallback)
+- Any existing custom objects that look directly relevant to common demo scenarios (medical devices, field service parts, custom industry objects) — these are also ★, and their active layout inherits ★ automatically
+
+"★ active layout" in this file means the layout resolved by the ProfileLayout / Tooling API Layout fallback for an in-scope custom object.
 
 ## Output Budget
 

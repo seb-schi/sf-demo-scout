@@ -1,8 +1,8 @@
 # Demo Spec — Output Format
 
-Save to: `orgs/[alias]-[customer]/demo-spec-[CUSTOMER]-[YYYY-MM-DD]-[HHmm].md`
+Save to: `orgs/[alias]-[customer]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`
 
-HHmm = local time at spec creation (e.g. 0930, 1445). Prevents silent overwrites when sparring runs multiple times in a day for the same customer.
+HHmm = local time at spec creation (e.g. 0930, 1445). Prevents silent overwrites when sparring runs multiple times in a day for the same customer. Date-first ordering keeps the customer folder sorted chronologically in `ls`.
 
 ```markdown
 # Demo Spec — [Customer Name]
