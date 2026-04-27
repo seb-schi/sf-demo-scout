@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-04-27
+
+- Fixed: `/scout-sparring` can now audit industry-cloud and managed-package default apps (Life Sciences Commercial, Health Cloud, Q Branch, etc.) — previously fell back to core-6 because the retrieve_metadata call omitted the package namespace
+
 ## 2026-04-26
 
 - Smarter Phase 3 deployments — `/scout-building` now tries standard Agentforce actions before falling back to Apex (with evidence required in the change log), discloses the auto-created Einstein Agent User in the pre-deploy gate, and enumerates backing actions verbatim from the spec so Apex additions are visible at confirmation time
