@@ -12,6 +12,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 - Cross-object data seeding is now autonomous when backed by a self-tested idempotent script (previously: single-object only)
 - Post-deployment report now includes a trigger-count check for any object that received bulk data inserts — useful for post-mortem if managed-package triggers fire during the seed
 - More honest sub-agent reporting — bugs caught during script self-test surface in the change log's Issues Encountered section instead of being hidden by a successful fix
+- Lessons you propose to share with the team now carry more detail — Scout captures the exact error and working fix when it's a debugging lesson, and stamps each lesson with the Scout version that produced it, so colleagues reading your `#sf-demo-scout` post can actually act on what you learned
 
 ## 2026-04-26
 

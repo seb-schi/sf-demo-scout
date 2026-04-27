@@ -220,7 +220,7 @@ If any occurred, propose 1-3 candidate lessons:
 > 2. [lesson]
 > Add these to lessons? (yes / edit / skip)"
 
-If approved, append to `orgs/building-lessons.md` with today's date. Then count lines in the file — if it exceeds 25 lines, read `.claude/prompts/lessons-maintenance.md` and follow its procedure. If the deployment was clean, skip silently.
+If approved, read `.claude/prompts/lessons-maintenance.md` and follow the Append Format section to append each lesson to `orgs/building-lessons.md`, then follow the Trim & Share procedure in the same file if triggered. If the deployment was clean, skip silently.
 
 ### 8c: Demo Handover Brief
 

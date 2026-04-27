@@ -253,7 +253,7 @@ If any occurred, propose 1-3 candidate lessons:
 > 2. [lesson]
 > Want me to add these, edit them, or skip?"
 
-If the SE approves, append to `orgs/sparring-lessons.md` with today's date. Then count lines in the file — if it exceeds 25 lines, read `.claude/prompts/lessons-maintenance.md` and follow its procedure. If nothing noteworthy, skip silently.
+If the SE approves, read `.claude/prompts/lessons-maintenance.md` and follow the Append Format section to append each lesson to `orgs/sparring-lessons.md`, then follow the Trim & Share procedure in the same file if triggered. If nothing noteworthy, skip silently.
 
 ### Done
 
