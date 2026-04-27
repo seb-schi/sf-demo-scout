@@ -82,6 +82,8 @@ Context only — Slack content is medium-confidence and attributed to source mes
 - Key values: [field]: [value] — (reason)
 - ⚠️ Review and customize seed data for customer-specific values (names, product SKUs, dates) before demo
 - **Record counts must be single integers, not ranges.** `Records: 5` — not `Records: 3-5`. Building needs a deterministic count; if genuinely unsure, pick the upper bound of what the demo story needs.
+- **Cross-object seeding (junctions, FK chains):** if this seed touches 2+ objects with lookup population, building will produce an idempotent reusable script per `demo-deployment-rules` §Script Deliverable Rules. Spec lists target objects and key field mappings; the script path + `--pilot-only` + bulk commands land in the change log and handover brief.
+- **Field names are describe-confirmed.** Sparring Stage 6b runs `sf sobject describe` on every Data Seeding target object before writing this spec. Field names, RecordType DeveloperNames, and picklist-vs-string distinctions in this section are empirically verified, not inferred.
 
 ### Page Layouts
 - [Object] — [RecordType] — Active layout: [layout name from audit ★]

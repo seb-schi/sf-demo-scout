@@ -385,7 +385,7 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
   ],
   "rollback_commands": ["string"],
   "discovery_notes": [
-    "string — things that worked differently than the spec assumed. Include the raw error message verbatim. Example: 'MedicalInsight: spec assumed static SOQL safe, but compiler returned [Error: sObject type MedicalInsight is not supported] — switched to dynamic SOQL'"
+    "string — things that worked differently than the spec assumed, OR design constraints on deliverable artifacts (script portability, runtime-environment observations, library availability) if this phase produced a reusable script. Include raw error messages verbatim. Examples: 'MedicalInsight: spec assumed static SOQL safe, but compiler returned [Error: sObject type MedicalInsight is not supported] — switched to dynamic SOQL', 'target SE Mac runs Bash 3.2 — avoided declare -A in the data-factory script, used temp-file JSON for state handoff'. Canonical discovery_notes-vs-issues split: see `demo-deployment-rules` §Script Deliverable Rules."
   ],
   "docs_consulted": [
     {"question": "string", "url": "string", "verdict": "string"}

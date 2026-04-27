@@ -28,6 +28,33 @@ before the second attempt. Record the consultation in `docs_consulted`.
 
 ---
 
+## Script Deliverable Rules (cross-phase)
+
+Applies whenever a sub-agent produces a reusable shell or language script as part of its deliverable — data-seeding scripts, Apex test-data factories, agent smoke-test harnesses, cleanup scripts. The script is an SE-runnable artifact that outlives the session.
+
+**Default execution pattern (Pattern B — idempotent script):**
+1. The script MUST be idempotent — safe to re-run after partial success. Upserts or existence-check-then-insert over blind inserts; external-Id lookups over hardcoded Ids.
+2. The script MUST expose a `--pilot-only` flag that exercises every code path against one target record (or the minimum viable slice) before the bulk path runs. Exit code 0 with expected counts = pass; anything else = fail.
+3. The orchestrator runs the script within the current session after SE confirmation (immediate verified state). The same script is the SE's re-run path for future re-spins or handoffs.
+4. If the script cannot be idempotent for a legitimate reason (single-shot schema migration, destructive cleanup), Pattern A applies: a resumable sub-agent invoked via SendMessage. Document the reason in `discovery_notes`. Pattern B is the default; Pattern A is the exception.
+
+**Mandatory self-test before returning the deliverable:**
+1. `bash -n [script]` — syntax check. Cheap insurance against later edits; will NOT catch runtime bugs (subshell exports, `declare -A` under Bash 3.2, JSON envelope unwrap, while-loop counter scope). Run it anyway.
+2. `bash [script] --pilot-only` against the live target org — the mandatory step that exercises every code path at low cost. Confirm exit 0 AND expected record counts (e.g., 1 pilot record inserted) BEFORE returning the sub-agent's output. This is what actually catches the Bash 3.2 / declare -A class of failure.
+3. If the self-test fails, fix the script and re-run `--pilot-only` until it passes. Every bug caught during self-test goes in the `issues` array verbatim (with the error or symptom). Do NOT hide them behind a successful final run — the orchestrator and the SE need to know what was fragile. The sub-agent MUST be honest about the state of its deliverable.
+4. If a bug reflects a runtime-environment design constraint that future sub-agents should know about (e.g., "target SE Mac runs Bash 3.2 — avoid `declare -A`, use temp-file JSON for Python↔bash state handoff"), record it in `discovery_notes` as well — it carries forward; `issues` is this session only.
+
+**SE-runnable standalone contract:**
+- Same flags, same exit codes, same idempotency whether the orchestrator or the SE runs it.
+- No hardcoded session paths, temp-file assumptions, or parent-shell state. The script self-contains everything it needs.
+- Script lives at `orgs/[alias]-[customer]/[script-name].sh` (or language-appropriate extension). Change log records its path and the `--pilot-only` + bulk invocation commands. Handover brief surfaces both commands under Your Files.
+
+**Target environment defaults (macOS SE laptop):**
+- Assume Bash 3.2 (Apple ships this as `/bin/bash`). No `declare -A`, no `${var^^}`, no `&>`. If associative arrays are genuinely needed, use temp-file JSON parsed via `python3` / `jq`.
+- Assume `python3` and `jq` available (both in standard SE install). `sf` CLI and MCP available in-session only — the SE re-run path uses `sf` CLI.
+
+---
+
 ## Queue Rules (Phase 1)
 
 Scope: queues needed for case/lead/custom object routing in the demo scenario.

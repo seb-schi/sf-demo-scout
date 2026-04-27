@@ -38,7 +38,7 @@ Fall back to `sf` CLI if MCP is unavailable.
 - Lightning apps, custom tabs
 - Queues with object routing
 - Page layout field additions (active layout only — query ProfileLayout first)
-- Data seeding (single object, no cross-object)
+- Data seeding — single object always; cross-object (junctions, FK chains) when backed by an idempotent script with `--pilot-only` self-test per `demo-deployment-rules` §Script Deliverable Rules
 - Picklist value additions to existing fields
 
 ### Gated (SE confirms once per category, then autonomous)

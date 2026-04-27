@@ -137,7 +137,7 @@ After the audit (fresh or reused), surface the star-flagged items:
 
 † Iteration stages are in `.claude/prompts/sparring-iteration.md` — read on demand.
 ¹ Skip Stage 5 unless the scenario introduces new objects beyond what the audit covers OR gated categories (Flows, Apex, LWC, Agentforce).
-² Skip Stage 6b unless the scenario has Apex, Flows, or Agentforce actions (i.e., objects queried or written to programmatically).
+² Skip Stage 6b unless the scenario has Apex, Flows, or Agentforce actions (objects queried or written to programmatically) OR a Data Seeding section with explicit field mappings. Data seeding triggers the describe-before-spec path inside sparring-data-shape.md.
 
 For **iteration intent**: read `.claude/prompts/sparring-iteration.md` and execute Stage 4i, then return here for Stage 5.
 For **new scenario** and **reuse-org**: proceed to Stage 4 below.

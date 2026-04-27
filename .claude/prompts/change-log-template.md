@@ -47,6 +47,17 @@ Aggregated from the Phase 3 sub-agent's `actions_unverified_in_preview` array (s
 ## Execution Order Check
 [Per-object list of active flows after deployment. Flag objects with multiple after-save record-triggered flows and note execution order risks.]
 
+## Script Deliverables
+
+Persistent artifacts from this deployment the SE can re-run after a re-spin or hand to a colleague. Each script is idempotent and exposes `--pilot-only` for a safe one-record rehearsal.
+
+- **[script path]**
+  - Pilot: `[pilot_command]`
+  - Bulk: `[bulk_command]`
+  - Self-test: [PASS | FAIL with brief reason]
+
+(If this deployment produced no scripts, write "None — deployment was metadata-only.")
+
 ## Issues Encountered
 [Errors, workarounds, second attempts]
 

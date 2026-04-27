@@ -14,6 +14,19 @@ For every object the scenario's Apex, Flow, or Agentforce action will **query or
 
 **Budget:** 3-6 SOQL queries per action-relevant object. Most scenarios touch 1-3 objects. Queries are fast and sequential (each informs the next).
 
+## Describe-before-spec — Data Seeding objects only
+
+If the scenario includes a Data Seeding section with explicit field mappings (not just record counts), run `sf sobject describe` on EVERY target object BEFORE the spec is written. This is in addition to the three steps above — describe is cheaper and catches a different failure class (field-name assumptions, picklist-vs-string, record-type DeveloperName mismatches).
+
+1. For each Data Seeding object: `sf sobject describe --sobject [Object] --target-org [alias] --json` (or use MCP retrieve when available).
+2. Cross-check EVERY field name the seed plan references against the describe output. Common traps:
+   - Junction/lookup fields whose API name differs from the related object (e.g., `SubjectAssignment.AssignmentId`, not `MedicalInsightId`).
+   - RecordType `DeveloperName` ≠ label (e.g., `LSDO_Healthcare_Provider`, not `Healthcare Provider`). Query `SELECT DeveloperName FROM RecordType WHERE SobjectType='[Object]'` to confirm.
+   - Picklist fields vs free-text fields with similar names (e.g., `Subject.UsageType` is a picklist, not a text field) — check `picklistValues` in the describe output.
+3. If a field name or record-type name in the spec draft doesn't match the describe output, correct the spec before writing it to disk. These corrections are sparring-time findings, not building-time surprises.
+
+**Budget:** ~20 seconds per object (one describe call). Scoped to Data Seeding sections only — objects touched purely by new fields or layouts don't need this.
+
 ## Surface findings to the SE
 
 > "Data shape validation for [objects]:

@@ -7,6 +7,11 @@ Check your last `update.sh` date against the headers below to see what you misse
 - Fixed: `/scout-sparring` can now audit industry-cloud and managed-package default apps (Life Sciences Commercial, Health Cloud, Q Branch, etc.) — previously fell back to core-6 because the retrieve_metadata call omitted the package namespace
 - Fixed: `/scout-sparring` no longer crashes when you override the detected default app with a name — the override query now runs in two steps (DeveloperName first, Label fallback) instead of a single query that the Salesforce API rejects
 - Cleaner working tree — audits no longer leave an `unpackaged/` directory at the repo root (now gitignored and auto-cleaned after each audit)
+- Smarter data-seeding deployments — `/scout-sparring` now runs `sf sobject describe` on every Data Seeding target object before writing the spec, so field-name, RecordType, and picklist-vs-text errors surface during sparring instead of during deployment
+- Reusable seed scripts by default — when a deployment includes cross-object data seeding, `/scout-building` produces an idempotent script with a `--pilot-only` rehearsal flag. The sub-agent self-tests the script against your org before returning, and the exact pilot + bulk commands land in the change log and handover brief so you can safely re-run after a re-spin
+- Cross-object data seeding is now autonomous when backed by a self-tested idempotent script (previously: single-object only)
+- Post-deployment report now includes a trigger-count check for any object that received bulk data inserts — useful for post-mortem if managed-package triggers fire during the seed
+- More honest sub-agent reporting — bugs caught during script self-test surface in the change log's Issues Encountered section instead of being hidden by a successful fix
 
 ## 2026-04-26
 

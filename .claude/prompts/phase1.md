@@ -18,6 +18,10 @@ Invoke these skills via the Skill tool when you need detailed metadata rules:
 
 **Unfamiliar errors:** if the error message is not self-evident and not already in the spec's Platform Constraints section, invoke the `demo-docs-consultation` skill before the second attempt. Record the consultation in `docs_consulted`.
 
+<!-- IF:DATA_SEEDING -->
+**Script deliverables:** if any Data Seeding item in this spec produces a reusable shell or language script (e.g., a bulk seed script the SE can re-run after a re-spin), invoke the `demo-deployment-rules` skill and read "Script Deliverable Rules" BEFORE finalizing the deliverable. The rule block covers Pattern B (idempotent default), mandatory `--pilot-only` self-test against the live org, bash 3.2 portability, and how self-test bugs split between `issues` and `discovery_notes`.
+<!-- /IF:DATA_SEEDING -->
+
 - Deploy in small increments — never batch unrelated changes.
 - After each deploy: confirm success via MCP feedback.
 
@@ -96,9 +100,18 @@ When done, return EXACTLY one fenced JSON block matching this schema. Do not inc
   "data_seeded": [
     {"object": "string", "records": 0, "status": "SUCCESS|FAILED"}
   ],
+  "script_deliverables": [
+    {"path": "string — e.g. orgs/[alias]-[customer]/seed-lsdo-demo.sh", "pilot_command": "string — e.g. bash orgs/.../seed-lsdo-demo.sh --pilot-only", "bulk_command": "string", "self_test_status": "PASS|FAIL|NOT_APPLICABLE"}
+  ],
+  "discovery_notes": [
+    "string — things that worked differently than the spec assumed, OR design constraints on deliverable artifacts (script portability, runtime-environment observations, library availability). Include raw error messages verbatim. Examples: 'Subject.UsageType is a picklist, not a free text field — spec assumed string assignment, switched to picklist value check', 'target SE Mac runs Bash 3.2 — avoided declare -A, used temp-file JSON for Python↔bash state handoff'."
+  ],
   "docs_consulted": [
     {"question": "string", "url": "string", "verdict": "string"}
   ],
-  "issues": ["string"]
+  "issues": ["string — things that broke during deployment or during script self-test and were fixed or skipped. For script deliverables, every bug caught during --pilot-only self-test goes here verbatim (error message or symptom) — do NOT hide them behind a successful final run."]
 }
 ```
+
+**Schema notes:**
+- `discovery_notes` vs `issues` — canonical split lives in `.claude/skills/demo-deployment-rules/SKILL.md` §Script Deliverable Rules. `discovery_notes` = carry-forward design constraints and spec-vs-reality deltas; `issues` = this-session-only broke-and-fixed. When a self-test bug reveals a runtime-environment constraint future phases should know about, it appears in BOTH.
