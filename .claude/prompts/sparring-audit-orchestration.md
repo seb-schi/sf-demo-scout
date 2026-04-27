@@ -24,7 +24,11 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    > "Detected default app: **[CANDIDATE_APP]**. Audit into this app, or is a different app the demo surface? Reply `yes` to proceed, or name the app to audit instead (e.g. `Service Console`, `Sales`)."
 
    - If the SE replies `yes` (or equivalent): keep `CANDIDATE_APP` / `CANDIDATE_APP_DEVELOPER_NAME`.
-   - If the SE names a different app: re-query `SELECT DurableId, Label, DeveloperName, NamespacePrefix FROM AppDefinition WHERE Label = '[SE's input]' OR DeveloperName = '[SE's input]' LIMIT 1`. Replace `CANDIDATE_APP` / `CANDIDATE_APP_DEVELOPER_NAME` with the result and recompute `CANDIDATE_APP_FULL_NAME` (same rule as step 4: `[NamespacePrefix]__[DeveloperName]` if namespaced, else `[DeveloperName]`). If the query returns 0 rows, tell the SE "No app matching `[input]` — reply with a different name or `skip` to audit core objects only" and loop.
+   - If the SE names a different app: re-query in two steps — `AppDefinition` does not support SOQL disjunctions (`OR` across columns), so a single `WHERE Label = 'X' OR DeveloperName = 'Y'` query rejects with "Disjunctions not supported".
+     1. First try DeveloperName: `SELECT DurableId, Label, DeveloperName, NamespacePrefix FROM AppDefinition WHERE DeveloperName = '[SE's input]' LIMIT 1`.
+     2. If that returns 0 rows, fall through to Label: `SELECT DurableId, Label, DeveloperName, NamespacePrefix FROM AppDefinition WHERE Label = '[SE's input]' LIMIT 1`.
+     3. If both return 0 rows, tell the SE "No app matching `[input]` — reply with a different name or `skip` to audit core objects only" and loop.
+     On a match: replace `CANDIDATE_APP` / `CANDIDATE_APP_DEVELOPER_NAME` with the result and recompute `CANDIDATE_APP_FULL_NAME` (same rule as step 4: `[NamespacePrefix]__[DeveloperName]` if namespaced, else `[DeveloperName]`).
    - If the SE replies `skip`: set `DEFAULT_APP` to "UNKNOWN" and `DEFAULT_APP_TABS` to the 6 core objects only. Skip step 6.
 
 6. Retrieve the confirmed app's tabs: `retrieve_metadata` with type `CustomApplication`, member `[CANDIDATE_APP_FULL_NAME]`. Extract `<tabs>` elements.
@@ -106,3 +110,4 @@ Append the Notable Gaps section (written by Opus from the JSON summaries) to the
 1. Delete the 3 fragment files after successful concatenation.
 2. **Star marker validation:** Grep the consolidated audit file for `★`. If 0 matches, flag to the SE: "The audit file has no ★ markers — build surface identification may have failed." Keep the progress log in place — SE may need the heartbeat history to debug which sub-agent failed to star-flag.
 3. Delete the progress log — `rm -f orgs/[alias]-[customer]/.audit-progress.log`. Run this only after star-marker validation passes; on validation failure, leave the log so the SE can inspect sub-agent heartbeats.
+4. Remove the `unpackaged/` directory that `retrieve_metadata` drops at the repo root — `rm -rf unpackaged/`. The app XML was never needed as a working file (only the extracted `<tabs>` list matters), and leaving it accumulates stale content across sessions. Run this unconditionally — the directory is gitignored so its presence or absence carries no meaning for the SE.

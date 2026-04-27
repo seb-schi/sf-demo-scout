@@ -5,6 +5,8 @@ Check your last `update.sh` date against the headers below to see what you misse
 ## 2026-04-27
 
 - Fixed: `/scout-sparring` can now audit industry-cloud and managed-package default apps (Life Sciences Commercial, Health Cloud, Q Branch, etc.) — previously fell back to core-6 because the retrieve_metadata call omitted the package namespace
+- Fixed: `/scout-sparring` no longer crashes when you override the detected default app with a name — the override query now runs in two steps (DeveloperName first, Label fallback) instead of a single query that the Salesforce API rejects
+- Cleaner working tree — audits no longer leave an `unpackaged/` directory at the repo root (now gitignored and auto-cleaned after each audit)
 
 ## 2026-04-26
 
