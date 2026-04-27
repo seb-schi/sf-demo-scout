@@ -12,20 +12,24 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 3. Resolve the current user Id: `run_soql_query` with `SELECT Id FROM User WHERE Username = '[username from Stage 2]' LIMIT 1`. Record as `CURRENT_USER_ID`.
 4. Resolve the candidate default app — 2 SOQL queries:
    - `SELECT AppDefinitionId FROM UserAppInfo WHERE UserId = '[CURRENT_USER_ID]'`
-   - `SELECT DurableId, Label, DeveloperName FROM AppDefinition WHERE DurableId = '[AppDefinitionId]'`
+   - `SELECT DurableId, Label, DeveloperName, NamespacePrefix FROM AppDefinition WHERE DurableId = '[AppDefinitionId]'`
    Record the Label as `CANDIDATE_APP` and the DeveloperName as `CANDIDATE_APP_DEVELOPER_NAME`.
+   Compute `CANDIDATE_APP_FULL_NAME`:
+   - If `NamespacePrefix` is non-null (managed-package app): `[NamespacePrefix]__[DeveloperName]` (e.g. `lsc4ce__lifeSciencesCommercial`, `qbranch__Q_Branch_Lightning`).
+   - If `NamespacePrefix` is null (unmanaged app): just `[DeveloperName]` (e.g. `Service`, `LightningSales`).
+   The Metadata API requires the namespaced full name for installed apps — an unnamespaced member will return "Entity cannot be found" even though the app exists.
 
 5. **Confirm with the SE before retrieve.** The user's currently-open app is not always the right audit surface — common offenders are SE home-bases like Q Branch, Demo Wizard, and setup apps that exist in most demo orgs but are out of scope for customer demos. Emit exactly this message, then wait for the SE's reply:
 
    > "Detected default app: **[CANDIDATE_APP]**. Audit into this app, or is a different app the demo surface? Reply `yes` to proceed, or name the app to audit instead (e.g. `Service Console`, `Sales`)."
 
    - If the SE replies `yes` (or equivalent): keep `CANDIDATE_APP` / `CANDIDATE_APP_DEVELOPER_NAME`.
-   - If the SE names a different app: re-query `SELECT DurableId, Label, DeveloperName FROM AppDefinition WHERE Label = '[SE's input]' OR DeveloperName = '[SE's input]' LIMIT 1`. Replace `CANDIDATE_APP` / `CANDIDATE_APP_DEVELOPER_NAME` with the result. If the query returns 0 rows, tell the SE "No app matching `[input]` — reply with a different name or `skip` to audit core objects only" and loop.
+   - If the SE names a different app: re-query `SELECT DurableId, Label, DeveloperName, NamespacePrefix FROM AppDefinition WHERE Label = '[SE's input]' OR DeveloperName = '[SE's input]' LIMIT 1`. Replace `CANDIDATE_APP` / `CANDIDATE_APP_DEVELOPER_NAME` with the result and recompute `CANDIDATE_APP_FULL_NAME` (same rule as step 4: `[NamespacePrefix]__[DeveloperName]` if namespaced, else `[DeveloperName]`). If the query returns 0 rows, tell the SE "No app matching `[input]` — reply with a different name or `skip` to audit core objects only" and loop.
    - If the SE replies `skip`: set `DEFAULT_APP` to "UNKNOWN" and `DEFAULT_APP_TABS` to the 6 core objects only. Skip step 6.
 
-6. Retrieve the confirmed app's tabs: `retrieve_metadata` with type `CustomApplication`, member `[CANDIDATE_APP_DEVELOPER_NAME]`. Extract `<tabs>` elements.
+6. Retrieve the confirmed app's tabs: `retrieve_metadata` with type `CustomApplication`, member `[CANDIDATE_APP_FULL_NAME]`. Extract `<tabs>` elements.
    Record: `DEFAULT_APP` = `CANDIDATE_APP`, `DEFAULT_APP_DEVELOPER_NAME` = `CANDIDATE_APP_DEVELOPER_NAME`, `DEFAULT_APP_TABS` = list of tab API names.
-   **On retrieve failure, short-circuit to core-6 immediately.** Set `DEFAULT_APP_TABS` to the 6 core objects only and continue. Do NOT attempt AppTabDefinition, AppMenuItem, or other Tooling API fallbacks — they are unreliable for custom/managed apps and waste orchestrator budget. The SE already confirmed the app name; a retrieve failure means the app's metadata is not accessible (managed package, permission boundary), and core-6 is the correct answer.
+   **On retrieve failure, short-circuit to core-6 immediately.** Set `DEFAULT_APP_TABS` to the 6 core objects only and continue. Do NOT attempt AppTabDefinition, AppMenuItem, or other Tooling API fallbacks — they are unreliable for custom/managed apps and waste orchestrator budget. The SE already confirmed the app name and step 4 computed the namespaced full name; a retrieve failure at this point is a genuine access boundary (unpackaged managed content, org-specific permission) and core-6 is the correct answer.
 
 ## Sub-Agent Dispatch
 
