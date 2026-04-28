@@ -9,6 +9,8 @@ Check your last `update.sh` date against the headers below to see what you misse
 - LWC mock data rule — when a component has no backing data source, Scout hardcodes industry-appropriate mock data in JS instead of shipping an empty spinner that breaks the demo
 - Install and update commands now tell you to run `/setup-demo-scout` in Claude Code to finish config — closes the gap where Slack auth silently wasn't set up after a reinstall
 - Fixed before first field use: the BusinessProcess XML root was wrong in yesterday's build (would have failed deploy on all four objects). Scout now retrieves an existing BusinessProcess from your org as a reference before writing new XML, so the shape always matches what your org version emits
+- Agentforce skills now pull from the official `forcedotcom/afv-library` — identical content, newer versions, fewer upstream sources for Scout to track (same will be applied to Jaganpro skills once they finish migration to official repo)
+- Agent Script v2 vocabulary alignment: Scout now says "subagents" where it used to say "topics" — matches the upstream keyword rename in `.agent` files. No change to what Scout deploys; the skill already emits v2 syntax either way
 
 ## 2026-04-27
 

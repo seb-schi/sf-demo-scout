@@ -48,7 +48,7 @@ Fall back to `sf` CLI if MCP is unavailable.
 - Simple screen flows (≤3 linear screens by default; up to 5 when SE justifies during sparring; whitelisted components; single terminal DML; optional QuickAction wiring)
 - Simple Apex (single-trigger, single-object)
 - Simple LWC (demo-specific UI)
-- Agentforce agents via Agent Script (topics, actions, backing Apex, publish, activate, smoke test)
+- Agentforce agents via Agent Script (subagents, actions, backing Apex, publish, activate, smoke test)
 
 ### Always Manual (SE Manual Checklist)
 - Complex screen flows (branching across screens, subflows, reactive across screens with formula dependencies, custom LWC screen components, File Upload, Repeater, Data Table, Kanban Board)

@@ -152,7 +152,7 @@ One `BusinessProcess` Metadata API type covers Sales / Lead / Support / Solution
 - Plain English: [what agent does, why it strengthens demo]
 - Agent: [name], Type: AgentforceEmployeeAgent / AgentforceServiceAgent
 - Agent Script file: [developer_name].agent
-- Topics: [name] — [description] — backing action: [apex://ClassName or flow://FlowName]
+- Subagents: [name] — [description] — backing action: [apex://ClassName or flow://FlowName]
 - Backing Apex classes: [name] — [InvocableMethod description]
 - Existing agents in org: (from audit — note conflicts)
 - If modifying existing: current version v[N], rollback: `sf agent activate --version-number [N]`

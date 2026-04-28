@@ -166,7 +166,7 @@ If `discovery_notes` is empty or contains no Phase 3-relevant entries, proceed n
 **SE gate before spawning.** Enumerate from the spec verbatim — do not paraphrase action types. Pull `Backing Apex classes:` / `Backing actions:` / `Knowledge grounding:` fields from the spec's Agentforce section exactly as written. The SE must be able to see at decision time whether the plan is "no Apex" or "Apex fallback allowed."
 
 > "About to deploy:
-> - **Agent:** [agent api_name] ([topic count] topics: [list])
+> - **Agent:** [agent api_name] ([subagent count] subagents: [list])
 > - **Backing actions (from spec):** [enumerate verbatim — e.g. 'standard Get Records, standard Update Record, Knowledge grounding via Data Libraries; NO Apex in v1' OR 'Apex invocable LGInverterGetWarranty + standard Update Record']
 > - **New Einstein Agent User:** `[expected username pattern]@[orgid].ext` will be created by `sf agent` CLI during publish (standard Agentforce procedure)
 >

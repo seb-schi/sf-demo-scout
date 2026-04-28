@@ -113,8 +113,7 @@ Scout's intelligence lives in **skills** – domain-specific instruction sets lo
 
 **Downloaded at install** (16 community skills):
 - 10 from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills) – SOQL, Apex, Flows, Permissions, Deploy, Data, Debug, LWC, Testing, Flex Estimator
-- 3 from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) – Custom Fields, Objects, Permission Sets
-- 3 from [SalesforceAIResearch/agentforce-adlc](https://github.com/SalesforceAIResearch/agentforce-adlc) – Agentforce dev, test, observe
+- 6 from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) – Custom Fields, Objects, Permission Sets, Agentforce dev/test/observe
 
 Manage skills declaratively: edit `.claude/skills-manifest.yaml`. Sync runs automatically during `install.sh` and `update.sh`; to re-sync mid-session without a full reinstall, run `.claude/scripts/sync-skills.sh`.
 

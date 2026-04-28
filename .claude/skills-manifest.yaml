@@ -15,10 +15,6 @@ sources:
     repo: https://github.com/forcedotcom/afv-library
     type: clone
     branch: main
-  adlc:
-    repo: https://github.com/SalesforceAIResearch/agentforce-adlc
-    type: clone
-    branch: main
 
 skills:
   # Jaganpro/sf-skills — raw URL fetch.
@@ -76,13 +72,15 @@ skills:
     source: afv
     path: skills/generating-permission-set
 
-  # SalesforceAIResearch/agentforce-adlc — full skill directories, cloned
+  # Agentforce skills — migrated from SalesforceAIResearch/agentforce-adlc
+  # to forcedotcom/afv-library 2026-04-28 (both repos shipped identical structure;
+  # AFV carries newer versions and future development flows through afv-library).
   - name: developing-agentforce
-    source: adlc
+    source: afv
     path: skills/developing-agentforce
   - name: testing-agentforce
-    source: adlc
+    source: afv
     path: skills/testing-agentforce
   - name: observing-agentforce
-    source: adlc
+    source: afv
     path: skills/observing-agentforce

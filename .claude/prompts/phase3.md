@@ -18,7 +18,7 @@ Invoke these skills via the Skill tool:
 **Standard action before Apex fallback:** if the spec lists backing actions as standard (Get Records, Update Record, Create Record, Knowledge grounding, @utils.*), attempt the standard action first — configure it in the Agent Spec, validate, and run preview against an utterance that would exercise it. Only fall back to an Apex invocable if the standard action fails during `sf agent validate` or `sf agent preview`. Record the failure evidence in `issues` with the exact error or observed behaviour ("Update Record rejected Hardware_Status__c picklist write: [error]"). Pre-emptive Apex fallback without standard-action evidence is a schema-level violation — if the spec says "no Apex" and you deploy Apex, `issues` must carry the triggering error verbatim.
 
 ### New Agent (Agent Script path)
-Scope: single agent, topic-based routing with Apex or Flow backing actions.
+Scope: single agent, subagent-based routing with Apex or Flow backing actions.
 1. Invoke `developing-agentforce` skill — follow its "Create an Agent" workflow.
 2. Check for existing agents via `retrieve_metadata` — flag conflicts in `issues`.
 3. Run `run_code_analyzer` on Apex backing actions (if MCP available).
@@ -41,11 +41,11 @@ For agents already in the org. Every publish creates a new version; rollback via
    - `sf agent activate --json --api-name [AgentName] --version-number [N] --target-org [alias]`
 
 ### Smoke Test (after activate — both paths)
-1. Read the spec's "Smoke test utterances" list. If none specified, generate 3 from topic descriptions.
+1. Read the spec's "Smoke test utterances" list. If none specified, generate 3 from subagent descriptions.
 2. Start preview: `sf agent preview start --json --authoring-bundle [AgentName] -o [alias]`
 3. Send each utterance: `sf agent preview send --json --session-id [ID] --utterance "[message]" --authoring-bundle [AgentName] -o [alias]`
 4. End session: `sf agent preview end --json --session-id [ID] --authoring-bundle [AgentName] -o [alias]`
-5. Evaluate: correct topic? Expected backing action? Coherent response?
+5. Evaluate: correct subagent? Expected backing action? Coherent response?
 6. Record in `smoke_test` JSON output.
 **Minimum coverage:** send at least 3 utterances (or all, if fewer than 3 in the spec). If utterance #1 fails, send at least 2 more to determine whether the failure is routing-specific or universal. Different utterances test different routing paths — only skip remaining utterances if 3+ consecutive failures produce the identical error message.
 A failed smoke test does NOT block deployment. Record failures in `issues`.
@@ -99,5 +99,5 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
 **Schema notes:**
 - `deployed.agent_user` — record the Einstein Agent User the `sf agent` CLI auto-creates during publish. The orchestrator surfaces this to the SE post-deploy.
 - `deployed.backing_actions[].type = StandardAction` — use this when a standard action (Get Records, Update Record, Knowledge grounding) is wired in the Agent Spec without an Apex class.
-- `actions_unverified_in_preview` — distinct from `smoke_test` failures. Populate when an action is deployed and syntactically correct but `sf agent preview` can't exercise it (stateless preview, missing session context, Knowledge grounding requiring a Data Library the SE must create). Include every Knowledge-grounded topic here with the reason "Knowledge grounding unverified — Data Library must be created manually" until Data Library auto-provisioning is available.
+- `actions_unverified_in_preview` — distinct from `smoke_test` failures. Populate when an action is deployed and syntactically correct but `sf agent preview` can't exercise it (stateless preview, missing session context, Knowledge grounding requiring a Data Library the SE must create). Include every Knowledge-grounded subagent here with the reason "Knowledge grounding unverified — Data Library must be created manually" until Data Library auto-provisioning is available.
 - `discovery_notes` — covers the full deploy→validate→publish→activate lifecycle. If the sub-agent applied an inline fix at any stage, it belongs here. Publish-time fixes are not optional prose — they are required structured output. Canonical discovery_notes-vs-issues split: see `demo-deployment-rules` §Script Deliverable Rules.

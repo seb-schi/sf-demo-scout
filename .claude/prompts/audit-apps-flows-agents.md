@@ -68,7 +68,7 @@ Use a count-first, enumerate-selectively approach.
 4. Exclude components with these prefixes: `sdo_`, `sb_`. Group remaining non-excluded components by naming pattern (e.g., `b2b*`, `fsc_*`, `sfs_*`).
 5. In the audit file, report: "**[total] LWC components total ([without-namespace] without namespace prefix).** Demo-relevant components listed below."
 
-## Existing Agentforce Agents and Topics
+## Existing Agentforce Agents and Subagents
 
 Discovery requires TWO queries — run both:
 1. `SELECT DeveloperName, MasterLabel, Type FROM BotDefinition` — returns Einstein Bots (Type='Bot') and Agentforce agents (Type='AgentforceServiceAgent', 'AgentforceEmployeeAgent', 'Copilot')
