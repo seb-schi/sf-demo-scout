@@ -2,6 +2,14 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-04-28
+
+- Sales Processes, Lead Processes, Support Processes, and Solution Processes now autonomous — Scout ships the BusinessProcess metadata and binds it to the right Record Type; one API type covers all four UI groupings
+- Paths now autonomous — Scout deploys PathAssistant metadata (active flag, driving picklist, key fields + guidance per step) for Opportunity, Lead, Case, and custom objects; you add the component to the record page in App Builder
+- LWC mock data rule — when a component has no backing data source, Scout hardcodes industry-appropriate mock data in JS instead of shipping an empty spinner that breaks the demo
+- Install and update commands now tell you to run `/setup-demo-scout` in Claude Code to finish config — closes the gap where Slack auth silently wasn't set up after a reinstall
+- Fixed before first field use: the BusinessProcess XML root was wrong in yesterday's build (would have failed deploy on all four objects). Scout now retrieves an existing BusinessProcess from your org as a reference before writing new XML, so the shape always matches what your org version emits
+
 ## 2026-04-27
 
 - Fixed: `/scout-sparring` can now audit industry-cloud and managed-package default apps (Life Sciences Commercial, Health Cloud, Q Branch, etc.) — previously fell back to core-6 because the retrieve_metadata call omitted the package namespace

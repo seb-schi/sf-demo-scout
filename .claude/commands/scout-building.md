@@ -113,7 +113,7 @@ Wait for go-ahead. This is the last SE input required before Phase 1.
 
 Read the spec and determine which phases are needed:
 
-- **Phase 1 (Org Config):** Always runs if spec has Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, or Lightning App/Tabs sections.
+- **Phase 1 (Org Config):** Always runs if spec has Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning App/Tabs, Business Processes, or Paths sections.
 - **Phase 2 (Flows/Apex/LWC):** Runs only if spec has Flows, Apex, or LWC sections.
 - **Phase 3 (Agentforce):** Runs only if spec has Agentforce section.
 
@@ -139,7 +139,7 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
 
 | Phase | Template | IF markers | Placeholders | Agent description |
 |-------|----------|------------|--------------|-------------------|
-| 1 | `.claude/prompts/phase1.md` | `QUEUES`, `LAYOUTS`, `PERMSET`, `STRUCTURAL`, `PICKLISTS`, `DATA_SEEDING` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning App / Tabs) | `Phase 1: Org Config deployment` |
+| 1 | `.claude/prompts/phase1.md` | `QUEUES`, `LAYOUTS`, `PERMSET`, `STRUCTURAL`, `PICKLISTS`, `DATA_SEEDING`, `BUSINESS_PROCESS`, `PATHS` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning App / Tabs, Business Processes, Paths) | `Phase 1: Org Config deployment` |
 | 2 | `.claude/prompts/phase2.md` | `FLOWS`, `APEX`, `LWC` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PHASE1_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Flows, Apex, LWC sections) | `Phase 2: Flows/Apex/LWC deployment` |
 | 3 | `.claude/prompts/phase3.md` | *(none)* | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PRIOR_PHASES_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Agentforce section) | `Phase 3: Agentforce deployment` |
 

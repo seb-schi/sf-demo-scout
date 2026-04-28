@@ -332,6 +332,9 @@ Key rules:
 ### LWC Rules
 Scope: demo-specific UI — Customer 360 Cards, custom record views, branded components.
 1. Invoke `sf-lwc` skill BEFORE generating any component file. The skill enforces PICKLES methodology, SLDS 2 compliance, dark mode support, accessibility (WCAG/ARIA), and Jest test patterns across a 165-point rubric.
+
+**Mock data when no backing data source exists.** If the spec describes UI with no objects/fields/Apex class supplying data (no wire target, no Apex `@AuraEnabled` method referenced, no Data Cloud or external source), hardcode realistic mock data directly in the component's JS file and skip the wire service. Demo orgs often have no seeded data for new objects at LWC deploy time — a component that renders a spinning wheel breaks the demo worse than hardcoded values. Use industry-appropriate terminology (medtech device names, pharma product SKUs, etc. per the Customer Context in the spec). When the spec DOES name a backing data source, follow `sf-lwc` wire patterns normally.
+
 2. Use MCP LWC expert tools when available (scaffolding, SLDS, validation) — these complement sf-lwc's guidance.
 3. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`.
 4. Rollback: `sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org [alias]`

@@ -51,6 +51,67 @@ Scope: queues needed for case/lead/custom object routing.
 4. Deploy and verify.
 <!-- /IF:PICKLISTS -->
 
+<!-- IF:BUSINESS_PROCESS -->
+### Business Process Rules
+Scope: standard objects only (Opportunity, Lead, Case, Solution). Salesforce's Setup UI groups these as Sales / Lead / Support / Solution Processes, but the Metadata API exposes exactly one type: `BusinessProcess`. A Business Process is a named subset of the driving picklist's standard values, bound to one or more Record Types.
+
+**Driving picklist per object** (use the exact value API names in `<values><fullName>`):
+| Object | Driving picklist | Example values |
+|---|---|---|
+| Opportunity | StageName | Prospecting, Qualification, Closed Won |
+| Lead | Status | Open - Not Contacted, Working - Contacted, Closed - Converted |
+| Case | Status | New, Working, Closed |
+| Solution | Status | Draft, Reviewed, Duplicate |
+
+1. **Retrieve an existing BusinessProcess from the org as a reference before writing XML.** Every org ships defaults (e.g. Opportunity has `Default` or a record-type-specific process). Use `retrieve_metadata` for `BusinessProcess` to see the exact element shape this org version emits — mirror it. This neutralises XML-root and field-ordering risk.
+2. Retrieve the driving StandardValueSet (`OpportunityStage` for Opportunity, `LeadStatus` for Lead, `CaseStatus` for Case, `SolutionStatus` for Solution) via `retrieve_metadata` to confirm exact value API names — case and spacing must match.
+3. Deploy `BusinessProcess` metadata:
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <BusinessProcess xmlns="http://soap.sforce.com/2006/04/metadata">
+       <fullName>Opportunity.Process_Api_Name</fullName>
+       <description>Short description</description>
+       <isActive>true</isActive>
+       <values><fullName>Prospecting</fullName></values>
+       <values><fullName>Qualification</fullName></values>
+   </BusinessProcess>
+   ```
+   `<fullName>` is `Object.ProcessName` (same convention as RecordType). Value order in XML = order in UI. Include every value the demo needs; omit the ones it does not.
+4. Bind the Business Process to the target Record Type: retrieve the RecordType metadata, set `<businessProcess>Process_Api_Name</businessProcess>` (just the process name, not the qualified form), redeploy. Without the binding, the Business Process drives no UI.
+5. Verify: `SELECT Id, MasterLabel FROM BusinessProcess WHERE DeveloperName = '[ApiName]' AND TableEnumOrId = '[Object]'`
+6. Rollback: `sf project delete source --metadata BusinessProcess:[Object].[ApiName] --target-org [alias]`
+<!-- /IF:BUSINESS_PROCESS -->
+
+<!-- IF:PATHS -->
+### Path Rules
+Scope: PathAssistant metadata — renders the stepped path component on record pages for any picklist-driven object.
+1. Deploy `PathAssistant` metadata:
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <PathAssistant xmlns="http://soap.sforce.com/2006/04/metadata">
+       <active>true</active>
+       <entityName>Opportunity</entityName>
+       <fieldName>StageName</fieldName>
+       <masterLabel>Path Label</masterLabel>
+       <recordTypeName>Opportunity.MyRecordType</recordTypeName>
+       <pathAssistantSteps>
+           <fieldNames>Amount</fieldNames>
+           <fieldNames>CloseDate</fieldNames>
+           <info>&lt;p&gt;Guidance rich text for this step.&lt;/p&gt;</info>
+           <picklistValueName>Prospecting</picklistValueName>
+       </pathAssistantSteps>
+   </PathAssistant>
+   ```
+2. Key rules:
+   - One `<pathAssistantSteps>` block per picklist value. Max 5 `<fieldNames>` per step (Salesforce limit) — extras route to SE Manual.
+   - `<recordTypeName>` = `Object.RecordTypeDeveloperName`. Omit if the object has no record types (binds to Master).
+   - `<fieldName>` (singular, top level) is the driving picklist (`StageName`, `Status`, or a custom picklist API).
+   - `<info>` contains rich-text HTML — entity-encode `<` and `>` (`&lt;p&gt;...&lt;/p&gt;`).
+   - `<active>true</active>` activates immediately; Salesforce allows one active Path per (entity, record type, driving field).
+3. Visual placement of the Path component on the Lightning record page is SE Manual (App Builder).
+4. Rollback: `sf project delete source --metadata PathAssistant:[ApiName] --target-org [alias]`
+<!-- /IF:PATHS -->
+
 <!-- IF:LAYOUTS -->
 ### Page Layout Rules
 Before modifying any page layout, identify which layout is actually active.
@@ -87,7 +148,7 @@ When done, return EXACTLY one fenced JSON block matching this schema. Do not inc
 {
   "phase": 1,
   "deployed": [
-    {"type": "CustomObject|CustomField|RecordType|Layout|CustomTab|CustomApplication|Queue", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null}
+    {"type": "CustomObject|CustomField|RecordType|Layout|CustomTab|CustomApplication|Queue|BusinessProcess|PathAssistant", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null}
   ],
   "skipped": [
     {"type": "string", "api_name": "string", "reason": "string"}

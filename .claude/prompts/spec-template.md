@@ -77,6 +77,22 @@ Context only — Slack content is medium-confidence and attributed to source mes
 - Objects: [Case, Lead, etc. — which objects this queue receives]
 - Members: assign to running user
 
+### Business Processes (if applicable)
+One `BusinessProcess` Metadata API type covers Sales / Lead / Support / Solution Processes — the Setup UI groups them by object, but the metadata is unified.
+- Process: [ApiName], Label: [Label]
+- Object: [Opportunity | Lead | Case | Solution]
+- Driving picklist: [StageName for Opportunity; Status for Lead / Case / Solution]
+- Values (in order, subset of the standard picklist): [value 1, value 2, ...]
+- Record Type binding: [RecordType DeveloperName] (the record type that uses this process)
+
+### Paths (if applicable)
+- Path: [ApiName], Label: [Label]
+- Object: [SObject API], Record Type: [RecordType DeveloperName]
+- Picklist field: [field API — the field driving the path, e.g. `StageName`]
+- Active: yes/no (default yes)
+- Steps (one per picklist value, in order):
+  - **[Picklist value]** — key fields: [field1, field2, field3 (max 5)] — guidance: `[1-3 sentences of rich text shown in the Path component]`
+
 ### Data Seeding
 - Object: [name], Records: [count]
 - Key values: [field]: [value] — (reason)
@@ -158,7 +174,8 @@ Context only — Slack content is medium-confidence and attributed to source mes
 - [ ] Screen-flow visual QA: walk through each autonomous screen flow once in the Lightning UI (labels, button order, help text read sensibly)
 - [ ] Complete Agentforce manual steps (channel assignment, production testing)
 - [ ] Arrange field positions and sections in App Builder
-- [ ] Place LWC on Lightning pages, configure Path component
+- [ ] Place LWC on Lightning pages
+- [ ] Add the Path component to the Lightning record page (App Builder) — Scout deploys the Path metadata; the visual placement on the record page is manual
 - [ ] Review and customize seed data for customer-specific values
 - [ ] Review all ⚠️ items
 - [ ] Test full demo end-to-end

@@ -20,6 +20,15 @@ Audit used: audit-[YYYY-MM-DD]-[HHmm].md
 ## Companion Permission Set
 [Name, coverage, assignment status]
 
+## Business Processes Deployed (if any)
+[API names (as Object.ProcessName), driving picklist, values, record type bindings]
+Rollback: sf project delete source --metadata BusinessProcess:[Object].[ApiName] --target-org [alias]
+
+## Paths Deployed (if any)
+[API names, object, record type, driving field, step count]
+Rollback: sf project delete source --metadata PathAssistant:[ApiName] --target-org [alias]
+Note: visual placement of the Path component on the Lightning record page is SE Manual (App Builder).
+
 ## Flows Deployed (if any)
 [API names, description, active/draft status]
 Rollback: sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]

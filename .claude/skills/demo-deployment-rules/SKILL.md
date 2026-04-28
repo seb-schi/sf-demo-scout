@@ -12,11 +12,10 @@ description: >
 
 # Deployment Rules — Canonical Reference
 
-Phase sub-agent templates inline the rules relevant to their phase. This
-file is the canonical source of truth — if a template's inlined rules
-diverge from this file, this file wins. Sub-agents may still invoke this
-skill for rules outside their normal phase scope (e.g., a Phase 2 agent
-that needs Queue rules for a dependency check).
+One home per category:
+- **Phase 1** (Queues, Picklists, Page Layouts, Business Processes, Paths) — rules live inlined under IF markers in `.claude/prompts/phase1.md`. This skill file does NOT duplicate them. If a Phase 1 sub-agent needs a rule, it reads its own prompt.
+- **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `sf-apex`, `sf-lwc`, `developing-agentforce`). This skill file carries the rollback commands, two-attempt meta-rule, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline.
+- **Cross-phase** — Script Deliverable Rules (below) apply to any sub-agent producing a reusable shell / language script, regardless of phase.
 
 **Two-attempt rule:** if a deployment fails twice, STOP that item, record it
 as SKIPPED in your JSON output with the error message, and continue with
@@ -52,61 +51,6 @@ Applies whenever a sub-agent produces a reusable shell or language script as par
 **Target environment defaults (macOS SE laptop):**
 - Assume Bash 3.2 (Apple ships this as `/bin/bash`). No `declare -A`, no `${var^^}`, no `&>`. If associative arrays are genuinely needed, use temp-file JSON parsed via `python3` / `jq`.
 - Assume `python3` and `jq` available (both in standard SE install). `sf` CLI and MCP available in-session only — the SE re-run path uses `sf` CLI.
-
----
-
-## Queue Rules (Phase 1)
-
-Scope: queues needed for case/lead/custom object routing in the demo scenario.
-
-1. Deploy Queue metadata via `deploy_metadata`. The XML structure:
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <Queue xmlns="http://soap.sforce.com/2006/04/metadata">
-       <fullName>Queue_Api_Name</fullName>
-       <name>Queue Label</name>
-       <queueSobject>
-           <sobjectType>Case</sobjectType>
-       </queueSobject>
-   </Queue>
-   ```
-   Multiple `<queueSobject>` elements for queues that receive multiple object types.
-2. After deploying, verify via SOQL: `SELECT Id, Name FROM Group WHERE Type = 'Queue' AND DeveloperName = '[ApiName]'`
-3. If the spec asks to add the running user as a queue member, use:
-   `sf data create record --sobject GroupMember --values "GroupId=[QueueId] UserOrGroupId=[UserId]" --target-org [alias]`
-
----
-
-## Picklist Value Additions (Phase 1)
-
-When the spec asks to add values to an existing picklist field (standard or custom):
-
-1. Retrieve the current field metadata via `retrieve_metadata`.
-2. Add new `<value>` elements to the existing `<valueSet>` — do NOT remove existing values.
-3. For standard value sets (e.g., Case.Type uses `CaseType` StandardValueSet), retrieve and modify the StandardValueSet, not the field directly.
-4. Deploy the updated metadata. Verify by querying: `SELECT ApiName, Value FROM StandardValueSet WHERE ...` or by checking the field describe.
-
----
-
-## Page Layout Rules (Phase 1)
-
-Before modifying any page layout, identify which layout is actually active
-for the demo user. Never retrieve "whichever layout comes first" — SDO orgs
-have many layouts per object and the first one is rarely the active one.
-
-1. Query `ProfileLayout` via Tooling API to find the layout assigned to
-   System Administrator for the target object and record type:
-   ```
-   SELECT Layout.Name, RecordType.Name
-   FROM ProfileLayout
-   WHERE TableEnumOrId = '[Object]'
-   AND Profile.Name = 'System Administrator'
-   ```
-2. Retrieve only the layout(s) returned by that query — not all layouts for
-   the object.
-3. Modify and redeploy only the active layout.
-4. If multiple record types are in scope, run the query per record type and
-   retrieve each assigned layout separately.
 
 ---
 

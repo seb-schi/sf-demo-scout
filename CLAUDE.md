@@ -37,6 +37,8 @@ Fall back to `sf` CLI if MCP is unavailable.
 - Permission sets and assignment
 - Lightning apps, custom tabs
 - Queues with object routing
+- Business Processes (stage / status subsets for Opportunity, Lead, Case, Solution — one `BusinessProcess` Metadata API type covers all four)
+- Paths (PathAssistant — active flag, driving picklist, key fields + guidance per step)
 - Page layout field additions (active layout only — query ProfileLayout first)
 - Data seeding — single object always; cross-object (junctions, FK chains) when backed by an idempotent script with `--pilot-only` self-test per `demo-deployment-rules` §Script Deliverable Rules
 - Picklist value additions to existing fields
