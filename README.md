@@ -154,7 +154,7 @@ A: Yes! Any org that `sf org login web` can authenticate. SDO, IDO, sandbox, dev
 A: Every change log includes rollback commands. Scout's like a responsible designated driver – it notes the way back.
 
 **Q: What model does it use?**
-A: Opus for thinking (sparring, orchestration), Sonnet for doing (metadata generation, deployment). Both via LLMGW.
+A: Opus for thinking (sparring, orchestration), Sonnet for doing (metadata generation, deployment). Both via LLMGW. Thinking summaries are on by default — you'll see Scout's reasoning as it works, which is especially useful on slow operations where the output would otherwise look frozen. (Set via `CLAUDE_CODE_EXTRA_BODY` in `.claude/settings.json` — committed to the repo, no per-SE config.)
 
 **Q: Can I use it without Agentforce?**
 A: Absolutely. Agentforce is Phase 3 – if your spec doesn't include agents, that phase simply doesn't run.

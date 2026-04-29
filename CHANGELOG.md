@@ -2,6 +2,12 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-04-29
+
+- Scout now thinks visibly — you'll see reasoning summaries while Opus and Sonnet work, so slow operations stop feeling like a freeze. No per-SE config: ships via the repo.
+- Pipeline updates now post to `#sf-demo-scout` automatically — after every `/project-sparring` session, you'll see a short release note in the channel and the full CHANGELOG mirrored to the pinned `Scout Changelog` canvas (draft → your approval → send)
+- Fewer Slack permission prompts — the `mcp__slack__*` wildcard in `.claude/settings.json` now matches the way it was always meant to; Scout stops asking for every Slack tool call
+
 ## 2026-04-28
 
 - Sales Processes, Lead Processes, Support Processes, and Solution Processes now autonomous — Scout ships the BusinessProcess metadata and binds it to the right Record Type; one API type covers all four UI groupings

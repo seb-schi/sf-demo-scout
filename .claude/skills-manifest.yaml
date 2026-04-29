@@ -71,10 +71,6 @@ skills:
   - name: generating-permission-set
     source: afv
     path: skills/generating-permission-set
-
-  # Agentforce skills — migrated from SalesforceAIResearch/agentforce-adlc
-  # to forcedotcom/afv-library 2026-04-28 (both repos shipped identical structure;
-  # AFV carries newer versions and future development flows through afv-library).
   - name: developing-agentforce
     source: afv
     path: skills/developing-agentforce

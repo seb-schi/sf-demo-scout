@@ -27,6 +27,7 @@ unpackaged/
 .claude/settings.local.json
 .claude/.sync-state.json
 .claude/prompts/pipeline-lessons.md
+.claude/prompts/scout-changelog-post.md
 .claude/skills/sf-*/
 .claude/skills/developing-agentforce/
 .claude/skills/observing-agentforce/
