@@ -44,15 +44,19 @@ Fall back to `sf` CLI if MCP is unavailable.
 - Picklist value additions to existing fields
 
 ### Gated (SE confirms once per category, then autonomous)
-- Simple record-triggered flows (single-object only)
-- Simple screen flows (≤3 linear screens by default; up to 5 when SE justifies during sparring; whitelisted components; single terminal DML; optional QuickAction wiring)
+- Record-triggered flows (before-save, after-save, before-delete; any trigger object; cross-object DML allowed)
+- Screen flows (≤3 linear screens by default; up to 5 when SE justifies during sparring; whitelisted components; single terminal DML; optional QuickAction wiring)
+- Autolaunched flows (no UI, no trigger — invoked from Apex / Flow / REST / Process)
+- Subflows (autolaunched flows invoked by a parent — deploy before the parent in the same phase)
+- Scheduled flows (SE names `<startDate>`, `<startTime>`, and `<frequency>` during sparring — demo-day precision)
+- Platform-event-triggered flows (SE confirms the `<eventType>` object exists in the audit or ships in the same deploy)
 - Simple Apex (single-trigger, single-object)
 - Simple LWC (demo-specific UI)
 - Agentforce agents via Agent Script (subagents, actions, backing Apex, publish, activate, smoke test)
 
 ### Always Manual (SE Manual Checklist)
-- Complex screen flows (branching across screens, subflows, reactive across screens with formula dependencies, custom LWC screen components, File Upload, Repeater, Data Table, Kanban Board)
-- Scheduled, multi-object flows, subflows
+- Complex screen flows (branching across screens, reactive across screens with formula dependencies, custom LWC screen components, File Upload, Repeater, Data Table, Kanban Board)
+- Orchestration flows (parent-child, sequential, conditional — multi-day lifecycles with assignees, not demo-day-viable as autonomous)
 - Complex Apex/LWC
 - Multi-agent orchestration, channel assignment, production-scale agent testing
 - Page layout visual arrangement (field positioning, sections in App Builder)

@@ -113,8 +113,15 @@ One `BusinessProcess` Metadata API type covers Sales / Lead / Support / Solution
 ### Flows (if applicable)
 - ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
 - Plain English: [description]
-- Flow name: [ApiName], Type: Record-Triggered
-- Object: [single], Trigger: [when], Logic: [steps]
+- Flow name: [ApiName]
+- Flow type: one of **record-triggered** (before-save / after-save / before-delete) | **autolaunched** | **subflow** | **scheduled** | **platform-event-triggered**
+  - Orchestration and complex screen flows route to the SE Manual Checklist — do not list them here.
+- Type-specific fields:
+  - **Record-triggered:** Trigger object: [API name], Trigger type: [before-save | after-save | before-delete], Entry conditions: [filter formula or "none"], Logic: [steps, including any cross-object DML]
+  - **Autolaunched:** Invoked from: [Apex class / parent flow / REST / process], Input variables: [name + type per var], Logic: [steps]
+  - **Subflow:** Parent flow: [ApiName of caller — must also be in this spec or already in org], Input variables: [name + type per var], Output variables (if any): [name + type per var], Logic: [steps]
+  - **Scheduled:** Start date: [YYYY-MM-DD], Start time: [HH:MM:SS], Frequency: [Once | Daily | Weekly | Monthly | Yearly | Hourly | Weekdays], Object filter (optional): [SObject + filter conditions for batch runs], Logic: [steps]
+  - **Platform-event-triggered:** Event object: [API name — e.g. `OrderCreated__e` or standard like `AIPredictionEvent`], Event fields referenced: [list], Logic: [steps]
 
 ### Screen Flows (if applicable)
 - ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
@@ -134,6 +141,7 @@ One `BusinessProcess` Metadata API type covers Sales / Lead / Support / Solution
   - If Get: queriedFields: [explicit list — never storeOutputAutomatically]
 - QuickAction wiring: [yes (label: [button label], layout: [active layout name from audit]) | no — SE will wire manually]
 - Smoke test: Scout auto-generates happy-path FlowTest; SE does a one-time visual walkthrough in the Lightning UI
+- Components outside the autonomous whitelist (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component, reactive-across-screens with formula deps, branching across screens) → move to SE Manual Checklist.
 
 ### Apex (if applicable)
 - ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
@@ -170,8 +178,9 @@ One `BusinessProcess` Metadata API type covers Sales / Lead / Support / Solution
 - [ ] Multi-agent orchestration (if applicable)
 
 ### Must Do Before Demo
-- [ ] Build complex flows (scheduled, multi-object, subflows, screen flows outside autonomous whitelist)
+- [ ] Build orchestration flows and complex screen flows (components outside autonomous whitelist, branching across screens, reactive-across-screens with formula deps, LWC screen components)
 - [ ] Screen-flow visual QA: walk through each autonomous screen flow once in the Lightning UI (labels, button order, help text read sensibly)
+- [ ] For scheduled flows: verify the Scheduled Jobs page (Setup → Scheduled Jobs) shows the next run time matching the spec
 - [ ] Complete Agentforce manual steps (channel assignment, production testing)
 - [ ] Arrange field positions and sections in App Builder
 - [ ] Place LWC on Lightning pages

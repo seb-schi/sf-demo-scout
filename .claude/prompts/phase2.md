@@ -23,18 +23,38 @@ Deploy in small increments. One component per deploy call.
 
 <!-- IF:FLOWS -->
 ### Flow Rules
-Autonomous scope: **record-triggered** (single-object) and **screen flows** (≤3 linear screens by default, ≤5 when the spec's Screen Flow section carries SE justification). Scheduled, multi-object, subflow, or any flow using components outside the whitelist below → skip with reason "out of scope for autonomous deploy."
+Autonomous-with-SE-gate scope covers the full trigger spectrum the `sf-flow` skill owns — record-triggered (before-save, after-save, before-delete; any object; cross-object DML allowed), screen flows (whitelist below), autolaunched flows, subflows, scheduled flows, and platform-event-triggered flows. Orchestration flows (parent-child / sequential / conditional) and complex screen flows → skip with reason "out of scope for autonomous deploy — SE Manual Checklist."
 
 Screen-flow component whitelist: DisplayText, Section, InputField (Text / LargeTextArea / Number / Email / Date / DateTime / Password), Picklist, RadioButtons, Checkbox, CheckboxGroup, MultiSelectPicklist. Anything else (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) → skip.
 
-1. Invoke `sf-flow` skill before generating Flow XML. For screen flows, also skim `.claude/skills/sf-flow/references/xml-gotchas.md` (root-level alphabetical ordering, fault-connector self-reference, relationship-field trap, storeOutputAutomatically data leak).
-2. Prefer the Jaganpro templates at `.claude/skills/sf-flow/assets/` (`screen-flow-template.xml`, `record-triggered-after-save.xml`, `record-triggered-before-save.xml`) if present. Inline fallback templates below.
+**Template sources.** The `sf-flow` skill ships canonical XML templates under `.claude/skills/sf-flow/assets/`:
+- `record-triggered-before-save.xml`, `record-triggered-after-save.xml`, `record-triggered-before-delete.xml`
+- `screen-flow-template.xml`, `screen-flow-with-lwc.xml` (LWC variant out of autonomous scope)
+- `autolaunched-flow-template.xml`
+- `scheduled-flow-template.xml`
+- `platform-event-flow-template.xml`
+- `subflows/` — reusable subflow patterns (bulk-updater, dml-rollback, email-alert, error-logger, query-with-retry, record-validator)
+- `elements/` — get-records, loop, record-delete, transform element patterns
+
+Reference guides: skim `.claude/skills/sf-flow/references/xml-gotchas.md` before any XML work (root-level alphabetical ordering, fault-connector self-reference, relationship-field trap, storeOutputAutomatically data leak). Per-category references (`flow-best-practices.md`, `testing-guide.md`, `wait-patterns.md`, `subflow-library.md`, `transform-vs-loop-guide.md`) as needed.
+
+**Deployment order within Phase 2.** Deploy subflows before their parent flows (same-phase dependency). Platform-event-triggered flows require the `<eventType>` object — if the spec ships a new platform event in this deploy, the event object deploys before the flow. Scheduled flows have no in-phase dependencies.
+
+1. Invoke `sf-flow` skill before generating Flow XML.
+2. Use the matching template from the asset list above as the starting point. Record-triggered-after-save is inlined below because it carries the `processMetadataValues` deployment-blocker rule and the Record Update pattern — both load-bearing beyond what the asset file covers.
 3. Deploy as Draft first (`<status>Draft</status>`), confirm success.
-4. **Record-triggered:** activate after clean Draft deploy.
-5. **Screen flows:** generate a happy-path FlowTest XML (see FlowTest template below — save as `[FlowApiName]_Test.flowTest-meta.xml`), deploy it alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`. Pass → activate. Fail twice → skip activation, record in `issues`. (Testing guide: `.claude/skills/sf-flow/references/testing-guide.md` section 5.)
-6. **Screen flows with QuickAction wiring** (spec requests it): deploy a `QuickAction` (actionType=Flow) pointing at the flow's API name; retrieve the target object's active Layout, add the QuickAction under `<quickActionListItems>`, redeploy the layout.
-7. Check for existing flows on the same object via `retrieve_metadata` — flag execution order conflicts.
-8. Rollback: `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]` (plus `QuickAction:[Name]` if deployed).
+4. **Validation — happy-path FlowTest is mandatory for every autonomous flow type.** Generate a happy-path FlowTest XML (template below — save as `[FlowApiName]_Test.flowTest-meta.xml`), deploy it alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`. Pass → activate. Fail twice → skip activation, record in `issues`. FlowTest supports every flow type via MDAPI even though Flow Builder's auto-test UI is limited to record-triggered + data-cloud-triggered (Salesforce docs, 2026-04-30). Type-specific test adaptations:
+   - **Record-triggered:** `<parameters>` supplies `$Record` via `triggeringRecordInitialValues`.
+   - **Before-delete:** test asserts the pre-delete state; delete is the triggering event, assertion checks flow ran without fault.
+   - **Screen flow:** one `<parameters>` block per required input variable.
+   - **Autolaunched / subflow:** `<parameters>` supplies invocation inputs via flow variables.
+   - **Scheduled:** test exercises the flow body on-demand, ignoring the schedule trigger. Schedule itself is a config read-back (`retrieve_metadata` on the deployed flow confirms `<schedule>` fields match the spec).
+   - **Platform-event-triggered:** `<parameters>` supplies a mock event payload (one `<parameters>` block per event field referenced by the flow).
+5. **Screen flows with QuickAction wiring** (spec requests it): deploy a `QuickAction` (actionType=Flow) pointing at the flow's API name; retrieve the target object's active Layout, add the QuickAction under `<quickActionListItems>`, redeploy the layout.
+6. **Scheduled flow pre-flight:** confirm the spec's Scheduled Flow section names `<startDate>`, `<startTime>`, and `<frequency>` (Once / Daily / Weekly / Monthly / Yearly / Hourly / Weekdays — per FlowSchedule subtype, Salesforce docs API v66.0+). If missing, skip with reason "scheduled flow missing schedule fields — SE must add to spec."
+7. **Platform-event flow pre-flight:** confirm the `<eventType>` object exists via `retrieve_metadata` (CustomObject with `__e` suffix, or standard event like `AIPredictionEvent`). If missing and not in-scope for this deploy, skip with reason "platform event object not in org — SE must create or import first."
+8. Check for existing flows on the same object/trigger via `retrieve_metadata` — flag execution order conflicts in `discovery_notes`.
+9. Rollback: `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]` (plus `QuickAction:[Name]` if deployed, plus `FlowTest:[FlowApiName]_Test` if deployed).
 
 **CRITICAL — Flow XML must not use `processMetadataValues`.** Use this record-triggered after-save template:
 ```xml
@@ -149,95 +169,9 @@ Key rules for updating the triggering record:
 - Field assignments go in `<inputAssignments>`, not `<filters>`
 - This pattern works for after-save triggers — before-save triggers use `$Record` assignments directly in the start element
 
-**Screen Flow inline fallback template** (use only if the Jaganpro asset at `.claude/skills/sf-flow/assets/screen-flow-template.xml` is missing). Single-screen example; extend to 2-3 screens by adding more `<screens>` blocks with `allowBack=true` and `connector` to the next screen. Root-level elements must stay in alphabetical order:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
-    <apiVersion>62.0</apiVersion>
-    <description>Brief description</description>
-    <environments>Default</environments>
-    <interviewLabel>Flow_Label-{!$Flow.CurrentDateTime}</interviewLabel>
-    <label>Flow Label</label>
-    <processType>Flow</processType>
-    <!-- Terminal DML after the last input screen -->
-    <recordCreates>
-        <name>Create_Record</name>
-        <label>Create Record</label>
-        <locationX>0</locationX>
-        <locationY>0</locationY>
-        <connector>
-            <targetReference>Screen_Complete</targetReference>
-        </connector>
-        <inputAssignments>
-            <field>Name</field>
-            <value><elementReference>var_RecordName</elementReference></value>
-        </inputAssignments>
-        <object>Account</object>
-        <storeOutputAutomatically>true</storeOutputAutomatically>
-    </recordCreates>
-    <screens>
-        <name>Screen_Input</name>
-        <label>Enter Details</label>
-        <locationX>0</locationX>
-        <locationY>0</locationY>
-        <allowBack>false</allowBack>
-        <allowFinish>true</allowFinish>
-        <allowPause>false</allowPause>
-        <connector>
-            <targetReference>Create_Record</targetReference>
-        </connector>
-        <fields>
-            <name>Input_RecordName</name>
-            <dataType>String</dataType>
-            <fieldText>Record Name</fieldText>
-            <fieldType>InputField</fieldType>
-            <isRequired>true</isRequired>
-        </fields>
-        <showFooter>true</showFooter>
-        <showHeader>true</showHeader>
-    </screens>
-    <screens>
-        <name>Screen_Complete</name>
-        <label>Success</label>
-        <locationX>0</locationX>
-        <locationY>0</locationY>
-        <allowBack>false</allowBack>
-        <allowFinish>true</allowFinish>
-        <allowPause>false</allowPause>
-        <fields>
-            <name>Complete_Message</name>
-            <fieldType>DisplayText</fieldType>
-            <fieldText>&lt;p&gt;Record created.&lt;/p&gt;</fieldText>
-        </fields>
-        <showFooter>true</showFooter>
-        <showHeader>true</showHeader>
-    </screens>
-    <start>
-        <locationX>0</locationX>
-        <locationY>0</locationY>
-        <connector>
-            <targetReference>Screen_Input</targetReference>
-        </connector>
-    </start>
-    <status>Draft</status>
-    <variables>
-        <name>var_RecordName</name>
-        <dataType>String</dataType>
-        <isCollection>false</isCollection>
-        <isInput>false</isInput>
-        <isOutput>false</isOutput>
-    </variables>
-</Flow>
-```
-Key rules for screen flows:
-- Root-level element order is strictly alphabetical (apiVersion → description → environments → interviewLabel → label → processType → recordCreates/recordUpdates/recordLookups → screens → start → status → variables). All elements of the same type must be grouped.
-- Every screen needs `allowFinish=true`. `allowBack=true` on middle/last screens; `allowBack=false` on the first screen or after DML commits (prevents duplicate creation).
-- Variable naming convention: `var_` for regular vars, `rec_` for records, `col_` for collections, `inp_` for inputs, `out_` for outputs.
-- `<processType>Flow</processType>` identifies this as a screen flow.
-- Custom input validation (optional): add `<validationRule>` inside the `<fields>` block with `<formulaExpression>` (Boolean) and `<errorMessage>`.
-- For Update/Get terminal DML, swap `recordCreates` for `recordUpdates` or `recordLookups`. In `recordLookups`, always specify `<queriedFields>` explicitly — never `<storeOutputAutomatically>true</storeOutputAutomatically>` on screen flows (data-leak risk, especially on Experience Cloud).
+Screen flow template lives at `.claude/skills/sf-flow/assets/screen-flow-template.xml` (full clone guarantees presence). For screen flows, two rules from the asset that tend to get lost: root-level elements must stay in strict alphabetical order (apiVersion → description → environments → interviewLabel → label → processType → recordCreates → screens → start → status → variables), and in `recordLookups` always specify `<queriedFields>` explicitly — never `<storeOutputAutomatically>true</storeOutputAutomatically>` on screen flows (data-leak risk, especially on Experience Cloud).
 
-**FlowTest template for screen flows** (one test per deployed screen flow, happy-path only). Save as `[FlowApiName]_Test.flowTest-meta.xml`, deploy alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`:
+**FlowTest template** (applies to every autonomous flow type — type-specific adaptations in step 4 above). Save as `[FlowApiName]_Test.flowTest-meta.xml`, deploy alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <FlowTest xmlns="http://soap.sforce.com/2006/04/metadata">

@@ -8,58 +8,51 @@
 
 sources:
   jaganpro:
-    repo: https://github.com/Jaganpro/sf-skills
-    type: raw
-    raw_base: https://raw.githubusercontent.com/Jaganpro/sf-skills/main/skills
+    repo: https://github.com/forcedotcom/afv-library
+    type: clone
+    branch: Jaganpro/sf-skills
   afv:
     repo: https://github.com/forcedotcom/afv-library
     type: clone
     branch: main
 
 skills:
-  # Jaganpro/sf-skills — raw URL fetch.
-  # Use `path:` for skills that are a single SKILL.md.
-  # Use `paths:` (list) when the skill ships assets/references we depend on.
-  # The first entry becomes SKILL.md at the skill root; subsequent entries
-  # preserve their relative path (leading "<skill-name>/" is stripped).
+  # Jaganpro's sf-* skills — cloned from forcedotcom/afv-library's
+  # Jaganpro/sf-skills branch (Gaurang Mathur, 2026-04-30 Slack confirmation).
+  # The branch is temporary — these merge into afv-library/main over the next
+  # few weeks. When that happens, collapse this into the `afv` source (see
+  # pipeline-changes/afv-migration-followups.md).
+  # Full directory clone picks up SKILL.md + assets/ + references/ + hooks/.
   - name: sf-flow
     source: jaganpro
-    paths:
-      - sf-flow/SKILL.md
-      - sf-flow/assets/screen-flow-template.xml
-      - sf-flow/assets/record-triggered-before-save.xml
-      - sf-flow/assets/record-triggered-after-save.xml
-      - sf-flow/assets/autolaunched-flow-template.xml
-      - sf-flow/references/xml-gotchas.md
-      - sf-flow/references/form-building-guide.md
-      - sf-flow/references/testing-guide.md
+    path: skills/sf-flow
   - name: sf-permissions
     source: jaganpro
-    path: sf-permissions/SKILL.md
+    path: skills/sf-permissions
   - name: sf-deploy
     source: jaganpro
-    path: sf-deploy/SKILL.md
+    path: skills/sf-deploy
   - name: sf-apex
     source: jaganpro
-    path: sf-apex/SKILL.md
+    path: skills/sf-apex
   - name: sf-soql
     source: jaganpro
-    path: sf-soql/SKILL.md
+    path: skills/sf-soql
   - name: sf-data
     source: jaganpro
-    path: sf-data/SKILL.md
+    path: skills/sf-data
   - name: sf-debug
     source: jaganpro
-    path: sf-debug/SKILL.md
+    path: skills/sf-debug
   - name: sf-lwc
     source: jaganpro
-    path: sf-lwc/SKILL.md
+    path: skills/sf-lwc
   - name: sf-testing
     source: jaganpro
-    path: sf-testing/SKILL.md
+    path: skills/sf-testing
   - name: sf-flex-estimator
     source: jaganpro
-    path: sf-flex-estimator/SKILL.md
+    path: skills/sf-flex-estimator
 
   # forcedotcom/afv-library — full skill directories, cloned
   - name: generating-custom-field

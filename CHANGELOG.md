@@ -2,6 +2,11 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-04-30
+
+- **Scout now builds flows of every stripe.** Record-triggered (create, update, *and* delete), screen, autolaunched, subflows, scheduled, and platform-event-triggered — all now under autonomous build with the usual single SE confirmation. The flows Scout used to push to your manual checklist as "too complex" are now fair game for a spec. Only the genuinely visual or multi-day ones (orchestration, screen flows with reactive branching or custom components) stay on your plate.
+- **More Salesforce-maintained content behind the hood.** The underlying skills Scout leans on for Apex, LWC, Flow, and the rest now ship with the full library of templates, reference guides, and subflow patterns — not just the instruction file. Practically: Scout has more worked examples to copy from, so generated metadata is closer to Salesforce-preferred patterns out of the gate.
+
 ## 2026-04-29
 
 - **Scout now thinks visibly.** Opus 4.7 hides its reasoning by default, which made slow operations feel like Scout had frozen — a first-impression killer. Adaptive thinking summaries now ship via the repo's `.claude/settings.json`, so every SE who clones gets visible thinking on Opus and Sonnet runs without touching their personal config.

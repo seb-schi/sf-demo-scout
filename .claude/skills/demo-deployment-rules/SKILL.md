@@ -56,61 +56,55 @@ Applies whenever a sub-agent produces a reusable shell or language script as par
 
 ## Flow Rules (Phase 2)
 
-Two autonomous flow types: **record-triggered** (single-object) and **screen flows**
-(≤3 linear screens by default, ≤5 when the spec's Screen Flow section carries SE
-justification). Scheduled flows, subflows, and multi-object flows still route to the
-SE Manual Checklist — if one reaches you, skip it and note "out of scope for
-autonomous deploy."
+Autonomous-with-SE-gate flow scope matches `sf-flow`'s full trigger spectrum: record-triggered (before-save / after-save / before-delete; any object; cross-object DML allowed), screen flows (whitelist below), autolaunched flows, subflows, scheduled flows, and platform-event-triggered flows. Orchestration flows and complex screen flows route to SE Manual — if one reaches Phase 2, skip with reason "out of scope for autonomous deploy — SE Manual Checklist."
 
-### Both Types
-1. Invoke the `sf-flow` skill before generating any Flow XML — it holds the
-   110-point validation checklist and the reference assets.
-2. Before generating, skim `.claude/skills/sf-flow/references/xml-gotchas.md`
-   if present — it covers root-level alphabetical ordering, fault-connector
-   self-reference, relationship-field traps in recordLookups, and the
-   `storeOutputAutomatically` data-leak risk. These are deployment blockers.
-3. Validate generated XML against the sf-flow checklist. Flag failures in the
-   `issues` array of your JSON output.
+### All Flow Types
+1. Invoke the `sf-flow` skill before generating any Flow XML — it holds the 110-point validation checklist, the full asset template set, and reference guides.
+2. Before generating, skim `.claude/skills/sf-flow/references/xml-gotchas.md` — root-level alphabetical ordering, fault-connector self-reference, relationship-field traps in recordLookups, `storeOutputAutomatically` data-leak risk. Deployment blockers.
+3. Validate generated XML against the sf-flow checklist. Flag failures in `issues`.
 4. Deploy as Draft first (`<status>Draft</status>`). Confirm success.
-5. Check for existing flows on the same object via MCP `retrieve_metadata` —
-   flag execution order conflicts in `issues`.
-6. Rollback command (record in `rollback_commands` array):
+5. Generate and deploy a happy-path FlowTest XML alongside the flow. Run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`. Pass → activate. Fail twice → skip activation, record in `issues` — never activate a flow that failed its own smoke test. Per-type FlowTest adaptations live in `phase2.md` Flow Rules step 4.
+6. Check for existing flows on the same object/trigger via `retrieve_metadata` — flag execution order conflicts in `discovery_notes`.
+7. Rollback (record in `rollback_commands`):
    `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]`
+   Plus `QuickAction:[Name]` if deployed, `FlowTest:[FlowApiName]_Test` if deployed.
 
 ### Record-Triggered Flow
-- Source template: `.claude/skills/sf-flow/assets/record-triggered-after-save.xml`
-  (after-save) or `record-triggered-before-save.xml` (before-save). Fall back to
-  the inline template in `phase2.md` if the asset is missing.
-- Activate after Draft deploys cleanly.
+- Templates: `record-triggered-before-save.xml`, `record-triggered-after-save.xml`, `record-triggered-before-delete.xml`.
+- Before-delete: `<recordTriggerType>Delete</recordTriggerType>` + `<triggerType>RecordBeforeDelete</triggerType>`. No after-delete flavor exists.
+- Cross-object DML (trigger on Object A, create/update Object B) is in scope.
 
 ### Screen Flow
-- Source template: `.claude/skills/sf-flow/assets/screen-flow-template.xml`.
-- Whitelisted screen components: DisplayText, Section, InputField (Text,
-  LargeTextArea, Number, Email, Date, DateTime, Password), Picklist,
-  RadioButtons, Checkbox, CheckboxGroup, MultiSelectPicklist. Any other
-  component in the spec → skip with reason "component outside autonomous
-  whitelist."
-- Terminal DML is one of: recordCreates, recordUpdates, recordLookups
-  (specify `<queriedFields>` — never `<storeOutputAutomatically>` in screen
-  flows, per xml-gotchas).
-- Multi-screen flows: collect ALL input across screens first (variables),
-  perform DML after the final input screen. Each screen breaks the transaction
-  boundary — premature DML cannot be rolled back by later navigation.
-- Custom input validation allowed: Boolean formula + custom error message per
-  input (per Salesforce docs — "Improve Data Quality by Validating User Input").
-- **Deployment validation (autonomous):** after Draft deploys, generate a
-  happy-path FlowTest XML (inputs populated to satisfy validation, assertion on
-  the terminal DML outcome) and run `sf flow run test --class-names [FlowApiName]
-  --target-org [alias] --json`. If the test passes, activate. If it fails twice,
-  skip activation and record the failure in `issues` — do not activate a flow
-  that failed its own smoke test. See `.claude/skills/sf-flow/references/testing-guide.md`
-  section 5 for FlowTest XML patterns.
-- **QuickAction wiring (if the spec's Screen Flow section requests it):** deploy
-  a `QuickAction` metadata file alongside the flow, set to action type `Flow`
-  with the flow's API name. Add the QuickAction to the object's active page
-  layout (`retrieve_metadata` → add under `<quickActionListItems>` → redeploy).
-  This is what makes the flow reachable from the UI; spec-level buttons are
-  meaningless without it.
+- Template: `screen-flow-template.xml`. LWC-embedded variant (`screen-flow-with-lwc.xml`) is out of autonomous scope.
+- Whitelisted components: DisplayText, Section, InputField (Text, LargeTextArea, Number, Email, Date, DateTime, Password), Picklist, RadioButtons, Checkbox, CheckboxGroup, MultiSelectPicklist. Any other component → skip with reason "component outside autonomous whitelist."
+- Terminal DML: recordCreates, recordUpdates, or recordLookups (specify `<queriedFields>` — never `<storeOutputAutomatically>` in screen flows, per xml-gotchas).
+- Multi-screen: collect all input across screens first (variables), DML after the final input screen. Each screen breaks the transaction boundary.
+- Custom input validation allowed: Boolean formula + custom error message per input.
+- QuickAction wiring (if spec requests it): deploy `QuickAction` (actionType=Flow), retrieve active layout, add under `<quickActionListItems>`, redeploy.
+
+### Autolaunched Flow
+- Template: `autolaunched-flow-template.xml`.
+- No UI, no trigger. Invoked from Apex (`Flow.Interview`), subflow, process, or REST. FlowTest exercises via `<parameters>` block providing input variables.
+
+### Subflow
+- Stored and deployed as an autolaunched flow; the "subflow" distinction is invocation-pattern only.
+- Deploy subflows **before** their parent in the same phase — parent's static reference fails deploy if the subflow is missing.
+- Parent flow exercises the subflow transitively; a dedicated FlowTest on the subflow is still required per the All Flow Types rule.
+- Reusable patterns: `.claude/skills/sf-flow/assets/subflows/` (bulk-updater, dml-rollback, email-alert, error-logger, query-with-retry, record-validator).
+
+### Scheduled Flow (Gated)
+- Template: `scheduled-flow-template.xml`. Built on autolaunched skeleton with a `<schedule>` block in `<start>`.
+- Spec must provide: `<startDate>` (YYYY-MM-DD, ≥ demo date unless recurring), `<startTime>` (HH:MM:SS), `<frequency>` (Once / Daily / Weekly / Monthly / Yearly / Hourly / Weekdays — FlowSchedule subtype, API v66.0+). Pre-flight: if any field missing in spec, skip.
+- Optional object filter: `<object>` + `<filters>` for batch-record runs (max 250K interviews/day).
+- Runs as Default Workflow User. `SCHEDULED_FLOW_DETAIL` debug log event confirms record count per run.
+- FlowTest runs the flow body on-demand; the schedule config is verified via `retrieve_metadata` read-back.
+
+### Platform-Event-Triggered Flow (Gated)
+- Template: `platform-event-flow-template.xml`.
+- `<start><object>` = platform event API name (`CustomEvent__e` or standard — AIPredictionEvent, BatchApexErrorEvent, FlowExecutionErrorEvent, etc.).
+- Pre-flight: confirm the event object exists via `retrieve_metadata`. If the spec deploys a new platform event in the same run, deploy the event before the flow.
+- Event references can't directly populate a record variable — create a flow variable per field the flow uses and map in the caller (per Salesforce docs, Paused Flow Interview Considerations).
+- FlowTest supplies a mock event payload via `<parameters>` blocks, one per referenced event field.
 
 ---
 
