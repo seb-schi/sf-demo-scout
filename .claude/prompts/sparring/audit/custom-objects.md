@@ -6,12 +6,14 @@ Target org: {{ORG_ALIAS}} ({{ORG_USERNAME}})
 Output file: orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/audit-fragment-custom-objects.md
 Progress log agent-id: custom-objects
 
-Active LRP map for this org's default app: {{ACTIVE_LRP_MAP}} — entries whose `object` matches a custom object you classify as demo-relevant get the same composition classification treatment as standard objects:
+Active LRP map for this org's default app: {{ACTIVE_LRP_MAP}} — this is the **custom-object-scoped slice** prepared by the orchestrator. Every entry's `object` ends in `__c`. **Standard-object LRPs (Case, Account, Opportunity, Lead, Contact, Order, ServiceResource, MessagingSession, etc.) are owned by the sibling standard-objects sub-agent — never emit `active_lrps` entries for them, even if a stale or unsliced map happens to include one.** If you see a non-`__c` entry in `{{ACTIVE_LRP_MAP}}`, drop it silently and add a `discovery_notes` entry: `"ACTIVE_LRP_MAP contained non-custom entry [Object] — orchestrator slice may have drifted"`.
+
+For each in-scope (`__c`) entry whose `object` matches a custom object you classify as demo-relevant, apply the same composition classification treatment as the standard-objects sub-agent:
 
 - For `system_default` entries (lrp is null): no FlexiPage retrieve. Record `composition_class: "system_default", gap_risk: false, field_sections: []` and proceed. The classic Page Layout add is the right surface.
-- For all other entries: retrieve the LRP XML and classify by `force:detailPanel` vs `flexipage:fieldSection`, ★🚨 if `gap_risk: true`, enumerate field sections.
+- For all other entries: retrieve the LRP XML and classify by `force:detailPanel` vs `flexipage:fieldSection`, ★🚨 if `gap_risk: true`, enumerate field sections using the same Facet-indirection traversal as standard-objects (see its "Active Lightning Record Page per Object — composition classification" section for the canonical procedure — same XML shape, same column resolution).
 
-Each entry in `active_lrps` carries the full breadcrumb (`record_type`, `resolution_level`, `source`) so the spec author can trace where the assignment came from. The audit fragment formatting matches the standard-objects sub-agent — see its "Active Lightning Record Page per Object" section for the heading shape.
+Each entry in `active_lrps` carries the full breadcrumb (`record_type`, `resolution_level`, `source`) so the spec author can trace where the assignment came from. The audit fragment formatting matches the standard-objects sub-agent.
 
 Add an `active_lrps` array to your JSON output using the schema below.
 
@@ -115,6 +117,7 @@ Write the fragment file, then return EXACTLY one fenced JSON block. No prose out
   ],
   "custom_permset_count": 0,
   "demo_surface_notes": ["string — non-error observations: custom object patterns, industry-specific metadata, permission set coverage, data model signals"],
+  "discovery_notes": ["string — things that worked differently than the prompt assumed; e.g. orchestrator slice drift, unexpected ACTIVE_LRP_MAP shape"],
   "issues": ["string — errors, failures, truncations"]
 }
 ```

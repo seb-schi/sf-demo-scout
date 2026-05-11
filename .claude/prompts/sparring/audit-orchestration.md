@@ -4,7 +4,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 ## Pre-Spawn Setup (orchestrator runs directly)
 
-1. Clean stale fragments: `rm -f orgs/[alias]-[customer]/audit-fragment-*.md`
+1. Clean stale fragments: `rm -f orgs/[alias]-[customer]/audit-fragment-*.md 2>/dev/null || true` — `2>/dev/null || true` keeps zsh's `NO_MATCH` from erroring on an empty glob. Without this, the bundled `clean + init progress log` step fails on an empty `orgs/[alias]-[customer]/` directory and `printf` (step 2) never runs.
 2. Initialize progress log — truncate the file and write a header so the SE-facing link opens to a non-empty file:
    ```
    printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\n\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[alias]-[customer]" > orgs/[alias]-[customer]/.audit-progress.log
@@ -72,6 +72,14 @@ On CustomObject retrieve failure for an individual object: log to `audit-progres
 
    Record: `DEFAULT_APP` = `CANDIDATE_APP`, `DEFAULT_APP_DEVELOPER_NAME` = `CANDIDATE_APP_DEVELOPER_NAME`, `DEFAULT_APP_TABS` = list of tab API names, `ACTIVE_LRP_MAP` = the resolved JSON array above (or `[]` if all of 6 / 6a / 6b failed and there's nothing to resolve from).
 
+  Then **slice `ACTIVE_LRP_MAP` into two per-sub-agent views** so each Sonnet only sees entries it owns:
+  - `ACTIVE_LRP_MAP_STANDARD` = entries where `object` does NOT end in `__c` (standard objects — Account, Contact, Opportunity, Case, Lead, Order, MessagingSession, ServiceResource, etc.). Goes to the standard-objects sub-agent.
+  - `ACTIVE_LRP_MAP_CUSTOM` = entries where `object` ends in `__c` (unmanaged custom objects). Goes to the custom-objects sub-agent.
+
+  Managed-package objects (namespace prefix in the `object` field, e.g. `lsc4ce__SomeObject__c`) are excluded from both — Scout does not classify managed-package LRPs.
+
+  This is the structural defense against schema drift: the Sivantos run produced a degraded `field_sections` payload on Case from the custom-objects sub-agent because it received Case in its `{{ACTIVE_LRP_MAP}}` and tried to classify a standard object outside its lane. Slicing at the orchestrator means each sub-agent only ever sees its own scope — drift becomes structurally impossible, not just discouraged.
+
 ## Sub-Agent Dispatch
 
 Read these 3 prompt templates:
@@ -81,9 +89,12 @@ Read these 3 prompt templates:
 
 Read `.claude/prompts/sparring/audit/shared.md` once — its content fills `{{AUDIT_SHARED_RULES}}` in all 3 sub-agent prompts.
 
-Fill placeholders in each: `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`, `{{ACTIVE_LRP_MAP}}` (only the standard-objects and custom-objects sub-agents use this — apps-flows-agents may receive empty), `{{AUDIT_SHARED_RULES}}`.
+Fill placeholders in each: `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`, `{{AUDIT_SHARED_RULES}}`. The two LRP-aware sub-agents get a sliced view of the map:
+  - standard-objects: `{{ACTIVE_LRP_MAP}}` ← `ACTIVE_LRP_MAP_STANDARD`
+  - custom-objects: `{{ACTIVE_LRP_MAP}}` ← `ACTIVE_LRP_MAP_CUSTOM`
+  - apps-flows-agents: receives no LRP map (placeholder is irrelevant; pass empty `[]` if the template expects something).
 
-Note: `{{ACTIVE_LRP_MAP}}` is the *resolved* map after applying steps 6 / 6a / 6b / 6c. Each entry now carries `record_type`, `resolution_level`, and `source`. The sub-agent treats each entry as an independent LRP retrieval target — multiple record types on the same object mean multiple retrievals.
+Note: each entry in the sliced map carries `record_type`, `resolution_level`, and `source`. The sub-agent treats each entry as an independent LRP retrieval target — multiple record types on the same object mean multiple retrievals.
 
 Spawn all 3 in parallel:
 - `Agent(description="Org audit: standard objects", model="sonnet", prompt=[standard objects prompt])`

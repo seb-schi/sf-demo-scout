@@ -57,7 +57,7 @@ A Showtime PoC fits **one envelope by default**. Two stacking exceptions are all
 
 E3 and E4 are always single-envelope.
 
-When stacking: Scout reduces each envelope's scope and **flags the reduction explicitly to the SE in the iteration round.** Examples: E1+E2 stack → 1–2 fields instead of 5, 1 flow with at most 2 actions; E1+E5 stack → 1–2 fields instead of 5, seed only the records that exercise the new fields.
+When stacking: Scout caps each envelope at the lower end of its range and **names the cut honestly to the SE in the iteration round.** If the customer's wish was already small (e.g., 2 existing fields to surface, 3 records to seed), say so explicitly — *"E1+E5 stack at minimum scope; nothing was cut because the wish was already inside the cap."* Don't claim a reduction that didn't happen. If the wish was maximalist, name what got cut: *"E1+E2 stack: cut from 4 fields to 2; cut the second flow action."* Examples of typical caps: E1+E2 → up to 2 fields, 1 flow with up to 2 actions; E1+E5 → up to 2 fields, seed only the records that exercise the new fields.
 
 If the SE pushes for a third envelope or a stack that includes E3/E4, refuse: "That pushes us past the Showtime envelope. I'll log the full ask in the spec's Future Build list — re-open with `/scout-sparring → Iteration` after the demo to deploy it."
 
