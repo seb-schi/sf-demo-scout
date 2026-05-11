@@ -6,6 +6,15 @@ Target org: {{ORG_ALIAS}} ({{ORG_USERNAME}})
 Output file: orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/audit-fragment-custom-objects.md
 Progress log agent-id: custom-objects
 
+Active LRP map for this org's default app: {{ACTIVE_LRP_MAP}} — entries whose `object` matches a custom object you classify as demo-relevant get the same composition classification treatment as standard objects:
+
+- For `system_default` entries (lrp is null): no FlexiPage retrieve. Record `composition_class: "system_default", gap_risk: false, field_sections: []` and proceed. The classic Page Layout add is the right surface.
+- For all other entries: retrieve the LRP XML and classify by `force:detailPanel` vs `flexipage:fieldSection`, ★🚨 if `gap_risk: true`, enumerate field sections.
+
+Each entry in `active_lrps` carries the full breadcrumb (`record_type`, `resolution_level`, `source`) so the spec author can trace where the assignment came from. The audit fragment formatting matches the standard-objects sub-agent — see its "Active Lightning Record Page per Object" section for the heading shape.
+
+Add an `active_lrps` array to your JSON output using the schema below.
+
 ## Tools
 - `retrieve_metadata` — for layout XML retrieval
 - `run_soql_query` — for record counts, ProfileLayout queries, EntityDefinition, Tooling API SOQL
@@ -79,6 +88,30 @@ Write the fragment file, then return EXACTLY one fenced JSON block. No prose out
   "relevant_custom_objects": ["string — API names of ★-flagged custom objects"],
   "active_layouts": [
     {"object": "string", "record_type": "string|null", "layout_name": "string"}
+  ],
+  "active_lrps": [
+    {
+      "object": "string",
+      "record_type": "string|null",
+      "lrp_developer_name": "string|null",
+      "resolution_level": "profile_recordtype|app_recordtype|app_default|org_default|system_default",
+      "source": "string|null",
+      "composition_class": "record_detail|field_section|mixed|custom|unretrievable|system_default",
+      "gap_risk": false,
+      "field_sections": [
+        {
+          "label": "string",
+          "section_facet_uuid": "string|null",
+          "columns": [
+            {
+              "column_index": 1,
+              "facet_uuid": "string — Facet UUID of the leaf field-bearing region; deploy targets this",
+              "fields": ["string — field API name (Record. prefix stripped)"]
+            }
+          ]
+        }
+      ]
+    }
   ],
   "custom_permset_count": 0,
   "demo_surface_notes": ["string — non-error observations: custom object patterns, industry-specific metadata, permission set coverage, data model signals"],

@@ -13,7 +13,7 @@ description: >
 # Deployment Rules — Canonical Reference
 
 One home per category:
-- **Phase 1** (Queues, Picklists, Page Layouts, Business Processes, Paths) — rules live inlined under IF markers in `.claude/prompts/building/phase1.md`. This skill file does NOT duplicate them. If a Phase 1 sub-agent needs a rule, it reads its own prompt.
+- **Phase 1** (Queues, Picklists, Page Layouts, Lightning Record Page field sections, Business Processes, Paths) — rules live inlined under IF markers in `.claude/prompts/building/phase1.md`. This skill file does NOT duplicate them. If a Phase 1 sub-agent needs a rule, it reads its own prompt.
 - **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `sf-apex`, `sf-lwc`, `developing-agentforce`). This skill file carries the rollback commands, two-attempt meta-rule, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline.
 - **Cross-phase** — Script Deliverable Rules (below) apply to any sub-agent producing a reusable shell / language script, regardless of phase.
 
@@ -53,6 +53,26 @@ Applies whenever a sub-agent produces a reusable shell or language script as par
 - Assume `python3` and `jq` available (both in standard SE install). `sf` CLI and MCP available in-session only — the SE re-run path uses `sf` CLI.
 
 ---
+
+## Lightning Record Page Field Section — restrictions & rollback (Phase 1)
+
+Full procedure lives under `<!-- IF:LRP -->` in `.claude/prompts/building/phase1.md`. This summary is for orchestrator-level decisions and rollback.
+
+**Autonomous scope:**
+- Append fields into the field-bearing leaf Facet of an existing `flexipage:fieldSection` whose label matches the spec verbatim. Single-column sections: deploy targets the section-body Facet directly. Multi-column sections: spec names a Target column (1-indexed), deploy follows the section-body Facet → flexipage:column componentInstance → column-body Facet, appends there.
+- LRP composition must be `field_section` or `mixed` per audit. Re-verified at deploy time via pre-flight grep on retrieved XML.
+- Audit's `field_sections[].columns[]` must carry a non-null `facet_uuid` for the targeted column — opaque sections route to SE Manual.
+
+**Out of scope (skip — SE Manual):**
+- Adding new field sections, reordering, moving fields between sections / columns, tabset/component edits, dynamic-form regions.
+- LRPs classified `record_detail` (use classic Page Layout instead), `custom`, or `unretrievable`.
+- Multi-column sections where the spec did not name a Target column.
+- Sections where audit reported `facet_uuid: null` (opaque column structure).
+
+**Rollback:**
+- The pre-edit FlexiPage XML is captured by the deploy-time retrieve (saved as `.preedit` sidecar). Restore the pre-edit XML and redeploy:
+  `sf project deploy start --metadata FlexiPage:[Name] --target-org [alias]`
+- There is no `sf project delete source --metadata FlexiPage:[Name]` rollback path because deletion would remove the page entirely (catastrophic for a live demo surface). Always restore-and-redeploy.
 
 ## Flow Rules (Phase 2)
 

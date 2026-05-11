@@ -23,7 +23,8 @@ Three MCP servers are configured in `.mcp.json` (Salesforce DX + Salesforce Docs
 - Queues with object routing
 - Business Processes (stage / status subsets for Opportunity, Lead, Case, Solution — one `BusinessProcess` Metadata API type covers all four)
 - Paths (PathAssistant — active flag, driving picklist, key fields + guidance per step)
-- Page layout field additions (active layout only — query ProfileLayout first)
+- Page layout field additions (active classic Page Layout — query ProfileLayout first)
+- Lightning Record Page field additions to existing `flexipage:fieldSection` components (gated: SE confirms target FlexiPage + section name; only when audit classifies the LRP composition as `field_section`. `record_detail` LRPs inherit classic Page Layout — no separate LRP step needed. `mixed` / `custom` / `unretrievable` route to SE Manual.)
 - Data seeding — single object always; cross-object (junctions, FK chains) when backed by an idempotent script with `--pilot-only` self-test per `demo-deployment-rules` §Script Deliverable Rules
 - Picklist value additions to existing fields
 
@@ -43,7 +44,9 @@ Three MCP servers are configured in `.mcp.json` (Salesforce DX + Salesforce Docs
 - Orchestration flows (parent-child, sequential, conditional — multi-day lifecycles with assignees, not demo-day-viable as autonomous)
 - Complex Apex/LWC
 - Multi-agent orchestration, channel assignment, production-scale agent testing
-- Page layout visual arrangement (field positioning, sections in App Builder)
+- Classic Page Layout visual arrangement (field positioning, sections in App Builder / Page Layout editor)
+- Lightning Record Page authoring beyond field-into-existing-fieldSection (creating new field sections, repositioning sections, adding LWC/standard components, changing tabsets, dynamic-form regions — App Builder)
+- Lightning Record Page field-add when composition is `mixed`, `custom`, or `unretrievable` (drop into App Builder for visual confirmation)
 - Reports, dashboards, OmniStudio
 - Screen-flow visual QA (one-time walkthrough in a record page after Scout deploys)
 
@@ -52,7 +55,7 @@ Three MCP servers are configured in `.mcp.json` (Salesforce DX + Salesforce Docs
 - Modify existing profiles or permission sets
 - Touch anything prefixed `sb_` or `managed__`
 
-**Deployment rules** for Flows, Apex, LWC, Agentforce, and Page Layouts live in `.claude/skills/demo-deployment-rules/SKILL.md` — phase sub-agents load it on-demand.
+**Deployment rules** for Flows, Apex, LWC, Agentforce, Page Layouts, and Lightning Record Pages live in `.claude/skills/demo-deployment-rules/SKILL.md` — phase sub-agents load it on-demand.
 
 ## Working Pattern
 1. Announce before every tool call or parallel batch — one line, what and why.

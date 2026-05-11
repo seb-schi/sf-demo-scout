@@ -134,6 +134,122 @@ Before modifying any page layout, identify which layout is actually active.
 4. If multiple record types are in scope, run the query per record type.
 <!-- /IF:LAYOUTS -->
 
+<!-- IF:LRP -->
+### Lightning Record Page — Field Section Add Rules
+Scope: appending existing fields into the field-bearing leaf Facet of a `flexipage:fieldSection` on the active LRP. The spec names the FlexiPage DeveloperName, the target field section label (verbatim from audit), the target column index (REQUIRED — disambiguates multi-column sections), and the fields to add. The audit fragment carries `field_sections` with full `columns` enumeration; building reads from that, not by inferring from raw XML.
+
+Reference XML model (from a real Service Console Case LRP — `Case_Record_Page_Zeiss`):
+```xml
+<!-- The fieldSection componentInstance points to a Facet via columns -->
+<componentInstance>
+    <componentInstanceProperties>
+        <name>columns</name>
+        <value>Facet-ad131d00-f997-4d13-99f8-fb498cca1019</value>
+    </componentInstanceProperties>
+    <componentInstanceProperties>
+        <name>label</name>
+        <value>@@@SFDCCase_InformationSFDC@@@</value>
+    </componentInstanceProperties>
+    <componentName>flexipage:fieldSection</componentName>
+    <identifier>flexipage_fieldSection</identifier>
+</componentInstance>
+
+<!-- The referenced Facet (separate flexiPageRegions block) — for a 2-column section, contains flexipage:column componentInstances -->
+<flexiPageRegions>
+    <itemInstances>
+        <componentInstance>
+            <componentInstanceProperties>
+                <name>body</name>
+                <value>Facet-c39b5879-c961-4397-94a8-4ea7ca1ec981</value>
+            </componentInstanceProperties>
+            <componentName>flexipage:column</componentName>
+            <identifier>flexipage_column</identifier>
+        </componentInstance>
+    </itemInstances>
+    <itemInstances>
+        <componentInstance>
+            <componentInstanceProperties>
+                <name>body</name>
+                <value>Facet-9b04131d-300c-47be-a129-ae98525570e3</value>
+            </componentInstanceProperties>
+            <componentName>flexipage:column</componentName>
+            <identifier>flexipage_column2</identifier>
+        </componentInstance>
+    </itemInstances>
+    <name>Facet-ad131d00-f997-4d13-99f8-fb498cca1019</name>
+    <type>Facet</type>
+</flexiPageRegions>
+
+<!-- A column body Facet — contains the actual fieldInstance entries. THIS is the deploy target. -->
+<flexiPageRegions>
+    <itemInstances>
+        <fieldInstance>
+            <fieldInstanceProperties>
+                <name>uiBehavior</name>
+                <value>readonly</value>
+            </fieldInstanceProperties>
+            <fieldItem>Record.AccountId</fieldItem>
+            <identifier>RecordAccountIdField</identifier>
+        </fieldInstance>
+    </itemInstances>
+    <itemInstances>
+        <fieldInstance>
+            <fieldInstanceProperties>
+                <name>uiBehavior</name>
+                <value>none</value>
+            </fieldInstanceProperties>
+            <fieldItem>Record.Adverse_Event__c</fieldItem>
+            <identifier>RecordAdverse_Event__cField</identifier>
+        </fieldInstance>
+    </itemInstances>
+    <name>Facet-c39b5879-c961-4397-94a8-4ea7ca1ec981</name>
+    <type>Facet</type>
+</flexiPageRegions>
+```
+
+For a single-column section, the `<flexipage:fieldSection>.columns` Facet contains `<fieldInstance>` entries directly — no intermediate `<flexipage:column>` indirection. Identical insert shape, one fewer hop.
+
+1. **Retrieve the FlexiPage XML.** `retrieve_metadata` with type `FlexiPage`, member `[LRP DeveloperName from spec]`. The retrieved file lands at `force-app/main/default/flexipages/[Name].flexipage-meta.xml`. Save a verbatim copy of the pre-edit XML in session memory (or a sibling `.flexipage-meta.xml.preedit` file) — that is your rollback artifact.
+2. **Pre-flight composition check.** Grep the retrieved XML for `<componentName>flexipage:fieldSection</componentName>` and `<componentName>force:detailPanel</componentName>`. The XML must contain at least one `flexipage:fieldSection`. If it contains only `force:detailPanel` (composition flipped to `record_detail` since audit), SKIP this LRP step with reason "LRP composition is `record_detail` post-audit — classic Page Layout add already covers visibility, no LRP edit needed." Audit data is at most a few hours old; flipped composition is rare but possible. Record in `discovery_notes`.
+3. **Resolve the deploy-target Facet UUID** from the spec + retrieved XML:
+   a. Find the `<componentInstance>` whose `<componentName>` is `flexipage:fieldSection` AND whose `<componentInstanceProperties><name>label</name><value>[label]</value>` matches the spec's target section label exactly. The label may be wrapped in `@@@SFDC...SFDC@@@` placeholders — match the wrapped form from the FlexiPage, but compare against the spec by stripping the wrappers (e.g. `@@@SFDCCase_InformationSFDC@@@` → spec target "Case Information"). If no match: SKIP with reason "Target field section `[label]` not found in FlexiPage `[Name]` — audit-specified section may have been renamed or removed. Drop into App Builder." Two-attempt rule does NOT apply.
+   b. Read the section's `columns` Facet UUID — capture it as `SECTION_FACET`.
+   c. Find the sibling `<flexiPageRegions>` block where `<name>SECTION_FACET</name>` and `<type>Facet</type>`. Inspect its contents:
+      - **Single-column case:** the block contains `<itemInstances><fieldInstance>...</fieldInstance></itemInstances>` siblings directly. The deploy-target Facet is `SECTION_FACET` itself. The spec's `Target column: 1` is the only valid value here; reject the deploy if the spec specifies any other column index ("Spec specified column N but section is single-column").
+      - **Multi-column case:** the block contains `<itemInstances><componentInstance><componentName>flexipage:column</componentName>...</componentInstance></itemInstances>` siblings. Each column componentInstance carries `<componentInstanceProperties><name>body</name><value>Facet-XXX</value></componentInstanceProperties>`. Take the spec's `Target column` (1-indexed) and select the Nth column componentInstance in document order; capture its body Facet UUID as `COLUMN_FACET`. The deploy-target Facet is `COLUMN_FACET`. If the spec's column index exceeds the count of columns found, reject the deploy with reason "Spec specified column [N] but section has only [M] columns".
+      - **Opaque case:** any other shape (custom column components, dynamic-form regions, empty Facet) — SKIP with reason "Section column structure is opaque — route to App Builder. Audit should have flagged this; if not, file a follow-up."
+4. **Build each `<itemInstances>` block to insert.** For each field API name in the spec:
+   ```xml
+   <itemInstances>
+       <fieldInstance>
+           <fieldInstanceProperties>
+               <name>uiBehavior</name>
+               <value>none</value>
+           </fieldInstanceProperties>
+           <fieldItem>Record.YOUR_FIELD_API__c</fieldItem>
+           <identifier>RecordYOUR_FIELD_API_cField</identifier>
+       </fieldInstance>
+   </itemInstances>
+   ```
+   - `<fieldItem>` is `Record.` followed by the field API name verbatim (including the `__c` suffix for custom fields).
+   - `<identifier>` follows the org's existing convention: `Record` + the API name with `__c` flattened to `_c` + `Field`. If the FlexiPage already contains an entry for the same field on a different region (rare but possible), append a numeric suffix (`Field2`, `Field3`) to keep identifiers unique. Scan the entire retrieved XML for existing `<identifier>Record[ApiName flattened]_cField</identifier>` entries; if present, increment.
+   - `uiBehavior` defaults to `none`. If the spec wants the field read-only, the spec must say so (`uiBehavior: readonly`); otherwise default `none`.
+5. **Insert each block at the end of the deploy-target Facet's `<flexiPageRegions>`.** The insert position is immediately before the closing `<name>FACET_UUID</name><type>Facet</type></flexiPageRegions>` of the resolved deploy-target Facet (`SECTION_FACET` for single-column, `COLUMN_FACET` for multi-column). Do NOT modify other Facets, do NOT touch the section componentInstance itself, do NOT change order of existing items.
+6. **Idempotency.** Before inserting, scan the deploy-target Facet's `<flexiPageRegions>` block for an existing `<fieldItem>Record.[FieldApiName]</fieldItem>` — if present, skip the insertion and record in `discovery_notes`: `"Field [X] already present in section [label] column [N] — skipped insert"`. This makes a re-run safe.
+7. **Deploy.** `deploy_metadata` for the modified FlexiPage. Two-attempt rule applies. Common failure: identifier collision (the chosen `<identifier>` is already used elsewhere in the page) — bump the numeric suffix and retry once before SKIP.
+8. **Post-deploy verification (mechanical).** Re-retrieve the FlexiPage. For each spec'd field, grep for `<fieldItem>Record.[FieldApiName]</fieldItem>` AND for it appearing inside the deploy-target Facet's `<flexiPageRegions>` block (verify by line-number proximity to the Facet's `<name>FACET_UUID</name>` closer — the new fieldItem must be inside that block, not just somewhere in the file). All targeted fields must be present in the right place. If any is missing OR present in the wrong Facet, mark the deploy as FAILED in your JSON output with the per-field result.
+9. **Out of scope — skip with reason "out of scope for autonomous LRP deploy — SE Manual Checklist":**
+   - Adding a new field section
+   - Reordering fields within a column
+   - Moving a field between sections / columns
+   - Multi-column sections where the spec did not name a Target column
+   - Sections where the audit reported `facet_uuid: null` (opaque structure)
+   - Editing tabsets, dynamic-form regions, or any non-field-section / non-column component
+   - Any LRP whose pre-flight check finds zero `flexipage:fieldSection` instances
+10. **Rollback** (record in `rollback_commands`): restore the pre-edit XML from step 1's saved copy and redeploy:
+   `sf project deploy start --metadata FlexiPage:[Name] --target-org [alias]` after restoring the pre-edit XML.
+<!-- /IF:LRP -->
+
 <!-- IF:PERMSET -->
 ## Companion Permission Set — MANDATORY
 Follow CLAUDE.md §Companion Permission Set for the canonical rules (object CRUD, FLS, RecordTypeVisibility, TabVisibility, AppVisibility, MCP assignment). Phase-specific reminder: **EXCLUDE Required fields from FLS — the API rejects FLS on required fields.**
@@ -149,7 +265,7 @@ When done, return EXACTLY one fenced JSON block matching this schema. Do not inc
 {
   "phase": 1,
   "deployed": [
-    {"type": "CustomObject|CustomField|RecordType|Layout|CustomTab|CustomApplication|Queue|BusinessProcess|PathAssistant", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null}
+    {"type": "CustomObject|CustomField|RecordType|Layout|FlexiPage|CustomTab|CustomApplication|Queue|BusinessProcess|PathAssistant", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null, "lrp_section_target": "string|null — for FlexiPage type only: the field section label the deploy targeted; null otherwise"}
   ],
   "skipped": [
     {"type": "string", "api_name": "string", "reason": "string"}

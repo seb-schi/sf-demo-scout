@@ -31,9 +31,46 @@ Execute this procedure to run a fresh 3-agent parallel audit.
      On a match: replace `CANDIDATE_APP` / `CANDIDATE_APP_DEVELOPER_NAME` with the result and recompute `CANDIDATE_APP_FULL_NAME` (same rule as step 4: `[NamespacePrefix]__[DeveloperName]` if namespaced, else `[DeveloperName]`).
    - If the SE replies `skip`: set `DEFAULT_APP` to "UNKNOWN" and `DEFAULT_APP_TABS` to the 6 core objects only. Skip step 6.
 
-6. Retrieve the confirmed app's tabs: `retrieve_metadata` with type `CustomApplication`, member `[CANDIDATE_APP_FULL_NAME]`. Extract `<tabs>` elements.
-   Record: `DEFAULT_APP` = `CANDIDATE_APP`, `DEFAULT_APP_DEVELOPER_NAME` = `CANDIDATE_APP_DEVELOPER_NAME`, `DEFAULT_APP_TABS` = list of tab API names.
-   **On retrieve failure, short-circuit to core-6 immediately.** Set `DEFAULT_APP_TABS` to the 6 core objects only and continue. Do NOT attempt AppTabDefinition, AppMenuItem, or other Tooling API fallbacks — they are unreliable for custom/managed apps and waste orchestrator budget. The SE already confirmed the app name and step 4 computed the namespaced full name; a retrieve failure at this point is a genuine access boundary (unpackaged managed content, org-specific permission) and core-6 is the correct answer.
+6. Retrieve the confirmed app's tabs AND its action overrides: `retrieve_metadata` with type `CustomApplication`, member `[CANDIDATE_APP_FULL_NAME]`. From the retrieved XML extract two things in one parse:
+   - `<tabs>` elements → `DEFAULT_APP_TABS` (list of tab API names).
+   - `<actionOverrides>` elements where `<actionName>View</actionName>` AND `<type>Flexipage</type>` AND `<formFactor>Large</formFactor>` → for each, capture `<pageOrSobjectType>` (the object), `<content>` (the LRP DeveloperName), and `<recordType>` if present (e.g. `Account.VIP`; null if absent). Hold these as `APP_OVERRIDES` (working set, not yet `ACTIVE_LRP_MAP`).
+
+   **On CustomApplication retrieve failure, short-circuit to core-6 immediately.** Set `DEFAULT_APP_TABS` to the 6 core objects only, set `APP_OVERRIDES` to `[]`, and skip steps 6a / 6b. Do NOT attempt AppTabDefinition, AppMenuItem, or other Tooling API fallbacks — they are unreliable for custom/managed apps and waste orchestrator budget. The SE already confirmed the app name and step 4 computed the namespaced full name; a retrieve failure at this point is a genuine access boundary (unpackaged managed content, org-specific permission) and core-6 is the correct answer.
+
+6a. **Retrieve the org-default LRP overrides on standard objects (level 4).** `retrieve_metadata` with type `CustomObject`, members = `[Account, Contact, Opportunity, Case, Lead, Order]` plus any non-universal standard object that appears in `DEFAULT_APP_TABS`. From each retrieved object XML, parse `<actionOverrides>` elements where `<actionName>View</actionName>` AND `<type>Flexipage</type>` AND `<formFactor>Large</formFactor>` → capture `<content>` (LRP DeveloperName) and `<recordType>` (if present). Hold as `OBJECT_OVERRIDES` keyed by object.
+
+On CustomObject retrieve failure for an individual object: log to `audit-progress.log` (`⚠️ CustomObject:[Object] retrieve failed — org-default LRP undetected`), set that object's `OBJECT_OVERRIDES` entry to empty, continue. A failure here means level-4 detection is degraded for that object only; levels 1–3 still apply.
+
+6b. **Retrieve the running user's profile (levels 1–2 contribution depends on this).** Get the Profile DeveloperName from a SOQL query:
+   ```
+   SELECT Profile.Name FROM User WHERE Id = '[CURRENT_USER_ID]' LIMIT 1
+   ```
+   Profile metadata API name is the DeveloperName of the profile, not the Label — for stock profiles, `System Administrator` retrieves as `Admin`, `Standard User` as `Standard`, etc. If the SOQL returns `Profile.Name` matching one of the system labels, map it: `System Administrator → Admin`, `Standard User → Standard`, `Read Only → ReadOnly`, `Marketing User → MarketingProfile`, `Contract Manager → ContractManager`, `Solution Manager → SolutionManager`, `Standard Platform User → StandardAul`. For all other (custom) profiles, the Profile.Name is already the metadata API name — use it directly.
+
+   Then `retrieve_metadata` with type `Profile`, member `[mapped DeveloperName]`. From the retrieved XML, parse `<profileActionOverrides>` where `<actionName>View</actionName>` AND `<type>Flexipage</type>` AND `<formFactor>Large</formFactor>` → capture `<content>` (LRP), `<pageOrSobjectType>` (object), `<recordType>` (e.g. `Case.SDO_Service_Case`). Hold as `PROFILE_OVERRIDES`.
+
+   **Profile XML can overflow the MCP buffer on SDO-scale orgs** (every FLS row + layoutAssignment + objectPermission is in there). If the retrieve writes to an overflow temp file, parse it via `python3` / `jq` per `audit/shared.md` Overflow File Handling rules — extract only `<profileActionOverrides>` blocks, ignore the rest. If the retrieve fails outright (error, not overflow), log to `audit-progress.log` (`⚠️ Profile:[Name] retrieve failed — profile-scoped LRP detection degraded`), set `PROFILE_OVERRIDES` to `[]`, continue. A failure here means level-1 detection is degraded; levels 2–4 still apply.
+
+6c. **Build `ACTIVE_LRP_MAP` by applying resolution order, per object.** For each object in scope (`DEFAULT_APP_TABS` ∪ core-6), the active LRP is determined by the most-specific override present:
+
+   1. **Profile override with `<recordType>`** matching the object — level 1 hit. Use `PROFILE_OVERRIDES` entry. Multiple record types yield multiple `ACTIVE_LRP_MAP` entries for the same object (one per record type).
+   2. **App override with `<recordType>`** matching the object — level 2 hit. Use `APP_OVERRIDES` entry where `recordType` is non-null and matches the object. Same multi-RT handling.
+   3. **App override without `<recordType>`** — level 3 hit. Use `APP_OVERRIDES` entry where `recordType` is null.
+   4. **Object org-default override** — level 4 hit. Use `OBJECT_OVERRIDES` entry. Same multi-RT handling.
+   5. **No override anywhere** — system-default record page applies (`record_detail`-equivalent — inherits classic Page Layout). Emit an `ACTIVE_LRP_MAP` entry with `lrp: null, resolution_level: "system_default"` so the audit sub-agent doesn't bother retrieving anything but the spec author sees the surface is unconfigured.
+
+   Output shape for `ACTIVE_LRP_MAP`:
+   ```json
+   [
+     {"object": "Case", "record_type": null, "lrp": "Case_Record_Page_Zeiss", "resolution_level": "app_default", "source": "CustomApplication:SDO_Service_Console"},
+     {"object": "Account", "record_type": "VIP", "lrp": "VIP_Account_Page", "resolution_level": "profile_recordtype", "source": "Profile:Admin"},
+     {"object": "Lead", "record_type": null, "lrp": null, "resolution_level": "system_default", "source": null}
+   ]
+   ```
+
+   `resolution_level` values: `profile_recordtype` (level 1), `app_recordtype` (level 2), `app_default` (level 3), `org_default` (level 4), `system_default` (no override). This is the breadcrumb the SE needs when an audit assignment looks wrong — they can trace which surface set the page.
+
+   Record: `DEFAULT_APP` = `CANDIDATE_APP`, `DEFAULT_APP_DEVELOPER_NAME` = `CANDIDATE_APP_DEVELOPER_NAME`, `DEFAULT_APP_TABS` = list of tab API names, `ACTIVE_LRP_MAP` = the resolved JSON array above (or `[]` if all of 6 / 6a / 6b failed and there's nothing to resolve from).
 
 ## Sub-Agent Dispatch
 
@@ -44,7 +81,9 @@ Read these 3 prompt templates:
 
 Read `.claude/prompts/sparring/audit/shared.md` once — its content fills `{{AUDIT_SHARED_RULES}}` in all 3 sub-agent prompts.
 
-Fill placeholders in each: `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`, `{{AUDIT_SHARED_RULES}}`.
+Fill placeholders in each: `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`, `{{ACTIVE_LRP_MAP}}` (only the standard-objects and custom-objects sub-agents use this — apps-flows-agents may receive empty), `{{AUDIT_SHARED_RULES}}`.
+
+Note: `{{ACTIVE_LRP_MAP}}` is the *resolved* map after applying steps 6 / 6a / 6b / 6c. Each entry now carries `record_type`, `resolution_level`, and `source`. The sub-agent treats each entry as an independent LRP retrieval target — multiple record types on the same object mean multiple retrievals.
 
 Spawn all 3 in parallel:
 - `Agent(description="Org audit: standard objects", model="sonnet", prompt=[standard objects prompt])`
@@ -84,7 +123,9 @@ Default app is not spot-checked here — the orchestrator resolved it authoritat
 Merge the 3 JSON summaries + spot-check corrections into one consolidated summary:
 - `default_app`: from orchestrator pre-spawn (ground truth)
 - `default_app_tabs`: from orchestrator pre-spawn (ground truth)
-- `active_layouts`: union of standard objects + custom objects sub-agent arrays
+- `active_lrp_map`: from orchestrator pre-spawn (ground truth — same `ACTIVE_LRP_MAP` injected into sub-agents)
+- `active_layouts`: union of standard objects + custom objects sub-agent arrays (classic Page Layouts)
+- `active_lrps`: union of standard objects + custom objects sub-agent `active_lrps` arrays — each entry carries `{object, lrp_developer_name, composition_class, gap_risk, field_sections}`. `composition_class` ∈ {`record_detail` (uses `force:detailPanel`, layout-pass-through, safe), `field_section` (uses `flexipage:fieldSection`, custom-composed, layout adds invisible), `mixed` (both), `custom` (neither — pure LWC or dynamic-form regions), `unretrievable` (LRP retrieve failed)}. `gap_risk` is `false` for `record_detail`, `true` for `field_section` / `mixed` / `custom` / `unretrievable`.
 - `relevant_custom_objects`: from custom objects sub-agent
 - `agents_found`: from apps/flows/agents sub-agent (corrected by spot-check if needed)
 - `active_flow_count`: from spot-check (ground truth)

@@ -111,14 +111,27 @@ One `BusinessProcess` Metadata API type covers Sales / Lead / Support / Solution
 - **Calibration directives (when seed values depend on live org data):** if a seed value must be computed against live aggregates (e.g. "quota set to 70-80% of running user's open pipeline" so the "at risk" narrative reads), write it as a `Calibration:` line under the relevant seed bullet. Format: `Calibration: <target ratio/range in plain English> — reference query: <one-line SOQL>`. Phase 1 runs the query, computes the seed value, and auto-applies — overriding any literal number in this section. The calibration and the computed value land in the change log. If the reference query errors or returns no data, Phase 1 falls back to the literal and records the fallback in `issues`.
 
 ### Page Layouts (Classic — field additions only)
-Scope: adding fields to a classic Page Layout that's still the active layout for the object/RecordType. Field positioning within the layout is SE Manual (App Builder / Page Layout editor); Scout deploys the field-presence change only.
-- [Object] — [RecordType] — Active layout: [layout name from audit ★]
+Scope: adding fields to a classic Page Layout. **Use this section ONLY when the audit's active LRP for the object is `composition_class: record_detail`** (the LRP uses `force:detailPanel`, so classic Page Layout adds pass through automatically). For `field_section` / `mixed` / `custom` / `unretrievable` LRPs, use one of the LRP sections below — touching just the classic layout will not change what the demo audience sees.
+- [Object] — [RecordType] — Active layout: [classic layout name from audit ★]
 - Fields to add: [list]
+- LRP composition (from audit): record_detail — confirms layout pass-through is the visual surface
 - ⚠️ Visual arrangement: SE Manual Checklist
 
-### Lightning Record Pages (SE Manual — App Builder)
-Scout cannot deploy component placement on Lightning record pages; this section is reference for your App Builder work — list components the SE should add, with the page they belong on. Scout deploys the underlying metadata (LWC bundles, Path component metadata, QuickActions); the SE drags and drops in App Builder.
-- [Object] — [Page name] — Components to add: [list]
+### Lightning Record Page — Field Section additions (Autonomous, Gated)
+Scope: appending existing fields into the field-bearing leaf Facet of an existing `flexipage:fieldSection` on the active LRP. Use this section when the audit's active LRP for the object is `composition_class: field_section` or `mixed` AND the spec names exactly which field section + column receives the field. Scout edits the FlexiPage XML, deploys, and verifies via post-deploy retrieve grep.
+- [Object] — Active LRP: [LRP DeveloperName from audit ★🚨]
+- LRP composition (from audit): [field_section | mixed]
+- Target field section: [exact section label from audit's enumerated field_sections list — must match audit verbatim]
+- Target column: [`1` for single-column sections (audit reports one column entry); `1` / `2` / `N` for multi-column sections — column_index from audit. REQUIRED — Scout cannot guess column placement when there are multiple columns]
+- Fields to add: [list of field API names]
+- Section position: append (Scout adds new fields at the end of the named column's leaf Facet; in-section reordering is SE Manual)
+- ⚠️ Repositioning fields within the column, creating new sections / columns, or moving fields between sections / columns is SE Manual
+- ⚠️ If the audit's `columns` array for the named section contains a column with `facet_uuid: null` (opaque structure), this section is NOT eligible for autonomous deploy — route to the LRP SE Manual section below.
+
+### Lightning Record Page — SE Manual (App Builder)
+Scope: anything beyond appending into an existing field section. Use when audit reports `composition_class: mixed` AND the field belongs in something other than a field section, OR `custom` / `unretrievable`, OR the spec needs new sections, repositioning, components, tabset edits, or dynamic-form regions. Scout deploys the underlying metadata (LWC bundles, Path components, QuickActions); the SE drags and drops in App Builder.
+- [Object] — [LRP name] — Composition: [field_section | mixed | custom | unretrievable] — Why SE Manual: [section creation / reposition / new component / dynamic-form region / unretrievable composition]
+- Components / fields to add: [list]
 
 ### Lightning App / Tabs
 - Existing app: [name] — modifications: [list]

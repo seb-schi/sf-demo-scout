@@ -22,13 +22,17 @@ Showtime always runs a fresh audit. A stale audit risks customer-facing deploy f
 
 Read `.claude/prompts/sparring/audit-orchestration.md` and execute. Opus never reads raw metadata payloads.
 
-After the audit completes, extract star-flagged items (default app, active layouts, relevant custom objects) and proceed to S2.
+**Do NOT prompt for the transcript while the audit is still running.** Two simultaneous asks (audit running + transcript wanted) confuse the SE — they can't tell which input Scout is waiting on, and the in-flight operation reads as ambient. The audit-orchestration procedure already emits the live-status note pointing at `.audit-progress.log`; that note stands alone until all 3 sub-agents return. The SE should be doing opening discovery during this window, not pasting a transcript that doesn't exist yet.
+
+After all 3 audit sub-agents return AND post-return processing (spot-check, consolidation, Notable Gaps narrative, cleanup) is complete, extract star-flagged items (default app, active layouts, relevant custom objects) and proceed to S2.
 
 ## Step S2 — Transcript Paste
 
-Emit:
+Only emit this AFTER S1 has fully returned. Emit:
 
-> "Paste the customer transcript. Multiple chunks fine — say `go` when done.
+> "Audit complete — [N] active layouts ★, [N] active flows, [N] agents. Full file: orgs/[alias]-[customer]/audit-[YYYY-MM-DD]-[HHMM].md
+>
+> When you're done with discovery, paste the customer transcript here. Multiple chunks fine — say `go` when done.
 >
 > Tip: if you don't have a transcript, paste your own notes from the conversation. Scout works on whatever signal you give it."
 
@@ -153,44 +157,72 @@ Call `mcp__slack__slack_create_canvas`:
 - `title`: `Showtime Build Plan — [Customer] — [YYYY-MM-DD]`
 - `content`: Canvas-flavored Markdown structured as below. The canvas is the customer's takeaway document — write it for the customer to read, not for the SE to refine.
 
-Canvas content template:
+Canvas content template (clean + confident, light emojis on section headers, capability summary table up top, compact Powered-by lines, ✅ checklist for the PoC):
 
 ```markdown
-# [Customer] — Showtime Build Plan
-Generated [YYYY-MM-DD] from [Customer] discovery conversation.
+# 🎯 [Customer] — Showtime Build Plan
+*Generated [YYYY-MM-DD] from your conversation with [list SE-side names from transcript or "the [Customer] team"].*
 
-## What we heard
-[3–5 sentence synthesis of the customer's full ask, drawing on the value spine. Use the customer's own language where the transcript surfaced direct quotes. This is the document acknowledging that Scout heard everything — so the customer reads it and recognizes their own conversation.]
+> **The connecting moment:** [one-sentence residual message from the spine — this is the line the room remembers]
 
-## What we'd build (full plan)
-Mirror the spec's Holistic Scenario, expanded for a customer audience:
+## 👂 What we heard
 
-### [Capability area 1 — e.g. "Contact Center experience"]
-- **What it does for you:** [customer-language outcome]
-- **How Salesforce delivers it:** [Salesforce + Agentforce + Headless 360 + Data Cloud + Flows + Apex + LWC components, named where each is the right answer]
-- **Salesforce documentation:** [list 1–3 doc citations from Stage 5 Platform Research relevant to this capability — full URLs, one per line]
+[2–3 short paragraphs synthesizing the customer's full ask. Use direct quotes from the transcript where they're vivid — pull-quote them on their own line with `>`. This is the document acknowledging that Scout heard everything — so the customer reads it and recognizes their own conversation. Aim for punchy sentence rhythm, not a wall of text.]
 
-### [Capability area 2]
+## 🏗️ What we'd build (full plan)
+
+| Area | What changes for you | Powered by |
+|---|---|---|
+| [Capability 1] | [one-line customer-language outcome] | [SF/Agentforce/etc. components, comma-separated, abbreviated] |
+| [Capability 2] | [...] | [...] |
+| [...] | [...] | [...] |
+
+---
+
+### [emoji] [Capability area 1 — e.g. "Service Vision — Voice agent with human handoff"]
+
+**What it does for you:** [customer-language outcome — 2–3 sentences max, punchy]
+
+**How Salesforce delivers it:** [Salesforce + Agentforce + Headless 360 + Data Cloud + Flows + Apex + LWC components, named where each is the right answer — single paragraph, not bullets]
+
+**Docs:** [link 1] · [link 2] · [link 3]
+*(use full Help URLs from Stage 5 Platform Research; separate with middle-dot, keep on one line per capability)*
+
+### [emoji] [Capability area 2]
+
 [same shape]
 
 [...repeat for each major area of the holistic scenario...]
 
-## What we're proving today (Showtime PoC)
-Scout will deploy this slice to your demo org in the next ~5–15 minutes:
+*Suggested emoji palette (pick what fits — keep it sparse, one per area):* 📞 voice/contact center · 🔧 service/repair · 📊 analytics · 🤝 partner/portal · 💬 messaging · 🧠 AI/agent · 🛒 commerce · 📈 sales · 🩺 healthcare · 🔐 identity/SSO
 
-- [item from PoC envelope, in customer language]
-- [...]
+## ⚡ What we're proving today (Showtime PoC)
 
-Why this slice: [one sentence on why this is the right proof — usually because it lands the spine's residual message in a contained build]
+Scout will deploy this slice to your demo org in the next 5–15 minutes:
 
-## What's next
-Everything in **What we'd build** that's not in **What we're proving today** is captured for follow-up — Scout can deploy any of it in a follow-up session against this same org. Specifically:
+- ✅ [item from PoC envelope, in customer language — bold the noun the room remembers]
+- ✅ [...]
 
-- [each item from spec's Showtime PoC → Deferred list, in customer language, with the same envelope/Data-Cloud/etc. reason translated for non-engineers]
+> **Why this slice:** [one or two sentences on why this is the right proof — usually because it lands the spine's residual message in a contained build. Punchy.]
+
+## 🚀 What's next
+
+Everything above that's not in today's slice is captured for follow-up — Scout can deploy any of it in a follow-up session against this same org:
+
+- **[Item name in customer language]** — [one-line follow-up framing: separate Iteration / separate engagement / specialist handoff, with the human-readable reason]
+- **[...]** — [...]
 
 ---
-*This plan was generated by Headless 360 — Salesforce's CLI-and-MCP-native AI surface — reasoning over the live Salesforce documentation library and your demo org's current configuration. The slice being deployed today proves the round-trip: discover → plan → deploy, in one session.*
+
+*Generated by Headless 360 — Salesforce's CLI-and-MCP-native AI surface — reasoning over the live Salesforce documentation library and your demo org's current configuration. Today's deploy proves the round-trip: **discover → plan → deploy**, in one session.*
 ```
+
+Authoring guidance for Opus when filling this template:
+- The summary table is the skim layer — every capability gets exactly one row, "Powered by" stays comma-separated and short (e.g. "Agentforce Service Assistant, Service Cloud Voice, Knowledge"), no full URLs in the table.
+- Per-capability sections are the read layer — "What it does for you" is the only place to be a bit punchy/quippy. "How Salesforce delivers it" stays factual.
+- Pull-quotes (`> "..."`) for direct customer quotes only — don't fabricate them. If the transcript has none, drop the pull-quote line.
+- Emoji discipline: one per capability section header, no emoji inside body copy. Section headers (`## What we heard` etc.) get the fixed emojis shown in the template; capability subsections get one chosen from the palette.
+- "What's next" follow-ups are bolded at the front (the noun) so the customer can scan; the framing reason follows after an em dash.
 
 Capture the canvas URL from the response. Hold it for emission in S8.
 
