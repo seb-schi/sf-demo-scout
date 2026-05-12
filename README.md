@@ -16,19 +16,19 @@ Scout is the on-ramp. It does three things:
 
 It works because the official Salesforce AgentForce skills are baked in. Scout doesn't improvise Apex, Flow XML, or agent metadata from training data — it loads the same authoring rules and validation patterns the platform team publishes. You're not vibe-coding the platform layer; you're driving it.
 
-## What Scout deploys, and what it doesn't
+## What Scout builds
 
-Scout deploys a **working vertical slice** that proves the headless configuration path end-to-end. It is not a substitute for an expert demo build, and it doesn't pretend to be.
+Scout-building deploys the demo your spec describes — custom objects and fields, permission sets, page layout field additions, business processes, paths, flows, Apex, LWC, Agentforce agents with smoke tests, data seeding. The output is a working demo, not a sketch. Every change log carries an SE Manual Checklist for the things Scout deliberately doesn't touch: visual layout in App Builder, complex multi-screen flows, OmniStudio, channel assignment, customer-specific narrative tuning. Those belong with SE judgment, and the checklist makes sure none of them are forgotten.
 
-A typical Scout run gets you to 80–85% of a demo: custom objects and fields, permission sets, page layout field additions, simple flows, simple Apex, an Agentforce agent with smoke tests, seeded data. The remaining 15–20% — visual layout in App Builder, complex multi-screen flows, realistic data refinement, channel assignment, customer-specific narrative tuning — is where SE judgment refines what Scout produced.
+The point isn't to replace SE expertise. It's to make sure you don't deploy the kind of broken metadata that wastes a demo — and to take care of the well-understood scaffolding so your time goes to the parts that need you. Scout is the on-ramp, not the autopilot.
 
-That split is deliberate. The whole point is that you arrive at the refinement step with a working spine in front of you, not a blank org and a deadline.
+**Showtime is different.** It's the bounded format for live customer engagement: a deliberately small slice that deploys live within the hour, with the customer in the room. Five hard envelopes, no stacking beyond two narrow combinations — so the live deploy is a guarantee, not a hope. See the Showtime section below.
 
 ---
 
 ## What You Need
 
-| Ingredient | Why |
+| Ingredient | Description |
 |------------|-----|
 | macOS | Apple Silicon or Intel. |
 | Claude Code via LLMGW | Opus thinks. Sonnet builds. Install Claude Code first using the **Installing Claude Code for Solutions** canvas (one command, one Google sign-in). |
@@ -38,7 +38,9 @@ That split is deliberate. The whole point is that you arrive at the refinement s
 
 ## Install
 
-```bash
+In your macOS Terminal, run:
+
+```rm -rf ~/claude-projects/sf-demo-scout
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/seb-schi/sf-demo-scout/main/bootstrap.sh)"
 ```
 
@@ -92,10 +94,8 @@ Custom objects, fields, picklist values, record types, queues, permission sets, 
 ### One-time SE confirmation per category
 Record-triggered Flows, simple screen flows (≤3 linear screens, up to 5 with justification), simple Apex, simple LWC, and Agentforce agents (with smoke testing). Confirm once per category, Scout handles the rest.
 
-### Where SE judgment refines
-Complex screen flows (branching, subflows, File Upload, Data Table, custom LWC screen components), scheduled flows, multi-object flows, complex Apex/LWC, multi-agent orchestration, page layout visual arrangement, reports, dashboards, OmniStudio, customer-specific data refinement, narrative tuning. Scout records these in an SE Manual Checklist inside the change log so nothing is forgotten.
-
-This is the 15–20% where SE expertise is the differentiator. Scout's job is to make sure you arrive at that step with everything else already standing.
+### Where SE judgment takes over
+Complex screen flows (branching, subflows, File Upload, Data Table, custom LWC screen components), scheduled flows, multi-object flows, complex Apex/LWC, multi-agent orchestration, page layout visual arrangement, reports, dashboards, OmniStudio, customer-specific data refinement, narrative tuning. These were always SE territory — Scout doesn't half-do them, it leaves them. The change log surfaces every one of them in an SE Manual Checklist so nothing is forgotten.
 
 ---
 
@@ -176,7 +176,7 @@ force-app/                      ← SFDX project (for metadata operations)
 Yes — any org that `sf org login web` can authenticate. SDO, IDO, sandbox, dev org. Scout is built for demo orgs, not customer orgs: it deploys metadata freely and assumes nothing irreplaceable is at stake. Don't point it at production.
 
 **Is Scout meant to replace the SE expert build?**
-No. Scout deploys a working vertical slice — typically 80–85% of a demo. The remaining 15–20% is where SE expertise refines what Scout produced. The point is to get you to the refinement step with a working spine, not a blank org.
+No. Scout-building deploys the demo your spec describes; it doesn't half-do the things it leaves to SE judgment (visual layout, complex multi-screen flows, OmniStudio, channel assignment, narrative tuning) — those go in the SE Manual Checklist instead. Scout's job is to keep you from deploying broken metadata and to handle the well-understood scaffolding, so your time goes to the parts that need you. It's the on-ramp, not the autopilot.
 
 **What if I mess up my org?**
 Every change log includes rollback commands.
