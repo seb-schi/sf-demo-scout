@@ -1,8 +1,28 @@
 # SF Demo Scout
 
-**Your AI-powered demo prep sidekick** – because nobody became an SE to manually configure permission sets.
+**A Claude Code pipeline for Salesforce SEs.** Audits your demo org, spars with you on the scenario, and deploys the configuration via Headless 360 — so you ship CLI-driven demos this week instead of next quarter.
 
-SF Demo Scout is a Claude Code pipeline that *spars* with you about customer scenarios, then configures your Salesforce demo org to match. You bring the context, Scout brings the questions – and then handles the clicks. Think of it as a very eager junior admin who never fat-fingers a field API name.
+## Why Scout exists
+
+The SE role is shifting. SEs are increasingly asked to do post-sales activation work — configuring real Salesforce orgs through CLI-native tools that didn't exist eighteen months ago. Most SEs come from a business background, not engineering. The gap between what the platform now expects and what we trained for is real.
+
+The tooling landscape isn't helping. Five MCP servers, twenty community skill repos, half a dozen ways to stand up Claude Code, and no clear path through any of it. The cost of starting is high, and the cost of starting wrong is higher.
+
+Scout is the on-ramp. It does three things:
+
+1. **Audits the org you're connected to** — a complete snapshot of what already exists, so you build into reality instead of around it.
+2. **Spars with you on the scenario** — guided discovery from customer notes through to a structured deployment spec.
+3. **Builds the configuration** — Opus orchestrates Sonnet sub-agents that deploy via Headless 360, with a change log and rollback commands.
+
+It works because the official Salesforce AgentForce skills are baked in. Scout doesn't improvise Apex, Flow XML, or agent metadata from training data — it loads the same authoring rules and validation patterns the platform team publishes. You're not vibe-coding the platform layer; you're driving it.
+
+## What Scout deploys, and what it doesn't
+
+Scout deploys a **working vertical slice** that proves the headless configuration path end-to-end. It is not a substitute for an expert demo build, and it doesn't pretend to be.
+
+A typical Scout run gets you to 80–85% of a demo: custom objects and fields, permission sets, page layout field additions, simple flows, simple Apex, an Agentforce agent with smoke tests, seeded data. The remaining 15–20% — visual layout in App Builder, complex multi-screen flows, realistic data refinement, channel assignment, customer-specific narrative tuning — is where SE judgment refines what Scout produced.
+
+That split is deliberate. The whole point is that you arrive at the refinement step with a working spine in front of you, not a blank org and a deadline.
 
 ---
 
@@ -10,23 +30,23 @@ SF Demo Scout is a Claude Code pipeline that *spars* with you about customer sce
 
 | Ingredient | Why |
 |------------|-----|
-| macOS | Apple Silicon or Intel. Sorry, Windows friends. 🍎 |
+| macOS | Apple Silicon or Intel. |
 | Claude Code via LLMGW | Opus thinks. Sonnet builds. Install Claude Code first using the **Installing Claude Code for Solutions** canvas (one command, one Google sign-in). |
-| A Salesforce demo org | SDO, IDO, personal dev org – we're not picky. The messier, the more fun. |
+| A Salesforce demo org | SDO, IDO, sandbox, or personal dev org. |
 
 ---
 
-## Install (One Time, We Promise)
+## Install
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/seb-schi/sf-demo-scout/main/bootstrap.sh)"
 ```
 
-One command. Go grab a coffee. ☕ Bootstrap clones the repo to `~/claude-projects/sf-demo-scout`, runs the full installer (Homebrew, Node.js, Python, Salesforce CLI, Slack MCP registration, 16 community skills, CLI self-updates), and drops you straight into a Claude Code session running `/setup-demo-scout`. Idempotent — safe to re-run. If the repo already exists, bootstrap routes to `update.sh` instead.
+One command. Bootstrap clones the repo to `~/claude-projects/sf-demo-scout`, runs the full installer (Homebrew, Node.js, Python, Salesforce CLI, Slack MCP registration, 16 community skills, CLI self-updates), and drops you straight into a Claude Code session running `/setup-demo-scout`. Idempotent — safe to re-run. If the repo already exists, bootstrap routes to `update.sh` instead.
 
 Prerequisites: `git` (via `xcode-select --install`) and Claude Code (via the *Installing Claude Code for Solutions* canvas — one Google sign-in). Bootstrap tells you if either is missing.
 
-That's it. You're in.
+For the full setup walkthrough — screenshots, VS Code extensions, Slack OAuth, troubleshooting — see the **Salesforce Demo Scout** canvas in Slack.
 
 ## Updating
 
@@ -34,24 +54,28 @@ That's it. You're in.
 bash ~/claude-projects/sf-demo-scout/update.sh
 ```
 
-Or just re-run the bootstrap one-liner — it routes to `update.sh` automatically when the repo already exists. Scout nukes the install, re-clones fresh, restores your org data (audits, specs, change logs), and lands you back inside a Claude Code session running `/setup-demo-scout`. Clean slate. Zero drift. ~30 seconds.
+Or re-run the bootstrap one-liner — it routes to `update.sh` automatically when the repo already exists. Scout backs up your org data (audits, specs, change logs), nukes the install, re-clones fresh, restores your data, and lands you back in a Claude Code session running `/setup-demo-scout`. Clean slate. ~30 seconds.
 
-> 💡 Prefer VS Code? `update.sh` pops open Terminal.app for you if you run it from VS Code's integrated terminal. Close VS Code, let it cook, reopen after.
+> Running from VS Code? `update.sh` opens Terminal.app for you if you launch it from VS Code's integrated terminal. Close VS Code, let it run, reopen after.
 
 ---
 
 ## How It Works
 
-Two commands. That's the whole workflow.
+Two commands.
 
 | Step | Command | What happens |
 |------|---------|--------------|
-| **Spar** | `/scout-sparring` | You share customer context. Opus audits the org, researches platform capabilities, asks smart questions, and produces a structured demo spec. |
+| **Spar** | `/scout-sparring` | You share customer context. Opus audits the org, researches platform capabilities, asks clarifying questions, and produces a structured demo spec. |
 | **Build** | `/scout-building` | Opus reads the spec, orchestrates Sonnet sub-agents across three phases (org config → flows/apex/LWC → Agentforce), and writes a change log. |
 
-Always spar first. Always build second. It's like discovery → demo, but for configuring the demo itself. Very meta. 🤯
+Always spar first, build second.
 
-### Supporting Cast
+### Showtime — live customer engagement
+
+For the format where the customer is in the room and you want to ship something real before they leave: `/scout-sparring` → Showtime. Paste a 15-minute discovery transcript, get a holistic build plan plus a tightly-scoped slice that deploys live within the hour. Showtime is bounded by five hard envelopes (single object + layout, single before-save flow, single Apex class, single Agentforce agent with standard actions only, idempotent data seeding) so the live deploy is a guarantee, not a hope.
+
+### Supporting commands
 
 | Command | When to use it |
 |---------|---------------|
@@ -60,16 +84,18 @@ Always spar first. Always build second. It's like discovery → demo, but for co
 
 ---
 
-## What Scout Can Do
+## What Scout Handles, and Where SE Judgment Takes Over
 
-### Fully autonomous (no approvals needed)
-Custom objects, fields, picklist values, record types, queues, permission sets, page layout field additions, Lightning apps & tabs, and demo data seeding. Scout does these in its sleep. If it had sleep.
+### Fully autonomous
+Custom objects, fields, picklist values, record types, queues, permission sets, page layout field additions, Lightning apps and tabs, demo data seeding.
 
 ### One-time SE confirmation per category
-Record-triggered Flows, simple screen flows (≤3 linear screens, up to 5 with justification), simple Apex, simple LWC, and Agentforce agents (with smoke testing!). Confirm once, Scout handles the rest.
+Record-triggered Flows, simple screen flows (≤3 linear screens, up to 5 with justification), simple Apex, simple LWC, and Agentforce agents (with smoke testing). Confirm once per category, Scout handles the rest.
 
-### Still on your plate (for now 😉)
-Complex screen flows (branching, subflows, File Upload, Data Table, custom LWC screen components), scheduled flows, multi-object flows, complex Apex/LWC, multi-agent orchestration, page layout visual arrangement, reports, dashboards, OmniStudio. Scout adds these to a Manual Checklist so you don't forget.
+### Where SE judgment refines
+Complex screen flows (branching, subflows, File Upload, Data Table, custom LWC screen components), scheduled flows, multi-object flows, complex Apex/LWC, multi-agent orchestration, page layout visual arrangement, reports, dashboards, OmniStudio, customer-specific data refinement, narrative tuning. Scout records these in an SE Manual Checklist inside the change log so nothing is forgotten.
+
+This is the 15–20% where SE expertise is the differentiator. Scout's job is to make sure you arrive at that step with everything else already standing.
 
 ---
 
@@ -79,11 +105,11 @@ After every run, Scout saves artifacts in `orgs/[alias]-[customer]/`:
 
 | File | What's inside |
 |------|---------------|
-| `audit-*.md` | Org snapshot – objects, flows, agents, layouts, gaps |
-| `demo-spec-*.md` | The deployment spec (your source of truth) |
+| `audit-*.md` | Org snapshot — objects, flows, agents, layouts, gaps |
+| `demo-spec-*.md` | The deployment spec — your source of truth |
 | `changes-*.md` | What got deployed, what to verify, what's on you |
 
-These survive updates. They're *your* data – Scout just writes them.
+These survive updates. They're your data — Scout just writes them.
 
 ---
 
@@ -91,50 +117,50 @@ These survive updates. They're *your* data – Scout just writes them.
 
 Scout talks to your org through three MCP servers:
 
-🔧 **Salesforce DX MCP** – metadata deployment, SOQL queries, permission sets, code analysis, LWC scaffolding. The workhorse.
+**Salesforce DX MCP** — metadata deployment, SOQL queries, permission sets, code analysis, LWC scaffolding. The primary connection.
 
-📚 **Salesforce Docs MCP** – semantic search across official Salesforce docs. Scout checks release notes and dev guides so you don't have to. Optional – degrades gracefully if unavailable.
+**Salesforce Docs MCP** — semantic search across official Salesforce docs. Scout checks release notes and dev guides during sparring and on unfamiliar deploy errors. Optional — degrades gracefully if unavailable.
 
-💬 **Slack MCP** – optional. Lets Scout skim a setup canvas or channel you name during sparring, and write the post-deployment handover brief to a canvas in your personal Slack. Registered user-scope by `install.sh`; `/setup-demo-scout` probes the macOS Keychain on first run and walks you through `/mcp-auth` (a browser-based OAuth flow) if you're not yet signed in. Skip it and Scout silently carries on without Slack.
+**Slack MCP** — optional. Lets Scout skim a setup canvas or channel you name during sparring, and write the post-deployment handover brief to a canvas in your personal Slack. Registered user-scope by `install.sh`; `/setup-demo-scout` probes the macOS Keychain on first run and walks you through `/mcp-auth` if you're not yet signed in. Skip it and Scout carries on without Slack.
 
-Falls back to `sf` CLI when MCP acts up. Belt and suspenders.
+Scout falls back to the `sf` CLI when MCP is unavailable.
 
 ---
 
 ## Skills & Smarts
 
-Scout's intelligence lives in **skills** – domain-specific instruction sets loaded on demand. They're why Scout knows Flow XML needs `<start><filters>` and not `processMetadataValues`, why it never sets `TabVisibility: DefaultOn`, and why it checks `EntityDefinition` flags before suggesting a trigger.
+Scout's intelligence lives in **skills** — domain-specific instruction sets loaded on demand. They're why Scout knows Flow XML needs `<start><filters>` and not `processMetadataValues`, why it never sets `TabVisibility: DefaultOn`, and why it checks `EntityDefinition` flags before suggesting a trigger.
 
 **Ships with the repo** (3 demo skills):
-- `demo-deployment-rules` – the rulebook for deploying Flows, Apex, LWC, Agentforce
-- `demo-org-audit` – how to audit an org properly
-- `demo-docs-consultation` – when to look things up vs. wing it
+- `demo-deployment-rules` — the rulebook for deploying Flows, Apex, LWC, Agentforce
+- `demo-org-audit` — how to audit an org properly
+- `demo-docs-consultation` — when to consult docs vs. proceed from existing knowledge
 
 **Downloaded at install** (16 community skills):
-- 10 from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills) – SOQL, Apex, Flows, Permissions, Deploy, Data, Debug, LWC, Testing, Flex Estimator
-- 6 from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) – Custom Fields, Objects, Permission Sets, Agentforce dev/test/observe
+- 10 from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills) — SOQL, Apex, Flows, Permissions, Deploy, Data, Debug, LWC, Testing, Flex Estimator
+- 6 from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) — Custom Fields, Objects, Permission Sets, Agentforce dev/test/observe
 
-Manage skills declaratively: edit `.claude/skills-manifest.yaml`. Sync runs automatically during `install.sh` and `update.sh`; to re-sync mid-session without a full reinstall, run `.claude/scripts/sync-skills.sh`.
+These are the official Salesforce Agentforce Vibes skills plus the most-used community sets. Skills are managed declaratively via `.claude/skills-manifest.yaml`. Sync runs automatically during `install.sh` and `update.sh`; to re-sync mid-session without a full reinstall, run `.claude/scripts/sync-skills.sh`.
 
 ---
 
 ## What's In The Box
 
 ```
-CLAUDE.md                       ← Root instructions (under 100 lines – we counted)
-install.sh                      ← Full setup (idempotent, run it twice if you want)
+CLAUDE.md                       ← Root instructions
+install.sh                      ← Full setup (idempotent)
 update.sh                       ← Nuke-and-reinstall updater
 .claude/
   commands/                     ← 6 slash commands (SE-facing + internal pipeline ops)
   skills/                       ← 3 demo skills (+ 16 community skills after install)
-  prompts/                      ← 20 sub-agent templates, lessons & reference docs
+  prompts/                      ← Sub-agent templates, lessons, reference docs
   scripts/                      ← sync-skills.sh
   hooks/                        ← session-startup.sh (org check on every launch)
-  settings.json                 ← Permissions & hooks config
+  settings.json                 ← Permissions and hooks config
   skills-manifest.yaml          ← Which community skills to sync from where
 ```
 
-**Generated at runtime** (gitignored, yours to keep):
+Generated at runtime (gitignored, yours to keep):
 ```
 orgs/                           ← Your audits, specs, and change logs
 .sf/                            ← Salesforce CLI local config
@@ -144,22 +170,25 @@ force-app/                      ← SFDX project (for metadata operations)
 
 ---
 
-## FAQ (Frequently Anticipated Questions)
+## FAQ
 
-**Q: Can I use this with a sandbox?**
-A: Yes! Any org that `sf org login web` can authenticate. SDO, IDO, sandbox, dev org – Scout doesn't judge. **But:** this is built for demo orgs, not customer orgs. Scout deploys metadata freely and assumes it won't break anything irreplaceable. Don't point it at production. Yet. 😏
+**Can I use this with a sandbox?**
+Yes — any org that `sf org login web` can authenticate. SDO, IDO, sandbox, dev org. Scout is built for demo orgs, not customer orgs: it deploys metadata freely and assumes nothing irreplaceable is at stake. Don't point it at production.
 
-**Q: What if I mess up my org?**
-A: Every change log includes rollback commands. Scout's like a responsible designated driver – it notes the way back.
+**Is Scout meant to replace the SE expert build?**
+No. Scout deploys a working vertical slice — typically 80–85% of a demo. The remaining 15–20% is where SE expertise refines what Scout produced. The point is to get you to the refinement step with a working spine, not a blank org.
 
-**Q: What model does it use?**
-A: Opus for thinking (sparring, orchestration), Sonnet for doing (metadata generation, deployment). Both via LLMGW. Thinking summaries are on by default — you'll see Scout's reasoning as it works, which is especially useful on slow operations where the output would otherwise look frozen. (Set via `CLAUDE_CODE_EXTRA_BODY` in `.claude/settings.json` — committed to the repo, no per-SE config.)
+**What if I mess up my org?**
+Every change log includes rollback commands.
 
-**Q: Can I use it without Agentforce?**
-A: Absolutely. Agentforce is Phase 3 – if your spec doesn't include agents, that phase simply doesn't run.
+**What model does it use?**
+Opus for thinking (sparring, orchestration), Sonnet for doing (metadata generation, deployment). Both via LLMGW. Thinking summaries are on by default — you'll see Scout's reasoning as it works, which helps on slow operations where the output would otherwise look frozen. Configured via `CLAUDE_CODE_EXTRA_BODY` in `.claude/settings.json` (committed to the repo, no per-SE config).
+
+**Can I use it without Agentforce?**
+Yes. Agentforce is Phase 3 — if your spec doesn't include agents, that phase doesn't run.
 
 ---
 
-## Questions?
+## Maintainer
 
-Reach out to @Sebastian Schickhoff – preferably with a wild demo idea and a freshly-provisioned org. 🚀
+Sebastian Schickhoff — Munich SE. Scout is in active use across SE teams across the globe on customer demo orgs and pre-production sandboxes. Questions, feedback, or something broken: drop it in #sf-demo-scout on Slack, or open an issue on the repo.
