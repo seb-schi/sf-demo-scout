@@ -87,7 +87,11 @@ if ! command -v sf &>/dev/null; then
 else
   SF_VERSION=$(sf --version | head -1)
   echo "✅ Salesforce CLI found ($SF_VERSION). Checking for updates..."
-  sf update 2>&1 | tail -3
+  if npm list -g --depth=0 @salesforce/cli &>/dev/null; then
+    npm update --global @salesforce/cli 2>&1 | tail -3
+  else
+    sf update 2>&1 | tail -3
+  fi
   echo "✅ Salesforce CLI up to date."
 fi
 
