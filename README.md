@@ -137,8 +137,8 @@ Scout's intelligence lives in **skills** — domain-specific instruction sets lo
 - `demo-docs-consultation` — when to consult docs vs. proceed from existing knowledge
 
 **Downloaded at install** (16 community skills):
-- 10 from [Jaganpro/sf-skills](https://github.com/Jaganpro/sf-skills) — SOQL, Apex, Flows, Permissions, Deploy, Data, Debug, LWC, Testing, Flex Estimator
-- 6 from [forcedotcom/afv-library](https://github.com/forcedotcom/afv-library) — Custom Fields, Objects, Permission Sets, Agentforce dev/test/observe
+- 10 from [forcedotcom/sf-skills (Jaganpro branch)](https://github.com/forcedotcom/sf-skills/tree/Jaganpro/sf-skills) — SOQL, Apex, Flows, Permissions, Deploy, Data, Debug, LWC, Testing, Flex Estimator
+- 6 from [forcedotcom/sf-skills](https://github.com/forcedotcom/sf-skills) — Custom Fields, Objects, Permission Sets, Agentforce dev/test/observe
 
 These are the official Salesforce Agentforce Vibes skills plus the most-used community sets. Skills are managed declaratively via `.claude/skills-manifest.yaml`. Sync runs automatically during `install.sh` and `update.sh`; to re-sync mid-session without a full reinstall, run `.claude/scripts/sync-skills.sh`.
 

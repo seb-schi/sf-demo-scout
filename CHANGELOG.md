@@ -4,6 +4,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-05-18
 
+- **Skill sources repointed to Salesforce's renamed `forcedotcom/sf-skills` repo.** No content change today (the old `afv-library` URL was a byte-identical mirror), but Scout now pulls from the canonical name so future updates land cleanly.
 - **Audits don't trip over leftovers from the previous session anymore.** A crashed or interrupted prior audit used to leave stale working files in the customer folder and at the repo root; the next `/scout-sparring` would inherit them and silently hang at the parse step. Cleanup now runs at the *start* of every audit, sweeps everything (per-customer artifacts + repo-root drops), and uses zsh-safe shapes so an empty target never errors. Surfaced when a Sivantos audit hung after a clean LSDO session left files behind.
 
 ## 2026-05-11
