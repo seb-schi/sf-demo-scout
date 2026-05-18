@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-05-18
+
+- **Audits don't trip over leftovers from the previous session anymore.** A crashed or interrupted prior audit used to leave stale working files in the customer folder and at the repo root; the next `/scout-sparring` would inherit them and silently hang at the parse step. Cleanup now runs at the *start* of every audit, sweeps everything (per-customer artifacts + repo-root drops), and uses zsh-safe shapes so an empty target never errors. Surfaced when a Sivantos audit hung after a clean LSDO session left files behind.
+
 ## 2026-05-11
 
 - **FlexiPage audit pipeline tightened after early field runs.** Two fixes surfaced from real Showtime deploys: the audit cleanup step is now zsh-safe (an empty-glob error was silently skipping audit init on fresh customer folders on macOS), and the standard-vs-custom-object split in the active-page map is now enforced at the orchestrator level so the custom-objects sub-agent can't emit a degraded entry for a standard-object page. Drift becomes structurally impossible, not just discouraged.

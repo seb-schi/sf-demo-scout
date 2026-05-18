@@ -18,6 +18,7 @@ force-app/
 layouts-audit/
 unpackaged/
 force-app/
+manifest-*
 
 # macOS
 .DS_Store

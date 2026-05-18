@@ -4,7 +4,18 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 ## Pre-Spawn Setup (orchestrator runs directly)
 
-1. Clean stale fragments: `rm -f orgs/[alias]-[customer]/audit-fragment-*.md 2>/dev/null || true` — `2>/dev/null || true` keeps zsh's `NO_MATCH` from erroring on an empty glob. Without this, the bundled `clean + init progress log` step fails on an empty `orgs/[alias]-[customer]/` directory and `printf` (step 2) never runs.
+1. Clean ALL stale orchestrator artifacts before any work begins. End-of-success cleanup (Cleanup & Validation steps 3–4) does not fire when a prior run crashes, hangs, or is SE-interrupted — the next run then inherits corrupt state and typically hangs at the parse step that consumes it, with no causal link visible to the SE. Run all four sweeps unconditionally:
+   ```
+   rm -f orgs/[alias]-[customer]/audit-fragment-*.md 2>/dev/null || true
+   rm -f orgs/[alias]-[customer]/.audit-* 2>/dev/null || true
+   rm -rf unpackaged/ 2>/dev/null || true
+   find . -maxdepth 1 -name 'manifest-*.xml' -delete 2>/dev/null || true
+   ```
+   Notes:
+   - The `2>/dev/null || true` wrappers keep zsh's `NO_MATCH` from erroring on empty globs (lesson 68); without them the bundled cleanup step fails silently and step 2 (`printf` to init the progress log) never runs.
+   - The `.audit-*` sweep is intentionally a wildcard, not a fixed list — it catches `.audit-progress.log` from a crashed prior run AND any ad-hoc files the model may have invented during a hang (e.g. `.audit-manifest-app.xml`).
+   - `find . -maxdepth 1 -name 'manifest-*.xml' -delete` is the zsh-safe shape for the repo-root sweep — `rm -f manifest-*.xml` errors at glob expansion time on zsh before the redirection takes effect, so the `2>/dev/null` doesn't help. `find -delete` does its own argv handling and returns 0 on no matches.
+   - `unpackaged/` is the directory `retrieve_metadata` drops at the repo root; `manifest-*.xml` are repo-root files the model sometimes writes during ad-hoc retrieve workarounds. Both are gitignored — their presence carries no SE-meaningful state.
 2. Initialize progress log — truncate the file and write a header so the SE-facing link opens to a non-empty file:
    ```
    printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\n\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[alias]-[customer]" > orgs/[alias]-[customer]/.audit-progress.log
