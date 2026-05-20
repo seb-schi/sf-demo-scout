@@ -38,12 +38,6 @@ Run a single MCP probe to confirm connectivity:
 
 ---
 
-## Step 2: Model Gate
-
-Read `.claude/prompts/model-gate-opus.md` and emit the gate. Wait for the SE's confirmation before proceeding.
-
----
-
 ## Step 3: Confirm Org & Identify Customer
 
 Run `sf config get target-org --json` and `sf org display --json`. Extract alias and username.

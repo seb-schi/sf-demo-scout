@@ -8,7 +8,15 @@ Progress log agent-id: custom-objects
 
 Active LRP map for this org's default app: {{ACTIVE_LRP_MAP}} — this is the **custom-object-scoped slice** prepared by the orchestrator. Every entry's `object` ends in `__c`. **Standard-object LRPs (Case, Account, Opportunity, Lead, Contact, Order, ServiceResource, MessagingSession, etc.) are owned by the sibling standard-objects sub-agent — never emit `active_lrps` entries for them, even if a stale or unsliced map happens to include one.** If you see a non-`__c` entry in `{{ACTIVE_LRP_MAP}}`, drop it silently and add a `discovery_notes` entry: `"ACTIVE_LRP_MAP contained non-custom entry [Object] — orchestrator slice may have drifted"`.
 
-For each in-scope (`__c`) entry whose `object` matches a custom object you classify as demo-relevant, apply the same composition classification treatment as the standard-objects sub-agent:
+**Two independent axes — do not conflate them:**
+
+- **Enumeration scope** (which custom objects this fragment covers) is driven by your own discovery query below, NOT by `{{ACTIVE_LRP_MAP}}`. A custom object is in scope if it is unmanaged AND has any of: record_count > 0, looks demo-relevant by naming pattern (industry terms, customer name, scenario keywords), or appears in `{{ACTIVE_LRP_MAP}}`. The LRP map is one input to relevance, not the gate.
+
+- **LRP classification scope** (which `active_lrps` entries this fragment emits) is bounded strictly by `{{ACTIVE_LRP_MAP}}`. Only objects in the sliced map get `active_lrps` entries.
+
+Concretely: if the discovery query surfaces `AI_Agent__c` (record_count > 0, demo-relevant) but it is NOT in `{{ACTIVE_LRP_MAP}}`, the object IS enumerated (record count, layout, fields, related lists) and gets NO `active_lrps` entry. If `Reply_Rec_Demo_Helper__c` is in `{{ACTIVE_LRP_MAP}}` AND demo-relevant by enumeration, it gets BOTH — full object enumeration AND an `active_lrps` entry.
+
+For each in-scope (`__c`) LRP-map entry whose `object` matches a custom object you classify as demo-relevant, apply the same composition classification treatment as the standard-objects sub-agent:
 
 - For `system_default` entries (lrp is null): no FlexiPage retrieve. Record `composition_class: "system_default", gap_risk: false, field_sections: []` and proceed. The classic Page Layout add is the right surface.
 - For all other entries: retrieve the LRP XML and classify by `force:detailPanel` vs `flexipage:fieldSection`, ★🚨 if `gap_risk: true`, enumerate field sections using the same Facet-indirection traversal as standard-objects (see its "Active Lightning Record Page per Object — composition classification" section for the canonical procedure — same XML shape, same column resolution).
@@ -35,22 +43,41 @@ ORDER BY Label
 ```
 This returns all custom objects. Filter out managed package objects (those where `QualifiedApiName` contains a namespace prefix — pattern: `namespace__ObjectName__c` with two sets of double underscores before `__c`). Keep unmanaged objects only (pattern: `ObjectName__c` with only one `__c` at the end, no namespace prefix).
 
-For each unmanaged custom object that looks demo-relevant:
+**Bulk-fetch pattern (default):** the 2026-05-20 field run hit the sub-agent tool budget (>90 calls) on a customer SDO because layout discovery was per-object with a fallback retry loop. Replace per-object iteration with two bulk calls up front:
+
+**Step C1 — Bulk ProfileLayout query.** After demo-relevance enumeration produces the in-scope `__c` set (call it `IN_SCOPE_CUSTOM`), run a single SOQL:
+```
+SELECT Layout.Name, RecordType.Name, TableEnumOrId
+FROM ProfileLayout
+WHERE TableEnumOrId IN ('Obj1__c', 'Obj2__c', ...)
+  AND Profile.Name = 'System Administrator'
+```
+Group results by `TableEnumOrId` to build a per-object layout map. Objects with 0 ProfileLayout rows (common for objects without record types) carry through to step C2's Tooling fallback. Note: `TableEnumOrId` returns the entity key ID for custom objects, but `IN` accepts the API name list because Salesforce normalises both sides — verify in the result set, and if a row's `TableEnumOrId` looks like an ID (e.g. `01I...`), reverse-resolve via the `EntityDefinition.QualifiedApiName` lookup you already ran in discovery.
+
+**Step C2 — Tooling Layout fallback for objects with no ProfileLayout row.** Single bulk Tooling SOQL across the unresolved set:
+```
+SELECT Name, TableEnumOrId FROM Layout WHERE Name LIKE '[Obj1 Label]%' OR Name LIKE '[Obj2 Label]%' OR ...
+```
+(Tooling Layout supports `OR` across `LIKE` patterns; cap at 10-clause OR groups if the unresolved set is larger — re-run in batches of 10.) Match results back to objects by label-prefix. If multiple layouts match an object, capture all and flag the active-layout ambiguity in `discovery_notes`. If neither C1 nor C2 yields a layout for a given object, record "No layout found (ProfileLayout empty, Tooling Layout returned 0)" — do not guess.
+
+**Step C3 — Single manifest retrieve for all resolved layouts.** After C1+C2 produce the master list of layout names (`ALL_LAYOUTS = union of C1 hits + C2 hits`), run **one** `retrieve_metadata` call with type `Layout`, members = the full `ALL_LAYOUTS` list. Salesforce's manifest retrieve treats missing members as soft outcomes — they appear as FILE_NOT_FOUND in the result rather than as tool errors. Parse the result:
+- Layouts present in the result XML → fully retrieved, ready for field/related-list extraction.
+- Layouts marked FILE_NOT_FOUND → record an `issues[]` entry: `"Layout '[name]' named in ProfileLayout/Tooling but retrieve returned FILE_NOT_FOUND — layout may be orphaned or namespace-restricted"`. Do NOT retry per-object — the manifest retrieve is the single attempt.
+
+**Per-object data after the bulk pass:**
 - API name, label
-- Record count: `SELECT COUNT() FROM [ObjectApiName]`
+- Record count: `SELECT COUNT() FROM [ObjectApiName]` (still per-object — counts cannot be bulked across heterogeneous objects)
 - Record types (if any)
-- Active page layout:
-  1. **First:** try ProfileLayout: `SELECT Layout.Name, RecordType.Name FROM ProfileLayout WHERE TableEnumOrId = '[ObjectApiName]' AND Profile.Name = 'System Administrator'`
-  2. **If ProfileLayout returns 0 rows** (common for objects without record types): query the Tooling API by layout name pattern — `TableEnumOrId` stores the entity key ID for custom objects, not the API name, so you cannot filter by API name:
-     ```
-     SELECT Name, TableEnumOrId FROM Layout WHERE Name LIKE '[Object Label]%Layout%'
-     ```
-     Use the object **label** (e.g., `Makana Device`), not the API name. This returns all layouts whose name matches the object. If only one exists, that is the active layout. If multiple exist, note all and flag that the active one is ambiguous.
-  3. **If both fail:** report "No layout found (ProfileLayout empty, Tooling Layout query returned 0)" — do not guess layout names.
-- Key fields on layout (retrieve layout XML, same annotation rules as standard objects: `(Required)`, `(Readonly)`, `(Edit)`)
-- **Related Lists on the ★ active layout** — from the same layout XML, list the `<relatedList>` entries.
+- Active page layout: the resolved name from C1/C2, with retrieval status from C3
+- Key fields on layout: extracted from C3's manifest result (same annotation rules as standard objects: `(Required)`, `(Readonly)`, `(Edit)`)
+- **Related Lists on the ★ active layout** — from the same layout XML in C3's result, list the `<relatedList>` entries.
 
 For remaining unmanaged custom objects (not demo-relevant), list them in a summary table with API name and label only. Note total count of managed package objects as a single line.
+
+**Demo-relevance heuristic** (apply when classifying which unmanaged custom objects warrant full enumeration vs summary-table):
+- Always demo-relevant: any object with record_count > 0, any object whose name contains the customer name (from {{CUSTOMER}}), any object in `{{ACTIVE_LRP_MAP}}`.
+- Heuristically demo-relevant: names containing scenario-domain keywords (e.g. for service: `Case`, `Service`, `Agent`, `Bot`, `Reply`; for sales: `Opportunity`, `Quote`, `Pipeline`; for industry: cloud-specific terms).
+- Default to inclusion when uncertain — under-enumeration silently hides candidate build surfaces. Over-enumeration is recoverable via the summary-table fallback for non-starred objects.
 
 ## Existing Custom Permission Sets
 
@@ -74,7 +101,7 @@ Star the following:
 
 Before writing your JSON output block, verify each of these. If any fails, fix it before returning.
 
-1. **Custom object layouts resolved.** Every ★ custom object must have a layout entry — from ProfileLayout, Tooling API Layout query, or explicit "not found after N methods."
+1. **Custom object layouts resolved.** Every ★ custom object must have a layout entry — from ProfileLayout, Tooling API Layout query, or explicit "not found after N methods." **Layout names must be the bare metadata API name** as stored in `Layout.Name` — do NOT prefix with the object name. The Tooling API returns the name in round-trippable form; preserving it lets downstream specs pass it directly to `retrieve_metadata`.
 2. **Layout field content exists for all ★ layouts.** Every ★-marked active layout must have a "Key Fields" subsection. If layout XML retrieval failed, note the failure explicitly.
 3. **Permission sets listed.** At minimum a count. If the full list overflowed, report the count and any demo-relevant matches.
 4. **Every section header has content beneath it.**

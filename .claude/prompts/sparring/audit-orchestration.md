@@ -4,18 +4,23 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 ## Pre-Spawn Setup (orchestrator runs directly)
 
-1. Clean ALL stale orchestrator artifacts before any work begins. End-of-success cleanup (Cleanup & Validation steps 3–4) does not fire when a prior run crashes, hangs, or is SE-interrupted — the next run then inherits corrupt state and typically hangs at the parse step that consumes it, with no causal link visible to the SE. Run all four sweeps unconditionally:
+1. Clean ALL stale orchestrator artifacts before any work begins. End-of-success cleanup (Cleanup & Validation steps 3–4) does not fire when a prior run crashes, hangs, or is SE-interrupted — the next run then inherits corrupt state and typically hangs at the parse step that consumes it, with no causal link visible to the SE. Run all sweeps unconditionally:
    ```
    rm -f orgs/[alias]-[customer]/audit-fragment-*.md 2>/dev/null || true
    rm -f orgs/[alias]-[customer]/.audit-* 2>/dev/null || true
+   rm -f orgs/[alias]-[customer]/retrieve-*.xml 2>/dev/null || true
+   rm -f orgs/[alias]-[customer]/*.tmp 2>/dev/null || true
    rm -rf unpackaged/ 2>/dev/null || true
    find . -maxdepth 1 -name 'manifest-*.xml' -delete 2>/dev/null || true
+   find . -maxdepth 1 -name 'temp-*.xml' -delete 2>/dev/null || true
    ```
    Notes:
    - The `2>/dev/null || true` wrappers keep zsh's `NO_MATCH` from erroring on empty globs (lesson 68); without them the bundled cleanup step fails silently and step 2 (`printf` to init the progress log) never runs.
    - The `.audit-*` sweep is intentionally a wildcard, not a fixed list — it catches `.audit-progress.log` from a crashed prior run AND any ad-hoc files the model may have invented during a hang (e.g. `.audit-manifest-app.xml`).
-   - `find . -maxdepth 1 -name 'manifest-*.xml' -delete` is the zsh-safe shape for the repo-root sweep — `rm -f manifest-*.xml` errors at glob expansion time on zsh before the redirection takes effect, so the `2>/dev/null` doesn't help. `find -delete` does its own argv handling and returns 0 on no matches.
-   - `unpackaged/` is the directory `retrieve_metadata` drops at the repo root; `manifest-*.xml` are repo-root files the model sometimes writes during ad-hoc retrieve workarounds. Both are gitignored — their presence carries no SE-meaningful state.
+   - `retrieve-*.xml` and `*.tmp` per-customer sweeps catch model-invented working files inside the customer folder (e.g. `retrieve-layouts-custom.xml` left by an ad-hoc retrieve workaround). Pattern-prefixed, not blanket `*.xml` — audit outputs are `.md`, but a future feature may legitimately store customer-owned XML in this folder, so we sweep only model-known prefixes.
+   - `find . -maxdepth 1 -name 'manifest-*.xml' -delete` and the parallel `temp-*.xml` sweep are the zsh-safe shapes for repo-root sweeps — `rm -f manifest-*.xml` errors at glob expansion time on zsh before the redirection takes effect, so the `2>/dev/null` doesn't help. `find -delete` does its own argv handling and returns 0 on no matches.
+   - `unpackaged/` is the directory `retrieve_metadata` drops at the repo root; `manifest-*.xml` and `temp-*.xml` are repo-root files the model sometimes writes during ad-hoc retrieve workarounds. All are gitignored — their presence carries no SE-meaningful state.
+   - The sweep list grows as model-invented patterns surface in the field. When a new orphan appears in repo-root or a customer folder, add a pattern-prefixed sweep here rather than relying on the existing wildcards to catch it.
 2. Initialize progress log — truncate the file and write a header so the SE-facing link opens to a non-empty file:
    ```
    printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\n\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[alias]-[customer]" > orgs/[alias]-[customer]/.audit-progress.log
@@ -40,90 +45,94 @@ Execute this procedure to run a fresh 3-agent parallel audit.
      2. If that returns 0 rows, fall through to Label: `SELECT DurableId, Label, DeveloperName, NamespacePrefix FROM AppDefinition WHERE Label = '[SE's input]' LIMIT 1`.
      3. If both return 0 rows, tell the SE "No app matching `[input]` — reply with a different name or `skip` to audit core objects only" and loop.
      On a match: replace `CANDIDATE_APP` / `CANDIDATE_APP_DEVELOPER_NAME` with the result and recompute `CANDIDATE_APP_FULL_NAME` (same rule as step 4: `[NamespacePrefix]__[DeveloperName]` if namespaced, else `[DeveloperName]`).
-   - If the SE replies `skip`: set `DEFAULT_APP` to "UNKNOWN" and `DEFAULT_APP_TABS` to the 6 core objects only. Skip step 6.
+   - If the SE replies `skip`: set `DEFAULT_APP` to "UNKNOWN", `DEFAULT_APP_TABS` to the 6 core objects only, and `ACTIVE_LRP_MAP` to `[]`. Skip step 6.
 
-6. Retrieve the confirmed app's tabs AND its action overrides: `retrieve_metadata` with type `CustomApplication`, member `[CANDIDATE_APP_FULL_NAME]`. From the retrieved XML extract two things in one parse:
-   - `<tabs>` elements → `DEFAULT_APP_TABS` (list of tab API names).
-   - `<actionOverrides>` elements where `<actionName>View</actionName>` AND `<type>Flexipage</type>` AND `<formFactor>Large</formFactor>` → for each, capture `<pageOrSobjectType>` (the object), `<content>` (the LRP DeveloperName), and `<recordType>` if present (e.g. `Account.VIP`; null if absent). Hold these as `APP_OVERRIDES` (working set, not yet `ACTIVE_LRP_MAP`).
+5a. **Emit the live-status heartbeat (MUST, before any sub-agent dispatch).** Async sub-agent work begins at step 6 (prelude) and continues through the parallel sub-agent dispatch — total async window is 5-10 min on SDO-scale orgs, all of it invisible to the SE in chat. The progress log is the only signal. Emit exactly this message as the next assistant turn — single message, verbatim (fill in the real path):
 
-   **On CustomApplication retrieve failure, short-circuit to core-6 immediately.** Set `DEFAULT_APP_TABS` to the 6 core objects only, set `APP_OVERRIDES` to `[]`, and skip steps 6a / 6b. Do NOT attempt AppTabDefinition, AppMenuItem, or other Tooling API fallbacks — they are unreliable for custom/managed apps and waste orchestrator budget. The SE already confirmed the app name and step 4 computed the namespaced full name; a retrieve failure at this point is a genuine access boundary (unpackaged managed content, org-specific permission) and core-6 is the correct answer.
+   > Audit running. Live status → [.audit-progress.log](orgs/[alias]-[customer]/.audit-progress.log) — click to open, VS Code auto-updates as the prelude and the 3 parallel sub-agents append. Typical runtime 5-10 min on SDO-scale orgs.
 
-6a. **Retrieve the org-default LRP overrides on standard objects (level 4).** `retrieve_metadata` with type `CustomObject`, members = `[Account, Contact, Opportunity, Case, Lead, Order]` plus any non-universal standard object that appears in `DEFAULT_APP_TABS`. From each retrieved object XML, parse `<actionOverrides>` elements where `<actionName>View</actionName>` AND `<type>Flexipage</type>` AND `<formFactor>Large</formFactor>` → capture `<content>` (LRP DeveloperName) and `<recordType>` (if present). Hold as `OBJECT_OVERRIDES` keyed by object.
+   The heartbeat exists because SE-facing silence is expensive — minutes of sub-agent runtime with no signal reads as "is Scout stuck?" Do not skip it. Do not paraphrase it. Do not bundle it into a later message. **If you find yourself about to call a tool here, stop — the heartbeat goes first.**
 
-On CustomObject retrieve failure for an individual object: log to `audit-progress.log` (`⚠️ CustomObject:[Object] retrieve failed — org-default LRP undetected`), set that object's `OBJECT_OVERRIDES` entry to empty, continue. A failure here means level-4 detection is degraded for that object only; levels 1–3 still apply.
+6. **Dispatch the audit-prelude sub-agent** to retrieve and parse the heavy metadata. This keeps CustomApplication/CustomObject/Profile XML out of Opus context.
 
-6b. **Retrieve the running user's profile (levels 1–2 contribution depends on this).** Get the Profile DeveloperName from a SOQL query:
+   Construct the dispatch envelope (do NOT read the prompt body — the sub-agent reads it itself). The envelope is the only string passed to `Agent()`:
+
    ```
-   SELECT Profile.Name FROM User WHERE Id = '[CURRENT_USER_ID]' LIMIT 1
-   ```
-   Profile metadata API name is the DeveloperName of the profile, not the Label — for stock profiles, `System Administrator` retrieves as `Admin`, `Standard User` as `Standard`, etc. If the SOQL returns `Profile.Name` matching one of the system labels, map it: `System Administrator → Admin`, `Standard User → Standard`, `Read Only → ReadOnly`, `Marketing User → MarketingProfile`, `Contract Manager → ContractManager`, `Solution Manager → SolutionManager`, `Standard Platform User → StandardAul`. For all other (custom) profiles, the Profile.Name is already the metadata API name — use it directly.
+   Read your prompt file at `.claude/prompts/sparring/audit/prelude.md`. Also read `.claude/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
 
-   Then `retrieve_metadata` with type `Profile`, member `[mapped DeveloperName]`. From the retrieved XML, parse `<profileActionOverrides>` where `<actionName>View</actionName>` AND `<type>Flexipage</type>` AND `<formFactor>Large</formFactor>` → capture `<content>` (LRP), `<pageOrSobjectType>` (object), `<recordType>` (e.g. `Case.SDO_Service_Case`). Hold as `PROFILE_OVERRIDES`.
+   {{ORG_ALIAS}} = [alias]
+   {{ORG_USERNAME}} = [username]
+   {{CANDIDATE_APP_FULL_NAME}} = [computed value]
+   {{CANDIDATE_APP}} = [label]
+   {{CANDIDATE_APP_DEVELOPER_NAME}} = [developer name]
+   {{CURRENT_USER_ID}} = [user id]
 
-   **Profile XML can overflow the MCP buffer on SDO-scale orgs** (every FLS row + layoutAssignment + objectPermission is in there). If the retrieve writes to an overflow temp file, parse it via `python3` / `jq` per `audit/shared.md` Overflow File Handling rules — extract only `<profileActionOverrides>` blocks, ignore the rest. If the retrieve fails outright (error, not overflow), log to `audit-progress.log` (`⚠️ Profile:[Name] retrieve failed — profile-scoped LRP detection degraded`), set `PROFILE_OVERRIDES` to `[]`, continue. A failure here means level-1 detection is degraded; levels 2–4 still apply.
-
-6c. **Build `ACTIVE_LRP_MAP` by applying resolution order, per object.** For each object in scope (`DEFAULT_APP_TABS` ∪ core-6), the active LRP is determined by the most-specific override present:
-
-   1. **Profile override with `<recordType>`** matching the object — level 1 hit. Use `PROFILE_OVERRIDES` entry. Multiple record types yield multiple `ACTIVE_LRP_MAP` entries for the same object (one per record type).
-   2. **App override with `<recordType>`** matching the object — level 2 hit. Use `APP_OVERRIDES` entry where `recordType` is non-null and matches the object. Same multi-RT handling.
-   3. **App override without `<recordType>`** — level 3 hit. Use `APP_OVERRIDES` entry where `recordType` is null.
-   4. **Object org-default override** — level 4 hit. Use `OBJECT_OVERRIDES` entry. Same multi-RT handling.
-   5. **No override anywhere** — system-default record page applies (`record_detail`-equivalent — inherits classic Page Layout). Emit an `ACTIVE_LRP_MAP` entry with `lrp: null, resolution_level: "system_default"` so the audit sub-agent doesn't bother retrieving anything but the spec author sees the surface is unconfigured.
-
-   Output shape for `ACTIVE_LRP_MAP`:
-   ```json
-   [
-     {"object": "Case", "record_type": null, "lrp": "Case_Record_Page_Zeiss", "resolution_level": "app_default", "source": "CustomApplication:SDO_Service_Console"},
-     {"object": "Account", "record_type": "VIP", "lrp": "VIP_Account_Page", "resolution_level": "profile_recordtype", "source": "Profile:Admin"},
-     {"object": "Lead", "record_type": null, "lrp": null, "resolution_level": "system_default", "source": null}
-   ]
+   Execute the prompt and return the JSON block per its Output Format section.
    ```
 
-   `resolution_level` values: `profile_recordtype` (level 1), `app_recordtype` (level 2), `app_default` (level 3), `org_default` (level 4), `system_default` (no override). This is the breadcrumb the SE needs when an audit assignment looks wrong — they can trace which surface set the page.
+   Spawn:
+   - `Agent(description="Org audit: prelude (LRP resolution)", model="sonnet", prompt=[envelope above])`
 
-   Record: `DEFAULT_APP` = `CANDIDATE_APP`, `DEFAULT_APP_DEVELOPER_NAME` = `CANDIDATE_APP_DEVELOPER_NAME`, `DEFAULT_APP_TABS` = list of tab API names, `ACTIVE_LRP_MAP` = the resolved JSON array above (or `[]` if all of 6 / 6a / 6b failed and there's nothing to resolve from).
+   Wait for the sub-agent to return. Extract the fenced JSON block. Parse it.
+   - `status: SUCCESS` or `status: PARTIAL` → use the returned `default_app_tabs` and `active_lrp_map`. If `PARTIAL`, log each `degradations` entry to `audit-progress.log` so the SE can see which level was lost.
+   - `status: FAILED` or missing/malformed JSON → degrade the audit: set `DEFAULT_APP_TABS` to core-6, set `ACTIVE_LRP_MAP` to `[]`, and flag the SE: "Audit prelude failed — proceeding with core-6 fallback only. Retry in a fresh window if you need full LRP resolution."
 
-  Then **slice `ACTIVE_LRP_MAP` into two per-sub-agent views** so each Sonnet only sees entries it owns:
-  - `ACTIVE_LRP_MAP_STANDARD` = entries where `object` does NOT end in `__c` (standard objects — Account, Contact, Opportunity, Case, Lead, Order, MessagingSession, ServiceResource, etc.). Goes to the standard-objects sub-agent.
-  - `ACTIVE_LRP_MAP_CUSTOM` = entries where `object` ends in `__c` (unmanaged custom objects). Goes to the custom-objects sub-agent.
+   Record: `DEFAULT_APP` = `CANDIDATE_APP`, `DEFAULT_APP_DEVELOPER_NAME` = `CANDIDATE_APP_DEVELOPER_NAME`, `DEFAULT_APP_TABS` = from prelude JSON, `ACTIVE_LRP_MAP` = from prelude JSON.
 
-  Managed-package objects (namespace prefix in the `object` field, e.g. `lsc4ce__SomeObject__c`) are excluded from both — Scout does not classify managed-package LRPs.
+   Then **slice `ACTIVE_LRP_MAP` into two per-sub-agent views** so each Sonnet only sees entries it owns:
+   - `ACTIVE_LRP_MAP_STANDARD` = entries where `object` does NOT end in `__c` (standard objects — Account, Contact, Opportunity, Case, Lead, Order, MessagingSession, ServiceResource, etc.). Goes to the standard-objects sub-agent.
+   - `ACTIVE_LRP_MAP_CUSTOM` = entries where `object` ends in `__c` (unmanaged custom objects). Goes to the custom-objects sub-agent.
 
-  This is the structural defense against schema drift: the Sivantos run produced a degraded `field_sections` payload on Case from the custom-objects sub-agent because it received Case in its `{{ACTIVE_LRP_MAP}}` and tried to classify a standard object outside its lane. Slicing at the orchestrator means each sub-agent only ever sees its own scope — drift becomes structurally impossible, not just discouraged.
+   Managed-package objects (namespace prefix in the `object` field, e.g. `lsc4ce__SomeObject__c`) are excluded from both — Scout does not classify managed-package LRPs.
+
+   This is the structural defense against schema drift: each sub-agent only ever sees its own scope — drift becomes structurally impossible, not just discouraged.
 
 ## Sub-Agent Dispatch
 
-Read these 3 prompt templates:
-- `.claude/prompts/sparring/audit/standard-objects.md`
-- `.claude/prompts/sparring/audit/apps-flows-agents.md`
-- `.claude/prompts/sparring/audit/custom-objects.md`
+Do NOT read the sub-agent prompt bodies. Each sub-agent reads its own prompt file and `.claude/prompts/sparring/audit/shared.md`. The orchestrator's job is to construct each envelope with the right placeholder values and dispatch.
 
-Read `.claude/prompts/sparring/audit/shared.md` once — its content fills `{{AUDIT_SHARED_RULES}}` in all 3 sub-agent prompts.
+Build a per-sub-agent envelope. Common placeholder values (computed by the orchestrator from earlier steps): `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`. The two LRP-aware sub-agents receive a sliced `{{ACTIVE_LRP_MAP}}`:
+  - standard-objects: `ACTIVE_LRP_MAP_STANDARD`
+  - custom-objects: `ACTIVE_LRP_MAP_CUSTOM`
+  - apps-flows-agents: omit the placeholder (its prompt does not reference it).
 
-Fill placeholders in each: `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`, `{{AUDIT_SHARED_RULES}}`. The two LRP-aware sub-agents get a sliced view of the map:
-  - standard-objects: `{{ACTIVE_LRP_MAP}}` ← `ACTIVE_LRP_MAP_STANDARD`
-  - custom-objects: `{{ACTIVE_LRP_MAP}}` ← `ACTIVE_LRP_MAP_CUSTOM`
-  - apps-flows-agents: receives no LRP map (placeholder is irrelevant; pass empty `[]` if the template expects something).
+Envelope template (substitute the prompt path and the placeholder block):
 
-Note: each entry in the sliced map carries `record_type`, `resolution_level`, and `source`. The sub-agent treats each entry as an independent LRP retrieval target — multiple record types on the same object mean multiple retrievals.
+```
+Read your prompt file at `[PROMPT_PATH]`. Also read `.claude/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
+
+{{ORG_ALIAS}} = [alias]
+{{ORG_USERNAME}} = [username]
+{{CUSTOMER}} = [customer]
+{{YYYY-MM-DD}} = [date]
+{{HHMM}} = [time]
+{{DEFAULT_APP}} = [label]
+{{DEFAULT_APP_TABS}} = [tabs JSON]
+{{ACTIVE_LRP_MAP}} = [sliced map JSON — omit this line for apps-flows-agents]
+
+Execute the prompt and return the JSON block per its Output Format section.
+```
+
+Each entry in the sliced map carries `record_type`, `resolution_level`, and `source`. The sub-agent treats each entry as an independent LRP retrieval target — multiple record types on the same object mean multiple retrievals.
 
 Spawn all 3 in parallel:
-- `Agent(description="Org audit: standard objects", model="sonnet", prompt=[standard objects prompt])`
-- `Agent(description="Org audit: apps/flows/agents", model="sonnet", prompt=[apps/flows/agents prompt])`
-- `Agent(description="Org audit: custom objects", model="sonnet", prompt=[custom objects prompt])`
+- `Agent(description="Org audit: standard objects", model="sonnet", prompt=[envelope with PROMPT_PATH=.claude/prompts/sparring/audit/standard-objects.md])`
+- `Agent(description="Org audit: apps/flows/agents", model="sonnet", prompt=[envelope with PROMPT_PATH=.claude/prompts/sparring/audit/apps-flows-agents.md])`
+- `Agent(description="Org audit: custom objects", model="sonnet", prompt=[envelope with PROMPT_PATH=.claude/prompts/sparring/audit/custom-objects.md])`
 
-**Immediately after spawning, emit this SE-facing note** (single message, exactly this format — fill in the real path):
-
-> Audit sub-agents running in parallel. Live status → [.audit-progress.log](orgs/[alias]-[customer]/.audit-progress.log) — click to open, VS Code auto-updates as sub-agents append. Typical runtime 5-10 min on SDO-scale orgs.
-
-Then wait for all 3 to return. Do not read the progress log — it is SE-facing only.
+The live-status heartbeat was already emitted in step 5a — do not re-emit it here. Wait for all 3 to return. Do not read the progress log — it is SE-facing only.
 
 ## Post-Return Processing
 
-As each sub-agent returns, extract the fenced JSON block. Parse it.
-- `status: SUCCESS` or `status: PARTIAL` -> collect the JSON.
-- `status: FAILED` or missing/malformed JSON -> flag that sub-agent's section as failed.
-- If 2+ sub-agents fail -> show the raw outputs, ask the SE to retry in a fresh window or skip the audit entirely.
+As each sub-agent returns, **first** apply structural partial-return detection — do not eyeball the response:
+
+1. **Regex-check the agent's return string for a fenced JSON block:** `^```json` (start of line, anywhere in the response). If present, proceed to parse. If absent, the sub-agent returned mid-narration (typically a budget/timeout wall — the harness surfaces last-assistant-text as "result" without flagging the truncation).
+2. **On absent JSON:** auto-redispatch the same envelope **once** (max 1 retry — a second retry usually hits the same wall and doubles worst-case latency). Before redispatching, log to `audit-progress.log`: `⚠️ [agent-id]: returned without fenced JSON — auto-retry 1/1`. Use the same `Agent(...)` call shape as the original spawn.
+3. **On absent JSON after retry:** flag that sub-agent's section as failed and surface the raw return string to the SE: "[agent-id] failed twice — returned mid-narration both times. Likely tool-budget exhaustion. Retry in a fresh window or skip this section."
+4. **On present JSON:** parse it. `status: SUCCESS` or `status: PARTIAL` → collect the JSON. `status: FAILED` → flag that sub-agent's section as failed.
+5. If 2+ sub-agents fail (after retry where applicable) → show the raw outputs, ask the SE to retry in a fresh window or skip the audit entirely.
+
+The same regex-check applies to the prelude sub-agent's return in the Pre-Spawn Setup step — absent fenced JSON triggers the same max-1 retry before falling through to the core-6 degraded audit.
 
 Check the standard-objects sub-agent's `demo_surface_notes` for non-universal standard objects with data — these hint at which industry cloud the org uses. Record for Stage 4.
 
@@ -138,14 +147,14 @@ Compare each against the sub-agent JSON fields:
 - **Agent count:** compare against apps/flows/agents sub-agent's `agents_found` array length. If spot-check finds >0 but sub-agent reported 0, query `SELECT DeveloperName, MasterLabel, Type FROM BotDefinition` and include the results in the consolidated summary.
 - For any mismatch >20% or zero-vs-nonzero: flag to the SE: "Sub-agent reported [X] but spot-check found [Y]. The [section] may be incomplete."
 
-Default app is not spot-checked here — the orchestrator resolved it authoritatively in pre-spawn setup.
+Default app is not spot-checked here — the orchestrator confirmed it with the SE in pre-spawn setup.
 
 ## Consolidation (no raw markdown reading)
 
 Merge the 3 JSON summaries + spot-check corrections into one consolidated summary:
 - `default_app`: from orchestrator pre-spawn (ground truth)
 - `default_app_tabs`: from orchestrator pre-spawn (ground truth)
-- `active_lrp_map`: from orchestrator pre-spawn (ground truth — same `ACTIVE_LRP_MAP` injected into sub-agents)
+- `active_lrp_map`: from prelude sub-agent (ground truth — same `ACTIVE_LRP_MAP` injected into the parallel sub-agents)
 - `active_layouts`: union of standard objects + custom objects sub-agent arrays (classic Page Layouts)
 - `active_lrps`: union of standard objects + custom objects sub-agent `active_lrps` arrays — each entry carries `{object, lrp_developer_name, composition_class, gap_risk, field_sections}`. `composition_class` ∈ {`record_detail` (uses `force:detailPanel`, layout-pass-through, safe), `field_section` (uses `flexipage:fieldSection`, custom-composed, layout adds invisible), `mixed` (both), `custom` (neither — pure LWC or dynamic-form regions), `unretrievable` (LRP retrieve failed)}. `gap_risk` is `false` for `record_detail`, `true` for `field_section` / `mixed` / `custom` / `unretrievable`.
 - `relevant_custom_objects`: from custom objects sub-agent

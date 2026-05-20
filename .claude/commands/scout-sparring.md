@@ -52,23 +52,15 @@ Run a single MCP probe to confirm connectivity:
   > If this persists, check that .mcp.json exists in the project root."
   Stop. Do not proceed without MCP.
 
-### Model gate
+### Update notice
 
-Run `test -f .claude/.update-available` to branch. The two variants below are the ONLY blocks allowed — do not edit them at runtime, do not mix them, do not inline any conditional markup.
+Run `test -f .claude/.update-available` to branch.
 
-**Variant A — no pending update (flag file absent).** Emit verbatim as a standalone message:
+**No pending update (flag file absent).** Proceed silently to Stage 2 — no message.
 
-> "Scout Sparring is designed for Opus.
-> Run `/model opus` now if you haven't already — your conversation history is preserved.
->
-> Confirm you're on Opus. (yes)"
+**Update pending (flag file exists).** Read `.claude/.update-available` and parse `commits_behind=<N>` and `recent_changes=<bullets separated by ` | `>`. Substitute `{{N}}` with `commits_behind`, and emit one `> - {{bullet}}` line per bullet (split on ` | `, up to 3). If `recent_changes` is empty, omit the "Recent changes:" header and its bullet lines; keep everything else. Emit verbatim:
 
-**Variant B — update pending (flag file exists).** Read `.claude/.update-available` and parse `commits_behind=<N>` and `recent_changes=<bullets separated by ` | `>`. Substitute `{{N}}` with `commits_behind`, and emit one `> - {{bullet}}` line per bullet (split on ` | `, up to 3). If `recent_changes` is empty, omit the "Recent changes:" header and its bullet lines; keep everything else.
-
-> "Scout Sparring is designed for Opus.
-> Run `/model opus` now if you haven't already — your conversation history is preserved.
->
-> ⚠️ **SF Demo Scout update available** ({{N}} commit(s) behind main)
+> "⚠️ **SF Demo Scout update available** ({{N}} commit(s) behind main)
 >
 > Recent changes:
 > - {{bullet 1}}
@@ -76,13 +68,11 @@ Run `test -f .claude/.update-available` to branch. The two variants below are th
 > - {{bullet 3}}
 >
 > To update: run `bash update.sh` in Terminal (CMD+J). A new external Terminal window will open to continue the update process; close VS Code (CMD+Q) before proceeding there.
-> To proceed without updating: reply `proceed` (dismissed for this session only).
->
-> Confirm you're on Opus, and tell me update vs. proceed. (yes)"
+> To proceed without updating: reply `proceed` (dismissed for this session only)."
 
 Do not write to or delete the flag file — the next `session-startup.sh` run refreshes it.
 
-**Wait for the SE's confirmation before proceeding to Stage 2.** If the SE chose to update, they will close VS Code — do not advance. If they replied `proceed` (Variant B) or `yes` (either variant), advance normally.
+**Wait for the SE's reply only when the flag file existed.** If the SE chose to update, they will close VS Code — do not advance. If they replied `proceed`, advance normally.
 
 ---
 
@@ -144,6 +134,9 @@ After the audit (fresh or reused), surface the star-flagged items:
 > ★ Active layouts: [object -> layout name, per record type]
 > ★ Relevant custom objects: [if any]
 > We'll build into these unless you tell me otherwise."
+
+**If the audit was fresh** (not reused): append a second standalone message after the star summary, then continue:
+> "💡 Heavy audit just loaded — if context feels tight, run `/compact` before we dive into Stage 4. Conversation history is preserved."
 
 ### Route
 

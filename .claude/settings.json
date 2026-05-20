@@ -1,4 +1,5 @@
 {
+  "model": "opus",
   "permissions": {
     "allow": [
       "mcp__Salesforce_DX__*",

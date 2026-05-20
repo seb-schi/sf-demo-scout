@@ -83,9 +83,11 @@ For each standard object:
   WHERE TableEnumOrId = '[Object]'
   AND Profile.Name = 'System Administrator'
   ```
-  List the active layout name for each record type. ★ these — they are the primary build surface.
+  List the active layout name for each record type. ★ these — they are the primary build surface. **Emit `Layout.Name` verbatim — do NOT prepend the object name** (e.g. emit `SDO - Account`, not `Account-SDO - Account`). The metadata API stores the name as the round-trippable identifier; specs pass it directly to `retrieve_metadata` and any prefix breaks the lookup.
   Note: entries with `RecordType = null` are the default/no-record-type assignment.
 - **Key fields on the ★ active layout** — retrieve the layout XML via `retrieve_metadata` (type: `Layout`, member: `[LayoutName as returned by ProfileLayout]`) **ONLY for ★-marked layouts**. For non-starred layouts (e.g., additional record type assignments that are not the primary build surface), list the layout name and record type assignment from the ProfileLayout results only — do NOT call `retrieve_metadata` for them. For each ★ layout, list fields grouped by layout section. For each field, annotate `(Required)` if the `<required>` element is true, and `(Readonly)` if `<behavior>` is Readonly. These annotations directly affect permission set generation (Required fields must be excluded from FLS) and data seeding instructions (Required fields need values). This is the highest-value content in the audit — do not skip it.
+
+  **Layout-retrieve issue surfacing:** if a layout is named in the ProfileLayout result but its `retrieve_metadata` call returns empty/missing XML (FILE_NOT_FOUND, or a successful retrieve with no `<Layout>` body), emit an `issues[]` entry: `"Layout '[name]' (RT: [record_type]) named in ProfileLayout but retrieve returned no XML — layout may be orphaned"`. Do not silently continue — orphaned layout assignments are a real audit finding (e.g. PMT Project record type with a missing layout file).
 - **Related Lists on the ★ active layout** — from the same layout XML (already retrieved above for ★ layouts only), list the `<relatedList>` entries on one line (e.g., "Related Lists: Cases, Contacts, Opportunities, Orders").
 
 ## Active Lightning Record Page per Object — composition classification
@@ -158,6 +160,7 @@ Before writing your JSON output block, verify each of these. If any fails, fix i
 1. **Non-universal object scan ran.** The EntityDefinition discovery query must have been executed. Results (if any) are reported in `demo_surface_notes`, not a separate JSON field.
 2. **Every standard object has content.** No empty entries — if discovery failed, write what you tried and what failed.
 3. **Layout field content exists for all ★ layouts.** Every ★-marked active layout must have a "Key Fields" subsection with fields grouped by layout section. If layout XML retrieval failed, note the failure explicitly.
+3a. **Layout names are bare API names.** Every entry in `active_layouts[].layout_name` and every layout name in the fragment file must equal the value `Layout.Name` returned, with no object prefix. Spot-check before returning.
 4. **Related Lists present for all ★ layouts.**
 5. **Default app tabs covered.** Every standard object in the default app tabs list must have at least a record count entry.
 6. **Active LRP entry exists for every object in `{{ACTIVE_LRP_MAP}}`.** If `{{ACTIVE_LRP_MAP}}` is `[]`, skip this check. Otherwise: each mapped object must have a `composition_class` recorded (including `unretrievable` if XML retrieve failed). For `field_section` and `mixed` classes, `field_sections` must be populated — empty arrays are only acceptable on `record_detail`, `custom`, or `unretrievable`.
