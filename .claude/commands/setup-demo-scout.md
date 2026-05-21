@@ -26,18 +26,44 @@ If `PLUGIN_DETECTED`, go to Step 2B.
 
 ## Step 2A — Plugin not installed: install instructions
 
-Print this exactly, then stop:
+Print this exactly, then stop. Do NOT continue past this step — the SE
+needs to run the slash commands one at a time, then re-invoke
+`/setup-demo-scout` for the cleanup phase.
 
-> SF Demo Scout has moved to a Claude Code plugin. To finish the
-> migration, run these two slash commands now:
+> SF Demo Scout is now a Claude Code plugin. Finish the migration by
+> running these slash commands **one at a time** — paste, hit Enter,
+> wait for confirmation, then move to the next.
+>
+> ---
+>
+> **Step 1.** Add the plugin marketplace:
 >
 >     /plugin marketplace add https://github.com/seb-schi/sf-demo-scout-plugin.git
+>
+> Wait for: `Successfully added marketplace: scout`
+>
+> ---
+>
+> **Step 2.** Install the plugin:
+>
 >     /plugin install sf-demo-scout@scout
 >
-> After the install completes, **quit and relaunch Claude Code**, then
-> run `/setup-demo-scout` once more. It will detect the plugin, clean
-> up the old clone-install artifacts, and hand you over to
-> `/scout-sparring` or `/scout-switch-org`.
+> Wait for: `✓ Installed sf-demo-scout`
+>
+> ---
+>
+> **Step 3.** Activate the plugin without restarting:
+>
+>     /reload-plugins
+>
+> ---
+>
+> **Step 4.** Re-run this migration command — it will detect the plugin
+> and finish cleanup:
+>
+>     /setup-demo-scout
+>
+> ---
 >
 > Your org data at `~/claude-projects/sf-demo-scout/orgs/` is preserved
 > throughout.
@@ -50,20 +76,17 @@ re-runs `/setup-demo-scout` post-install.
 Confirm with the SE first. Print this and wait for explicit `yes`:
 
 > Plugin detected. Ready to clean up the old clone-install
-> artifacts at `~/claude-projects/sf-demo-scout/`.
->
-> What gets removed:
->   - `.git/`, `install.sh`, `bootstrap.sh`, `update.sh`, `README.md`,
->     `.claude/` — clone-install scaffolding
->   - `force-app/`, `sfdx-project.json`, `CLAUDE.md` — old SFDX scaffold
->     and instructions (the plugin's bootstrap will recreate the SFDX
->     scaffold on first command run)
+> scaffolding at `~/claude-projects/sf-demo-scout/`.
 >
 > What stays:
 >   - `orgs/` — your customer audits, specs, change logs
 >   - `.sf/` — your active org configuration
 >
-> Type "yes" to proceed, anything else to abort.
+> Everything else in that directory will be removed (it was the
+> clone-install repo and the trampoline payload — both obsolete now
+> that the plugin owns command/skill/hook content).
+>
+> Type `yes` to proceed, anything else to abort.
 
 If the SE does not type exactly `yes`, abort with:
 
@@ -72,14 +95,17 @@ If the SE does not type exactly `yes`, abort with:
 > `/scout-switch-org`) — bootstrap will detect the leftover
 > clone-install state and prompt you again.
 
-If `yes`, run cleanup with a single bash invocation. Each removal
-guarded by `test -e` so the command is idempotent:
+If `yes`, run cleanup. Inverted logic: enumerate what to KEEP, delete
+the rest. This way the cleanup is robust against future trampoline
+payload additions:
 
 ```bash
 cd ~/claude-projects/sf-demo-scout && \
-  for path in .git install.sh bootstrap.sh update.sh README.md .claude force-app sfdx-project.json CLAUDE.md; do
-    [ -e "$path" ] && rm -rf "$path"
-  done && \
+  find . -maxdepth 1 -mindepth 1 \
+    ! -name 'orgs' \
+    ! -name '.sf' \
+    ! -name '.DS_Store' \
+    -exec rm -rf {} + && \
   echo "CLEANUP_DONE" || echo "CLEANUP_FAILED"
 ```
 
@@ -94,11 +120,11 @@ Stop on `CLEANUP_FAILED`.
 ## Step 3 — Verify
 
 ```bash
-ls ~/claude-projects/sf-demo-scout/ 2>/dev/null
+ls -A ~/claude-projects/sf-demo-scout/ 2>/dev/null
 ```
 
-Expected: `orgs` (and `.sf` if an org was configured). If anything
-else remains, list it for the SE and ask whether to remove. Do not
+Expected: `orgs`, `.sf`, possibly `.DS_Store`. If anything else
+remains, list it for the SE and ask whether to remove. Do not
 auto-remove — could be SE work product.
 
 ## Step 4 — Hand over
