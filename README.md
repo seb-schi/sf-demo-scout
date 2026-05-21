@@ -19,21 +19,18 @@ The plugin's first-run bootstrap handles workspace setup automatically.
 ## Migrating from clone-install
 
 If you previously installed Scout via `git clone` or the curl
-bootstrap, you have a clone-install workspace at
-`~/claude-projects/sf-demo-scout/`. Two ways to migrate:
+bootstrap, run `update.sh` one last time:
 
-1. **Run `update.sh` one last time** (any pre-cached version on
-   your disk works). This re-fetches this branch and prints a
-   migration notice. Then follow the plugin install steps above.
+```
+cd ~/claude-projects/sf-demo-scout
+bash update.sh
+```
 
-2. **Just install the plugin directly** using the slash commands
-   above. After it's installed, run `/setup-demo-scout` inside
-   Claude Code — the migration command will clean up the old
-   clone-install artifacts and hand you over to the plugin's
-   commands.
+This re-fetches this branch, self-cleans the old clone-install
+artifacts, and prints the plugin install instructions. Your org
+data at `~/claude-projects/sf-demo-scout/orgs/` is preserved.
 
-Your org data at `~/claude-projects/sf-demo-scout/orgs/` is
-preserved through either path.
+Then follow the plugin install steps above.
 
 ## Archive
 
