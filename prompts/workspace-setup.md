@@ -139,6 +139,62 @@ on re-run. If `sfdx-project.json` is still missing after this step,
 Step 8 (config writer) will not flip the marker and the slow path will
 re-run on next invocation.
 
+## Step 5.5: Sync upstream skills
+
+Mirror clone-install's install.sh §9 (skill manifest sync). Pulls the
+16 upstream skills declared in `${CLAUDE_PLUGIN_ROOT}/skills-manifest.yaml`
+into `${WORKSPACE_DIR}/.claude/skills/`. Plugin-vendored homegrown
+skills (`demo-*`) live at `${CLAUDE_PLUGIN_ROOT}/skills/` and are NOT
+touched by sync.
+
+First, ensure pyyaml is available (the sync engine's manifest parser):
+
+```bash
+if ! python3 -c 'import yaml' 2>/dev/null; then
+  pip3 install --quiet --user pyyaml 2>/dev/null || pip3 install --quiet --break-system-packages pyyaml 2>/dev/null || true
+fi
+python3 -c 'import yaml; print("PYYAML_OK")' 2>/dev/null || echo "PYYAML_MISSING"
+```
+
+On `PYYAML_MISSING`, ABORT and emit:
+
+> "Scout's skill sync needs Python's pyyaml module, which couldn't
+> auto-install. Run this in a terminal, then re-run the Scout command:
+>
+> ```
+> pip3 install --user pyyaml
+> ```"
+
+Then Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (Read-tool
+path resolution; bash shell expansion does not work for
+`${CLAUDE_PLUGIN_ROOT}` — see [[project_plugin_root_no_shell_expansion]]).
+Extract the `version` field as a string. This same value is reused in
+Step 8 (config writer) — surface it once here as `[PLUGIN_VERSION]`
+and substitute literally in both bash blocks.
+
+Run the sync:
+
+```bash
+WORKSPACE_DIR="$HOME/claude-projects/sf-demo-scout" \
+  PLUGIN_VERSION="[PLUGIN_VERSION]" \
+  bash "${CLAUDE_PLUGIN_ROOT}/scripts/sync-skills.sh"
+```
+
+Read the SYNCED_COUNT / FAILED_COUNT / PRUNED_COUNT lines from output
+and surface a one-line status:
+
+> "Synced [N] upstream skills into the workspace."
+
+On `FAILED_COUNT > 0`: do NOT abort the bootstrap (skills will
+fall back to whatever was previously in place; first-time runs end up
+with partial coverage). Surface a warning:
+
+> "[F] of [N+F] skills failed to sync. Setup will continue. You can
+> retry later with `/scout-sync-skills`. The failed skill folders are
+> listed below:"
+
+followed by the FAILED= lines from output.
+
 ## Step 6: Starter Lessons Files
 
 ```bash
@@ -200,6 +256,7 @@ cat > "$HOME/.config/sf-demo-scout/config.json" <<EOF
   "workspace_path": "$HOME/claude-projects/sf-demo-scout",
   "install_method": "plugin",
   "plugin_version": "[PLUGIN_VERSION]",
+  "last_synced_plugin_version": "[PLUGIN_VERSION]",
   "setup_completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
