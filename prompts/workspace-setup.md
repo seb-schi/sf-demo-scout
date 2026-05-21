@@ -186,14 +186,20 @@ Do not proceed past this step on `needs_auth`.
 
 ## Step 8: Write config.json
 
+First, Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (the Read tool
+resolves `${CLAUDE_PLUGIN_ROOT}` correctly; shell expansion does not — that's
+why we cannot grep the file from inside bash). Extract the `version` field
+value as a string.
+
+Then run this Bash, substituting `[PLUGIN_VERSION]` with the extracted value:
+
 ```bash
 mkdir -p "$HOME/.config/sf-demo-scout"
-PLUGIN_VERSION=$(grep '"version"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
 cat > "$HOME/.config/sf-demo-scout/config.json" <<EOF
 {
   "workspace_path": "$HOME/claude-projects/sf-demo-scout",
   "install_method": "plugin",
-  "plugin_version": "$PLUGIN_VERSION",
+  "plugin_version": "[PLUGIN_VERSION]",
   "setup_completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
