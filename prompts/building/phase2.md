@@ -27,7 +27,7 @@ Autonomous-with-SE-gate scope covers the full trigger spectrum the `sf-flow` ski
 
 Screen-flow component whitelist: DisplayText, Section, InputField (Text / LargeTextArea / Number / Email / Date / DateTime / Password), Picklist, RadioButtons, Checkbox, CheckboxGroup, MultiSelectPicklist. Anything else (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) → skip.
 
-**Template sources.** The `sf-flow` skill ships canonical XML templates under `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/assets/`:
+**Template sources.** The `sf-flow` skill ships canonical XML templates under `.claude/skills/sf-flow/assets/`:
 - `record-triggered-before-save.xml`, `record-triggered-after-save.xml`, `record-triggered-before-delete.xml`
 - `screen-flow-template.xml`, `screen-flow-with-lwc.xml` (LWC variant out of autonomous scope)
 - `autolaunched-flow-template.xml`
@@ -36,7 +36,7 @@ Screen-flow component whitelist: DisplayText, Section, InputField (Text / LargeT
 - `subflows/` — reusable subflow patterns (bulk-updater, dml-rollback, email-alert, error-logger, query-with-retry, record-validator)
 - `elements/` — get-records, loop, record-delete, transform element patterns
 
-Reference guides: skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotchas.md` before any XML work (root-level alphabetical ordering, fault-connector self-reference, relationship-field trap, storeOutputAutomatically data leak). Per-category references (`flow-best-practices.md`, `testing-guide.md`, `wait-patterns.md`, `subflow-library.md`, `transform-vs-loop-guide.md`) as needed.
+Reference guides: skim `.claude/skills/sf-flow/references/xml-gotchas.md` before any XML work (root-level alphabetical ordering, fault-connector self-reference, relationship-field trap, storeOutputAutomatically data leak). Per-category references (`flow-best-practices.md`, `testing-guide.md`, `wait-patterns.md`, `subflow-library.md`, `transform-vs-loop-guide.md`) as needed.
 
 **Deployment order within Phase 2.** Deploy subflows before their parent flows (same-phase dependency). Platform-event-triggered flows require the `<eventType>` object — if the spec ships a new platform event in this deploy, the event object deploys before the flow. Scheduled flows have no in-phase dependencies.
 
@@ -169,7 +169,7 @@ Key rules for updating the triggering record:
 - Field assignments go in `<inputAssignments>`, not `<filters>`
 - This pattern works for after-save triggers — before-save triggers use `$Record` assignments directly in the start element
 
-Screen flow template lives at `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/assets/screen-flow-template.xml` (full clone guarantees presence). Before authoring a screen flow, skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotchas.md` — it carries the root-level alphabetical ordering rule and the `storeOutputAutomatically` data-leak rule among other traps. (Already referenced at the top of Flow Rules, restated here because screen flows are where these two specifically bite.)
+Screen flow template lives at `.claude/skills/sf-flow/assets/screen-flow-template.xml` (full clone guarantees presence). Before authoring a screen flow, skim `.claude/skills/sf-flow/references/xml-gotchas.md` — it carries the root-level alphabetical ordering rule and the `storeOutputAutomatically` data-leak rule among other traps. (Already referenced at the top of Flow Rules, restated here because screen flows are where these two specifically bite.)
 
 **FlowTest template** (applies to every autonomous flow type — type-specific parameter shape in step 4 above). Save as `[FlowApiName]_Test.flowTest-meta.xml`, deploy alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`. The example below is **record-triggered**; switch the `<parameters>` block per step 4 for other flow types.
 

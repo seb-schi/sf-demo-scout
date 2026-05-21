@@ -1,0 +1,77 @@
+# External skill manifest for SF Demo Scout (plugin edition).
+# Single source of truth for skills pulled from third-party repos.
+# Edit this file to add, remove, or pin skills.
+# After editing + plugin republish, SEs sync on next bootstrap (or via
+# /scout-sync-skills).
+#
+# Homegrown skills (demo-*) are NOT listed here — they ship vendored
+# inside the plugin under ${CLAUDE_PLUGIN_ROOT}/skills/.
+
+sources:
+  jaganpro:
+    repo: https://github.com/forcedotcom/sf-skills
+    type: clone
+    branch: Jaganpro/sf-skills
+  afv:
+    repo: https://github.com/forcedotcom/sf-skills
+    type: clone
+    branch: main
+
+skills:
+  # Jaganpro's sf-* skills — cloned from forcedotcom/sf-skills's
+  # Jaganpro/sf-skills branch (canonical Salesforce skills repo,
+  # renamed from forcedotcom/afv-library; both names served identical
+  # content during the transition). The branch is still temporary —
+  # these merge into sf-skills/main eventually. When that happens,
+  # collapse this into the `afv` source.
+  # Full directory clone picks up SKILL.md + assets/ + references/ + hooks/.
+  - name: sf-flow
+    source: jaganpro
+    path: skills/sf-flow
+  - name: sf-permissions
+    source: jaganpro
+    path: skills/sf-permissions
+  - name: sf-deploy
+    source: jaganpro
+    path: skills/sf-deploy
+  - name: sf-apex
+    source: jaganpro
+    path: skills/sf-apex
+  - name: sf-soql
+    source: jaganpro
+    path: skills/sf-soql
+  - name: sf-data
+    source: jaganpro
+    path: skills/sf-data
+  - name: sf-debug
+    source: jaganpro
+    path: skills/sf-debug
+  - name: sf-lwc
+    source: jaganpro
+    path: skills/sf-lwc
+  - name: sf-testing
+    source: jaganpro
+    path: skills/sf-testing
+  - name: sf-flex-estimator
+    source: jaganpro
+    path: skills/sf-flex-estimator
+
+  # forcedotcom/sf-skills — full skill directories, cloned
+  - name: generating-custom-field
+    source: afv
+    path: skills/generating-custom-field
+  - name: generating-custom-object
+    source: afv
+    path: skills/generating-custom-object
+  - name: generating-permission-set
+    source: afv
+    path: skills/generating-permission-set
+  - name: developing-agentforce
+    source: afv
+    path: skills/developing-agentforce
+  - name: testing-agentforce
+    source: afv
+    path: skills/testing-agentforce
+  - name: observing-agentforce
+    source: afv
+    path: skills/observing-agentforce
