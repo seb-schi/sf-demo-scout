@@ -1,13 +1,12 @@
 {
+  "description": "SF Demo Scout session-startup banner: LLMGW auth, Slack MCP, active org, customer folders, update check",
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup",
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/session-startup.sh",
-            "timeout": 30
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-startup.sh\""
           }
         ]
       }
