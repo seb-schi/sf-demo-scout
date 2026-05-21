@@ -6,7 +6,10 @@
   "plugins": [
     {
       "name": "sf-demo-scout",
-      "source": ".",
+      "source": {
+        "source": "github",
+        "repo": "seb-schi/sf-demo-scout-plugin"
+      },
       "description": "Salesforce demo preparation pipeline — sparring, audit, deployment for SE demo orgs"
     }
   ]
