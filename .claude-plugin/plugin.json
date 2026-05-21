@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "0.5.0-phase-d2a-bootstrap-skeleton",
+  "version": "0.6.0-phase-d2b-bootstrap-setup",
   "author": {
     "name": "Sebastian Schickhoff"
   },

@@ -1,43 +1,23 @@
 # Workspace Bootstrap
 
 Shared fragment Read by `/scout-sparring`, `/scout-building`, and
-`/scout-switch-org` as their first step. Ensures Scout commands run in
-the workspace directory regardless of where the SE invoked the command.
+`/scout-switch-org` as their first step. Ensures Scout commands run
+in the workspace directory regardless of where the SE invoked the
+command, and triggers first-run setup if config.json is absent.
 
-This is the **D-2a skeleton** — silent `cd` + collision check only. The
-detect-and-fix logic for missing workspace creation, SFDX scaffold,
-`~/.config/sf-demo-scout/config.json`, `.zshrc` block, and Slack MCP
-user-scope guidance lands in D-2b/c.
-
-## Step 1: cd into workspace
+## Step 1: Ensure workspace dir exists + cd into it
 
 Run this Bash:
-```
-cd "$HOME/claude-projects/sf-demo-scout" 2>/dev/null || {
-  echo "WORKSPACE_MISSING"
-  exit 1
-}
+```bash
+mkdir -p "$HOME/claude-projects/sf-demo-scout"
+cd "$HOME/claude-projects/sf-demo-scout"
 ```
 
-If the command exits 1 (workspace dir does not exist), abort the parent
-command and emit this message verbatim to the SE:
-
-> "Scout workspace not found at `~/claude-projects/sf-demo-scout/`.
-> Phase D-2b will automate setup. For now, run this once in a terminal:
->
-> ```
-> mkdir -p ~/claude-projects/sf-demo-scout/orgs
-> ```
->
-> Then re-run the Scout command."
-
-Do not proceed past this step if cd failed.
+`mkdir -p` is idempotent; the `cd` cannot fail after it. No abort branch.
 
 ## Step 2: Collision check
 
-Still inside the workspace dir, check for plugin + clone-install
-coexistence:
-```
+```bash
 if [ -d .git ] && [ -f install.sh ]; then echo "COLLISION"; fi
 ```
 
@@ -55,8 +35,29 @@ If output is `COLLISION`, abort the parent command and emit:
 
 Do not proceed past this step if collision detected.
 
+## Step 3: Config check + slow-path branch
+
+```bash
+if [ -f "$HOME/.config/sf-demo-scout/config.json" ]; then
+  echo "CONFIG_PRESENT"
+else
+  echo "CONFIG_MISSING"
+fi
+```
+
+- `CONFIG_PRESENT` — fast path. Proceed silently to the parent
+  command's next step. The `cd` from Step 1 is in effect; all
+  subsequent `orgs/...` etc. refs resolve against the workspace.
+
+- `CONFIG_MISSING` — slow path. Read
+  `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-setup.md` and execute its
+  procedure end-to-end. After it returns control (Step 9 of setup),
+  proceed to the parent command's next step.
+
 ## After bootstrap
 
 All subsequent `orgs/...`, `sparring-lessons.md`, `building-lessons.md`
 refs in the parent command resolve against the workspace dir (Bash
-context) thanks to the `cd` above.
+context) thanks to the `cd` above. Read/Edit-context refs are
+handled per the path-rewrite outcome from D-2b's empirical test (see
+PLAN LOG).
