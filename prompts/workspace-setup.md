@@ -240,6 +240,82 @@ Interpret the single-word output:
 
 Do not proceed past this step on `needs_auth`.
 
+## Step 7.5: Write workspace `.claude/settings.json`
+
+Plugin scope can't ship a workspace-scope settings.json (plugins are
+global; settings.json is per-workspace). Bootstrap writes it on first
+run so the SE gets:
+
+- Opus as default model (Scout sparring + audit work better on Opus
+  than Sonnet)
+- Permissions allowlist for common tools (avoids per-call approval
+  prompts for Bash, Edit, MCP tools, etc.)
+- Permissions denylist for destructive operations (rm -rf on workspace
+  data, sf org delete, force-push, etc.)
+
+The SessionStart hook block is intentionally NOT written here — it
+ships in plugin land via `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json`.
+Adding it to workspace settings would double-register and double-fire
+the banner.
+
+Idempotent: only writes if `.claude/settings.json` is missing. Don't
+clobber if SE has hand-edited (e.g. raised model thinking budget,
+added local permissions).
+
+```bash
+SETTINGS="$HOME/claude-projects/sf-demo-scout/.claude/settings.json"
+mkdir -p "$(dirname "$SETTINGS")"
+if [ ! -f "$SETTINGS" ]; then
+  cat > "$SETTINGS" <<'EOF'
+{
+  "model": "opus",
+  "permissions": {
+    "allow": [
+      "mcp__Salesforce_DX__*",
+      "mcp__Salesforce_Docs__*",
+      "mcp__slack__*",
+      "mcp__plugin_slack_*",
+      "Bash",
+      "Edit",
+      "Write",
+      "Read",
+      "Agent",
+      "Skill"
+    ],
+    "deny": [
+      "Bash(rm -rf orgs*)",
+      "Bash(rm -r orgs*)",
+      "Bash(rm -rf ~*)",
+      "Bash(rm -rf $HOME*)",
+      "Bash(rm -rf /Users/*)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~/.sf*)",
+      "Bash(rm -rf .sf*)",
+      "Bash(sf org delete*)",
+      "Bash(sf org logout --all*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)"
+    ]
+  },
+  "showThinkingSummaries": true
+}
+EOF
+  echo "SETTINGS_WRITTEN"
+else
+  echo "SETTINGS_PRESENT"
+fi
+```
+
+On `SETTINGS_WRITTEN`, surface a one-line note to the SE:
+
+> Wrote workspace `.claude/settings.json` (Opus default, MCP/Bash
+> allowlist, destructive-op denylist). Reload in your current session
+> by quitting + relaunching Claude Code from this workspace, OR keep
+> going on Sonnet for now — Opus picks up next session.
+
+(The settings file is loaded on session start, not on write — running
+session won't hot-pick-up the model change.)
+
 ## Step 8: Write config.json
 
 First, Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (the Read tool
