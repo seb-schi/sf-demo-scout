@@ -3,6 +3,14 @@
 # Lives at: ${CLAUDE_PLUGIN_ROOT}/hooks/session-startup.sh (plugin)
 # Runs automatically via SessionStart hook when Claude Code launches.
 # Handles: LLMGW auth check, Salesforce org check, org folder + audit status.
+#
+# Workspace gate: the plugin loads globally, but the banner is only useful
+# inside the Scout workspace. Stay silent everywhere else.
+
+SCOUT_WORKSPACE="${SCOUT_WORKSPACE:-$HOME/claude-projects/sf-demo-scout}"
+if [ "$PWD" != "$SCOUT_WORKSPACE" ]; then
+  exit 0
+fi
 
 OUTPUT=""
 
@@ -46,7 +54,7 @@ elif ! echo "$ORG_LIST" | grep -qE "\"alias\"[[:space:]]*:[[:space:]]*\"$DEFAULT
   LOCAL_CONFIG=".sf/config.json"
   OUTPUT+="## ⚠️ Configured target-org '$DEFAULT_ORG' is not in the connected org list.\n"
   OUTPUT+="   This usually means a stale entry in $LOCAL_CONFIG (local scope overrides global).\n"
-  OUTPUT+="   Fix: run /switch-org to reset, or edit $LOCAL_CONFIG manually.\n\n"
+  OUTPUT+="   Fix: run /scout-switch-org to reset, or edit $LOCAL_CONFIG manually.\n\n"
 else
   ORG_DISPLAY=$(sf org display --target-org "$DEFAULT_ORG" --json 2>/dev/null)
   if [ -n "$ORG_DISPLAY" ]; then
@@ -59,7 +67,7 @@ else
     OUTPUT+="- **Username:** $USERNAME\n"
     OUTPUT+="- **Org ID:** $ORG_ID\n"
     OUTPUT+="- **Instance:** $INSTANCE_URL\n"
-    OUTPUT+="$ORG_COUNT org(s) available. Switch: /switch-org\n\n"
+    OUTPUT+="$ORG_COUNT org(s) available. Switch: /scout-switch-org\n\n"
 
     # --- 4. Org Folder + Audit Check ---
     # Find customer folders for this org alias (pattern: orgs/[alias]-[customer]/)
@@ -132,6 +140,6 @@ OUTPUT+="---\n"
 OUTPUT+="**Ready.**\n"
 OUTPUT+="  /scout-sparring  — Opus discovery sparring + spec generation\n"
 OUTPUT+="  /scout-building  — Opus orchestrator for org deployment\n"
-OUTPUT+="  /switch-org      — change active demo org\n"
+OUTPUT+="  /scout-switch-org — change active demo org\n"
 
 echo -e "$OUTPUT"

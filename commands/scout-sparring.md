@@ -82,12 +82,12 @@ Run `sf config get target-org --json` and `sf org display --json`. Extract alias
 
 **If `sf org display` fails** (no org connected, or auth expired): emit this as a standalone message and stop.
 
-> "No demo org connected. Run `/switch-org` to connect one, then re-run `/scout-sparring`."
+> "No demo org connected. Run `/scout-switch-org` to connect one, then re-run `/scout-sparring`."
 
 Do not continue to audit routing without an org.
 
 Output as a single message, then wait for the SE's reply:
-> "Active org: [alias] ([username]). Right org, or switch? (run /switch-org)
+> "Active org: [alias] ([username]). Right org, or switch? (run /scout-switch-org)
 >
 > I can help you with:
 > - **A new demo scenario** — full sparring for a new customer situation, typically on a fresh demo org

@@ -1,5 +1,5 @@
 ---
-name: switch-org
+name: scout-switch-org
 description: >
   Switch to a different Salesforce demo org.
 model: sonnet

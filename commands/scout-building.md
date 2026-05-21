@@ -49,7 +49,7 @@ Present both in a single message:
 - One folder -> "Active org: [alias] ([username]). Customer: [customer]. Deploying here. Type 'switch' to change, or confirm."
 - Multiple folders -> "Active org: [alias] ([username]). Multiple customers found: [list]. Which one?" Wait.
 
-Wait for confirmation. If the SE wants to switch orgs: *"Stopping. Run `/switch-org` in a fresh session to change orgs, then re-run `/scout-building`."* Stop — do not proceed.
+Wait for confirmation. If the SE wants to switch orgs: *"Stopping. Run `/scout-switch-org` in a fresh session to change orgs, then re-run `/scout-building`."* Stop — do not proceed.
 
 ---
 
