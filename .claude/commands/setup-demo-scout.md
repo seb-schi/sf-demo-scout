@@ -12,6 +12,11 @@ trampoline lands. Two states to handle:
 A) Plugin not yet installed — give the SE the install instructions, stop.
 B) Plugin already installed — clean up trampoline scaffolding, hand over.
 
+**This is a one-time migration command.** After cleanup completes, it
+disappears with the rest of the trampoline scaffolding. From then on,
+`/scout-sparring`, `/scout-building`, and `/scout-switch-org` (provided
+by the plugin) are the SE's day-to-day commands.
+
 ## Step 1 — Detect plugin install
 
 ```bash
@@ -26,27 +31,36 @@ If `PLUGIN_DETECTED`, go to Step 2B.
 
 ## Step 2A — Plugin not installed: install instructions
 
-Print this exactly, then stop. Do NOT continue past this step — the SE
-needs to run the slash commands one at a time, then re-invoke
-`/setup-demo-scout` for the cleanup phase.
+Print this exactly, then stop. **Slash commands MUST start at column 0
+(no indent), so SEs can copy-paste straight from Terminal.** Indented
+slash commands break paste behaviour in Terminal.app and similar
+emulators.
 
-> SF Demo Scout is now a Claude Code plugin. Finish the migration by
-> running these slash commands **one at a time** — paste, hit Enter,
-> wait for confirmation, then move to the next.
+Print this verbatim:
+
+> Welcome! SF Demo Scout is now a Claude Code plugin. This is a
+> **one-time migration** — once you finish the four steps below,
+> Scout commands will be globally available wherever you launch Claude
+> Code, you'll get auto-updates, and you'll never run `update.sh`
+> again.
+>
+> Run these slash commands **one at a time** — paste, hit Enter, wait
+> for the confirmation message, then move to the next.
 >
 > ---
 >
 > **Step 1.** Add the plugin marketplace:
 >
->     /plugin marketplace add https://github.com/seb-schi/sf-demo-scout-plugin.git
+> /plugin marketplace add https://github.com/seb-schi/sf-demo-scout-plugin.git
 >
 > Wait for: `Successfully added marketplace: scout`
 >
 > ---
 >
-> **Step 2.** Install the plugin:
+> **Step 2.** Install the plugin (use **user scope** when prompted, so
+> the plugin is available across all your projects):
 >
->     /plugin install sf-demo-scout@scout
+> /plugin install sf-demo-scout@scout
 >
 > Wait for: `✓ Installed sf-demo-scout`
 >
@@ -54,14 +68,14 @@ needs to run the slash commands one at a time, then re-invoke
 >
 > **Step 3.** Activate the plugin without restarting:
 >
->     /reload-plugins
+> /reload-plugins
 >
 > ---
 >
-> **Step 4.** Re-run this migration command — it will detect the plugin
-> and finish cleanup:
+> **Step 4.** Re-run this migration command — it will detect the
+> plugin and finish cleanup:
 >
->     /setup-demo-scout
+> /setup-demo-scout
 >
 > ---
 >
@@ -129,21 +143,28 @@ auto-remove — could be SE work product.
 
 ## Step 4 — Hand over
 
-Print this, then stop:
+Print this verbatim, then stop:
 
-> Migration complete. Your workspace at
-> `~/claude-projects/sf-demo-scout/` now contains only your org data.
-> The plugin's bootstrap will pick it up automatically on your next
-> command.
+> 🎉 **Migration complete.** Welcome to plugin-Scout!
 >
-> Try one of:
+> **What's better now:**
+> - Scout commands are **global** — `/scout-sparring`,
+>   `/scout-building`, `/scout-switch-org` work in any Claude Code
+>   session, regardless of which directory you launched from.
+> - **Auto-updates** — when a new Scout version ships, the plugin
+>   marketplace picks it up automatically. No more `bash update.sh`.
+> - **Cleaner workspace** — your `~/claude-projects/sf-demo-scout/`
+>   directory now contains only your data (`orgs/` + `.sf/`). Skills,
+>   commands, hooks, prompts all live in plugin land.
+> - **Faster sessions** — MCP servers pre-cached, prereqs verified,
+>   skill manifest synced on first run.
 >
->   /scout-sparring     — Opus discovery sparring + spec generation
->   /scout-building     — Opus orchestrator for org deployment
->   /scout-switch-org   — change active demo org
+> **Recommended next step:** run `/scout-switch-org` to confirm your
+> active org. Pick one from the list — that's all you need to start
+> demo prep.
 >
-> First-run note: the plugin's bootstrap installs missing prereqs
-> (Node, Python, sf CLI), pre-caches the Salesforce MCP server,
-> creates a fresh SFDX scaffold, syncs upstream skills, and refreshes
-> your `.zshrc` Scout-managed block. ~30s the first time, silent on
-> subsequent runs.
+>     /scout-switch-org
+>
+> Once an org is active, `/scout-sparring` (discovery + spec
+> generation) and `/scout-building` (deployment) are ready when you
+> need them.
