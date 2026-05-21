@@ -40,10 +40,14 @@ If output is `CLONE_INSTALL_DETECTED`, continue.
 
 ## Step 2 — Detect plugin install
 
-Check whether the Scout plugin is installed and active:
+Check whether the Scout plugin is installed and active. Two
+independent signals — both must succeed:
 
 ```bash
-ls ~/.claude/plugins/installed/ 2>/dev/null | grep -i scout || echo "NO_PLUGIN"
+test -f ~/.claude/plugins/installed_plugins.json && \
+  grep -q "sf-demo-scout@scout" ~/.claude/plugins/installed_plugins.json && \
+  test -d ~/.claude/plugins/cache/scout/sf-demo-scout && \
+  echo "PLUGIN_DETECTED" || echo "NO_PLUGIN"
 ```
 
 If output is `NO_PLUGIN`, tell the SE:
@@ -60,7 +64,7 @@ If output is `NO_PLUGIN`, tell the SE:
 
 Then stop.
 
-If a Scout plugin entry is found, continue.
+If output is `PLUGIN_DETECTED`, continue.
 
 ## Step 3 — Confirm with SE
 
