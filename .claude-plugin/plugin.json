@@ -1,0 +1,23 @@
+{
+  "name": "sf-demo-scout",
+  "description": "Salesforce demo preparation pipeline — sparring, audit, deployment for SE demo orgs",
+  "version": "0.2.0-phase-b-scaffold",
+  "author": {
+    "name": "Sebastian Schickhoff"
+  },
+  "mcpServers": {
+    "Salesforce DX": {
+      "command": "npx",
+      "args": [
+        "-y", "@salesforce/mcp",
+        "--orgs", "DEFAULT_TARGET_ORG",
+        "--toolsets", "orgs,metadata,data,users,lwc-experts,code-analysis",
+        "--allow-non-ga-tools"
+      ]
+    },
+    "Salesforce Docs": {
+      "type": "http",
+      "url": "https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp"
+    }
+  }
+}

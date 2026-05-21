@@ -1,0 +1,13 @@
+{
+  "name": "scout",
+  "owner": {
+    "name": "Sebastian Schickhoff"
+  },
+  "plugins": [
+    {
+      "name": "sf-demo-scout",
+      "source": ".",
+      "description": "Salesforce demo preparation pipeline — sparring, audit, deployment for SE demo orgs"
+    }
+  ]
+}
