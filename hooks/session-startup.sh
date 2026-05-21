@@ -135,6 +135,15 @@ if git rev-parse --git-dir &>/dev/null; then
   fi
 fi
 
+# --- 6.5. Plugin First-Run Nudge ---
+# If the SE installed the plugin but never ran a /scout-* command,
+# config.json is absent and the workspace is unconfigured. Surface
+# a one-line nudge so they know what to do next.
+if [ ! -f "$HOME/.config/sf-demo-scout/config.json" ]; then
+  OUTPUT+="## ⚠️ Scout setup not yet complete.\n"
+  OUTPUT+="   Run /scout-sparring or /scout-switch-org to finish first-time setup.\n\n"
+fi
+
 # --- 7. Ready ---
 OUTPUT+="---\n"
 OUTPUT+="**Ready.**\n"

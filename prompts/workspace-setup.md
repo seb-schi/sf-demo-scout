@@ -209,9 +209,141 @@ echo "CONFIG_WRITTEN"
 Once written, future bootstrap fast-path checks see config.json present
 and skip the slow path entirely.
 
+## Step 8.5: .zshrc Scout-managed block
+
+Append (or refresh) the Scout-managed env-var block in `~/.zshrc`. Mirrors
+install.sh §10 so a single SE switching install methods only ever has one
+managed block. Block markers are `# BEGIN SF-DEMO-SCOUT` / `# END SF-DEMO-SCOUT`
+(matching install.sh exactly).
+
+The Python pass below atomically:
+- strips Scout-owned exports outside the managed block (canonical values
+  live inside the block; outside-block exports otherwise win on shell
+  load order and create silent drift),
+- sweeps legacy "superseded by managed block" redaction comments from
+  prior install.sh versions,
+- removes the existing managed block AND any blank lines immediately
+  surrounding it (fixes install.sh's blank-line-accumulation bug —
+  every install.sh refresh prepends a blank, so after N updates the
+  file has N stray blanks before the block),
+- appends exactly one blank line + the fresh managed block at EOF.
+
+Determine whether the block changed by comparing pre/post file contents;
+set `ZSHRC_MODIFIED=1` if changed, else `0`. Pass the value to Step 9.
+
+Run this Bash:
+
+```bash
+ZSHRC="$HOME/.zshrc"
+touch "$ZSHRC"
+ZSHRC_BEFORE_HASH=$(shasum "$ZSHRC" | awk '{print $1}')
+
+python3 - "$ZSHRC" <<'PYEOF'
+import re, sys
+path = sys.argv[1]
+BEGIN = "# BEGIN SF-DEMO-SCOUT"
+END = "# END SF-DEMO-SCOUT"
+KEYS = [
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
+    "MAX_THINKING_TOKENS",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+]
+BLOCK_LINES = [
+    BEGIN,
+    "# Managed by Scout plugin — do not edit. Refreshed on first-run setup.",
+    "export CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192",
+    "export MAX_THINKING_TOKENS=4096",
+    "export ANTHROPIC_DEFAULT_OPUS_MODEL=us.anthropic.claude-opus-4-7",
+    "export ANTHROPIC_DEFAULT_SONNET_MODEL=us.anthropic.claude-sonnet-4-6",
+    "export ANTHROPIC_DEFAULT_HAIKU_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0",
+    END,
+]
+
+with open(path) as f:
+    lines = f.readlines()
+
+key_re = re.compile(r'^\s*export\s+(' + '|'.join(re.escape(k) for k in KEYS) + r')\s*=')
+legacy_re = re.compile(r'^# \[sf-demo-scout \d{4}-\d{2}-\d{2}\] superseded by managed block: ')
+
+# Pass 1: strip Scout-owned exports outside the block + legacy comments.
+# Track block boundaries.
+in_block = False
+out = []
+for line in lines:
+    stripped = line.rstrip('\n')
+    if stripped == BEGIN:
+        in_block = True
+        out.append(line); continue
+    if stripped == END:
+        in_block = False
+        out.append(line); continue
+    if not in_block and key_re.match(line):
+        continue
+    if legacy_re.match(line):
+        continue
+    out.append(line)
+
+# Pass 2: remove existing block (including the BEGIN/END lines).
+cleaned = []
+skip = False
+for line in out:
+    stripped = line.rstrip('\n')
+    if stripped == BEGIN:
+        skip = True
+        continue
+    if stripped == END:
+        skip = False
+        continue
+    if not skip:
+        cleaned.append(line)
+
+# Pass 3: trim trailing blank lines (collapses the install.sh accumulation).
+while cleaned and cleaned[-1].strip() == "":
+    cleaned.pop()
+
+# Append: exactly one blank + fresh block + trailing newline.
+body = "".join(cleaned)
+if body and not body.endswith("\n"):
+    body += "\n"
+body += "\n" + "\n".join(BLOCK_LINES) + "\n"
+
+with open(path, "w") as f:
+    f.write(body)
+PYEOF
+
+ZSHRC_AFTER_HASH=$(shasum "$ZSHRC" | awk '{print $1}')
+if [ "$ZSHRC_BEFORE_HASH" = "$ZSHRC_AFTER_HASH" ]; then
+  echo "ZSHRC_UNCHANGED"
+else
+  echo "ZSHRC_MODIFIED"
+fi
+
+# Legacy ANTHROPIC_MODEL warning (not a Claude Code variable, not in our managed set).
+if grep -qE '^\s*export\s+ANTHROPIC_MODEL\s*=' "$ZSHRC" 2>/dev/null; then
+  echo "ANTHROPIC_MODEL_PRESENT"
+fi
+```
+
+Capture the bash output. If the last meaningful line is `ZSHRC_MODIFIED`,
+set `ZSHRC_MODIFIED=true` for Step 9; otherwise `false`. If the bash also
+emitted `ANTHROPIC_MODEL_PRESENT`, surface a one-line warning to the SE
+BEFORE the Step 9 confirmation:
+
+> "⚠️ Found legacy `ANTHROPIC_MODEL` in your `~/.zshrc` — this is not a Claude Code variable. Remove it manually: edit `~/.zshrc` and delete the line."
+
 ## Step 9: Confirm to SE
 
-Emit a single one-line message to the SE:
+Emit one of these messages depending on `ZSHRC_MODIFIED`:
+
+**If `ZSHRC_MODIFIED=true`:**
+
+> "Scout workspace setup complete at `~/claude-projects/sf-demo-scout/`.
+>
+> Note: Scout added a managed block to your `~/.zshrc` for default model env vars. **Open a new terminal window** before any non-Claude-Code shell session — current Claude Code session is unaffected. Continuing with your command."
+
+**If `ZSHRC_MODIFIED=false`:**
 
 > "Scout workspace setup complete at `~/claude-projects/sf-demo-scout/`. Continuing with your command."
 
