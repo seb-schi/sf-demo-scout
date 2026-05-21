@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "0.4.0-phase-d1-hook-gate",
+  "version": "0.5.0-phase-d2a-bootstrap-skeleton",
   "author": {
     "name": "Sebastian Schickhoff"
   },

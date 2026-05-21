@@ -23,6 +23,8 @@ Push back hard during sparring — this is where the quality of the demo is deci
 
 ## Before You Start
 
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This fragment cd's into the Scout workspace and aborts cleanly if it cannot. Do not proceed with the steps below if the fragment aborted.
+
 Read `orgs/sparring-lessons.md` — these are mistakes from previous sparring sessions. Do not repeat them.
 
 ## Objective

@@ -20,6 +20,8 @@ Ignore it — the harness auto-indexes slash commands for discoverability, but
 there is no `${CLAUDE_PLUGIN_ROOT}/skills/scout-building/SKILL.md` by design. Your
 instructions are this file. Do not go looking for a SKILL.md.
 
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This fragment cd's into the Scout workspace and aborts cleanly if it cannot. Do not proceed with the steps below if the fragment aborted.
+
 Read `orgs/building-lessons.md` — these are mistakes from previous building sessions. Do not repeat known mistakes.
 
 **Docs consultation on error:** when a sub-agent reports a deployment failure with an error message not in `building-lessons` and not self-evident, consult Salesforce Docs MCP BEFORE asking the SE to retry or skip. Load `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` for the decision tree. Record every consultation for the change log.
