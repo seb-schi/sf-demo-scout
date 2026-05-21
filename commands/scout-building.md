@@ -1,0 +1,223 @@
+---
+name: scout-building
+description: >
+  Orchestrator for SF Demo Prep deployment.
+  Parses a completed spec from /scout-sparring, delegates deployment to
+  Sonnet sub-agents in phases, and writes a consolidated change log.
+  Activate with /scout-building.
+model: opus
+allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, AskUserQuestion, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__deploy_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__assign_permission_set, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_DX__run_code_analyzer, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch, mcp__slack__slack_create_canvas
+---
+
+# Scout Building — Opus Orchestrator
+
+You are the orchestrator. You do NOT deploy metadata directly. You parse the spec,
+construct sub-agent prompts from templates, spawn sub-agents, validate their results,
+and write the change log.
+
+**Note on the skills menu:** you may see `scout-building` listed as a skill.
+Ignore it — the harness auto-indexes slash commands for discoverability, but
+there is no `${CLAUDE_PLUGIN_ROOT}/skills/scout-building/SKILL.md` by design. Your
+instructions are this file. Do not go looking for a SKILL.md.
+
+Read `orgs/building-lessons.md` — these are mistakes from previous building sessions. Do not repeat known mistakes.
+
+**Docs consultation on error:** when a sub-agent reports a deployment failure with an error message not in `building-lessons` and not self-evident, consult Salesforce Docs MCP BEFORE asking the SE to retry or skip. Load `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` for the decision tree. Record every consultation for the change log.
+
+---
+
+## Step 1: MCP Probe
+
+Run a single MCP probe to confirm connectivity:
+- Call `run_soql_query` with: `SELECT Id FROM Organization LIMIT 1`
+- If it returns a result -> MCP is active, proceed
+- If it fails or times out -> warn the SE:
+  > "MCP is not responding. Quit VS Code fully (CMD+Q), reopen, and run /scout-building again.
+  > If this persists, check that .mcp.json exists in the project root."
+  Stop. Do not proceed without MCP.
+
+---
+
+## Step 3: Confirm Org & Identify Customer
+
+Run `sf config get target-org --json` and `sf org display --json`. Extract alias and username.
+
+List org folders: `ls -d orgs/[alias]-*/`
+
+Present both in a single message:
+- No folders -> "Active org: [alias] ([username]). No customer folders found — run /scout-sparring first." Stop.
+- One folder -> "Active org: [alias] ([username]). Customer: [customer]. Deploying here. Type 'switch' to change, or confirm."
+- Multiple folders -> "Active org: [alias] ([username]). Multiple customers found: [list]. Which one?" Wait.
+
+Wait for confirmation. If the SE wants to switch orgs: *"Stopping. Run `/switch-org` in a fresh session to change orgs, then re-run `/scout-building`."* Stop — do not proceed.
+
+---
+
+## Step 4: Load Spec
+
+```
+ls -lt orgs/[alias]-[customer]/demo-spec-*.md
+```
+
+- No specs -> "Run /scout-sparring first." Stop.
+- One spec -> load automatically, tell SE which file.
+- Multiple -> list with timestamps, ask SE to choose. Wait.
+
+---
+
+## Step 5: Load Org Audit
+
+Find most recent audit in `orgs/[alias]-[customer]/`.
+Check `Org Audit Used:` field in spec header.
+
+- Audits match -> proceed.
+- Audits differ -> warn: "Spec used [old audit] but latest audit is [new audit]. If you made manual changes between those dates, the spec may have conflicts. Continue? (yes/no)"
+- No audit -> "Run /scout-sparring first." Stop.
+
+---
+
+## Step 6: Pre-Deployment Conflict Check
+
+Cross-check spec against audit:
+- Object/field API name collisions
+- Flow conflicts with existing active flows
+- LWC/Agentforce name collisions
+- Spec items already marked with warnings -> surface explicitly
+
+> "Pre-deployment check complete. [N] items to review:
+> [issue] — [risk]
+> Proceed? (yes/no)"
+
+If the SE answers `no`: tell them *"Stopping. Re-run `/scout-sparring` to revise the spec, or edit it manually and re-run `/scout-building`."* Stop.
+
+Wait for go-ahead. This is the last SE input required before Phase 1.
+
+---
+
+## Step 7: Phased Deployment via Sub-Agents
+
+### Phase Analysis
+
+Read the spec and determine which phases are needed:
+
+- **Phase 1 (Org Config):** Always runs if spec has Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning App/Tabs, Business Processes, or Paths sections.
+- **Phase 2 (Flows/Apex/LWC):** Runs only if spec has Flows, Apex, or LWC sections.
+- **Phase 3 (Agentforce):** Runs only if spec has Agentforce section.
+
+Tell the SE which phases you identified:
+> "Deployment plan: Phase 1 (Org Config) [+ Phase 2 (Flows/Apex/LWC)] [+ Phase 3 (Agentforce)]."
+
+If only Phase 1 applies:
+> "Only safe operations in this spec — no Flows, Apex, LWC, or Agentforce. No further SE confirmation needed. Deploying now."
+
+### Sub-Agent Output Validation
+
+After EVERY sub-agent returns, load `${CLAUDE_PLUGIN_ROOT}/prompts/building/sub-agent-validation.md` and run the validation procedure before proceeding. The procedure covers JSON parse checks, per-phase required-keys lists, empirical org-probe queries for schema-drift-with-successful-deployment, and the retry-or-skip gate when the org confirms an incomplete deployment.
+
+### Phase Prep Procedure
+
+Every phase follows the same prep flow. Per-phase inputs are in the table below.
+
+1. Read the template file from `${CLAUDE_PLUGIN_ROOT}/prompts/building/`.
+2. If the template has `<!-- IF:... -->` markers, strip blocks whose tag has no matching content in the spec (marker comments included).
+3. Replace every `{{PLACEHOLDER}}` with the content listed in the phase's row below. Do not inject skill file contents — sub-agents invoke skills by name via the Skill tool.
+4. Spawn: `Agent(description="[row's description]", model="sonnet", prompt=[constructed prompt])`.
+5. Validate output (see Sub-Agent Output Validation above) before moving on.
+
+| Phase | Template | IF markers | Placeholders | Agent description |
+|-------|----------|------------|--------------|-------------------|
+| 1 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` | `QUEUES`, `LAYOUTS`, `LRP`, `PERMSET`, `STRUCTURAL`, `PICKLISTS`, `DATA_SEEDING`, `BUSINESS_PROCESS`, `PATHS` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning Record Page — Field Section additions, Lightning App / Tabs, Business Processes, Paths) | `Phase 1: Org Config deployment` |
+| 2 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` | `FLOWS`, `APEX`, `LWC` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PHASE1_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Flows, Apex, LWC sections) | `Phase 2: Flows/Apex/LWC deployment` |
+| 3 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` | *(none)* | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PRIOR_PHASES_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Agentforce section) | `Phase 3: Agentforce deployment` |
+
+### Phase 1: Org Config
+
+Run the Phase Prep Procedure for Phase 1. After it returns, if critical items failed (objects that Phase 2/3 depend on), warn the SE before continuing.
+
+### Phase 2: Flows / Apex / LWC — if applicable
+
+**SE gate before spawning.** List what will be deployed and ask:
+> "About to deploy: [plain English list]. Proceed? (yes/no)"
+
+If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 2.
+
+**Phase 2→3 Risk Review (if Phase 3 applies):** Before the Phase 3 SE gate, scan Phase 2's `discovery_notes`. For each discovery involving an object also used in Phase 3's Agentforce actions:
+- Cross-check against `orgs/building-lessons.md` — known restriction or new one?
+- Include the risk in the Phase 3 SE confirmation prompt (below).
+- Fold discovery notes into `{{PRIOR_PHASES_SUMMARY}}` as explicit risk callouts, not just deployment facts. Example: "⚠️ Phase 2 discovered MedicalInsight is a managed object requiring dynamic SOQL — Agentforce execution context may also restrict it."
+
+If `discovery_notes` is empty or contains no Phase 3-relevant entries, proceed normally.
+
+### Phase 3: Agentforce — if applicable
+
+**SE gate before spawning.** Enumerate from the spec verbatim — do not paraphrase action types. Pull `Backing Apex classes:` / `Backing actions:` / `Knowledge grounding:` fields from the spec's Agentforce section exactly as written. The SE must be able to see at decision time whether the plan is "no Apex" or "Apex fallback allowed."
+
+> "About to deploy:
+> - **Agent:** [agent api_name] ([subagent count] subagents: [list])
+> - **Backing actions (from spec):** [enumerate verbatim — e.g. 'standard Get Records, standard Update Record, Knowledge grounding via Data Libraries; NO Apex in v1' OR 'Apex invocable LGInverterGetWarranty + standard Update Record']
+> - **New Einstein Agent User:** `[expected username pattern]@[orgid].ext` will be created by `sf agent` CLI during publish (standard Agentforce procedure)
+>
+> Proceed? (yes/no)"
+
+If the spec carries an explicit "no Apex" directive, add one extra line:
+> "⚠️ Spec forbids Apex backing actions. If the sub-agent hits a standard-action failure during validate/preview, it will fall back to Apex and record the triggering error in `issues`. You'll see the deviation in the change log."
+
+If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 3. After it returns:
+1. Check `smoke_test` in the output for pass/fail.
+2. Surface `actions_unverified_in_preview` to the SE explicitly — these are the actions the sub-agent deployed but could not exercise in stateless preview. They are NOT smoke-test failures; they are verification gaps the SE must close manually in a live Messaging Session. If the list is non-empty, include it in the change log's Issues Encountered section and in the handover brief's SE checklist.
+3. Cross-check `deployed.backing_actions` types against the spec. If the spec said "no Apex" and `backing_actions` contains any `type: ApexClass`, the sub-agent invoked the fallback path — verify `discovery_notes` or `issues` carries the triggering standard-action error. If it doesn't, flag as a deviation in the change log (the sub-agent skipped the evidence rule).
+
+---
+
+## Step 7b: Post-Deployment Execution Order Check
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/building/post-deployment-check.md` and execute the procedure. Flag findings in the change log.
+
+---
+
+## Step 8: Change Log, Lessons, and Done
+
+### 8a: Write Change Log
+
+Consolidate results from all phases into a single change log.
+Use the template in `${CLAUDE_PLUGIN_ROOT}/prompts/building/change-log-template.md` (read it when writing the log).
+
+The change log must include:
+- Everything from all sub-agent reports (deployed, skipped, permission set, data, issues)
+- Rollback commands from Phase 2 and Phase 3
+- Which phases ran and which were skipped
+- Any phases that FAILED validation (raw output preserved)
+- **Docs Consulted** section — aggregate `docs_consulted` arrays from every sub-agent's JSON output, plus any orchestrator-level error-recovery consultations. If nothing was consulted, write "None — no unfamiliar errors encountered."
+
+### 8b: Propose Lessons
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-maintenance.md` and execute the "Propose Lessons (building)" section.
+
+### 8c: Demo Handover Brief
+
+**Do NOT output the brief until 8a and 8b are complete.**
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/building/handover-brief.md` for the format, then synthesize the brief. Output it to the terminal as plain text (no file written).
+
+**Then offer the Slack handover canvas:**
+
+1. Probe Slack MCP availability: bash `claude mcp list 2>/dev/null | grep -qE '^slack:.*✓ Connected' && echo OK || echo MISSING`.
+   - On `MISSING`: skip silently to the notification (no prompt — nothing to offer).
+   - On `OK`: proceed to step 2.
+2. Ask the SE inline:
+   > "Write the handover brief to a Slack canvas in your personal Slack? (y/n)"
+   Wait for the reply. On `n` or silence: skip to the notification.
+3. On `y`: call `mcp__slack__slack_create_canvas` with:
+   - `title`: `Demo Handover — [Customer] — [YYYY-MM-DD]`
+   - `content`: the same markdown brief you output to the terminal, reformatted for Canvas-flavored Markdown (plain headers, lists, links — no Slack-message syntax). The canvas lands in the SE's personal Slack; no channel targeting needed.
+4. Capture the returned canvas link. Append one line to the terminal output AFTER the brief:
+   ```
+   📋 Slack canvas: [canvas URL] — refine before sharing with customer.
+   ```
+5. On any canvas-create error, surface one line: *"Canvas write failed: [reason]. Brief is still above."* Do not retry.
+
+Then fire the notification:
+
+```bash
+osascript -e 'display notification "Deployment complete — check the handover brief." with title "SF Demo Scout — Done"'
+```

@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
-  "description": "Salesforce demo preparation pipeline — sparring, audit, deployment for SE demo orgs",
-  "version": "0.2.0-phase-b-scaffold",
+  "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
+  "version": "0.3.0-phase-c-content",
   "author": {
     "name": "Sebastian Schickhoff"
   },
@@ -9,9 +9,12 @@
     "Salesforce DX": {
       "command": "npx",
       "args": [
-        "-y", "@salesforce/mcp",
-        "--orgs", "DEFAULT_TARGET_ORG",
-        "--toolsets", "orgs,metadata,data,users,lwc-experts,code-analysis",
+        "-y",
+        "@salesforce/mcp",
+        "--orgs",
+        "DEFAULT_TARGET_ORG",
+        "--toolsets",
+        "orgs,metadata,data,users,lwc-experts,code-analysis",
         "--allow-non-ga-tools"
       ]
     },

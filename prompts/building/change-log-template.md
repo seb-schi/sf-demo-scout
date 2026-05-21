@@ -1,0 +1,90 @@
+# Change Log — Template
+
+Save to: `orgs/[alias]-[customer]/changes-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`
+Also output the full change log to the terminal.
+
+HHmm = local time at change log creation (e.g. 0930, 1445).
+
+```markdown
+# Change Log — [Customer] — [Date] [HHmm]
+Org: [alias] ([username])
+Spec: demo-spec-[DATE]-[HHmm]-[CUSTOMER].md
+Audit used: audit-[YYYY-MM-DD]-[HHmm].md
+
+## What Was Deployed
+[Every component, grouped by type — include API names]
+
+## What Was Skipped
+[Items not deployed and why]
+
+## Companion Permission Set
+[Name, coverage, assignment status]
+
+## Business Processes Deployed (if any)
+[API names (as Object.ProcessName), driving picklist, values, record type bindings]
+Rollback: sf project delete source --metadata BusinessProcess:[Object].[ApiName] --target-org [alias]
+
+## Paths Deployed (if any)
+[API names, object, record type, driving field, step count]
+Rollback: sf project delete source --metadata PathAssistant:[ApiName] --target-org [alias]
+Note: visual placement of the Path component on the Lightning record page is SE Manual (App Builder).
+
+## Flows Deployed (if any)
+[API names, description, active/draft status]
+Rollback: sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]
+
+## Apex Deployed (if any)
+[Names, description]
+Rollback: sf project delete source --metadata ApexClass:[Name] / ApexTrigger:[Name] --target-org [alias]
+
+## LWC Deployed (if any)
+[Names, description]
+Rollback: sf project delete source --metadata LightningComponentBundle:[Name] --target-org [alias]
+
+## Agentforce Deployed (if any)
+[Names, description]
+Rollback: sf project delete source --metadata AiAuthoringBundle:[AgentName] --target-org [alias]
+(plus `ApexClass:[ClassName]` for each backing action. For existing-agent modifications, rollback is `sf agent activate --version-number [N]` — see phase 3 sub-agent output.)
+
+## Agentforce Smoke Test Results (if any)
+[Utterances sent, pass/fail per utterance, issues observed]
+
+## Actions Unverified in Preview (if any)
+Aggregated from the Phase 3 sub-agent's `actions_unverified_in_preview` array (see `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` for the canonical definition). The SE must verify each entry manually — in a live Messaging Session for session-context-dependent actions, or in Builder after creating dependent resources (e.g. Data Libraries for Knowledge grounding).
+- **[Action name]** — [reason]
+
+## Execution Order Check
+[Per-object list of active flows after deployment. Flag objects with multiple after-save record-triggered flows and note execution order risks.]
+
+## Script Deliverables
+
+Persistent artifacts from this deployment the SE can re-run after a re-spin or hand to a colleague. Each script is idempotent and exposes `--pilot-only` for a safe one-record rehearsal.
+
+- **[script path]**
+  - Pilot: `[pilot_command]`
+  - Bulk: `[bulk_command]`
+  - Self-test: [PASS | FAIL with brief reason]
+
+(If this deployment produced no scripts, write "None — deployment was metadata-only.")
+
+## Issues Encountered
+[Errors, workarounds, second attempts]
+
+## Docs Consulted
+Aggregated from sub-agent `docs_consulted` arrays + any orchestrator-level error-recovery consultations.
+- **Phase:** [1|2|3|orchestrator] — **Question:** [one line]
+  - **URL:** [doc URL]
+  - **Verdict:** [what the doc confirmed/contradicted/left ambiguous]
+
+## SE Must Do Next (in order)
+1. [Specific steps with UI paths]
+
+## How to Verify
+[Step-by-step test sequence]
+
+## Open Questions for Next Session
+[Unresolved items, follow-up]
+```
+
+After saving, tell the SE:
+> "Change log saved. Review 'SE Must Do Next' — complete those before the demo."
