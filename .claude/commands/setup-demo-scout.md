@@ -17,6 +17,18 @@ disappears with the rest of the trampoline scaffolding. From then on,
 `/scout-sparring`, `/scout-building`, and `/scout-switch-org` (provided
 by the plugin) are the SE's day-to-day commands.
 
+## Critical: paste-friendly output
+
+When you print Step 2A's instructions, the slash commands MUST be on
+their own bare lines — NOT inside blockquotes (`>`), NOT inside code
+fences. Markdown renderers add leading whitespace to blockquote
+content, which the SE's terminal copies verbatim when they
+select+copy, breaking the slash command on paste.
+
+The narrative paragraphs CAN be in a blockquote. The slash commands
+themselves must be plain lines, surrounded by blank lines so they're
+visually distinct.
+
 ## Step 1 — Detect plugin install
 
 ```bash
@@ -31,87 +43,87 @@ If `PLUGIN_DETECTED`, go to Step 2B.
 
 ## Step 2A — Plugin not installed: install instructions
 
-Print this exactly, then stop. **Slash commands MUST start at column 0
-(no indent), so SEs can copy-paste straight from Terminal.** Indented
-slash commands break paste behaviour in Terminal.app and similar
-emulators.
-
-Print this verbatim:
+Print this verbatim. Note the formatting: narrative as blockquote,
+slash commands as bare lines on their own.
 
 > Welcome! SF Demo Scout is now a Claude Code plugin. This is a
 > **one-time migration** — once you finish the four steps below,
-> Scout commands will be globally available wherever you launch Claude
-> Code, you'll get auto-updates, and you'll never run `update.sh`
-> again.
+> Scout commands will be globally available wherever you launch
+> Claude Code, you'll get auto-updates, and you'll never run
+> `update.sh` again.
 >
-> Run these slash commands **one at a time** — paste, hit Enter, wait
-> for the confirmation message, then move to the next.
->
-> ---
->
-> **Step 1.** Add the plugin marketplace:
->
-> /plugin marketplace add https://github.com/seb-schi/sf-demo-scout-plugin.git
->
-> Wait for: `Successfully added marketplace: scout`
->
-> ---
->
-> **Step 2.** Install the plugin (use **user scope** when prompted, so
-> the plugin is available across all your projects):
->
-> /plugin install sf-demo-scout@scout
->
-> Wait for: `✓ Installed sf-demo-scout`
->
-> ---
->
-> **Step 3.** Activate the plugin without restarting:
->
-> /reload-plugins
->
-> ---
->
-> **Step 4.** Re-run this migration command — it will detect the
-> plugin and finish cleanup:
->
-> /setup-demo-scout
->
-> ---
->
+> Run the four slash commands **one at a time** — paste, hit Enter,
+> wait for the confirmation, then move to the next. Don't paste them
+> all together.
+
+---
+
+**Step 1.** Add the plugin marketplace.
+
+/plugin marketplace add https://github.com/seb-schi/sf-demo-scout-plugin.git
+
+Wait for: `Successfully added marketplace: scout`
+
+---
+
+**Step 2.** Install the plugin.
+
+/plugin install sf-demo-scout@scout
+
+> ⚠️ When Claude Code asks for install scope, **pick `User scope`**.
+> This makes the plugin available across all your projects, not just
+> this directory. The choice happens in the install dialog — pick
+> User, not Project.
+
+Wait for: `✓ Installed sf-demo-scout`
+
+---
+
+**Step 3.** Activate the plugin without restarting.
+
+/reload-plugins
+
+Wait for: `Reloaded: ... plugins · ... skills · ... agents` (numbers vary).
+
+---
+
+**Step 4.** Re-run this migration command. It will detect the plugin
+and finish cleanup automatically.
+
+/setup-demo-scout
+
+---
+
 > Your org data at `~/claude-projects/sf-demo-scout/orgs/` is preserved
 > throughout.
+>
+> Stuck? Ping `#sf-demo-scout` on Slack — Seb watches the channel and
+> the Slack MCP skill in Claude Code can answer most questions.
 
 Stop after this message. Do NOT proceed to cleanup until the SE
 re-runs `/setup-demo-scout` post-install.
 
-## Step 2B — Plugin installed: clean up + hand over
+## Step 2B — Plugin installed: clean up + hand over (no confirmation gate)
 
-Confirm with the SE first. Print this and wait for explicit `yes`:
+By the time the SE reaches this step, they have already:
+1. Run `bash update.sh` and confirmed there
+2. Installed the marketplace + plugin
+3. Reloaded plugins
+4. Re-invoked `/setup-demo-scout`
 
-> Plugin detected. Ready to clean up the old clone-install
-> scaffolding at `~/claude-projects/sf-demo-scout/`.
->
-> What stays:
->   - `orgs/` — your customer audits, specs, change logs
->   - `.sf/` — your active org configuration
->
-> Everything else in that directory will be removed (it was the
-> clone-install repo and the trampoline payload — both obsolete now
-> that the plugin owns command/skill/hook content).
->
-> Type `yes` to proceed, anything else to abort.
+A fifth "type yes to proceed" gate is friction without safety value
+— `orgs/` and `.sf/` are protected by the keep-list, the SE can only
+get here by deliberately driving the migration forward, and there's
+no useful "abort" branch (re-running won't undo anything; aborting
+just leaves an inconsistent state).
 
-If the SE does not type exactly `yes`, abort with:
+Print this status update, then proceed straight to cleanup:
 
-> Aborted. No files changed. Run `/setup-demo-scout` again when you
-> are ready, or run any plugin command (`/scout-sparring`,
-> `/scout-switch-org`) — bootstrap will detect the leftover
-> clone-install state and prompt you again.
+> Plugin detected. Cleaning up the old clone-install scaffolding.
+> Your `orgs/` and `.sf/` directories are preserved.
 
-If `yes`, run cleanup. Inverted logic: enumerate what to KEEP, delete
-the rest. This way the cleanup is robust against future trampoline
-payload additions:
+Run cleanup. Inverted logic: enumerate what to KEEP, delete the rest.
+Robust against future trampoline payload additions:
 
 ```bash
 cd ~/claude-projects/sf-demo-scout && \
@@ -162,9 +174,13 @@ Print this verbatim, then stop:
 > **Recommended next step:** run `/scout-switch-org` to confirm your
 > active org. Pick one from the list — that's all you need to start
 > demo prep.
->
->     /scout-switch-org
->
+
+/scout-switch-org
+
 > Once an org is active, `/scout-sparring` (discovery + spec
 > generation) and `/scout-building` (deployment) are ready when you
 > need them.
+>
+> Questions or issues? Ping `#sf-demo-scout` on Slack. The Slack MCP
+> skill in Claude Code itself can also answer most "how do I X?"
+> questions about Scout — just ask in any session.
