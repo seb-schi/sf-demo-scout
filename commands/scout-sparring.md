@@ -64,21 +64,24 @@ Run `test -f .claude/.update-available` to branch.
 
 **No pending update (flag file absent).** Proceed silently to Stage 2 — no message.
 
-**Update pending (flag file exists).** Read `.claude/.update-available` and parse `commits_behind=<N>` and `recent_changes=<bullets separated by ` | `>`. Substitute `{{N}}` with `commits_behind`, and emit one `> - {{bullet}}` line per bullet (split on ` | `, up to 3). If `recent_changes` is empty, omit the "Recent changes:" header and its bullet lines; keep everything else. Emit verbatim:
+**Update pending (flag file exists).** Read `.claude/.update-available` and parse `installed_version=<X>`, `catalog_version=<Y>`, and `recent_changes=<bullets separated by ` | `>`. Substitute `{{INSTALLED}}` with `installed_version`, `{{CATALOG}}` with `catalog_version`, and emit one `> - {{bullet}}` line per bullet (split on ` | `, up to 3). If `recent_changes` is empty, omit the "Recent changes:" header and its bullet lines; keep everything else. Emit verbatim:
 
-> "⚠️ **SF Demo Scout update available** ({{N}} commit(s) behind main)
+> "⚠️ **SF Demo Scout update available** ({{INSTALLED}} → {{CATALOG}})
 >
 > Recent changes:
 > - {{bullet 1}}
 > - {{bullet 2}}
 > - {{bullet 3}}
 >
-> To update: run `bash update.sh` in Terminal (CMD+J). A new external Terminal window will open to continue the update process; close VS Code (CMD+Q) before proceeding there.
+> **To pick up the update:**
+> - **Terminal Claude Code:** run `/reload-plugins` and continue.
+> - **VS Code extension:** quit Claude Code and relaunch (the extension does not support `/reload-plugins`).
+>
 > To proceed without updating: reply `proceed` (dismissed for this session only)."
 
 Do not write to or delete the flag file — the next `session-startup.sh` run refreshes it.
 
-**Wait for the SE's reply only when the flag file existed.** If the SE chose to update, they will close VS Code — do not advance. If they replied `proceed`, advance normally.
+**Wait for the SE's reply only when the flag file existed.** If the SE ran `/reload-plugins` or relaunched, they will be in a fresh session and won't return here. If they replied `proceed`, advance normally.
 
 ---
 

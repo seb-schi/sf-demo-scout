@@ -8,7 +8,7 @@
       "name": "sf-demo-scout",
       "source": {
         "source": "url",
-        "url": "https://github.com/seb-schi/sf-demo-scout-plugin.git"
+        "url": "https://github.com/seb-schi/sf-demo-scout.git"
       },
       "description": "Salesforce demo preparation pipeline — sparring, audit, deployment for SE demo orgs"
     }

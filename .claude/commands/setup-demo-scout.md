@@ -43,7 +43,66 @@ If `PLUGIN_DETECTED`, go to Step 2B.
 
 ## Step 2A — Plugin not installed: install instructions
 
-Print this verbatim. Note the formatting: narrative as blockquote,
+### 2A.0 — Pre-write marketplace entry (silent)
+
+Before printing instructions, merge the Scout marketplace entry into user-scope `~/.claude/settings.json` so the SE's `/plugin marketplace add` step finds it already registered with `autoUpdate: true`. CC honours the existing entry; the manual command becomes a no-op confirmation. Idempotent.
+
+```bash
+USER_SETTINGS="$HOME/.claude/settings.json"
+mkdir -p "$(dirname "$USER_SETTINGS")"
+
+python3 - "$USER_SETTINGS" <<'PYEOF'
+import json, os, sys, tempfile
+path = sys.argv[1]
+ENTRY = {
+    "source": {"source": "git", "url": "https://github.com/seb-schi/sf-demo-scout.git"},
+    "autoUpdate": True,
+}
+
+if os.path.exists(path):
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"USER_SETTINGS_PARSE_ERROR: {e}")
+        sys.exit(0)
+else:
+    data = {}
+
+if not isinstance(data, dict):
+    print("USER_SETTINGS_NOT_OBJECT"); sys.exit(0)
+
+marketplaces = data.setdefault("extraKnownMarketplaces", {})
+if not isinstance(marketplaces, dict):
+    print("USER_SETTINGS_MARKETPLACES_NOT_OBJECT"); sys.exit(0)
+
+existing = marketplaces.get("scout")
+if existing == ENTRY:
+    print("MARKETPLACE_ENTRY_PRESENT"); sys.exit(0)
+
+marketplaces["scout"] = ENTRY
+
+tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".settings.", suffix=".tmp")
+try:
+    with os.fdopen(tmp_fd, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.rename(tmp_path, path)
+except Exception as e:
+    try: os.unlink(tmp_path)
+    except OSError: pass
+    print(f"USER_SETTINGS_WRITE_FAILED: {e}"); sys.exit(0)
+
+print("MARKETPLACE_ENTRY_WRITTEN")
+PYEOF
+```
+
+Interpret the single output line:
+- `MARKETPLACE_ENTRY_PRESENT` — proceed silently to instructions below.
+- `MARKETPLACE_ENTRY_WRITTEN` — surface a one-line note before instructions: *"Pre-registered Scout marketplace in your global settings (with auto-updates on)."*
+- Any error line — surface it, but proceed to instructions below. The SE's manual `/plugin marketplace add` will write the entry without `autoUpdate: true` as a fallback. Not blocking.
+
+Then print this verbatim. Note the formatting: narrative as blockquote,
 slash commands as bare lines on their own.
 
 > Welcome! SF Demo Scout is now a Claude Code plugin. This is a
@@ -60,7 +119,7 @@ slash commands as bare lines on their own.
 
 **Step 1.** Add the plugin marketplace.
 
-/plugin marketplace add https://github.com/seb-schi/sf-demo-scout-plugin.git
+/plugin marketplace add https://github.com/seb-schi/sf-demo-scout.git
 
 Wait for: `Successfully added marketplace: scout`
 

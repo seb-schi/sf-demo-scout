@@ -109,29 +109,57 @@ if [ ! -f "CLAUDE.md" ]; then
   OUTPUT+="## ⚠️ No CLAUDE.md found. Are you in the sf-demo-prep project directory?\n\n"
 fi
 
-# --- 6. GitHub Update Check ---
-# Writes .claude/.update-available when behind main so /scout-sparring
-# can surface the notice in its Stage 1 gate. Deleted when current.
+# --- 6. Plugin Update Check ---
+# Compares the installed plugin version (from CC's installed_plugins.json)
+# against the catalog cache's plugin.json (refreshed by autoUpdate at
+# session start). When versions differ, writes .claude/.update-available
+# so /scout-sparring + /scout-building surface the notice in their Stage 1
+# gate. autoUpdate fetches the new content silently in the background;
+# the SE still needs to run /reload-plugins (Terminal CC) or quit + relaunch
+# (VS Code extension) for the new version to take effect.
 FLAG_FILE=".claude/.update-available"
-if git rev-parse --git-dir &>/dev/null; then
-  if git fetch origin main --quiet --depth=1 2>/dev/null; then
-    LOCAL=$(git rev-parse HEAD 2>/dev/null)
-    REMOTE=$(git rev-parse origin/main 2>/dev/null)
-    if [ -n "$LOCAL" ] && [ -n "$REMOTE" ] && [ "$LOCAL" != "$REMOTE" ]; then
-      COMMITS_BEHIND=$(git rev-list --count "$LOCAL..$REMOTE" 2>/dev/null || echo "?")
-      # Extract the first 3 bullets under the most recent ## YYYY-MM-DD header in CHANGELOG.md
+INSTALLED_FILE="$HOME/.claude/plugins/installed_plugins.json"
+CATALOG_FILE="$HOME/.claude/plugins/marketplaces/scout/.claude-plugin/plugin.json"
+mkdir -p .claude
+
+if [ -f "$INSTALLED_FILE" ] && [ -f "$CATALOG_FILE" ]; then
+  INSTALLED_VERSION=$(python3 -c "
+import json
+try:
+    d = json.load(open('$INSTALLED_FILE'))
+    entries = d.get('plugins', {}).get('sf-demo-scout@scout', [])
+    print(entries[0].get('version', '') if entries else '')
+except Exception:
+    pass
+" 2>/dev/null)
+  CATALOG_VERSION=$(python3 -c "
+import json
+try:
+    print(json.load(open('$CATALOG_FILE')).get('version', ''))
+except Exception:
+    pass
+" 2>/dev/null)
+
+  if [ -n "$INSTALLED_VERSION" ] && [ -n "$CATALOG_VERSION" ] && [ "$INSTALLED_VERSION" != "$CATALOG_VERSION" ]; then
+    # Catalog README.md (cached alongside plugin.json) is the SE-facing
+    # changelog source post-cutover. Extract first 3 bullets under the
+    # most recent ## YYYY-MM-DD header.
+    CATALOG_README="$HOME/.claude/plugins/marketplaces/scout/CHANGELOG.md"
+    RECENT=""
+    if [ -f "$CATALOG_README" ]; then
       RECENT=$(awk '
         /^## [0-9]{4}-[0-9]{2}-[0-9]{2}/ { if (seen) exit; seen=1; next }
         seen && /^- / { print; count++; if (count==3) exit }
-      ' CHANGELOG.md 2>/dev/null | sed 's/^- //' | tr '\n' '|' | sed 's/|$//' | sed 's/|/ | /g')
-      {
-        echo "commits_behind=$COMMITS_BEHIND"
-        echo "recent_changes=$RECENT"
-      } > "$FLAG_FILE"
-      OUTPUT+="## ⚠️ SF Demo Scout update available ($COMMITS_BEHIND commit(s) behind) — /scout-sparring will prompt you.\n\n"
-    else
-      rm -f "$FLAG_FILE"
+      ' "$CATALOG_README" 2>/dev/null | sed 's/^- //' | tr '\n' '|' | sed 's/|$//' | sed 's/|/ | /g')
     fi
+    {
+      echo "installed_version=$INSTALLED_VERSION"
+      echo "catalog_version=$CATALOG_VERSION"
+      echo "recent_changes=$RECENT"
+    } > "$FLAG_FILE"
+    OUTPUT+="## ⚠️ SF Demo Scout update available ($INSTALLED_VERSION → $CATALOG_VERSION) — /scout-sparring will prompt you.\n\n"
+  else
+    rm -f "$FLAG_FILE"
   fi
 fi
 
