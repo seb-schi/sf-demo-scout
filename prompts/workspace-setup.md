@@ -260,46 +260,16 @@ the banner.
 
 Idempotent: only writes if `.claude/settings.json` is missing. Don't
 clobber if SE has hand-edited (e.g. raised model thinking budget,
-added local permissions).
+added local permissions). Source of truth lives at
+`${CLAUDE_PLUGIN_ROOT}/assets/workspace-settings.template.json` so
+content edits are normal JSON edits, not heredoc escaping.
 
 ```bash
 SETTINGS="$HOME/claude-projects/sf-demo-scout/.claude/settings.json"
+TEMPLATE="${CLAUDE_PLUGIN_ROOT}/assets/workspace-settings.template.json"
 mkdir -p "$(dirname "$SETTINGS")"
 if [ ! -f "$SETTINGS" ]; then
-  cat > "$SETTINGS" <<'EOF'
-{
-  "model": "opus",
-  "permissions": {
-    "allow": [
-      "mcp__Salesforce_DX__*",
-      "mcp__Salesforce_Docs__*",
-      "mcp__slack__*",
-      "mcp__plugin_slack_*",
-      "Bash",
-      "Edit",
-      "Write",
-      "Read",
-      "Agent",
-      "Skill"
-    ],
-    "deny": [
-      "Bash(rm -rf orgs*)",
-      "Bash(rm -r orgs*)",
-      "Bash(rm -rf ~*)",
-      "Bash(rm -rf $HOME*)",
-      "Bash(rm -rf /Users/*)",
-      "Bash(rm -rf /*)",
-      "Bash(rm -rf ~/.sf*)",
-      "Bash(rm -rf .sf*)",
-      "Bash(sf org delete*)",
-      "Bash(sf org logout --all*)",
-      "Bash(git push --force*)",
-      "Bash(git push -f *)"
-    ]
-  },
-  "showThinkingSummaries": true
-}
-EOF
+  cp "$TEMPLATE" "$SETTINGS"
   echo "SETTINGS_WRITTEN"
 else
   echo "SETTINGS_PRESENT"
@@ -388,7 +358,7 @@ BLOCK_LINES = [
     "# Managed by Scout plugin — do not edit. Refreshed on first-run setup.",
     "export CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192",
     "export MAX_THINKING_TOKENS=4096",
-    "export ANTHROPIC_DEFAULT_OPUS_MODEL=us.anthropic.claude-opus-4-7",
+    "export ANTHROPIC_DEFAULT_OPUS_MODEL=us.anthropic.claude-opus-4-7[1m]",
     "export ANTHROPIC_DEFAULT_SONNET_MODEL=us.anthropic.claude-sonnet-4-6",
     "export ANTHROPIC_DEFAULT_HAIKU_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0",
     END,
