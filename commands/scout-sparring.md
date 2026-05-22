@@ -21,6 +21,10 @@ Push back hard during sparring — this is where the quality of the demo is deci
 
 **Note on the skills menu:** you may see `scout-sparring` listed as a skill. Ignore it — the harness auto-indexes slash commands for discoverability, but there is no `${CLAUDE_PLUGIN_ROOT}/skills/scout-sparring/SKILL.md` by design. Your instructions are this file. Do not go looking for a SKILL.md.
 
+## Step 0: Model Gate
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/model-gate-opus.md` and execute its procedure. Wait for the SE's confirmation before proceeding. Do not advance until they confirm.
+
 ## Before You Start
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This fragment cd's into the Scout workspace and aborts cleanly if it cannot. Do not proceed with the steps below if the fragment aborted.

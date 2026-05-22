@@ -286,6 +286,115 @@ On `SETTINGS_WRITTEN`, surface a one-line note to the SE:
 (The settings file is loaded on session start, not on write — running
 session won't hot-pick-up the model change.)
 
+## Step 7.6: Merge Scout entries into user-scope permissions allowlist
+
+The workspace settings.json from Step 7.5 only applies when CC is
+launched from `~/claude-projects/sf-demo-scout/`. SEs who launch CC
+from elsewhere (a different project, the desktop, a random shell) get
+permission prompts on every Scout MCP tool call — meaningful friction
+when each sparring stage fires 5-15 MCP calls.
+
+Mitigation: write a fixed, narrowly-scoped allowlist into
+`~/.claude/settings.json` (user scope) so Scout's MCP tools are
+auto-approved everywhere. Six entries, all of them no-ops outside a
+Scout session (the `mcp__*` patterns only match when Scout's MCP
+servers are loaded; `Agent` and `Skill` are meta-tools whose real
+permission lives on the underlying calls).
+
+**This list is fixed by design.** Bash/Edit/Write/Read/destructive-op
+denies stay workspace-scope only — those are real safety surface, and
+the SE owns the global trust posture. Extending this list requires a
+fresh `/project-sparring` decision, not a casual edit.
+
+Idempotent: reads existing settings.json, appends only entries not
+already present (set semantics, preserves user ordering), writes back.
+If the SE's settings.json has a JSON syntax error, skip cleanly with
+a warning — don't clobber.
+
+```bash
+USER_SETTINGS="$HOME/.claude/settings.json"
+mkdir -p "$(dirname "$USER_SETTINGS")"
+
+python3 - "$USER_SETTINGS" <<'PYEOF'
+import json, os, sys, tempfile
+path = sys.argv[1]
+SCOUT_ALLOW = [
+    "mcp__Salesforce_DX__*",
+    "mcp__Salesforce_Docs__*",
+    "mcp__slack__*",
+    "mcp__plugin_slack_*",
+    "Agent",
+    "Skill",
+]
+
+if os.path.exists(path):
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"USER_SETTINGS_PARSE_ERROR: {e}")
+        sys.exit(0)
+else:
+    data = {}
+
+if not isinstance(data, dict):
+    print("USER_SETTINGS_NOT_OBJECT")
+    sys.exit(0)
+
+perms = data.setdefault("permissions", {})
+if not isinstance(perms, dict):
+    print("USER_SETTINGS_PERMS_NOT_OBJECT")
+    sys.exit(0)
+
+allow = perms.setdefault("allow", [])
+if not isinstance(allow, list):
+    print("USER_SETTINGS_ALLOW_NOT_LIST")
+    sys.exit(0)
+
+added = [e for e in SCOUT_ALLOW if e not in allow]
+if not added:
+    print("USER_SETTINGS_NO_CHANGES")
+    sys.exit(0)
+
+allow.extend(added)
+
+# Atomic write: temp file in same dir, then rename.
+tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".settings.", suffix=".tmp")
+try:
+    with os.fdopen(tmp_fd, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.rename(tmp_path, path)
+except Exception as e:
+    try: os.unlink(tmp_path)
+    except OSError: pass
+    print(f"USER_SETTINGS_WRITE_FAILED: {e}")
+    sys.exit(0)
+
+print(f"USER_SETTINGS_UPDATED: added {len(added)} of {len(SCOUT_ALLOW)} entries")
+PYEOF
+```
+
+Interpret the single output line:
+
+- `USER_SETTINGS_NO_CHANGES` — entries already present, proceed silently.
+
+- `USER_SETTINGS_UPDATED: added N of 6 entries` — surface a one-line note:
+
+  > "Added N Scout-related entries to your global Claude Code permissions allowlist (`~/.claude/settings.json`). They only activate when Scout's MCP servers load — inert outside Scout sessions."
+
+- `USER_SETTINGS_PARSE_ERROR`, `USER_SETTINGS_NOT_OBJECT`,
+  `USER_SETTINGS_PERMS_NOT_OBJECT`, `USER_SETTINGS_ALLOW_NOT_LIST`,
+  or `USER_SETTINGS_WRITE_FAILED` — surface a one-line note and proceed.
+  This is a friction-reduction nice-to-have, not load-bearing:
+
+  > "Couldn't merge Scout entries into `~/.claude/settings.json` ([reason]). You'll see permission prompts on Scout MCP calls when launching CC outside the workspace — not blocking. Fix the file syntax and re-run any Scout command to retry."
+
+Do NOT abort the parent command on any of these failure modes. The
+workspace-scope settings.json (Step 7.5) still grants permissions when
+CC is launched from the workspace, which remains the recommended
+launch path.
+
 ## Step 8: Write config.json
 
 First, Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (the Read tool

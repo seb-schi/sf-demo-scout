@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "0.9.0-phase-f1c-skill-manifest",
+  "version": "1.0.0-phase-f1b-cutover",
   "author": {
     "name": "Sebastian Schickhoff"
   },
