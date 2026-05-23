@@ -318,6 +318,35 @@ Surface inline:
 - `AUTOUPDATE_NO_SETTINGS` / `AUTOUPDATE_NO_MARKETPLACES` / `AUTOUPDATE_NO_SCOUT_ENTRY` — silent (the marketplace add step writes these; absence means setup is being run in an unexpected state, not Scout's problem).
 - Any error variant — one-line note, proceed.
 
+### 3g.6: Slack MCP Registration (idempotent)
+
+Slack MCP is user-scope (lives in `~/.claude.json`, not `plugin.json`) because it requires per-SE OAuth. Register it here so the auth probe in 3h has something to authenticate against. Idempotent — re-runs are no-ops. Lifted verbatim from pre-plugin `install.sh` §7 (specific OAuth `client-id` and `callback-port` are required for the auth flow to work — bare URL is not enough).
+
+```bash
+if claude mcp list 2>/dev/null | grep -qE '^[[:space:]]*slack[[:space:]]*:'; then
+  echo "SLACK_MCP_ALREADY_REGISTERED"
+else
+  if claude mcp add -s user -t http \
+      --client-id 188160004832.9210129962818 \
+      --callback-port 3118 \
+      slack https://mcp.slack.com/mcp >/dev/null 2>&1; then
+    echo "SLACK_MCP_REGISTERED"
+  else
+    echo "SLACK_MCP_REGISTRATION_FAILED"
+  fi
+fi
+```
+
+Surface inline:
+- `SLACK_MCP_ALREADY_REGISTERED` — silent.
+- `SLACK_MCP_REGISTERED` — "Registered Slack MCP (user scope)."
+- `SLACK_MCP_REGISTRATION_FAILED` — surface and ABORT:
+  > "Slack MCP registration failed. Run this manually, then re-run `/scout-setup`:
+  >
+  > ```
+  > claude mcp add -s user -t http --client-id 188160004832.9210129962818 --callback-port 3118 slack https://mcp.slack.com/mcp
+  > ```"
+
 ### 3h: Slack MCP Auth Probe
 
 ```bash
@@ -499,6 +528,30 @@ echo "CLAUDE_CLI_AT $(claude --version 2>/dev/null || echo 'unknown')"
 ```
 
 If either npm command fails (non-zero exit), surface a one-line note ("[sf|claude] CLI update failed — continuing") and proceed. Don't abort.
+
+### 4b.5: Slack MCP Registration (idempotent heal)
+
+Same logic as Step 3g.6 — refresh is the heal-when-broken path, and a missing `slack:` registration (e.g. SE manually removed it, or older install without registration) is exactly the kind of broken state refresh should fix. Re-runs are no-ops.
+
+```bash
+if claude mcp list 2>/dev/null | grep -qE '^[[:space:]]*slack[[:space:]]*:'; then
+  echo "SLACK_MCP_ALREADY_REGISTERED"
+else
+  if claude mcp add -s user -t http \
+      --client-id 188160004832.9210129962818 \
+      --callback-port 3118 \
+      slack https://mcp.slack.com/mcp >/dev/null 2>&1; then
+    echo "SLACK_MCP_REGISTERED"
+  else
+    echo "SLACK_MCP_REGISTRATION_FAILED"
+  fi
+fi
+```
+
+Surface inline (refresh path is heal-when-broken, so do NOT abort on failure — note and proceed):
+- `SLACK_MCP_ALREADY_REGISTERED` — silent.
+- `SLACK_MCP_REGISTERED` — "Re-registered Slack MCP (was missing — likely manual removal)."
+- `SLACK_MCP_REGISTRATION_FAILED` — "⚠️ Slack MCP registration failed during refresh. Run manually: `claude mcp add -s user -t http --client-id 188160004832.9210129962818 --callback-port 3118 slack https://mcp.slack.com/mcp`. Refresh continues." Proceed to 4c.
 
 ### 4c: Slack MCP probe (silent unless broken)
 
