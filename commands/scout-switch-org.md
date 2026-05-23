@@ -42,9 +42,9 @@ Switch to a different Salesforce demo org. Follow these steps:
    ls -d orgs/[chosen-alias]-*/ 2>/dev/null
    ```
    - If folders exist: list them and tell the SE:
-     "Found existing customer folder(s) for [alias]: [list]. Run /scout-sparring to continue with one of these or start a new customer."
+     "Found existing customer folder(s) for [alias]: [list]. **Open a fresh Claude Code session** and run /scout-sparring to continue with one of these or start a new customer."
    - If no folders exist: tell the SE:
-     "No customer folders for this org yet. Run /scout-sparring — it will create one when you name the customer."
+     "No customer folders for this org yet. **Open a fresh Claude Code session** and run /scout-sparring — it will create one when you name the customer."
 
 7. Verify MCP connectivity against the new org:
 
@@ -52,7 +52,7 @@ Switch to a different Salesforce demo org. Follow these steps:
 
    - If the returned Id matches the Org ID from step 5 → MCP is already pointing to the new org:
      > "Switched to [alias] ([username]). MCP verified — ready to go.
-     > Run /scout-sparring to start sparring against this org."
+     > **Open a fresh Claude Code session** and run /scout-sparring to start sparring against this org."
    - If the returned Id does NOT match → MCP is still on the old org:
      > "Switched to [alias] ([username]).
      > ⚠️ MCP is still connected to the previous org. Restart VS Code now (CMD+Q) — the MCP server only picks up org changes on startup.

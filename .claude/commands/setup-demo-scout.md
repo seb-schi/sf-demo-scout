@@ -156,8 +156,8 @@ and finish cleanup automatically.
 > Your org data at `~/claude-projects/sf-demo-scout/orgs/` is preserved
 > throughout.
 >
-> Stuck? Ping `#sf-demo-scout` on Slack — Seb watches the channel and
-> the Slack MCP skill in Claude Code can answer most questions.
+> Stuck? Ping `#sf-demo-scout` on Slack — the team monitors the channel,
+> and the Scout Slackbot skill can answer most questions.
 
 Stop after this message. Do NOT proceed to cleanup until the SE
 re-runs `/setup-demo-scout` post-install.
@@ -189,7 +189,6 @@ cd ~/claude-projects/sf-demo-scout && \
   find . -maxdepth 1 -mindepth 1 \
     ! -name 'orgs' \
     ! -name '.sf' \
-    ! -name '.DS_Store' \
     -exec rm -rf {} + && \
   echo "CLEANUP_DONE" || echo "CLEANUP_FAILED"
 ```
@@ -240,6 +239,6 @@ Print this verbatim, then stop:
 > generation) and `/scout-building` (deployment) are ready when you
 > need them.
 >
-> Questions or issues? Ping `#sf-demo-scout` on Slack. The Slack MCP
-> skill in Claude Code itself can also answer most "how do I X?"
-> questions about Scout — just ask in any session.
+> Questions or issues? Ping `#sf-demo-scout` on Slack. The Scout
+> Slackbot skill can also answer most "how do I X?"
+> questions — just ask in any session.

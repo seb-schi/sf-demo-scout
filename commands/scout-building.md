@@ -20,9 +20,7 @@ Ignore it — the harness auto-indexes slash commands for discoverability, but
 there is no `${CLAUDE_PLUGIN_ROOT}/skills/scout-building/SKILL.md` by design. Your
 instructions are this file. Do not go looking for a SKILL.md.
 
-## Step 0: Model Gate
-
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/model-gate-opus.md` and execute its procedure. Do NOT wait for confirmation — emit the warning, then proceed.
+## Step 0: Bootstrap
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This fragment cd's into the Scout workspace and aborts cleanly if it cannot. Do not proceed with the steps below if the fragment aborted.
 
@@ -50,10 +48,10 @@ Run `sf config get target-org --json` and `sf org display --json`. Extract alias
 
 List org folders: `ls -d orgs/[alias]-*/`
 
-Present both in a single message:
-- No folders -> "Active org: [alias] ([username]). No customer folders found — run /scout-sparring first." Stop.
-- One folder -> "Active org: [alias] ([username]). Customer: [customer]. Deploying here. Type 'switch' to change, or confirm."
-- Multiple folders -> "Active org: [alias] ([username]). Multiple customers found: [list]. Which one?" Wait.
+Present both in a single message. Prepend the model-gate warning verbatim as the FIRST line of whichever branch fires, then a blank line, then the active-org sentence:
+- No folders -> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.\n\nActive org: [alias] ([username]). No customer folders found — run /scout-sparring first." Stop.
+- One folder -> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.\n\nActive org: [alias] ([username]). Customer: [customer]. Deploying here. Type 'switch' to change, or confirm."
+- Multiple folders -> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.\n\nActive org: [alias] ([username]). Multiple customers found: [list]. Which one?" Wait.
 
 Wait for confirmation. If the SE wants to switch orgs: *"Stopping. Run `/scout-switch-org` in a fresh session to change orgs, then re-run `/scout-building`."* Stop — do not proceed.
 

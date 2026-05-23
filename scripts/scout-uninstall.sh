@@ -11,12 +11,15 @@
 set -u
 
 WIPE_ORGS=0
+WIPE_INTERNAL=0
 for arg in "$@"; do
   case "$arg" in
     --wipe-orgs) WIPE_ORGS=1 ;;
+    --wipe-internal) WIPE_INTERNAL=1 ;;
     -h|--help)
-      echo "Usage: $0 [--wipe-orgs]"
-      echo "  --wipe-orgs  Also remove ~/claude-projects/sf-demo-scout/ (otherwise preserved)"
+      echo "Usage: $0 [--wipe-orgs] [--wipe-internal]"
+      echo "  --wipe-orgs       Also remove ~/claude-projects/sf-demo-scout/ (otherwise preserved)"
+      echo "  --wipe-internal   Also wipe the scout-internal maintainer plugin (default: preserved)"
       exit 0
       ;;
     *) echo "Unknown arg: $arg (use --help)"; exit 1 ;;
@@ -30,17 +33,23 @@ echo ""
 echo "[1/6] Removing plugin on-disk artifacts..."
 rm -rf "$HOME/.claude/plugins/marketplaces/scout"
 rm -rf "$HOME/.claude/plugins/cache/scout"
-rm -rf "$HOME/.claude/plugins/marketplaces/scout-internal"
-rm -rf "$HOME/.claude/plugins/cache/scout-internal"
-echo "    ✓ marketplaces/scout, cache/scout, marketplaces/scout-internal, cache/scout-internal"
+echo "    ✓ marketplaces/scout, cache/scout"
+if [ "$WIPE_INTERNAL" = "1" ]; then
+  rm -rf "$HOME/.claude/plugins/marketplaces/scout-internal"
+  rm -rf "$HOME/.claude/plugins/cache/scout-internal"
+  echo "    ✓ marketplaces/scout-internal, cache/scout-internal (--wipe-internal)"
+else
+  echo "    · scout-internal preserved (pass --wipe-internal to remove)"
+fi
 
 # 2. Surgically remove Scout from CC plugin registries
 echo ""
 echo "[2/6] Scrubbing CC plugin registries..."
-python3 <<'PYEOF'
-import json, pathlib
+python3 - "$WIPE_INTERNAL" <<'PYEOF'
+import json, pathlib, sys
 
 home = pathlib.Path.home()
+wipe_internal = sys.argv[1] == "1"
 
 def scrub(path, mutator):
     if not path.exists():
@@ -59,14 +68,16 @@ def scrub(path, mutator):
 def m1(d):
     if "plugins" in d:
         d["plugins"].pop("sf-demo-scout@scout", None)
-        d["plugins"].pop("sf-demo-scout-internal@scout-internal", None)
+        if wipe_internal:
+            d["plugins"].pop("sf-demo-scout-internal@scout-internal", None)
 scrub(home / ".claude/plugins/installed_plugins.json", m1)
 
 # known_marketplaces.json
 def m2(d):
     if isinstance(d, dict):
         d.pop("scout", None)
-        d.pop("scout-internal", None)
+        if wipe_internal:
+            d.pop("scout-internal", None)
 scrub(home / ".claude/plugins/known_marketplaces.json", m2)
 
 # settings.json
@@ -74,9 +85,10 @@ def m3(d):
     for k in ("enabledPlugins", "extraKnownMarketplaces"):
         if k in d and isinstance(d[k], dict):
             d[k].pop("sf-demo-scout@scout", None)
-            d[k].pop("sf-demo-scout-internal@scout-internal", None)
             d[k].pop("scout", None)
-            d[k].pop("scout-internal", None)
+            if wipe_internal:
+                d[k].pop("sf-demo-scout-internal@scout-internal", None)
+                d[k].pop("scout-internal", None)
 scrub(home / ".claude/settings.json", m3)
 PYEOF
 

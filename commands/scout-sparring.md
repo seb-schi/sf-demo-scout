@@ -21,10 +21,6 @@ Push back hard during sparring — this is where the quality of the demo is deci
 
 **Note on the skills menu:** you may see `scout-sparring` listed as a skill. Ignore it — the harness auto-indexes slash commands for discoverability, but there is no `${CLAUDE_PLUGIN_ROOT}/skills/scout-sparring/SKILL.md` by design. Your instructions are this file. Do not go looking for a SKILL.md.
 
-## Step 0: Model Gate
-
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/model-gate-opus.md` and execute its procedure. Do NOT wait for confirmation — emit the warning, then proceed.
-
 ## Before You Start
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This fragment cd's into the Scout workspace and aborts cleanly if it cannot. Do not proceed with the steps below if the fragment aborted.
@@ -54,7 +50,9 @@ Run a single MCP probe to confirm connectivity:
 - Call `run_soql_query` with: `SELECT Id FROM Organization LIMIT 1`
 - If it returns a result -> MCP is active. **The probe is ground truth.** Ignore any conflicting signal from the startup banner.
 - If it fails or times out -> warn the SE:
-  > "MCP is not responding. Quit VS Code fully (CMD+Q), reopen, and run /scout-sparring again.
+  > "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
+  >
+  > MCP is not responding. Quit VS Code fully (CMD+Q), reopen, and run /scout-sparring again.
   > If this persists, check that .mcp.json exists in the project root."
   Stop. Do not proceed without MCP.
 
@@ -68,7 +66,9 @@ Run `test -f .claude/.update-available` to branch.
 
 If `requires_reload=true`, emit verbatim:
 
-> "⚠️ **SF Demo Scout update available** ({{INSTALLED}} → {{CATALOG}}) — command surface changed
+> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
+>
+> ⚠️ **SF Demo Scout update available** ({{INSTALLED}} → {{CATALOG}}) — command surface changed
 >
 > Recent changes:
 > - {{bullet 1}}
@@ -81,7 +81,9 @@ If `requires_reload=true`, emit verbatim:
 
 Otherwise (`requires_reload=false` or absent), emit verbatim:
 
-> "🆕 **SF Demo Scout updated** ({{INSTALLED}} → {{CATALOG}})
+> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
+>
+> 🆕 **SF Demo Scout updated** ({{INSTALLED}} → {{CATALOG}})
 >
 > Recent changes:
 > - {{bullet 1}}
@@ -104,12 +106,16 @@ Run `sf config get target-org --json` and `sf org display --json`. Extract alias
 
 **If `sf org display` fails** (no org connected, or auth expired): emit this as a standalone message and stop.
 
-> "No demo org connected. Run `/scout-switch-org` to connect one, then re-run `/scout-sparring`."
+> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
+>
+> No demo org connected. Run `/scout-switch-org` to connect one, then re-run `/scout-sparring`."
 
 Do not continue to audit routing without an org.
 
-Output as a single message, then wait for the SE's reply:
-> "Active org: [alias] ([username]). Right org, or switch? (run /scout-switch-org)
+Output as a single message, then wait for the SE's reply. Prepend the model-gate warning verbatim as the FIRST line, then a blank line, then the org/intent block:
+> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
+>
+> Active org: [alias] ([username]). Right org, or switch? (run /scout-switch-org)
 >
 > I can help you with:
 > - **A new demo scenario** — full sparring for a new customer situation, typically on a fresh demo org

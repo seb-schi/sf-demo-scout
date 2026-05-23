@@ -1,0 +1,94 @@
+# SF Demo Scout — Claude Code Instructions
+
+## Org
+> Org identity is read from `sf config get target-org` at runtime.
+> Session startup displays the active org, username, and connection status.
+> No manual configuration needed — run /scout-switch-org to connect or change an org. Do NOT use /scout-setup for org switching.
+
+- Type: Personal demo org — destructive operations permitted with prior explanation
+
+## MCP Tools
+Three MCP servers are configured: Salesforce DX + Salesforce Docs (declared in the plugin's `plugin.json`) and Slack (user-scope, registered separately). Prefer MCP over `sf` CLI; fall back to CLI if MCP is unavailable.
+
+- **Salesforce DX** — metadata retrieve/deploy, SOQL, permset assignment, org listing, `run_code_analyzer`, and LWC expert tools (complement the `sf-lwc` skill's PICKLES methodology + 165-point scoring).
+- **Salesforce Docs** — `salesforce_docs_search` + `salesforce_docs_fetch` for release-gated features and unfamiliar deploy errors. Decision tree in `demo-docs-consultation`. Degrades gracefully if unavailable.
+- **Slack** — canvas + channel lookups during sparring (Stage 4, opt-in) and handover canvas writes after deployment (scout-building 8c). Hard-degrades when unauthenticated.
+
+## Build Boundaries
+
+### Autonomous (no SE input needed)
+- Custom objects, fields, record types
+- Permission sets and assignment
+- Lightning apps, custom tabs
+- Queues with object routing
+- Business Processes (stage / status subsets for Opportunity, Lead, Case, Solution — one `BusinessProcess` Metadata API type covers all four)
+- Paths (PathAssistant — active flag, driving picklist, key fields + guidance per step)
+- Page layout field additions (active classic Page Layout — query ProfileLayout first)
+- Lightning Record Page field additions to existing `flexipage:fieldSection` components (gated: SE confirms target FlexiPage + section name; only when audit classifies the LRP composition as `field_section`. `record_detail` LRPs inherit classic Page Layout — no separate LRP step needed. `mixed` / `custom` / `unretrievable` route to SE Manual.)
+- Data seeding — single object always; cross-object (junctions, FK chains) when backed by an idempotent script with `--pilot-only` self-test per `demo-deployment-rules` §Script Deliverable Rules
+- Picklist value additions to existing fields
+
+### Gated (SE confirms once per category, then autonomous)
+- Record-triggered flows (before-save, after-save, before-delete; any trigger object; cross-object DML allowed)
+- Screen flows (≤3 linear screens by default; up to 5 when SE justifies during sparring; whitelisted components; single terminal DML; optional QuickAction wiring)
+- Autolaunched flows (no UI, no trigger — invoked from Apex / Flow / REST / Process)
+- Subflows (autolaunched flows invoked by a parent — deploy before the parent in the same phase)
+- Scheduled flows (SE names `<startDate>`, `<startTime>`, and `<frequency>` during sparring — demo-day precision)
+- Platform-event-triggered flows (SE confirms the `<eventType>` object exists in the audit or ships in the same deploy)
+- Simple Apex (single-trigger, single-object)
+- Simple LWC (demo-specific UI)
+- Agentforce agents via Agent Script (subagents, actions, backing Apex, publish, activate, smoke test)
+
+### Always Manual (SE Manual Checklist)
+- Complex screen flows (branching across screens, reactive across screens with formula dependencies, custom LWC screen components, File Upload, Repeater, Data Table, Kanban Board)
+- Orchestration flows (parent-child, sequential, conditional — multi-day lifecycles with assignees, not demo-day-viable as autonomous)
+- Complex Apex/LWC
+- Multi-agent orchestration, channel assignment, production-scale agent testing
+- Classic Page Layout visual arrangement (field positioning, sections in App Builder / Page Layout editor)
+- Lightning Record Page authoring beyond field-into-existing-fieldSection (creating new field sections, repositioning sections, adding LWC/standard components, changing tabsets, dynamic-form regions — App Builder)
+- Lightning Record Page field-add when composition is `mixed`, `custom`, or `unretrievable` (drop into App Builder for visual confirmation)
+- Reports, dashboards, OmniStudio
+- Screen-flow visual QA (one-time walkthrough in a record page after Scout deploys)
+
+### NEVER Without Explicit SE Confirmation
+- Delete existing metadata or records
+- Modify existing profiles or permission sets
+- Touch anything prefixed `sb_` or `managed__`
+
+**Deployment rules** for Flows, Apex, LWC, Agentforce, Page Layouts, and Lightning Record Pages live in `${CLAUDE_PLUGIN_ROOT}/skills/demo-deployment-rules/SKILL.md` — phase sub-agents load it on-demand.
+
+## Working Pattern
+1. Announce before every tool call or parallel batch — one line, what and why.
+   Opus 4.7 hides thinking from the SE; silence reads as stuck. This rule
+   supersedes default brevity — a short status beats a mystery pause.
+   For multi-step loops (audits, deploys), announce the shape upfront
+   ("8 counts, then 10 layouts, then 3 deploys") so the SE can track progress.
+2. Retrieve current state before writing — prefer MCP retrieve_metadata
+3. Deploy in small increments — never batch unrelated changes
+4. After every deployment: run the Companion Permission Set (see below)
+5. If context is getting long, save progress to the change log and tell the SE to start a fresh session
+
+## Companion Permission Set — MANDATORY
+After every deployment creating objects, fields, record types, tabs, or apps:
+
+- Object CRUD for all new custom objects
+- Field Read + Edit FLS for all new fields (EXCLUDE Required fields — API rejects FLS)
+- RecordTypeVisibility: visible=true for new record types
+- TabVisibility: Visible for new custom tabs (not DefaultOn — DefaultOn is Profile-only)
+- AppVisibility: visible=true for new Lightning apps
+
+Assign via MCP `assign_permission_set`. If unavailable, read alias from `sf config get target-org`:
+```
+sf data query --target-org [ALIAS] --query "SELECT Id FROM PermissionSet WHERE Name='[NAME]'"
+sf data query --target-org [ALIAS] --query "SELECT Id FROM User WHERE Username='[USERNAME]'"
+sf data create record --sobject PermissionSetAssignment --values "PermissionSetId=[PS_ID] AssigneeId=[USER_ID]" --target-org [ALIAS]
+```
+
+## File Locations
+- Per-org history: `orgs/[alias]-[customer]/` (audits, change logs, specs) — in the SE workspace at `~/claude-projects/sf-demo-scout/`
+- Sparring lessons: `orgs/sparring-lessons.md`
+- Building lessons: `orgs/building-lessons.md`
+- Deployment rules: `${CLAUDE_PLUGIN_ROOT}/skills/demo-deployment-rules/SKILL.md`
+- Org audit format: `${CLAUDE_PLUGIN_ROOT}/skills/demo-org-audit/SKILL.md`
+- Spec template: `${CLAUDE_PLUGIN_ROOT}/prompts/spec-template.md`
+- Change log template: `${CLAUDE_PLUGIN_ROOT}/prompts/building/change-log-template.md`

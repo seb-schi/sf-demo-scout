@@ -295,12 +295,13 @@ On `PYYAML_MISSING`, ABORT:
 > pip3 install --user pyyaml
 > ```"
 
-Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Extract the `version` field as a string. Substitute `[PLUGIN_VERSION]` literally below:
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Extract the `version` field as a string for `[PLUGIN_VERSION]`. ALSO resolve `${CLAUDE_PLUGIN_ROOT}` to its absolute filesystem path (the directory the plugin.json you just Read lives in, minus `/.claude-plugin`) and substitute as `[PLUGIN_ROOT]` below — `${CLAUDE_PLUGIN_ROOT}` does NOT expand inside Bash shell context, only inside Read-tool path arguments, so the bash invocation must receive the literal absolute path.
 
 ```bash
-WORKSPACE_DIR="$HOME/claude-projects/sf-demo-scout" \
+CLAUDE_PLUGIN_ROOT="[PLUGIN_ROOT]" \
+  WORKSPACE_DIR="$HOME/claude-projects/sf-demo-scout" \
   PLUGIN_VERSION="[PLUGIN_VERSION]" \
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/sync-skills.sh"
+  bash "[PLUGIN_ROOT]/scripts/sync-skills.sh"
 ```
 
 Surface SYNCED/FAILED/PRUNED counts. On `FAILED_COUNT > 0`, also print FAILED= lines so the SE sees which skills broke. Do NOT abort — proceed to 3j.
@@ -506,4 +507,4 @@ Compose the closing message based on the branch taken:
 
 **If `ZSHRC_MODIFIED` (any branch):** append before the close:
 
-> "Note: Scout refreshed the managed block in your `~/.zshrc`. Open a new terminal window for non-Claude-Code shell sessions to pick up the env-var changes — current Claude Code session is unaffected."
+> "Note: Scout refreshed your shell environment. Open a new terminal window for non-Claude-Code shell sessions to pick up the changes — current Claude Code session is unaffected."
