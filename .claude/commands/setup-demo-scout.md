@@ -114,12 +114,18 @@ slash commands as bare lines on their own.
 > Run the four slash commands **one at a time** — paste, hit Enter,
 > wait for the confirmation, then move to the next. Don't paste them
 > all together.
+>
+> ⚠️ **Paste each command exactly as shown — no leading or trailing
+> spaces.** Stray whitespace breaks the slash-command parser. Click
+> the copy button on each code block (top-right corner) to avoid this.
 
 ---
 
 **Step 1.** Add the plugin marketplace.
 
+```
 /plugin marketplace add https://github.com/seb-schi/sf-demo-scout.git
+```
 
 Wait for: `Successfully added marketplace: scout`
 
@@ -127,7 +133,9 @@ Wait for: `Successfully added marketplace: scout`
 
 **Step 2.** Install the plugin.
 
+```
 /plugin install sf-demo-scout@scout
+```
 
 > ⚠️ When Claude Code asks for install scope, **pick `User scope`**.
 > This makes the plugin available across all your projects, not just
@@ -140,7 +148,9 @@ Wait for: `✓ Installed sf-demo-scout`
 
 **Step 3.** Activate the plugin without restarting.
 
+```
 /reload-plugins
+```
 
 Wait for: `Reloaded: ... plugins · ... skills · ... agents` (numbers vary).
 
@@ -149,7 +159,9 @@ Wait for: `Reloaded: ... plugins · ... skills · ... agents` (numbers vary).
 **Step 4.** Re-run this migration command. It will detect the plugin
 and finish cleanup automatically.
 
+```
 /setup-demo-scout
+```
 
 ---
 
@@ -233,7 +245,9 @@ Print this verbatim, then stop:
 > it syncs the skill manifest, verifies prereqs, and primes the
 > workspace for the new plugin layout.
 
+```
 /scout-setup
+```
 
 > Once setup completes, run `/scout-switch-org` to pick your active
 > org, then `/scout-sparring` (discovery + spec generation) and
