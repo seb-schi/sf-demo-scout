@@ -22,7 +22,7 @@ cat <<'EOF'
     1. Open a fresh Claude Code session.
     2. Run inside Claude Code:
 
-         /plugin marketplace add https://github.com/seb-schi/sf-demo-scout-plugin.git
+         /plugin marketplace add https://github.com/seb-schi/sf-demo-scout.git
          /plugin install sf-demo-scout@scout
 
     3. Restart Claude Code, then run /setup-demo-scout to finish

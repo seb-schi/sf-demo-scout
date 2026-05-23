@@ -9,7 +9,7 @@
 Inside Claude Code, run:
 
 ```
-/plugin marketplace add https://github.com/seb-schi/sf-demo-scout-plugin.git
+/plugin marketplace add https://github.com/seb-schi/sf-demo-scout.git
 /plugin install sf-demo-scout@scout
 ```
 

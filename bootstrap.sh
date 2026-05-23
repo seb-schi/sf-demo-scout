@@ -24,7 +24,7 @@ cat <<'EOF'
 
   3. Run these two slash commands inside Claude Code:
 
-        /plugin marketplace add https://github.com/seb-schi/sf-demo-scout-plugin.git
+        /plugin marketplace add https://github.com/seb-schi/sf-demo-scout.git
         /plugin install sf-demo-scout@scout
 
   4. After the plugin installs, restart Claude Code.
