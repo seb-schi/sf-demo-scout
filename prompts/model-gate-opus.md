@@ -1,8 +1,5 @@
 # Model Gate — Opus
 
-Loaded by commands that require Opus (`/scout-sparring`, `/scout-building`). Emit the message below verbatim as a standalone message, then wait for the SE's confirmation before proceeding.
+Loaded by commands designed for Opus (`/scout-sparring`, `/scout-building`). Emit the message below verbatim as a one-line note, then proceed immediately to the next step. Do NOT wait for the SE's reply.
 
-> "⚠️ **This command is designed for Opus.**
-> Run `/model opus` now if you haven't already — your conversation history is preserved.
->
-> Confirm you're on Opus before we continue. (yes)"
+> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus."

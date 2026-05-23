@@ -22,7 +22,7 @@ instructions are this file. Do not go looking for a SKILL.md.
 
 ## Step 0: Model Gate
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/model-gate-opus.md` and execute its procedure. Wait for the SE's confirmation before proceeding. Do not advance until they confirm.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/model-gate-opus.md` and execute its procedure. Do NOT wait for confirmation — emit the warning, then proceed.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This fragment cd's into the Scout workspace and aborts cleanly if it cannot. Do not proceed with the steps below if the fragment aborted.
 

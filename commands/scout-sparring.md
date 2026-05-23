@@ -23,7 +23,7 @@ Push back hard during sparring — this is where the quality of the demo is deci
 
 ## Step 0: Model Gate
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/model-gate-opus.md` and execute its procedure. Wait for the SE's confirmation before proceeding. Do not advance until they confirm.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/model-gate-opus.md` and execute its procedure. Do NOT wait for confirmation — emit the warning, then proceed.
 
 ## Before You Start
 
@@ -64,24 +64,37 @@ Run `test -f .claude/.update-available` to branch.
 
 **No pending update (flag file absent).** Proceed silently to Stage 2 — no message.
 
-**Update pending (flag file exists).** Read `.claude/.update-available` and parse `installed_version=<X>`, `catalog_version=<Y>`, and `recent_changes=<bullets separated by ` | `>`. Substitute `{{INSTALLED}}` with `installed_version`, `{{CATALOG}}` with `catalog_version`, and emit one `> - {{bullet}}` line per bullet (split on ` | `, up to 3). If `recent_changes` is empty, omit the "Recent changes:" header and its bullet lines; keep everything else. Emit verbatim:
+**Update pending (flag file exists).** Read `.claude/.update-available` and parse `installed_version=<X>`, `catalog_version=<Y>`, `requires_reload=<true|false>`, and `recent_changes=<bullets separated by ` | `>`. Substitute `{{INSTALLED}}`, `{{CATALOG}}`, and emit one `> - {{bullet}}` line per bullet (split on ` | `, up to 3). If `recent_changes` is empty, omit the "Recent changes:" header and its bullet lines.
 
-> "⚠️ **SF Demo Scout update available** ({{INSTALLED}} → {{CATALOG}})
+If `requires_reload=true`, emit verbatim:
+
+> "⚠️ **SF Demo Scout update available** ({{INSTALLED}} → {{CATALOG}}) — command surface changed
 >
 > Recent changes:
 > - {{bullet 1}}
 > - {{bullet 2}}
 > - {{bullet 3}}
 >
-> **To pick up the update:**
-> - **Terminal Claude Code:** run `/reload-plugins` and continue.
-> - **VS Code extension:** quit Claude Code and relaunch (the extension does not support `/reload-plugins`).
+> **To pick up the update:** run `/scout-setup`, then close + reopen this Claude tab.
+>
+> To proceed without updating: reply `proceed` (dismissed for this session only)."
+
+Otherwise (`requires_reload=false` or absent), emit verbatim:
+
+> "🆕 **SF Demo Scout updated** ({{INSTALLED}} → {{CATALOG}})
+>
+> Recent changes:
+> - {{bullet 1}}
+> - {{bullet 2}}
+> - {{bullet 3}}
+>
+> **To apply:** run `/scout-setup` (skill sync + CLI refresh — keeps you in this session).
 >
 > To proceed without updating: reply `proceed` (dismissed for this session only)."
 
 Do not write to or delete the flag file — the next `session-startup.sh` run refreshes it.
 
-**Wait for the SE's reply only when the flag file existed.** If the SE ran `/reload-plugins` or relaunched, they will be in a fresh session and won't return here. If they replied `proceed`, advance normally.
+**Wait for the SE's reply only when the flag file existed.** If the SE ran `/scout-setup` and closed + reopened, they won't return here. If they replied `proceed`, advance normally.
 
 ---
 

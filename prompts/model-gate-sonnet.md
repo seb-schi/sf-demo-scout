@@ -1,8 +1,5 @@
 # Model Gate — Sonnet
 
-Loaded by commands that require Sonnet. Emit the message below verbatim as a standalone message, then wait for the SE's confirmation before proceeding.
+Loaded by commands designed for Sonnet. Emit the message below verbatim as a one-line note, then proceed immediately to the next step. Do NOT wait for the SE's reply.
 
-> "⚠️ **This command is designed for Sonnet.**
-> Run `/model sonnet` now if you haven't already — your conversation history is preserved.
->
-> Confirm you're on Sonnet before we continue. (yes)"
+> "⚠️ This command is designed for Sonnet. Please run `/model` to switch if not on Sonnet."

@@ -152,24 +152,39 @@ except Exception:
         seen && /^- / { print; count++; if (count==3) exit }
       ' "$CATALOG_README" 2>/dev/null | sed 's/^- //' | tr '\n' '|' | sed 's/|$//' | sed 's/|/ | /g')
     fi
-    {
-      echo "installed_version=$INSTALLED_VERSION"
-      echo "catalog_version=$CATALOG_VERSION"
-      echo "recent_changes=$RECENT"
-    } > "$FLAG_FILE"
-    OUTPUT+="## ⚠️ SF Demo Scout update available ($INSTALLED_VERSION → $CATALOG_VERSION) — /scout-sparring will prompt you.\n\n"
+    # Read requires_reload from catalog plugin.json (default false if absent).
+      REQUIRES_RELOAD=$(python3 -c "
+import json
+try:
+    d = json.load(open('$CATALOG_FILE'))
+    print('true' if d.get('requires_reload', False) else 'false')
+except Exception:
+    print('false')
+" 2>/dev/null)
+      {
+        echo "installed_version=$INSTALLED_VERSION"
+        echo "catalog_version=$CATALOG_VERSION"
+        echo "requires_reload=$REQUIRES_RELOAD"
+        echo "recent_changes=$RECENT"
+      } > "$FLAG_FILE"
+      if [ "$REQUIRES_RELOAD" = "true" ]; then
+        OUTPUT+="## 🆕 SF Demo Scout update available ($INSTALLED_VERSION → $CATALOG_VERSION) — command surface changed.\n"
+        OUTPUT+="   Run /scout-setup, then close + reopen this Claude tab to apply.\n\n"
+      else
+        OUTPUT+="## 🆕 SF Demo Scout update available ($INSTALLED_VERSION → $CATALOG_VERSION) — run /scout-setup to apply.\n\n"
+      fi
   else
     rm -f "$FLAG_FILE"
   fi
 fi
 
 # --- 6.5. Plugin First-Run Nudge ---
-# If the SE installed the plugin but never ran a /scout-* command,
+# If the SE installed the plugin but never ran /scout-setup,
 # config.json is absent and the workspace is unconfigured. Surface
 # a one-line nudge so they know what to do next.
 if [ ! -f "$HOME/.config/sf-demo-scout/config.json" ]; then
   OUTPUT+="## ⚠️ Scout setup not yet complete.\n"
-  OUTPUT+="   Run /scout-sparring or /scout-switch-org to finish first-time setup.\n\n"
+  OUTPUT+="   Run /scout-setup to install — handles fresh installs, refreshes, and repairs.\n\n"
 fi
 
 # --- 7. Ready ---
@@ -178,5 +193,6 @@ OUTPUT+="**Ready.**\n"
 OUTPUT+="  /scout-sparring  — Opus discovery sparring + spec generation\n"
 OUTPUT+="  /scout-building  — Opus orchestrator for org deployment\n"
 OUTPUT+="  /scout-switch-org — change active demo org\n"
+OUTPUT+="  /scout-setup     — install, refresh, or repair Scout\n"
 
 echo -e "$OUTPUT"
