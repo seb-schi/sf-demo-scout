@@ -424,6 +424,13 @@ ZSHRC="$HOME/.zshrc"
 touch "$ZSHRC"
 ZSHRC_BEFORE_HASH=$(shasum "$ZSHRC" | awk '{print $1}')
 
+# Ensure ~/.local/bin is on PATH — Anthropic's CC installer puts the
+# `claude` binary there. Append once, outside the managed block, so SE
+# overrides aren't clobbered. Idempotent.
+if ! grep -q 'PATH="\$HOME/.local/bin' "$ZSHRC" 2>/dev/null; then
+  echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$ZSHRC"
+fi
+
 python3 - "$ZSHRC" <<'PYEOF'
 import re, sys
 path = sys.argv[1]

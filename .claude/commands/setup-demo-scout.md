@@ -195,7 +195,7 @@ just leaves an inconsistent state).
 Print this status update, then proceed straight to cleanup:
 
 > Plugin detected. Cleaning up the old clone-install scaffolding.
-> Your `orgs/` and `.sf/` directories are preserved.
+> Your existing customer demo work and Salesforce project structure are preserved.
 
 Run cleanup. Inverted logic: enumerate what to KEEP, delete the rest.
 Robust against future trampoline payload additions:
@@ -205,6 +205,9 @@ cd ~/claude-projects/sf-demo-scout && \
   find . -maxdepth 1 -mindepth 1 \
     ! -name 'orgs' \
     ! -name '.sf' \
+    ! -name '.sfdx' \
+    ! -name 'force-app' \
+    ! -name 'sfdx-project.json' \
     -exec rm -rf {} + && \
   echo "CLEANUP_DONE" || echo "CLEANUP_FAILED"
 ```
@@ -223,9 +226,10 @@ Stop on `CLEANUP_FAILED`.
 ls -A ~/claude-projects/sf-demo-scout/ 2>/dev/null
 ```
 
-Expected: `orgs`, `.sf`, possibly `.DS_Store`. If anything else
-remains, list it for the SE and ask whether to remove. Do not
-auto-remove — could be SE work product.
+Expected: `orgs`, `force-app`, `sfdx-project.json`, possibly `.sf`,
+`.sfdx`, `.DS_Store`. If anything else remains, list it for the SE
+and ask whether to remove. Do not auto-remove — could be SE work
+product.
 
 ## Step 4 — Hand over
 
@@ -242,7 +246,8 @@ Print this verbatim, then stop:
 >   finish installing right inside Claude Code. No more `bash update.sh`
 >   inside Terminal, no more reloading of apps.
 > - **Cleaner workspace** — your `~/claude-projects/sf-demo-scout/`
->   directory now contains only your data (`orgs/` + `.sf/`). Skills,
+>   directory now contains only your data (`orgs/`) and the Salesforce
+>   project shell (`force-app/` + `sfdx-project.json`). Skills,
 >   commands, hooks, prompts all live in plugin land.
 > - **Faster sessions** — MCP servers pre-cached, prereqs verified,
 >   skill manifest synced on first run.
