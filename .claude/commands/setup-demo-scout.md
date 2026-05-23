@@ -114,14 +114,13 @@ slash commands as bare lines on their own.
 > Run the four slash commands **one at a time** — paste, hit Enter,
 > wait for the confirmation, then move to the next. Don't paste them
 > all together.
->
-> ⚠️ **Paste each command exactly as shown — no leading or trailing
-> spaces.** Stray whitespace breaks the slash-command parser. Click
-> the copy button on each code block (top-right corner) to avoid this.
 
 ---
 
 **Step 1.** Add the plugin marketplace.
+
+> 🟡 **PASTE EXACTLY — no leading or trailing spaces.** Stray
+> whitespace breaks the slash-command parser.
 
 ```
 /plugin marketplace add https://github.com/seb-schi/sf-demo-scout.git
@@ -132,6 +131,8 @@ Wait for: `Successfully added marketplace: scout`
 ---
 
 **Step 2.** Install the plugin.
+
+> 🟡 **PASTE EXACTLY — no leading or trailing spaces.**
 
 ```
 /plugin install sf-demo-scout@scout
@@ -148,6 +149,8 @@ Wait for: `✓ Installed sf-demo-scout`
 
 **Step 3.** Activate the plugin without restarting.
 
+> 🟡 **PASTE EXACTLY — no leading or trailing spaces.**
+
 ```
 /reload-plugins
 ```
@@ -158,6 +161,8 @@ Wait for: `Reloaded: ... plugins · ... skills · ... agents` (numbers vary).
 
 **Step 4.** Re-run this migration command. It will detect the plugin
 and finish cleanup automatically.
+
+> 🟡 **PASTE EXACTLY — no leading or trailing spaces.**
 
 ```
 /setup-demo-scout
