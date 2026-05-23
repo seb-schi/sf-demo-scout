@@ -338,8 +338,13 @@ fi
 ```
 
 Surface inline:
-- `SLACK_MCP_ALREADY_REGISTERED` — silent.
-- `SLACK_MCP_REGISTERED` — "Registered Slack MCP (user scope)."
+- `SLACK_MCP_ALREADY_REGISTERED` — silent. Proceed to 3h.
+- `SLACK_MCP_REGISTERED` — Slack was just registered mid-session. The `/mcp` TUI uses an in-memory snapshot taken at session start and won't show the new server until plugins reload. ABORT with:
+  > "Registered Slack MCP (user scope). One more step before authentication: the `/mcp` UI needs to refresh to show the new server.
+  >
+  > **Run `/reload-plugins` now**, then re-run `/scout-setup` — setup will resume and walk you through Slack auth."
+
+  Skip 3h entirely on this branch — the SE returns to 3h on the next `/scout-setup` invocation, when the SLACK_MCP_ALREADY_REGISTERED branch fires silently and the auth probe runs against a refreshed TUI.
 - `SLACK_MCP_REGISTRATION_FAILED` — surface and ABORT:
   > "Slack MCP registration failed. Run this manually, then re-run `/scout-setup`:
   >
@@ -548,9 +553,14 @@ else
 fi
 ```
 
-Surface inline (refresh path is heal-when-broken, so do NOT abort on failure — note and proceed):
-- `SLACK_MCP_ALREADY_REGISTERED` — silent.
-- `SLACK_MCP_REGISTERED` — "Re-registered Slack MCP (was missing — likely manual removal)."
+Surface inline (refresh path is heal-when-broken, so failures only surface — they don't abort. The just-registered branch DOES abort because the TUI snapshot needs a `/reload-plugins` before 4c's auth probe is actionable):
+- `SLACK_MCP_ALREADY_REGISTERED` — silent. Proceed to 4c.
+- `SLACK_MCP_REGISTERED` — Slack was missing and was just re-added mid-session. ABORT with:
+  > "Re-registered Slack MCP (was missing — likely manual removal). One more step: the `/mcp` UI needs to refresh to show the re-added server.
+  >
+  > **Run `/reload-plugins` now**, then re-run `/scout-setup` — refresh will resume."
+
+  Skip the rest of refresh on this branch.
 - `SLACK_MCP_REGISTRATION_FAILED` — "⚠️ Slack MCP registration failed during refresh. Run manually: `claude mcp add -s user -t http --client-id 188160004832.9210129962818 --callback-port 3118 slack https://mcp.slack.com/mcp`. Refresh continues." Proceed to 4c.
 
 ### 4c: Slack MCP probe (silent unless broken)
