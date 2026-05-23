@@ -113,11 +113,17 @@ fi
 # Compares the installed plugin version (from CC's installed_plugins.json)
 # against the catalog cache's plugin.json (refreshed by autoUpdate at
 # session start). When versions differ, writes .claude/.update-available
-# so /scout-sparring + /scout-building surface the notice in their Stage 1
-# gate. autoUpdate fetches the new content silently in the background;
-# the SE still needs to run /reload-plugins (Terminal CC) or quit + relaunch
+# so /scout-sparring surfaces an inline note in its Stage 2 prompt.
+# autoUpdate fetches the new content silently in the background; the SE
+# still needs to run /reload-plugins (Terminal CC) or quit + relaunch
 # (VS Code extension) for the new version to take effect.
+#
+# §6.4 below adds a one-shot post-update confirmation banner when the
+# installed version finally catches up to the catalog version — proves
+# autoUpdate + reload landed end-to-end. State is tracked in
+# .claude/.last-seen-plugin-version (plain version string).
 FLAG_FILE=".claude/.update-available"
+LAST_SEEN_FILE=".claude/.last-seen-plugin-version"
 INSTALLED_FILE="$HOME/.claude/plugins/installed_plugins.json"
 CATALOG_FILE="$HOME/.claude/plugins/marketplaces/scout/.claude-plugin/plugin.json"
 mkdir -p .claude
@@ -140,19 +146,9 @@ except Exception:
     pass
 " 2>/dev/null)
 
-  if [ -n "$INSTALLED_VERSION" ] && [ -n "$CATALOG_VERSION" ] && [ "$INSTALLED_VERSION" != "$CATALOG_VERSION" ]; then
-    # Catalog README.md (cached alongside plugin.json) is the SE-facing
-    # changelog source post-cutover. Extract first 3 bullets under the
-    # most recent ## YYYY-MM-DD header.
-    CATALOG_README="$HOME/.claude/plugins/marketplaces/scout/CHANGELOG.md"
-    RECENT=""
-    if [ -f "$CATALOG_README" ]; then
-      RECENT=$(awk '
-        /^## [0-9]{4}-[0-9]{2}-[0-9]{2}/ { if (seen) exit; seen=1; next }
-        seen && /^- / { print; count++; if (count==3) exit }
-      ' "$CATALOG_README" 2>/dev/null | sed 's/^- //' | tr '\n' '|' | sed 's/|$//' | sed 's/|/ | /g')
-    fi
-    # Read requires_reload from catalog plugin.json (default false if absent).
+  if [ -n "$INSTALLED_VERSION" ] && [ -n "$CATALOG_VERSION" ]; then
+    # --- 6.1. Update available branch ---
+    if [ "$INSTALLED_VERSION" != "$CATALOG_VERSION" ]; then
       REQUIRES_RELOAD=$(python3 -c "
 import json
 try:
@@ -165,16 +161,30 @@ except Exception:
         echo "installed_version=$INSTALLED_VERSION"
         echo "catalog_version=$CATALOG_VERSION"
         echo "requires_reload=$REQUIRES_RELOAD"
-        echo "recent_changes=$RECENT"
       } > "$FLAG_FILE"
       if [ "$REQUIRES_RELOAD" = "true" ]; then
-        OUTPUT+="## 🆕 SF Demo Scout update available ($INSTALLED_VERSION → $CATALOG_VERSION) — command surface changed.\n"
-        OUTPUT+="   Run /scout-setup, then close + reopen this Claude tab to apply.\n\n"
+        OUTPUT+="## 🆕 SF Demo Scout update available — see #sf-demo-scout on Slack for details.\n"
+        OUTPUT+="   To apply: run /scout-setup, then close + reopen this Claude tab.\n\n"
       else
-        OUTPUT+="## 🆕 SF Demo Scout update available ($INSTALLED_VERSION → $CATALOG_VERSION) — run /scout-setup to apply.\n\n"
+        OUTPUT+="## 🆕 SF Demo Scout update available — see #sf-demo-scout on Slack for details.\n"
+        OUTPUT+="   To apply: run /scout-setup.\n\n"
       fi
-  else
-    rm -f "$FLAG_FILE"
+    # --- 6.4. Post-update confirmation branch ---
+    # installed == catalog. Either steady state, fresh install, or just-upgraded.
+    else
+      rm -f "$FLAG_FILE"
+      if [ ! -f "$LAST_SEEN_FILE" ]; then
+        # First-ever run: silently establish baseline. /scout-setup already
+        # confirmed install — no duplicate hook banner.
+        echo "$INSTALLED_VERSION" > "$LAST_SEEN_FILE"
+      else
+        LAST_SEEN=$(cat "$LAST_SEEN_FILE" 2>/dev/null)
+        if [ "$LAST_SEEN" != "$INSTALLED_VERSION" ]; then
+          OUTPUT+="## ✅ Scout updated to $INSTALLED_VERSION — see #sf-demo-scout for what changed.\n\n"
+          echo "$INSTALLED_VERSION" > "$LAST_SEEN_FILE"
+        fi
+      fi
+    fi
   fi
 fi
 

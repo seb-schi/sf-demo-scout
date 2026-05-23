@@ -56,48 +56,6 @@ Run a single MCP probe to confirm connectivity:
   > If this persists, check that .mcp.json exists in the project root."
   Stop. Do not proceed without MCP.
 
-### Update notice
-
-Run `test -f .claude/.update-available` to branch.
-
-**No pending update (flag file absent).** Proceed silently to Stage 2 — no message.
-
-**Update pending (flag file exists).** Read `.claude/.update-available` and parse `installed_version=<X>`, `catalog_version=<Y>`, `requires_reload=<true|false>`, and `recent_changes=<bullets separated by ` | `>`. Substitute `{{INSTALLED}}`, `{{CATALOG}}`, and emit one `> - {{bullet}}` line per bullet (split on ` | `, up to 3). If `recent_changes` is empty, omit the "Recent changes:" header and its bullet lines.
-
-If `requires_reload=true`, emit verbatim:
-
-> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
->
-> ⚠️ **SF Demo Scout update available** ({{INSTALLED}} → {{CATALOG}}) — command surface changed
->
-> Recent changes:
-> - {{bullet 1}}
-> - {{bullet 2}}
-> - {{bullet 3}}
->
-> **To pick up the update:** run `/scout-setup`, then close + reopen this Claude tab.
->
-> To proceed without updating: reply `proceed` (dismissed for this session only)."
-
-Otherwise (`requires_reload=false` or absent), emit verbatim:
-
-> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
->
-> 🆕 **SF Demo Scout updated** ({{INSTALLED}} → {{CATALOG}})
->
-> Recent changes:
-> - {{bullet 1}}
-> - {{bullet 2}}
-> - {{bullet 3}}
->
-> **To apply:** run `/scout-setup` (skill sync + CLI refresh — keeps you in this session).
->
-> To proceed without updating: reply `proceed` (dismissed for this session only)."
-
-Do not write to or delete the flag file — the next `session-startup.sh` run refreshes it.
-
-**Wait for the SE's reply only when the flag file existed.** If the SE ran `/scout-setup` and closed + reopened, they won't return here. If they replied `proceed`, advance normally.
-
 ---
 
 ## Stage 2: Org Setup & Intent
@@ -112,8 +70,21 @@ Run `sf config get target-org --json` and `sf org display --json`. Extract alias
 
 Do not continue to audit routing without an org.
 
-Output as a single message, then wait for the SE's reply. Prepend the model-gate warning verbatim as the FIRST line, then a blank line, then the org/intent block:
+**Update note (inline).** Run `test -f .claude/.update-available` to check. If the file exists, also read it and parse `requires_reload=<true|false>`. The two-line `{{UPDATE_BLOCK}}` substitution below is:
+
+- **Flag absent** → empty string (no lines).
+- **Flag present, `requires_reload=false`**:
+  > 🆕 SF Demo Scout update available — see `#sf-demo-scout` on Slack for details.
+  > To apply: run `/scout-setup`.
+- **Flag present, `requires_reload=true`**:
+  > 🆕 SF Demo Scout update available — see `#sf-demo-scout` on Slack for details.
+  > To apply: run `/scout-setup`, then close + reopen this Claude tab.
+
+Do not write to or delete the flag file — the next `session-startup.sh` run refreshes it. No `proceed` branch — the note is informational, not a gate.
+
+Output as a single message, then wait for the SE's reply. Prepend the model-gate warning verbatim as the FIRST line, then `{{UPDATE_BLOCK}}` (or nothing if empty), then a blank line, then the org/intent block:
 > "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
+> {{UPDATE_BLOCK}}
 >
 > Active org: [alias] ([username]). Right org, or switch? (run /scout-switch-org)
 >
