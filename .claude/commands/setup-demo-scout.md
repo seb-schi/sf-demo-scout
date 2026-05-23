@@ -229,15 +229,15 @@ Print this verbatim, then stop:
 > - **Faster sessions** — MCP servers pre-cached, prereqs verified,
 >   skill manifest synced on first run.
 >
-> **Recommended next step:** run `/scout-switch-org` to confirm your
-> active org. Pick one from the list — that's all you need to start
-> demo prep.
+> **Recommended next step:** run `/scout-setup` to finish setup —
+> it syncs the skill manifest, verifies prereqs, and primes the
+> workspace for the new plugin layout.
 
-/scout-switch-org
+/scout-setup
 
-> Once an org is active, `/scout-sparring` (discovery + spec
-> generation) and `/scout-building` (deployment) are ready when you
-> need them.
+> Once setup completes, run `/scout-switch-org` to pick your active
+> org, then `/scout-sparring` (discovery + spec generation) and
+> `/scout-building` (deployment) are ready when you need them.
 >
 > Questions or issues? Ping `#sf-demo-scout` on Slack. The Scout
 > Slackbot skill can also answer most "how do I X?"
