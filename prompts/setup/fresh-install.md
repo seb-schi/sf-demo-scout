@@ -1,6 +1,8 @@
 # Scout Setup — Fresh Install
 
-End-to-end install procedure. Run on `STATE=FRESH` or after a `STATE=COLLISION` scrub. Idempotent — safe to re-run.
+End-to-end install procedure. Run on `STATE=FRESH` or after a `STATE=COLLISION` scrub.
+
+**Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an abort (e.g. SE returning from `/mcp` Slack auth) is safe and fast — completed steps fast-no-op via their own probes (`BREW_OK`, `NODE_PRESENT`, `SETTINGS_PRESENT`, `USER_SETTINGS_NO_CHANGES`, `AUTOUPDATE_ALREADY_ON`, `SLACK_MCP_ALREADY_REGISTERED`, etc.). Always run end-to-end; do NOT skip steps trying to "resume" — the no-ops are the resume mechanism. Within the same CC session you may rely on conversation memory to fast-forward; across sessions, just run the full sequence — it will land in the right place naturally.
 
 ## a: Brew Check (hard abort if missing)
 
