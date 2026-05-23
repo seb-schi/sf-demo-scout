@@ -88,7 +88,7 @@ On `MCP_CACHE_FAILED`, surface a one-line note ("MCP pre-cache failed — first 
 mkdir -p "$HOME/claude-projects/sf-demo-scout/orgs"
 cd "$HOME/claude-projects/sf-demo-scout"
 if [ ! -f sfdx-project.json ]; then
-  sf project generate --name sf-demo-scout --template empty 2>/dev/null || true
+  sf project generate --name sf-demo-scout --template empty >/dev/null 2>&1 || true
   if [ -f sf-demo-scout/sfdx-project.json ]; then
     mv sf-demo-scout/sfdx-project.json ./
     mv sf-demo-scout/force-app ./ 2>/dev/null || true
@@ -122,9 +122,11 @@ fi
 
 ## f: Workspace `.claude/settings.json`
 
+Resolve `${CLAUDE_PLUGIN_ROOT}` to its absolute filesystem path (the directory `plugin.json` lives in, minus `/.claude-plugin`) and substitute as `[PLUGIN_ROOT]` below — `${CLAUDE_PLUGIN_ROOT}` does NOT expand inside Bash shell context, only inside Read-tool path arguments, so the bash invocation must receive the literal absolute path.
+
 ```bash
 SETTINGS="$HOME/claude-projects/sf-demo-scout/.claude/settings.json"
-TEMPLATE="${CLAUDE_PLUGIN_ROOT}/assets/workspace-settings.template.json"
+TEMPLATE="[PLUGIN_ROOT]/assets/workspace-settings.template.json"
 mkdir -p "$(dirname "$SETTINGS")"
 if [ ! -f "$SETTINGS" ]; then
   cp "$TEMPLATE" "$SETTINGS"

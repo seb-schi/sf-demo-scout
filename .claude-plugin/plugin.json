@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "2026.05.27.5-setup-shared-prompts",
+  "version": "2026.05.27.6-fresh-install-fixes",
   "requires_reload": true,
   "author": {
     "name": "Sebastian Schickhoff"
