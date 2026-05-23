@@ -261,6 +261,63 @@ Surface inline:
 - `USER_SETTINGS_UPDATED: added N of 6 entries` — "Added N Scout entries to `~/.claude/settings.json` allowlist (inert outside Scout sessions)."
 - Any error variant — one-line note, proceed.
 
+### 3g.5: Ensure marketplace autoUpdate is enabled
+
+Fresh-install SEs add the Scout marketplace via `/plugin marketplace add` BEFORE running `/scout-setup`, so CC writes the `extraKnownMarketplaces.scout` entry without `autoUpdate: true`. The migration trampoline pre-writes the flag; fresh installs need this fallback. Idempotent, safe-fail.
+
+```bash
+USER_SETTINGS="$HOME/.claude/settings.json"
+
+python3 - "$USER_SETTINGS" <<'PYEOF'
+import json, os, sys, tempfile
+path = sys.argv[1]
+
+if not os.path.exists(path):
+    print("AUTOUPDATE_NO_SETTINGS"); sys.exit(0)
+
+try:
+    with open(path) as f:
+        data = json.load(f)
+except (json.JSONDecodeError, OSError) as e:
+    print(f"AUTOUPDATE_PARSE_ERROR: {e}"); sys.exit(0)
+
+if not isinstance(data, dict):
+    print("AUTOUPDATE_NOT_OBJECT"); sys.exit(0)
+
+marketplaces = data.get("extraKnownMarketplaces")
+if not isinstance(marketplaces, dict):
+    print("AUTOUPDATE_NO_MARKETPLACES"); sys.exit(0)
+
+scout = marketplaces.get("scout")
+if not isinstance(scout, dict):
+    print("AUTOUPDATE_NO_SCOUT_ENTRY"); sys.exit(0)
+
+if scout.get("autoUpdate") is True:
+    print("AUTOUPDATE_ALREADY_ON"); sys.exit(0)
+
+scout["autoUpdate"] = True
+
+tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".settings.", suffix=".tmp")
+try:
+    with os.fdopen(tmp_fd, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.rename(tmp_path, path)
+except Exception as e:
+    try: os.unlink(tmp_path)
+    except OSError: pass
+    print(f"AUTOUPDATE_WRITE_FAILED: {e}"); sys.exit(0)
+
+print("AUTOUPDATE_ENABLED")
+PYEOF
+```
+
+Surface inline:
+- `AUTOUPDATE_ALREADY_ON` — silent.
+- `AUTOUPDATE_ENABLED` — "Enabled auto-updates for Scout marketplace — future versions will install automatically on session start."
+- `AUTOUPDATE_NO_SETTINGS` / `AUTOUPDATE_NO_MARKETPLACES` / `AUTOUPDATE_NO_SCOUT_ENTRY` — silent (the marketplace add step writes these; absence means setup is being run in an unexpected state, not Scout's problem).
+- Any error variant — one-line note, proceed.
+
 ### 3h: Slack MCP Auth Probe
 
 ```bash
