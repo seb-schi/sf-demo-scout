@@ -110,82 +110,58 @@ if [ ! -f "CLAUDE.md" ]; then
 fi
 
 # --- 6. Plugin Update Check ---
-# Compares the installed plugin version (from CC's installed_plugins.json)
-# against the catalog cache's plugin.json (refreshed by autoUpdate at
-# session start). When versions differ, writes .claude/.update-available
-# so /scout-sparring surfaces an inline note in its Stage 2 prompt.
-# autoUpdate fetches the new content silently in the background; the SE
-# still needs to run /reload-plugins (Terminal CC) or quit + relaunch
-# (VS Code extension) for the new version to take effect.
+# Three-flag model:
+#   catalog_version             — what's published (catalog plugin.json)
+#   installed_version           — what CC has loaded (installed_plugins.json)
+#   last_synced_plugin_version  — what /scout-setup last finished for (config.json)
 #
-# §6.4 below adds a one-shot post-update confirmation banner when the
-# installed version finally catches up to the catalog version — proves
-# autoUpdate + reload landed end-to-end. State is tracked in
-# .claude/.last-seen-plugin-version (plain version string).
-FLAG_FILE=".claude/.update-available"
-LAST_SEEN_FILE=".claude/.last-seen-plugin-version"
-INSTALLED_FILE="$HOME/.claude/plugins/installed_plugins.json"
+# States:
+#   catalog != installed         → update available, reload needed
+#   catalog == installed != synced → downloaded but setup not run
+#   all aligned                   → silent
+#
+# Same logic mirrored in workspace-bootstrap.md so Scout commands
+# invoked from any cwd surface the same notice inline.
 CATALOG_FILE="$HOME/.claude/plugins/marketplaces/scout/.claude-plugin/plugin.json"
-mkdir -p .claude
+INSTALLED_FILE="$HOME/.claude/plugins/installed_plugins.json"
+CONFIG_FILE="$HOME/.config/sf-demo-scout/config.json"
 
-if [ -f "$INSTALLED_FILE" ] && [ -f "$CATALOG_FILE" ]; then
-  INSTALLED_VERSION=$(python3 -c "
+if [ -f "$CATALOG_FILE" ] && [ -f "$INSTALLED_FILE" ] && [ -f "$CONFIG_FILE" ]; then
+  UPDATE_STATE=$(python3 -c "
 import json
 try:
-    d = json.load(open('$INSTALLED_FILE'))
-    entries = d.get('plugins', {}).get('sf-demo-scout@scout', [])
-    print(entries[0].get('version', '') if entries else '')
+    catalog = json.load(open('$CATALOG_FILE')).get('version', '')
+    inst_d = json.load(open('$INSTALLED_FILE'))
+    installed = ''
+    entries = inst_d.get('plugins', {}).get('sf-demo-scout@scout', [])
+    if entries:
+        installed = entries[0].get('version', '')
+    synced = json.load(open('$CONFIG_FILE')).get('last_synced_plugin_version', '')
+    if not (catalog and installed and synced):
+        print('UNKNOWN')
+    elif catalog != installed:
+        print('UPDATE_AVAILABLE')
+    elif installed != synced:
+        print('SETUP_PENDING')
+    else:
+        print('ALIGNED')
 except Exception:
-    pass
-" 2>/dev/null)
-  CATALOG_VERSION=$(python3 -c "
-import json
-try:
-    print(json.load(open('$CATALOG_FILE')).get('version', ''))
-except Exception:
-    pass
+    print('UNKNOWN')
 " 2>/dev/null)
 
-  if [ -n "$INSTALLED_VERSION" ] && [ -n "$CATALOG_VERSION" ]; then
-    # --- 6.1. Update available branch ---
-    if [ "$INSTALLED_VERSION" != "$CATALOG_VERSION" ]; then
-      REQUIRES_RELOAD=$(python3 -c "
-import json
-try:
-    d = json.load(open('$CATALOG_FILE'))
-    print('true' if d.get('requires_reload', False) else 'false')
-except Exception:
-    print('false')
-" 2>/dev/null)
-      {
-        echo "installed_version=$INSTALLED_VERSION"
-        echo "catalog_version=$CATALOG_VERSION"
-        echo "requires_reload=$REQUIRES_RELOAD"
-      } > "$FLAG_FILE"
-      if [ "$REQUIRES_RELOAD" = "true" ]; then
-        OUTPUT+="## 🆕 SF Demo Scout update available — see #sf-demo-scout on Slack for details.\n"
-        OUTPUT+="   To apply: run /scout-setup, then close + reopen this Claude tab.\n\n"
-      else
-        OUTPUT+="## 🆕 SF Demo Scout update available — see #sf-demo-scout on Slack for details.\n"
-        OUTPUT+="   To apply: run /scout-setup.\n\n"
-      fi
-    # --- 6.4. Post-update confirmation branch ---
-    # installed == catalog. Either steady state, fresh install, or just-upgraded.
-    else
-      rm -f "$FLAG_FILE"
-      if [ ! -f "$LAST_SEEN_FILE" ]; then
-        # First-ever run: silently establish baseline. /scout-setup already
-        # confirmed install — no duplicate hook banner.
-        echo "$INSTALLED_VERSION" > "$LAST_SEEN_FILE"
-      else
-        LAST_SEEN=$(cat "$LAST_SEEN_FILE" 2>/dev/null)
-        if [ "$LAST_SEEN" != "$INSTALLED_VERSION" ]; then
-          OUTPUT+="## ✅ Scout updated to $INSTALLED_VERSION — see #sf-demo-scout for what changed.\n\n"
-          echo "$INSTALLED_VERSION" > "$LAST_SEEN_FILE"
-        fi
-      fi
-    fi
-  fi
+  case "$UPDATE_STATE" in
+    UPDATE_AVAILABLE)
+      OUTPUT+="## 🆕 SF Demo Scout update available — see #sf-demo-scout on Slack for details.\n"
+      OUTPUT+="   To apply: run /scout-setup, then close + reopen this Claude tab.\n\n"
+      ;;
+    SETUP_PENDING)
+      OUTPUT+="## 🆕 SF Demo Scout update downloaded — run /scout-setup to finish installation.\n"
+      OUTPUT+="   See #sf-demo-scout on Slack for details.\n\n"
+      ;;
+    *)
+      : # ALIGNED or UNKNOWN — silent.
+      ;;
+  esac
 fi
 
 # --- 6.5. Plugin First-Run Nudge ---

@@ -30,6 +30,10 @@ Read `orgs/building-lessons.md` — these are mistakes from previous building se
 
 ---
 
+## Update note
+
+Read `.claude/.update-block` (always present, written by workspace-bootstrap Step 2). The first SE-facing reply emitted by this command MUST start with the contents of `.claude/.update-block` verbatim (empty file = no extra lines). Apply this once, to the first reply only — do not repeat in subsequent replies within the same command session.
+
 ## Step 1: MCP Probe
 
 Run a single MCP probe to confirm connectivity:

@@ -237,8 +237,10 @@ Print this verbatim, then stop:
 > - Scout commands are **global** — `/scout-sparring`,
 >   `/scout-building`, `/scout-switch-org` work in any Claude Code
 >   session, regardless of which directory you launched from.
-> - **Auto-updates** — when a new Scout version ships, the plugin
->   marketplace picks it up automatically. No more `bash update.sh`.
+> - **Greatly simplified updates** — new Scout versions arrive
+>   automatically; a banner tells you when to run `/scout-setup` to
+>   finish installing right inside Claude Code. No more `bash update.sh`
+>   inside Terminal, no more reloading of apps.
 > - **Cleaner workspace** — your `~/claude-projects/sf-demo-scout/`
 >   directory now contains only your data (`orgs/` + `.sf/`). Skills,
 >   commands, hooks, prompts all live in plugin land.

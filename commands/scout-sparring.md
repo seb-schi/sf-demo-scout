@@ -70,21 +70,10 @@ Run `sf config get target-org --json` and `sf org display --json`. Extract alias
 
 Do not continue to audit routing without an org.
 
-**Update note (inline).** Run `test -f .claude/.update-available` to check. If the file exists, also read it and parse `requires_reload=<true|false>`. The two-line `{{UPDATE_BLOCK}}` substitution below is:
+Output as a single message, then wait for the SE's reply. Read `.claude/.update-block` (always present, written by workspace-bootstrap Step 2) and include its contents verbatim immediately after the model-gate warning. Empty file = no extra lines.
 
-- **Flag absent** → empty string (no lines).
-- **Flag present, `requires_reload=false`**:
-  > 🆕 SF Demo Scout update available — see `#sf-demo-scout` on Slack for details.
-  > To apply: run `/scout-setup`.
-- **Flag present, `requires_reload=true`**:
-  > 🆕 SF Demo Scout update available — see `#sf-demo-scout` on Slack for details.
-  > To apply: run `/scout-setup`, then close + reopen this Claude tab.
-
-Do not write to or delete the flag file — the next `session-startup.sh` run refreshes it. No `proceed` branch — the note is informational, not a gate.
-
-Output as a single message, then wait for the SE's reply. Prepend the model-gate warning verbatim as the FIRST line, then `{{UPDATE_BLOCK}}` (or nothing if empty), then a blank line, then the org/intent block:
 > "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
-> {{UPDATE_BLOCK}}
+> {{contents of .claude/.update-block, verbatim}}
 >
 > Active org: [alias] ([username]). Right org, or switch? (run /scout-switch-org)
 >
