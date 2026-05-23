@@ -2,6 +2,19 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-05-23
+
+- **Scout is now a Claude Code plugin.** The whole install model has changed. Scout is no longer a repo you clone and `update.sh` — it's an official extension you install from a plugin marketplace, the same way Claude Code itself gets its other extensions. Existing SEs upgrade by running `bash update.sh` one last time; it hands you off to the plugin install and migrates your workspace in place (orgs, lessons, change logs all preserved). After today, you never run `update.sh` again. Closes a six-week migration arc.
+- **One command for everything install-related: `/scout-setup`.** First-time install, post-update refresh, "something feels broken — please reset" — same command, every time. Replaces the old `/setup-demo-scout` plus a handful of separate manual steps. Run it any time you suspect Scout is out of sync; it figures out what state you're in and only does the work that's actually needed.
+- **Updates are now (almost) fully automatic.** Whenever we publish a new Scout version, Claude Code pulls it down in the background — typically within a few minutes of starting your next session. When an update is downloaded but not yet finished installing, you'll see a one-line banner at the top of your session: "Scout update downloaded — run /scout-setup to finish installation." One command, you're current. No more "am I on the latest version?" anxiety.
+- **`/scout-sparring` is lighter on the way in.** The old separate update-acknowledgement step is gone — folded into the regular sparring flow. Same safety, one less round-trip before you're sparring.
+- **Skills sync stays current automatically.** The 16 specialist skills (Apex, LWC, Flow, Agentforce, etc.) refresh from Salesforce's official source whenever Scout updates or you run `/scout-setup`. No more wondering whether your skill versions match what Scout's pipeline expects.
+- **Migration UX polished through real test cycles.** Slash commands in the install walkthrough are now copy-paste-friendly inside the Claude Code terminal (the previous code-block formatting was getting flattened and lost its copy button). Step-by-step install instructions, plain-language phrasing, fewer "wait, what's that?" moments.
+- **Plugin README** ships with real install / first-run / update / uninstall instructions, replacing the placeholder copy.
+- Fixed: the "you're on the wrong model" warning at the start of sparring is now a single line instead of a stop-and-switch interruption.
+- Fixed: your shell config no longer accumulates a mysterious blank line every time Scout updates (one of those "huh, that's weird" things — it was a long-standing bug in the old install path, and it's gone now).
+- Fixed: leftover references to the temporary plugin repo URL purged from install scripts and READMEs after the single-repo cutover.
+
 ## 2026-05-20
 
 - **Scout sessions stay on Opus by default — no more "did you switch the model?" dance.** Project default is now `opus` in `.claude/settings.json`, so sparring and building both run on Opus from message one. The `/switch-org` and other Sonnet-by-design commands keep their explicit override. The model gate in scout-sparring still fires as a safety belt, but it should now be a one-line "yes" instead of a stop-and-switch step.
