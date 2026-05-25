@@ -46,4 +46,4 @@ If the dispatched prompt aborts (e.g. brew missing, pyyaml missing, Slack MCP ju
 
 ## Step 3: Done
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/done.md` and execute it. Pass the captured `STATE` and the boolean `ZSHRC_MODIFIED` (true if step k / step f emitted `ZSHRC_MODIFIED`) so it can compose the right closing message.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/done.md` and execute it. Pass the captured `STATE` and the boolean `ZSHRC_MODIFIED` (true if step j / step d emitted `ZSHRC_MODIFIED`) so it can compose the right closing message.

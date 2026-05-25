@@ -2,7 +2,7 @@
 
 Compose the closing message. The orchestrator passes you two pieces of context:
 - `STATE` — `FRESH`, `COLLISION`, or `REFRESH`
-- `ZSHRC_MODIFIED` — boolean (true if step k / step f reported `ZSHRC_MODIFIED`)
+- `ZSHRC_MODIFIED` — boolean (true if step j / step d reported `ZSHRC_MODIFIED`)
 
 Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Extract `requires_reload` (default `false` if absent) and `version`.
 
@@ -16,11 +16,11 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Extract `requires_reloa
 
 **If STATE was REFRESH and `requires_reload: false`:**
 
-> "✓ Scout refreshed to v[VERSION]. Skills synced, CLIs current. You're good to keep working."
+> "✓ Scout refreshed to v[VERSION]. CLIs current. You're good to keep working."
 
 **If STATE was REFRESH and `requires_reload: true`:**
 
-> "✓ Scout refreshed to v[VERSION] (command surface changed). Skills synced, CLIs current.
+> "✓ Scout refreshed to v[VERSION] (command surface changed). CLIs current.
 >
 > **Close + reopen this Claude tab** to load the new commands. (If running in VS Code and the new tab still feels stale, fully restart VS Code.) Then continue your work."
 

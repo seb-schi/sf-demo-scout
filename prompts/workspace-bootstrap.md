@@ -36,15 +36,14 @@ Do not proceed past this step on `STATE=NO_CONFIG` or `STATE=COLLISION`.
 
 ## Step 2: Compute update state (only when STATE=OK)
 
-Run this Bash. It writes the rendered banner (or empty file) to `.claude/.update-block` for the parent command to include in its first SE-facing reply. Mirrors the SessionStart hook's three-flag logic so SEs invoking Scout commands from any cwd see the same notice.
+Run this Bash. It writes the rendered banner (or empty file) to `.claude/.update-block` for the parent command to include in its first SE-facing reply. Mirrors the SessionStart hook's two-flag logic so SEs invoking Scout commands from any cwd see the same notice.
 
 ```bash
 mkdir -p .claude
 CATALOG_FILE="$HOME/.claude/plugins/marketplaces/scout/.claude-plugin/plugin.json"
 INSTALLED_FILE="$HOME/.claude/plugins/installed_plugins.json"
-CONFIG_FILE="$HOME/.config/sf-demo-scout/config.json"
 
-if [ -f "$CATALOG_FILE" ] && [ -f "$INSTALLED_FILE" ] && [ -f "$CONFIG_FILE" ]; then
+if [ -f "$CATALOG_FILE" ] && [ -f "$INSTALLED_FILE" ]; then
   UPDATE_STATE=$(python3 -c "
 import json
 try:
@@ -54,13 +53,10 @@ try:
     entries = inst_d.get('plugins', {}).get('sf-demo-scout@scout', [])
     if entries:
         installed = entries[0].get('version', '')
-    synced = json.load(open('$CONFIG_FILE')).get('last_synced_plugin_version', '')
-    if not (catalog and installed and synced):
+    if not (catalog and installed):
         print('UNKNOWN')
     elif catalog != installed:
         print('UPDATE_AVAILABLE')
-    elif installed != synced:
-        print('SETUP_PENDING')
     else:
         print('ALIGNED')
 except Exception:
@@ -73,13 +69,7 @@ fi
 case "$UPDATE_STATE" in
   UPDATE_AVAILABLE)
     cat > .claude/.update-block <<'EOF'
-> 🆕 SF Demo Scout update available — see `#sf-demo-scout` on Slack for details.
-> To apply: run `/scout-setup`, then close + reopen this Claude tab.
-EOF
-    ;;
-  SETUP_PENDING)
-    cat > .claude/.update-block <<'EOF'
-> 🆕 SF Demo Scout update downloaded — run `/scout-setup` to finish installation. See `#sf-demo-scout` on Slack for details.
+> 🆕 SF Demo Scout update available — close + reopen this Claude tab to apply.
 EOF
     ;;
   *)

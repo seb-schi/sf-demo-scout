@@ -110,23 +110,21 @@ if [ ! -f "CLAUDE.md" ]; then
 fi
 
 # --- 6. Plugin Update Check ---
-# Three-flag model:
-#   catalog_version             — what's published (catalog plugin.json)
-#   installed_version           — what CC has loaded (installed_plugins.json)
-#   last_synced_plugin_version  — what /scout-setup last finished for (config.json)
+# Two-flag model (skills now ship vendored inside the plugin, so
+# "downloaded but skills not synced" no longer exists as a state):
+#   catalog_version    — what's published (catalog plugin.json)
+#   installed_version  — what CC has loaded (installed_plugins.json)
 #
 # States:
-#   catalog != installed         → update available, reload needed
-#   catalog == installed != synced → downloaded but setup not run
-#   all aligned                   → silent
+#   catalog != installed → update available, reload needed
+#   aligned              → silent
 #
 # Same logic mirrored in workspace-bootstrap.md so Scout commands
 # invoked from any cwd surface the same notice inline.
 CATALOG_FILE="$HOME/.claude/plugins/marketplaces/scout/.claude-plugin/plugin.json"
 INSTALLED_FILE="$HOME/.claude/plugins/installed_plugins.json"
-CONFIG_FILE="$HOME/.config/sf-demo-scout/config.json"
 
-if [ -f "$CATALOG_FILE" ] && [ -f "$INSTALLED_FILE" ] && [ -f "$CONFIG_FILE" ]; then
+if [ -f "$CATALOG_FILE" ] && [ -f "$INSTALLED_FILE" ]; then
   UPDATE_STATE=$(python3 -c "
 import json
 try:
@@ -136,13 +134,10 @@ try:
     entries = inst_d.get('plugins', {}).get('sf-demo-scout@scout', [])
     if entries:
         installed = entries[0].get('version', '')
-    synced = json.load(open('$CONFIG_FILE')).get('last_synced_plugin_version', '')
-    if not (catalog and installed and synced):
+    if not (catalog and installed):
         print('UNKNOWN')
     elif catalog != installed:
         print('UPDATE_AVAILABLE')
-    elif installed != synced:
-        print('SETUP_PENDING')
     else:
         print('ALIGNED')
 except Exception:
@@ -151,12 +146,7 @@ except Exception:
 
   case "$UPDATE_STATE" in
     UPDATE_AVAILABLE)
-      OUTPUT+="## 🆕 SF Demo Scout update available — see #sf-demo-scout on Slack for details.\n"
-      OUTPUT+="   To apply: run /scout-setup, then close + reopen this Claude tab.\n\n"
-      ;;
-    SETUP_PENDING)
-      OUTPUT+="## 🆕 SF Demo Scout update downloaded — run /scout-setup to finish installation.\n"
-      OUTPUT+="   See #sf-demo-scout on Slack for details.\n\n"
+      OUTPUT+="## 🆕 SF Demo Scout update available — close + reopen this Claude tab to apply.\n\n"
       ;;
     *)
       : # ALIGNED or UNKNOWN — silent.

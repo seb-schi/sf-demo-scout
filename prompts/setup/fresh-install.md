@@ -271,13 +271,11 @@ Surface inline:
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it with `mode=strict`. The prompt handles registration + auth probe; in strict mode any failure aborts. Resume here only on success.
 
-## i: Sync upstream skills
+## i: Write config.json
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/skills-sync.md` and execute it with `mode=strict`. The prompt handles pyyaml install + skill sync; in strict mode `PYYAML_MISSING` aborts. Capture `[PLUGIN_VERSION]` (returned by the prompt) — step j needs it.
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Extract the `version` field as a string for `[PLUGIN_VERSION]`.
 
-## j: Write config.json
-
-Substitute `[PLUGIN_VERSION]` with the value Read in step i:
+Substitute `[PLUGIN_VERSION]` below:
 
 ```bash
 mkdir -p "$HOME/.config/sf-demo-scout"
@@ -286,17 +284,16 @@ cat > "$HOME/.config/sf-demo-scout/config.json" <<EOF
   "workspace_path": "$HOME/claude-projects/sf-demo-scout",
   "install_method": "plugin",
   "plugin_version": "[PLUGIN_VERSION]",
-  "last_synced_plugin_version": "[PLUGIN_VERSION]",
   "setup_completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
 echo "CONFIG_WRITTEN"
 ```
 
-## k: .zshrc Scout-managed block
+## j: .zshrc Scout-managed block
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/zshrc-block.md` and execute it. Capture the result (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) — the orchestrator's done step needs it.
 
 ## Done
 
-Fresh-install procedure complete. Return to the orchestrator. Pass the result of step k (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note.
+Fresh-install procedure complete. Return to the orchestrator. Pass the result of step j (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note.

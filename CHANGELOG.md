@@ -2,6 +2,12 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-05-25
+
+- **Skills now ship inside the plugin — no separate sync step.** The 16 specialist skills (Apex, LWC, Flow, Agentforce, etc.) used to refresh on every plugin update by running a sync engine during `/scout-setup`. They now ride along inside the plugin itself, just like Scout's own skills do. Plugin update = skills update, in the same atomic step. Drift between "your plugin version" and "your skill version" is no longer a thing that can happen. Pulled the runtime sync engine, the manifest, the pyyaml dependency, and the post-update setup-pending banner with it.
+- **Updates apply with one fewer step.** Old: download plugin → "Scout update downloaded — run /scout-setup to finish installation" → run /scout-setup → close + reopen. New: download plugin → "Scout update available — close + reopen this Claude tab to apply" → done. `/scout-setup` is no longer a mandatory post-update finishing move; run it only when you think something's actually broken (Slack MCP, .zshrc managed block, CLI versions).
+- **Refresh path is leaner.** `/scout-setup` refresh now does just CLI updates, Slack MCP heal, and .zshrc block refresh. Faster when something needs fixing; nothing changes when nothing's broken.
+
 ## 2026-05-23
 
 - **Scout is now a Claude Code plugin.** The whole install model has changed. Scout is no longer a repo you clone and `update.sh` — it's an official extension you install from a plugin marketplace, the same way Claude Code itself gets its other extensions. Existing SEs upgrade by running `bash update.sh` one last time; it hands you off to the plugin install and migrates your workspace in place (orgs, lessons, change logs all preserved). After today, you never run `update.sh` again. Closes a six-week migration arc.
