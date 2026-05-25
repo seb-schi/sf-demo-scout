@@ -275,20 +275,24 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it with `mod
 
 Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Extract the `version` field as a string for `[PLUGIN_VERSION]`.
 
-Substitute `[PLUGIN_VERSION]` below:
+Pre-compute the dynamic values via Bash so they land as literals (not unevaluated `$()` strings) regardless of how the heredoc gets executed:
 
 ```bash
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+WORKSPACE="$HOME/claude-projects/sf-demo-scout"
 mkdir -p "$HOME/.config/sf-demo-scout"
 cat > "$HOME/.config/sf-demo-scout/config.json" <<EOF
 {
-  "workspace_path": "$HOME/claude-projects/sf-demo-scout",
+  "workspace_path": "$WORKSPACE",
   "install_method": "plugin",
   "plugin_version": "[PLUGIN_VERSION]",
-  "setup_completed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  "setup_completed_at": "$NOW"
 }
 EOF
 echo "CONFIG_WRITTEN"
 ```
+
+The heredoc is unquoted on purpose — `$WORKSPACE` and `$NOW` must expand. Only `[PLUGIN_VERSION]` is a literal-text substitution you do before running this block.
 
 ## j: .zshrc Scout-managed block
 
