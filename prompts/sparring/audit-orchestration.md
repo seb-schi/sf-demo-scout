@@ -25,7 +25,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    ```
    printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\n\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[alias]-[customer]" > orgs/[alias]-[customer]/.audit-progress.log
    ```
-3. Resolve the current user Id: `run_soql_query` with `SELECT Id FROM User WHERE Username = '[username from Stage 2]' LIMIT 1`. Record as `CURRENT_USER_ID`.
+3. Resolve the current user Id: `run_soql_query` with `SELECT Id FROM User WHERE Username = '[username from Stage 1]' LIMIT 1`. Record as `CURRENT_USER_ID`.
 4. Resolve the candidate default app — 2 SOQL queries:
    - `SELECT AppDefinitionId FROM UserAppInfo WHERE UserId = '[CURRENT_USER_ID]'`
    - `SELECT DurableId, Label, DeveloperName, NamespacePrefix FROM AppDefinition WHERE DurableId = '[AppDefinitionId]'`
@@ -134,7 +134,7 @@ As each sub-agent returns, **first** apply structural partial-return detection �
 
 The same regex-check applies to the prelude sub-agent's return in the Pre-Spawn Setup step — absent fenced JSON triggers the same max-1 retry before falling through to the core-6 degraded audit.
 
-Check the standard-objects sub-agent's `demo_surface_notes` for non-universal standard objects with data — these hint at which industry cloud the org uses. Record for Stage 4.
+Check the standard-objects sub-agent's `demo_surface_notes` for non-universal standard objects with data — these hint at which industry cloud the org uses. Record for Stage 3.
 
 ## Spot-Check Pass (2 targeted queries — always run)
 
@@ -182,4 +182,12 @@ Append the Notable Gaps section (written by Opus from the JSON summaries) to the
 1. Delete the 3 fragment files after successful concatenation.
 2. **Star marker validation:** Grep the consolidated audit file for `★`. If 0 matches, flag to the SE: "The audit file has no ★ markers — build surface identification may have failed." Keep the progress log in place — SE may need the heartbeat history to debug which sub-agent failed to star-flag.
 3. Delete the progress log — `rm -f orgs/[alias]-[customer]/.audit-progress.log`. Run this only after star-marker validation passes; on validation failure, leave the log so the SE can inspect sub-agent heartbeats.
-4. Remove the `unpackaged/` directory that `retrieve_metadata` drops at the repo root — `rm -rf unpackaged/`. The app XML was never needed as a working file (only the extracted `<tabs>` list matters), and leaving it accumulates stale content across sessions. Run this unconditionally — the directory is gitignored so its presence or absence carries no meaning for the SE.
+4. **Symmetric workspace sweep.** Run the same orphan-file sweeps the Pre-Spawn Setup runs at start-of-run, so clean successful audits don't leave model-invented working files in the SE workspace:
+   ```
+   rm -rf unpackaged/ 2>/dev/null || true
+   find . -maxdepth 1 -name 'manifest-*.xml' -delete 2>/dev/null || true
+   find . -maxdepth 1 -name 'temp-*.xml' -delete 2>/dev/null || true
+   rm -f orgs/[alias]-[customer]/retrieve-*.xml 2>/dev/null || true
+   rm -f orgs/[alias]-[customer]/*.tmp 2>/dev/null || true
+   ```
+   These mirror the Pre-Spawn sweep exactly. Start-of-run cleanup remains the safety net for crashed / interrupted / SE-cancelled prior runs (the corrupt-state hang it prevents is documented in `pipeline-lessons/sub-agent-architecture.md`); end-of-success cleanup is hygiene for the clean-success path, so a successful audit doesn't leave manifest/temp orphans visible in the SE's `ls` or VS Code file tree. The two layers are complementary, not redundant: end-of-success doesn't fire when a run crashes; start-of-run doesn't fire until the *next* audit kicks off — without symmetry, orphans linger between successful runs. The SE workspace at `~/claude-projects/sf-demo-scout/` is not a git repo and has no `.gitignore`, so these files are visible until swept.

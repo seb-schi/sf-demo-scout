@@ -1,6 +1,6 @@
 # Customer-Name Normalization
 
-Read by scout-sparring Stage 2 after the SE names a customer. Produces a deterministic folder slug and handles existing-folder matching.
+Read by scout-sparring Stage 1 after the SE names a customer. Produces a deterministic folder slug and handles existing-folder matching.
 
 ## Slug Rule
 

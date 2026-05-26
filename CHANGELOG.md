@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-05-26
+
+- **Cleaner errors and cleaner workspace.** Running `/scout-sparring` or `/scout-building` without a connected org now correctly says "No demo org connected — run `/scout-switch-org`" instead of the misleading "MCP is not responding — check `.mcp.json`" leftover from the pre-plugin era. Successful audits also clean up their own model-invented working files now (`manifest-*.xml`, `temp-*.xml`) instead of leaving them in your workspace.
+
 ## 2026-05-25
 
 - **Skills now ship inside the plugin — no separate sync step.** The 16 specialist skills (Apex, LWC, Flow, Agentforce, etc.) used to refresh on every plugin update by running a sync engine during `/scout-setup`. They now ride along inside the plugin itself, just like Scout's own skills do. Plugin update = skills update, in the same atomic step. Drift between "your plugin version" and "your skill version" is no longer a thing that can happen. Pulled the runtime sync engine, the manifest, the pyyaml dependency, and the post-update setup-pending banner with it.

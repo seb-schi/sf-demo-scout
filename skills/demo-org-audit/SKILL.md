@@ -18,7 +18,7 @@ Save to: `orgs/[alias]-[customer]/audit-[YYYY-MM-DD]-[HHmm].md`
 
 Use MCP `retrieve_metadata` for metadata and `run_soql_query` for record counts.
 
-If MCP unavailable: "Check .mcp.json is in the project root and restart VS Code."
+If MCP unavailable: "MCP is not responding. Quit VS Code fully (CMD+Q) and reopen."
 
 ## Required Content
 

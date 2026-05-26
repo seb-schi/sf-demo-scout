@@ -1,6 +1,6 @@
 # Showtime — Live Customer Conversation Sparring
 
-Loaded on demand by `scout-sparring.md` when the SE selects the Showtime path at Stage 2. Returns to the main command for spec generation.
+Loaded on demand by `scout-sparring.md` when the SE selects the Showtime path at Stage 1. Returns to the main command for spec generation.
 
 ## When This Runs
 
@@ -18,7 +18,7 @@ The format is a continuous engaged experience: audit runs while SE does opening 
 
 ## Step S1 — Run Fresh Audit
 
-Showtime always runs a fresh audit. A stale audit risks customer-facing deploy failures, which is the worst possible outcome of this format. The SE was warned at Stage 2: ideal pattern is to fire up Showtime when the customer sits down, so the audit runs in parallel with the SE's opening discovery questions. Audit takes ~5–10min via 3 parallel Sonnet sub-agents; opening discovery should take at least that long.
+Showtime always runs a fresh audit. A stale audit risks customer-facing deploy failures, which is the worst possible outcome of this format. The SE was warned at Stage 1: ideal pattern is to fire up Showtime when the customer sits down, so the audit runs in parallel with the SE's opening discovery questions. Audit takes ~5–10min via 3 parallel Sonnet sub-agents; opening discovery should take at least that long.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit-orchestration.md` and execute. Opus never reads raw metadata payloads.
 
@@ -136,7 +136,7 @@ Mark the spec header with `Sparring mode: Showtime` so /scout-building knows the
 
 - **`## Claude Code Instructions` carries the PoC slice ONLY.** /scout-building deploys this section. The Holistic Scenario items not in the PoC must NOT appear in Claude Code Instructions — they live in the Showtime PoC → Deferred list above and nowhere else.
 
-Skip the "Propose Lessons" step in main command Stage 7 — Showtime is too compressed for reliable lesson extraction. Lessons accumulate from regular sparring sessions.
+Skip the "Propose Lessons" step in main command Stage 6 — Showtime is too compressed for reliable lesson extraction. Lessons accumulate from regular sparring sessions.
 
 ## Step S7.5 — Customer-Facing Slack Canvas
 
@@ -186,7 +186,7 @@ Canvas content template (clean + confident, light emojis on section headers, cap
 **How Salesforce delivers it:** [Salesforce + Agentforce + Headless 360 + Data Cloud + Flows + Apex + LWC components, named where each is the right answer — single paragraph, not bullets]
 
 **Docs:** [link 1] · [link 2] · [link 3]
-*(use full Help URLs from Stage 5 Platform Research; separate with middle-dot, keep on one line per capability)*
+*(use full Help URLs from Stage 4 Platform Research; separate with middle-dot, keep on one line per capability)*
 
 ### [emoji] [Capability area 2]
 
@@ -253,7 +253,7 @@ Return to main command (which exits cleanly since spec is on disk).
 - Does NOT deploy outside the scope envelopes. Out-of-envelope items go in the Deferred list, not the build.
 - Does NOT narrow the customer's ambition. The Holistic Scenario captures everything; the PoC is just the slice that deploys today.
 - Does NOT run a value-spine acknowledgement gate (auto-drafted, emitted inline).
-- Does NOT run the cut gate from Stage 6 (scope is already minimal by construction).
+- Does NOT run the cut gate from Stage 5 (scope is already minimal by construction).
 - Does NOT support iteration intent within Showtime (single-shot session — re-open with `/scout-sparring → Iteration` after the demo for follow-up).
 - Does NOT do Slack lookup, broad doc research, or platform pre-flight beyond what the audit already captured.
 - Does NOT propose a weak PoC just to have something to deploy. If the transcript signal points entirely outside the envelopes, refuse cleanly and route to `/scout-sparring → New` post-demo.

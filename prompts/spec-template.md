@@ -19,7 +19,7 @@ Org Audit Used: audit-[YYYY-MM-DD]-[HHmm].md
 - **Competitive context:**
 
 ### Value Spine
-Drafted in Stage 6a, refined with SE. The narrative the build proves against. Empty slots are honest gaps — leaving them visible is intentional, not an error.
+Drafted in Stage 5, refined with SE. The narrative the build proves against. Empty slots are honest gaps — leaving them visible is intentional, not an error.
 - **Residual Message:** [one sentence — the one thing the room remembers]
 - **Audience:** [who carries this message away — altitude-setter]
 - **KP1 — Pain:** [what's broken today, ideally a direct customer quote]
@@ -27,7 +27,7 @@ Drafted in Stage 6a, refined with SE. The narrative the build proves against. Em
 - **KP3 — Future State:** [the concrete outcome with visible contrast to KP1]
 
 ## Release Notes & Citations
-Docs consulted during sparring (Platform & Data Model Research — Stage 5, plus any residual checks in Stage 7). Empty if scenario uses only established patterns.
+Docs consulted during sparring (Platform & Data Model Research — Stage 4, plus any residual checks in Stage 6). Empty if scenario uses only established patterns.
 - **Question:** [one line]
   - **URL:** [doc URL]
   - **Verdict:** [what the doc confirmed, contradicted, or left ambiguous]
@@ -107,7 +107,7 @@ One `BusinessProcess` Metadata API type covers Sales / Lead / Support / Solution
 - ⚠️ Review and customize seed data for customer-specific values (names, product SKUs, dates) before demo
 - **Record counts must be single integers, not ranges.** `Records: 5` — not `Records: 3-5`. Building needs a deterministic count; if genuinely unsure, pick the upper bound of what the demo story needs.
 - **Cross-object seeding (junctions, FK chains):** if this seed touches 2+ objects with lookup population, building will produce an idempotent reusable script per `demo-deployment-rules` §Script Deliverable Rules. Spec lists target objects and key field mappings; the script path + `--pilot-only` + bulk commands land in the change log and handover brief.
-- **Field names are describe-confirmed.** Sparring Stage 6b runs `sf sobject describe` on every Data Seeding target object before writing this spec. Field names, RecordType DeveloperNames, and picklist-vs-string distinctions in this section are empirically verified, not inferred.
+- **Field names are describe-confirmed.** Sparring Stage 5b runs `sf sobject describe` on every Data Seeding target object before writing this spec. Field names, RecordType DeveloperNames, and picklist-vs-string distinctions in this section are empirically verified, not inferred.
 - **Calibration directives (when seed values depend on live org data):** if a seed value must be computed against live aggregates (e.g. "quota set to 70-80% of running user's open pipeline" so the "at risk" narrative reads), write it as a `Calibration:` line under the relevant seed bullet. Format: `Calibration: <target ratio/range in plain English> — reference query: <one-line SOQL>`. Phase 1 runs the query, computes the seed value, and auto-applies — overriding any literal number in this section. The calibration and the computed value land in the change log. If the reference query errors or returns no data, Phase 1 falls back to the literal and records the fallback in `issues`.
 
 ### Page Layouts (Classic — field additions only)

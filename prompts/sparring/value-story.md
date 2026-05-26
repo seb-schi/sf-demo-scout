@@ -1,6 +1,6 @@
-# Value Spine — Co-Emergence Inside Stage 6
+# Value Spine — Co-Emergence Inside Stage 5
 
-Loaded by `scout-sparring.md` Stage 6 after Stage 5 research completes, before the scenario proposal is written. Read once per session.
+Loaded by `scout-sparring.md` Stage 5 after Stage 4 research completes, before the scenario proposal is written. Read once per session.
 
 ## Purpose
 
@@ -15,11 +15,11 @@ The build is the proof layer for a narrative — not the deliverable. This fragm
 
 ## Inputs (already in conversation context — do not re-ask)
 
-- Stage 4 Q1: pain point, ideally with a direct customer quote → KP1
-- Stage 4 Q3: definition of success / concrete future-state metric → KP3
-- Stage 4 Q4: stakeholder whose reaction matters most → audience of the residual message (altitude-setter)
-- Stage 4 Q5: anchor surface from audit → not part of the spine, but informs which scenario serves the spine
-- Stage 5 research findings → constrain what the spine can credibly promise
+- Stage 3 Q1: pain point, ideally with a direct customer quote → KP1
+- Stage 3 Q3: definition of success / concrete future-state metric → KP3
+- Stage 3 Q4: stakeholder whose reaction matters most → audience of the residual message (altitude-setter)
+- Stage 3 Q5: anchor surface from audit → not part of the spine, but informs which scenario serves the spine
+- Stage 4 research findings → constrain what the spine can credibly promise
 - Audit star items → anchor the future-state slot in real org capability
 
 ## Output Format
@@ -52,7 +52,7 @@ Emit as a single message right before the scenario proposal. Use this exact shap
 
 ## Use in Scenario Proposal
 
-After SE acknowledges the spine (whether they edit it or just move on), Stage 6's scenario proposal extends as follows:
+After SE acknowledges the spine (whether they edit it or just move on), Stage 5's scenario proposal extends as follows:
 
 - Each gated build category in the proposed scenario (Flow, Apex, LWC, Agentforce) gets a `Proves: KP[n]` tag in the proposal message AND in the spec.
 - The mandatory cut gate ("if you had half the prep time, what would you cut") gains a follow-up framing: "Cuts should leave the residual message standing. If a cut breaks KP[n], that's the load-bearing one — keep it." Customer-evidence half of the gate is unchanged.
@@ -61,6 +61,6 @@ After SE acknowledges the spine (whether they edit it or just move on), Stage 6'
 ## What This Fragment Does NOT Do
 
 - Does NOT block the scenario proposal. The spine is output, not input. SE can ignore it entirely and Scout still proposes a scenario.
-- Does NOT replace the cut gate at the end of Stage 6. It sharpens it; it does not remove it.
+- Does NOT replace the cut gate at the end of Stage 5. It sharpens it; it does not remove it.
 - Does NOT add a 7th discovery question. KP2 emptiness is a feature — gaps surface; SE decides.
 - Does NOT carry mid-market framing (SCQA, whole-company COI). Altitude follows the SE's named audience, not a prescribed shape.

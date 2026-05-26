@@ -1,8 +1,8 @@
 # Iteration Path — Discovery & Definition
 
-Loaded on demand when intent = iteration. Returns to the main command for Stage 5+.
+Loaded on demand when intent = iteration. Returns to the main command for Stage 4+.
 
-## Stage 4i: Iteration Discovery
+## Stage 3i: Iteration Discovery
 
 Review the most recent audit, prior specs, and change logs for this org. Understand what's already built before asking anything.
 
@@ -21,7 +21,7 @@ If Q1 named a symptom — error message, broken preview, failed deployment, runt
 
 > "To research the right way: paste the **exact error text** (copy from the UI / debug log), and tell me **when it fires** (preview, runtime, deploy, on a specific user action). If the error code is generic, the reproduction step is what makes it tractable."
 
-Capture the verbatim error and trigger context. Carry both into Stage 5 — when platform-research runs, it MUST issue at least one Docs MCP search keyed on the verbatim error code or message text, in addition to the standard object/capability research.
+Capture the verbatim error and trigger context. Carry both into Stage 4 — when platform-research runs, it MUST issue at least one Docs MCP search keyed on the verbatim error code or message text, in addition to the standard object/capability research.
 
 No symptom in Q1 → skip the follow-up, proceed directly to Delta Conflict Check.
 
@@ -34,15 +34,15 @@ After the SE answers, review the existing audit and any prior specs/change logs 
 
 Only surface genuine concerns — don't re-litigate prior decisions that are working fine.
 
-Then proceed to Stage 5 (Platform & Data Model Research).
+Then proceed to Stage 4 (Platform & Data Model Research).
 
 ---
 
-## Stage 6i: Iteration Definition
+## Stage 5i: Iteration Definition
 
 Propose the change: what gets built, what exists, what conflicts, what the SE does manually.
 
-Apply the same **existing-first evaluation** as Stage 6 — even a single new component should prefer extending existing metadata. Ground data model choices in Stage 5 research.
+Apply the same **existing-first evaluation** as Stage 5 — even a single new component should prefer extending existing metadata. Ground data model choices in Stage 4 research.
 
 **ONE GATE — send as a standalone message, then stop:**
 
@@ -50,4 +50,4 @@ Apply the same **existing-first evaluation** as Stage 6 — even a single new co
 
 This forces integration thinking. If the SE can't place the change in a demo flow: "If you can't describe what comes before and after, this change doesn't have a home in the demo yet. Let's figure out where it fits first."
 
-Once the gate is cleared, proceed to Stage 6b.
+Once the gate is cleared, proceed to Stage 5b.

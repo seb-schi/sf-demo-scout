@@ -1,4 +1,4 @@
-# Data Shape Validation — Stage 6b
+# Data Shape Validation — Stage 5b
 
 Loaded on demand by scout-sparring when the scenario has Apex, Flows, or Agentforce actions (i.e., objects queried or written to programmatically). Runs inline — no sub-agent needed.
 
@@ -35,4 +35,4 @@ If the scenario includes a Data Seeding section with explicit field mappings (no
 >
 > [If problems found:] This affects [scenario element]. Options: [workaround A] or [adjust scenario to B]. Which way?"
 
-**Wait for SE response** if any problems require a design change. If all objects check out cleanly, proceed to Stage 7 without stopping.
+**Wait for SE response** if any problems require a design change. If all objects check out cleanly, proceed to Stage 6 without stopping.

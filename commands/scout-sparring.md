@@ -44,21 +44,7 @@ Build boundaries (what's autonomous, gated, or manual) are defined in CLAUDE.md 
 
 ---
 
-## Stage 1: Environment Check
-
-Run a single MCP probe to confirm connectivity:
-- Call `run_soql_query` with: `SELECT Id FROM Organization LIMIT 1`
-- If it returns a result -> MCP is active. **The probe is ground truth.** Ignore any conflicting signal from the startup banner.
-- If it fails or times out -> warn the SE:
-  > "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
-  >
-  > MCP is not responding. Quit VS Code fully (CMD+Q), reopen, and run /scout-sparring again.
-  > If this persists, check that .mcp.json exists in the project root."
-  Stop. Do not proceed without MCP.
-
----
-
-## Stage 2: Org Setup & Intent
+## Stage 1: Org Setup & Intent
 
 Run `sf config get target-org --json` and `sf org display --json`. Extract alias and username.
 
@@ -90,11 +76,11 @@ Wait for the SE's reply. Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/customer-n
 
 ---
 
-## Stage 3: Intent Confirmation & Audit Routing
+## Stage 2: Intent Confirmation & Audit Routing
 
-The SE selected one of three paths in Stage 2. Confirm and branch.
+The SE selected one of three paths in Stage 1. Confirm and branch.
 
-**If the SE selected "Showtime":** read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/showtime.md` and execute its procedure end-to-end. It handles audit confirmation, transcript intake, scenario proposal, and spec generation. Do not proceed to Stage 4+ in this command — Showtime returns to the main command only after spec is on disk, then exits cleanly.
+**If the SE selected "Showtime":** read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/showtime.md` and execute its procedure end-to-end. It handles audit confirmation, transcript intake, scenario proposal, and spec generation. Do not proceed to Stage 3+ in this command — Showtime returns to the main command only after spec is on disk, then exits cleanly.
 
 **If the SE selected "A new demo scenario":** intent = new. Continue to Audit Routing below.
 
@@ -124,26 +110,26 @@ After the audit (fresh or reused), surface the star-flagged items:
 > We'll build into these unless you tell me otherwise."
 
 **If the audit was fresh** (not reused): append a second standalone message after the star summary, then continue:
-> "💡 Heavy audit just loaded — if context feels tight, run `/compact` before we dive into Stage 4. Conversation history is preserved."
+> "💡 Heavy audit just loaded — if context feels tight, run `/compact` before we dive into Stage 3. Conversation history is preserved."
 
 ### Route
 
 | Intent    | Discovery | Research (5) | Scenario Def | Data Validation (6b) | Spec (7) |
 |-----------|-----------|--------------|--------------|----------------------|----------|
-| New       | Stage 4   | run          | Stage 6      | run                  | run      |
-| Iteration | Stage 4i† | run          | Stage 6i†    | run                  | run      |
-| Reuse-org | Stage 4   | skip¹        | Stage 6      | skip²                | run      |
+| New       | Stage 3   | run          | Stage 5      | run                  | run      |
+| Iteration | Stage 3i† | run          | Stage 5i†    | run                  | run      |
+| Reuse-org | Stage 3   | skip¹        | Stage 5      | skip²                | run      |
 
 † Iteration stages are in `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/iteration.md` — read on demand.
-¹ Skip Stage 5 unless the scenario introduces new objects beyond what the audit covers OR gated categories (Flows, Apex, LWC, Agentforce).
-² Skip Stage 6b unless the scenario has Apex, Flows, or Agentforce actions (objects queried or written to programmatically) OR a Data Seeding section with explicit field mappings. Data seeding triggers the describe-before-spec path inside sparring/data-shape.md.
+¹ Skip Stage 4 unless the scenario introduces new objects beyond what the audit covers OR gated categories (Flows, Apex, LWC, Agentforce).
+² Skip Stage 5b unless the scenario has Apex, Flows, or Agentforce actions (objects queried or written to programmatically) OR a Data Seeding section with explicit field mappings. Data seeding triggers the describe-before-spec path inside sparring/data-shape.md.
 
-For **iteration intent**: read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/iteration.md` and execute Stage 4i, then return here for Stage 5.
-For **new scenario** and **reuse-org**: proceed to Stage 4 below.
+For **iteration intent**: read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/iteration.md` and execute Stage 3i, then return here for Stage 4.
+For **new scenario** and **reuse-org**: proceed to Stage 3 below.
 
 ---
 
-## Stage 4: Full Discovery
+## Stage 3: Full Discovery
 
 Produce a structured summary: customer profile, key pain points (direct quotes), stakeholders, competitive context, gaps.
 
@@ -163,15 +149,15 @@ Ask max 6 clarifying questions:
 
 ### Slack lookup handling
 
-If the SE's reply names one or more canvases or a channel: read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/slack-lookup.md` and execute its procedure with the names as inputs. If the SE answers only 1-6 and doesn't mention Slack: move on to Stage 5 without ceremony — do not re-ask.
+If the SE's reply names one or more canvases or a channel: read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/slack-lookup.md` and execute its procedure with the names as inputs. If the SE answers only 1-6 and doesn't mention Slack: move on to Stage 4 without ceremony — do not re-ask.
 
 Slack findings feed scenario proposal as **context only** — attributed, never asserted. Canvas content may shape demo storylines directly (its intended use); SE knowledge and Salesforce docs remain authoritative.
 
-Then proceed to Stage 5 (Platform & Data Model Research).
+Then proceed to Stage 4 (Platform & Data Model Research).
 
 ---
 
-## Stage 5: Platform & Data Model Research
+## Stage 4: Platform & Data Model Research
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/platform-research.md` and execute the procedure. It handles:
 - Object capability pre-flight (EntityDefinition + QueueSobject queries)
@@ -180,13 +166,13 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/platform-research.md` and execute t
 - Executing searches against Salesforce Docs MCP
 - Surfacing findings for SE review
 
-**Symptom-driven iterations (Stage 4i captured a verbatim error):** in addition to the standard procedure, issue at least one `salesforce_docs_search` keyed on the error code or error message text. Surface findings as candidate root-cause families in the Stage 6i proposal — not as asserted fix.
+**Symptom-driven iterations (Stage 3i captured a verbatim error):** in addition to the standard procedure, issue at least one `salesforce_docs_search` keyed on the error code or error message text. Surface findings as candidate root-cause families in the Stage 5i proposal — not as asserted fix.
 
-After the procedure completes and the SE confirms the findings, proceed per the route table in Stage 3. For iterations, read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/iteration.md` and execute Stage 6i.
+After the procedure completes and the SE confirms the findings, proceed per the route table in Stage 2. For iterations, read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/iteration.md` and execute Stage 5i.
 
 ---
 
-## Stage 6: Full Scenario Definition
+## Stage 5: Full Scenario Definition
 
 ### Value Spine (co-emergence)
 
@@ -198,7 +184,7 @@ Propose exactly 1 scenario: name, 2-sentence business story, core capability, wh
 
 Tag each gated build category (Flow / Apex / LWC / Agentforce) in the proposal message with `Proves: KP[n]` referencing the spine above. Components without a clear KP cite — challenge in the proposal ("X doesn't obviously prove KP1/2/3 — does it earn its slot, or cut it?").
 
-**The scenario must be grounded in Stage 5 research.** Every data model choice should trace back to a doc finding or an audit star item. If you propose a custom object, show that no standard or industry object covers it — citing both the audit and the doc search.
+**The scenario must be grounded in Stage 4 research.** Every data model choice should trace back to a doc finding or an audit star item. If you propose a custom object, show that no standard or industry object covers it — citing both the audit and the doc search.
 
 **Existing-first evaluation (mandatory before proposing any new metadata):**
 - Which parts can be delivered by customising existing objects and layouts?
@@ -220,23 +206,23 @@ Wait for the SE's answer. Evaluate BOTH halves:
 
 2. **Customer evidence:** If the SE's answer doesn't reference a specific customer statement or pain point, push back: "You answered what to cut, but which specific customer statement tells you the rest is essential?"
 
-Both halves must be resolved before proceeding to Stage 6b (data shape validation).
+Both halves must be resolved before proceeding to Stage 5b (data shape validation).
 
 ---
 
-## Stage 6b: Data Shape Validation
+## Stage 5b: Data Shape Validation
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/data-shape.md` and execute the procedure. It validates that real data matches the scenario's design assumptions for every object Apex/Flow/Agentforce will query or write to. Proceed to Stage 7 after — stopping for SE input only if problems require a design change.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/data-shape.md` and execute the procedure. It validates that real data matches the scenario's design assumptions for every object Apex/Flow/Agentforce will query or write to. Proceed to Stage 6 after — stopping for SE input only if problems require a design change.
 
 ---
 
-## Stage 7: Spec Generation
+## Stage 6: Spec Generation
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/spec-template.md` for the format, then write the spec to `orgs/[alias]-[customer]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`
 
-**Residual feasibility check:** Before writing, scan the final scenario for any feature or metadata type NOT already covered by Stage 5 research. For each uncovered item, run a quick `salesforce_docs_search`. This is a safety net — Stage 5 should have caught most things.
+**Residual feasibility check:** Before writing, scan the final scenario for any feature or metadata type NOT already covered by Stage 4 research. For each uncovered item, run a quick `salesforce_docs_search`. This is a safety net — Stage 4 should have caught most things.
 
-Populate the **Release Notes & Citations** section with every consultation from Stage 5 and any residual checks. If no consultations occurred, write "None — scenario uses established patterns only."
+Populate the **Release Notes & Citations** section with every consultation from Stage 4 and any residual checks. If no consultations occurred, write "None — scenario uses established patterns only."
 
 **For iteration specs:** in the Customer Context section, add:
 - **Iteration on:** [prior spec filename, or "pre-Scout setup"]

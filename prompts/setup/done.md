@@ -12,7 +12,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Extract `requires_reloa
 
 > "✓ Scout is set up and ready. Workspace at `~/claude-projects/sf-demo-scout/`.
 >
-> Next: run `/scout-switch-org` to connect a demo org, or `/scout-sparring` to start sparring."
+> FYI — run `/scout-switch-org` next to connect a demo org, then `/scout-sparring` to start a demo."
 
 **If STATE was REFRESH and `requires_reload: false`:**
 

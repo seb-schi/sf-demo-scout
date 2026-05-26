@@ -34,19 +34,7 @@ Read `orgs/building-lessons.md` — these are mistakes from previous building se
 
 Read `.claude/.update-block` (always present, written by workspace-bootstrap Step 2). The first SE-facing reply emitted by this command MUST start with the contents of `.claude/.update-block` verbatim (empty file = no extra lines). Apply this once, to the first reply only — do not repeat in subsequent replies within the same command session.
 
-## Step 1: MCP Probe
-
-Run a single MCP probe to confirm connectivity:
-- Call `run_soql_query` with: `SELECT Id FROM Organization LIMIT 1`
-- If it returns a result -> MCP is active, proceed
-- If it fails or times out -> warn the SE:
-  > "MCP is not responding. Quit VS Code fully (CMD+Q), reopen, and run /scout-building again.
-  > If this persists, check that .mcp.json exists in the project root."
-  Stop. Do not proceed without MCP.
-
----
-
-## Step 3: Confirm Org & Identify Customer
+## Step 1: Confirm Org & Identify Customer
 
 Run `sf config get target-org --json` and `sf org display --json`. Extract alias and username.
 
@@ -61,7 +49,7 @@ Wait for confirmation. If the SE wants to switch orgs: *"Stopping. Run `/scout-s
 
 ---
 
-## Step 4: Load Spec
+## Step 2: Load Spec
 
 ```
 ls -lt orgs/[alias]-[customer]/demo-spec-*.md
@@ -73,7 +61,7 @@ ls -lt orgs/[alias]-[customer]/demo-spec-*.md
 
 ---
 
-## Step 5: Load Org Audit
+## Step 3: Load Org Audit
 
 Find most recent audit in `orgs/[alias]-[customer]/`.
 Check `Org Audit Used:` field in spec header.
@@ -84,7 +72,7 @@ Check `Org Audit Used:` field in spec header.
 
 ---
 
-## Step 6: Pre-Deployment Conflict Check
+## Step 4: Pre-Deployment Conflict Check
 
 Cross-check spec against audit:
 - Object/field API name collisions
@@ -102,7 +90,7 @@ Wait for go-ahead. This is the last SE input required before Phase 1.
 
 ---
 
-## Step 7: Phased Deployment via Sub-Agents
+## Step 5: Phased Deployment via Sub-Agents
 
 ### Phase Analysis
 
@@ -177,15 +165,15 @@ If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 3. Afte
 
 ---
 
-## Step 7b: Post-Deployment Execution Order Check
+## Step 5b: Post-Deployment Execution Order Check
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/building/post-deployment-check.md` and execute the procedure. Flag findings in the change log.
 
 ---
 
-## Step 8: Change Log, Lessons, and Done
+## Step 6: Change Log, Lessons, and Done
 
-### 8a: Write Change Log
+### 6a: Write Change Log
 
 Consolidate results from all phases into a single change log.
 Use the template in `${CLAUDE_PLUGIN_ROOT}/prompts/building/change-log-template.md` (read it when writing the log).
@@ -197,13 +185,13 @@ The change log must include:
 - Any phases that FAILED validation (raw output preserved)
 - **Docs Consulted** section — aggregate `docs_consulted` arrays from every sub-agent's JSON output, plus any orchestrator-level error-recovery consultations. If nothing was consulted, write "None — no unfamiliar errors encountered."
 
-### 8b: Propose Lessons
+### 6b: Propose Lessons
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-maintenance.md` and execute the "Propose Lessons (building)" section.
 
-### 8c: Demo Handover Brief
+### 6c: Demo Handover Brief
 
-**Do NOT output the brief until 8a and 8b are complete.**
+**Do NOT output the brief until 6a and 6b are complete.**
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/building/handover-brief.md` for the format, then synthesize the brief. Output it to the terminal as plain text (no file written).
 

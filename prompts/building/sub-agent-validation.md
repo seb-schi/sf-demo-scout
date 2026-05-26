@@ -1,6 +1,6 @@
 # Sub-Agent Output Validation
 
-Loaded on-demand by scout-building.md Step 7 between every sub-agent return and the next phase. Procedure for validating JSON output AND empirically probing the org when validation fails.
+Loaded on-demand by scout-building.md Step 5 between every sub-agent return and the next phase. Procedure for validating JSON output AND empirically probing the org when validation fails.
 
 ## Procedure
 

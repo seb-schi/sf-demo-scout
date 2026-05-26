@@ -16,7 +16,7 @@ If MCP is unavailable, stop and return a JSON error block (see Output Format).
 
 ## Non-Universal Standard Objects (safety net)
 
-After auditing core objects, discover additional standard objects that may indicate an industry cloud or specialized platform feature. This is a safety net — the SE identifies the industry cloud in Stage 4; this query catches objects the SE may not have mentioned.
+After auditing core objects, discover additional standard objects that may indicate an industry cloud or specialized platform feature. This is a safety net — the SE identifies the industry cloud in Stage 3; this query catches objects the SE may not have mentioned.
 
 **Universal standard objects** (always present, already audited above or not demo-relevant):
 
@@ -56,7 +56,7 @@ For each object with >0 records:
 - Record types: `SELECT Name, DeveloperName FROM RecordType WHERE SobjectType = '[Object]' AND IsActive = true` — query unconditionally
 - Platform restrictions: check the EntityDefinition fields from the discovery query. If any of IsEverCreatable, IsQueryable, IsTriggerable, or IsSearchable is `false`, flag explicitly in `demo_surface_notes` with the restriction (e.g., "Inquiry: 12 records, IsEverCreatable=false, IsTriggerable=true — API data seeding blocked")
 - If it has records OR record types: note in `demo_surface_notes` with the observation (e.g., "HealthcareProvider has 84 records and 2 record types — likely Life Sciences Cloud or Health Cloud")
-- Do NOT ★ these or retrieve layouts — that's the job of Stage 5 after the SE confirms which cloud is active
+- Do NOT ★ these or retrieve layouts — that's the job of Stage 4 after the SE confirms which cloud is active
 
 For objects with 0 records: skip silently (universal exclusion handles the noise).
 

@@ -12,7 +12,7 @@ Three MCP servers are configured: Salesforce DX + Salesforce Docs (declared in t
 
 - **Salesforce DX** — metadata retrieve/deploy, SOQL, permset assignment, org listing, `run_code_analyzer`, and LWC expert tools (complement the `sf-lwc` skill's PICKLES methodology + 165-point scoring).
 - **Salesforce Docs** — `salesforce_docs_search` + `salesforce_docs_fetch` for release-gated features and unfamiliar deploy errors. Decision tree in `demo-docs-consultation`. Degrades gracefully if unavailable.
-- **Slack** — canvas + channel lookups during sparring (Stage 4, opt-in) and handover canvas writes after deployment (scout-building 8c). Hard-degrades when unauthenticated.
+- **Slack** — canvas + channel lookups during sparring (Stage 3, opt-in) and handover canvas writes after deployment (scout-building 6c). Hard-degrades when unauthenticated.
 
 ## Build Boundaries
 

@@ -50,7 +50,7 @@ If "no": done — proceed with the rest of the session.
 
 ## Propose Lessons (sparring)
 
-Loaded by `/scout-sparring` Stage 7 just before emitting the Done message.
+Loaded by `/scout-sparring` Stage 6 just before emitting the Done message.
 
 Review the session for moments where:
 - The SE corrected a wrong assumption
@@ -74,12 +74,12 @@ If the SE approves, follow the Append Format section above to append each lesson
 
 ## Propose Lessons (building)
 
-Loaded by `/scout-building` Step 8b just before the Demo Handover Brief.
+Loaded by `/scout-building` Step 6b just before the Demo Handover Brief.
 
 Review the session for:
 - Two-attempt failures reported by sub-agents (what failed and why)
 - Sub-agent output validation failures — especially schema-drift-with-successful-deployment (the sub-agent emitted the wrong envelope but the org probe passed). Candidate lesson: the drift vector itself (what the sub-agent emitted vs what the schema required), so the next author can tighten the prompt.
-- Unexpected conflict check findings from Step 6
+- Unexpected conflict check findings from Step 4
 - SE corrections during gated confirmations
 - Permission set or layout issues reported by sub-agents
 - Phase 2 AND Phase 3 `discovery_notes` entries — if any describe a new platform restriction, validate/publish/activate-time workaround, or standard-action-to-Apex fallback, propose adding it to `orgs/building-lessons.md` with the exact error message or symptom as a diagnostic pattern. Phase 3 publish-time fixes (nested-if syntax, license-restricted permissions, CLI prefix requirements) are high-value lessons — they recur across every Agentforce deployment.

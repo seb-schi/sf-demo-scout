@@ -1,7 +1,7 @@
 # Sparring — Slack Lookup Procedure
 
 Called when the SE names one or more setup canvases or a specific channel
-during Stage 4 discovery. No curated sources file, no persistent state —
+during Stage 3 discovery. No curated sources file, no persistent state —
 this is an in-session ask only.
 
 ## Epistemic Framing
@@ -24,7 +24,7 @@ Run once before the first Slack tool call:
 - On `MISSING`: tell the SE *"Slack MCP not connected — skipping the lookup. (Register via install.sh, authenticate via /mcp.)"* and return empty.
 - On `OK`: proceed.
 
-## Inputs (from SE reply in Stage 4)
+## Inputs (from SE reply in Stage 3)
 
 - `canvas_names`: list of canvas titles the SE named (may be empty).
 - `channel_name`: single channel the SE explicitly named (may be empty).
@@ -48,7 +48,7 @@ For each named canvas (cap at 3):
 
 ## Output
 
-Findings feed Stage 6 scenario proposal as **context only** — attributed,
+Findings feed Stage 5 scenario proposal as **context only** — attributed,
 never asserted. Canvas findings may directly shape demo storylines or
 scenario integration (that is their intended use); channel findings
 remain background colour. SE knowledge and Salesforce docs remain
@@ -60,5 +60,5 @@ Findings also get referenced in the spec's Slack References section
 ## Notes
 
 - No files written. No persistent state. The SE names sources in-session.
-- Iteration intent never reaches this procedure — it is gated upstream in scout-sparring Stage 4.
+- Iteration intent never reaches this procedure — it is gated upstream in scout-sparring Stage 3.
 - If the SE names more than 3 canvases, read the first 3 and tell them *"Read the first 3 — name specific ones if you want a different set."*
