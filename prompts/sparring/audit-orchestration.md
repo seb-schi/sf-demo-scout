@@ -47,11 +47,19 @@ Execute this procedure to run a fresh 3-agent parallel audit.
      On a match: replace `CANDIDATE_APP` / `CANDIDATE_APP_DEVELOPER_NAME` with the result and recompute `CANDIDATE_APP_FULL_NAME` (same rule as step 4: `[NamespacePrefix]__[DeveloperName]` if namespaced, else `[DeveloperName]`).
    - If the SE replies `skip`: set `DEFAULT_APP` to "UNKNOWN", `DEFAULT_APP_TABS` to the 6 core objects only, and `ACTIVE_LRP_MAP` to `[]`. Skip step 6.
 
-5a. **Emit the live-status heartbeat (MUST, before any sub-agent dispatch).** Async sub-agent work begins at step 6 (prelude) and continues through the parallel sub-agent dispatch — total async window is 5-10 min on SDO-scale orgs, all of it invisible to the SE in chat. The progress log is the only signal. Emit exactly this message as the next assistant turn — single message, verbatim (fill in the real path):
+5a. **Emit the live-status heartbeat (MUST, before any sub-agent dispatch).** Async sub-agent work begins at step 6 (prelude) and continues through the parallel sub-agent dispatch — total async window is 5-10 min on SDO-scale orgs, all of it invisible to the SE in chat. The progress log is the only signal.
 
-   > Audit running. Live status → [.audit-progress.log](orgs/[alias]-[customer]/.audit-progress.log) — click to open, VS Code auto-updates as the prelude and the 3 parallel sub-agents append. Typical runtime 5-10 min on SDO-scale orgs.
+   **The link MUST be an absolute `file://` URI** — relative `orgs/...` paths don't open in VS Code when CC was launched from outside the Scout workspace (which is the default since Scout went global as a plugin). Pre-compute the absolute path with one Bash call, then substitute it into the message template:
 
-   The heartbeat exists because SE-facing silence is expensive — minutes of sub-agent runtime with no signal reads as "is Scout stuck?" Do not skip it. Do not paraphrase it. Do not bundle it into a later message. **If you find yourself about to call a tool here, stop — the heartbeat goes first.**
+   ```bash
+   echo "file://$HOME/claude-projects/sf-demo-scout/orgs/[alias]-[customer]/.audit-progress.log"
+   ```
+
+   Capture the printed string as `[ABS_LOG_URI]`. Then emit exactly this message as the next assistant turn — single message, verbatim, with `[ABS_LOG_URI]` replaced by the captured value:
+
+   > Audit running. Live status → [.audit-progress.log]([ABS_LOG_URI]) — click to open, VS Code auto-updates as the prelude and the 3 parallel sub-agents append. Typical runtime 5-10 min on SDO-scale orgs.
+
+   The heartbeat exists because SE-facing silence is expensive — minutes of sub-agent runtime with no signal reads as "is Scout stuck?" Do not skip it. Do not paraphrase it. Do not bundle it into a later message. **If you find yourself about to call a tool here, stop — the heartbeat goes first** (the Bash pre-compute above is the one allowed exception).
 
 6. **Dispatch the audit-prelude sub-agent** to retrieve and parse the heavy metadata. This keeps CustomApplication/CustomObject/Profile XML out of Opus context.
 

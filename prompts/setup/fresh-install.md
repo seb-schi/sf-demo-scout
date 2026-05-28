@@ -210,6 +210,59 @@ Surface inline:
 - `USER_SETTINGS_UPDATED: added N of 6 entries` — "Added N Scout entries to `~/.claude/settings.json` allowlist (inert outside Scout sessions)."
 - Any error variant — one-line note, proceed.
 
+## g.8: Pin Opus 1M context window
+
+Set `~/.claude/settings.json` `model` to `opus[1m]` so Scout sessions land on the 1M-context Opus 4.7 variant regardless of CC launch path (terminal vs VS Code GUI). Only upgrades when current value is the bare `opus` alias — preserves any deliberate SE override (`sonnet`, `haiku`, custom model ID). Idempotent, safe-fail.
+
+```bash
+USER_SETTINGS="$HOME/.claude/settings.json"
+
+python3 - "$USER_SETTINGS" <<'PYEOF'
+import json, os, sys, tempfile
+path = sys.argv[1]
+
+if not os.path.exists(path):
+    data = {}
+else:
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"MODEL_PARSE_ERROR: {e}"); sys.exit(0)
+
+if not isinstance(data, dict):
+    print("MODEL_NOT_OBJECT"); sys.exit(0)
+
+current = data.get("model")
+if current == "opus[1m]":
+    print("MODEL_ALREADY_1M"); sys.exit(0)
+if current is not None and current != "opus":
+    print(f"MODEL_PRESERVED: {current}"); sys.exit(0)
+
+data["model"] = "opus[1m]"
+
+tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".settings.", suffix=".tmp")
+try:
+    with os.fdopen(tmp_fd, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.rename(tmp_path, path)
+except Exception as e:
+    try: os.unlink(tmp_path)
+    except OSError: pass
+    print(f"MODEL_WRITE_FAILED: {e}"); sys.exit(0)
+
+print("MODEL_UPGRADED" if current == "opus" else "MODEL_SET")
+PYEOF
+```
+
+Surface inline:
+- `MODEL_ALREADY_1M` — silent.
+- `MODEL_UPGRADED` — "Upgraded `~/.claude/settings.json` model from `opus` to `opus[1m]` — Scout sessions now use the 1M-context window. Restart CC to pick up."
+- `MODEL_SET` — "Set `~/.claude/settings.json` model to `opus[1m]` — Scout sessions use the 1M-context window. Restart CC to pick up."
+- `MODEL_PRESERVED: <value>` — "Left existing `model: <value>` in `~/.claude/settings.json` untouched. Set to `opus[1m]` manually if you want the 1M-context window for Scout."
+- Any error variant — one-line note, proceed.
+
 ## g.5: Ensure marketplace autoUpdate is enabled
 
 Fresh-install SEs add the Scout marketplace via `/plugin marketplace add` BEFORE running `/scout-setup`, so CC writes the `extraKnownMarketplaces.scout` entry without `autoUpdate: true`. The migration trampoline pre-writes the flag; fresh installs need this fallback. Idempotent, safe-fail.

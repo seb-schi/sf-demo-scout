@@ -2,6 +2,12 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-05-28
+
+- **Better audit transparency: the live-status link works again no matter how you started Claude Code.** During an audit, Scout posts a clickable link to `.audit-progress.log` so you can watch the 3 parallel sub-agents work in real time. That link had quietly stopped opening for a lot of you — clicking it did nothing if you'd launched Claude Code from anywhere other than your Scout folder (which, since Scout went global, is most of you). Fixed: the link now opens straight into VS Code every time. No more wondering whether Scout is stuck or just busy.
+- **One less notification to ignore: the "Scout update available" banner is gone.** Updates download and install in the background automatically — the banner was asking you to "close + reopen Claude Code" for something that doesn't actually need you to do anything. Removed from session startup, and from the first message of `/scout-sparring`, `/scout-building`, and `/scout-switch-org`.
+- **Scout sessions now use Opus 4.7's 1M-context window by default — no matter how Claude Code launched.** Until now, the 1M variant only loaded when you started Claude Code from a terminal that had your `.zshrc` sourced. Open Claude Code from VS Code's UI (or any other GUI launch path) and you'd silently fall back to the 200K variant — auditing big SDOs ate context fast. Fixed at the settings.json level, which Claude Code reads regardless of launch path. **To pick this up, run `/scout-setup` once** (refresh mode, ~30 seconds) and then restart Claude Code. If you've deliberately set a non-Opus model, Scout leaves your choice alone.
+
 ## 2026-05-26
 
 - **Cleaner errors and cleaner workspace.** Running `/scout-sparring` or `/scout-building` without a connected org now correctly says "No demo org connected — run `/scout-switch-org`" instead of the misleading "MCP is not responding — check `.mcp.json`" leftover from the pre-plugin era. Successful audits also clean up their own model-invented working files now (`manifest-*.xml`, `temp-*.xml`) instead of leaving them in your workspace.

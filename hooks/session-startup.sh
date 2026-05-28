@@ -109,52 +109,7 @@ if [ ! -f "CLAUDE.md" ]; then
   OUTPUT+="## ⚠️ No CLAUDE.md found. Are you in the sf-demo-prep project directory?\n\n"
 fi
 
-# --- 6. Plugin Update Check ---
-# Two-flag model (skills now ship vendored inside the plugin, so
-# "downloaded but skills not synced" no longer exists as a state):
-#   catalog_version    — what's published (catalog plugin.json)
-#   installed_version  — what CC has loaded (installed_plugins.json)
-#
-# States:
-#   catalog != installed → update available, reload needed
-#   aligned              → silent
-#
-# Same logic mirrored in workspace-bootstrap.md so Scout commands
-# invoked from any cwd surface the same notice inline.
-CATALOG_FILE="$HOME/.claude/plugins/marketplaces/scout/.claude-plugin/plugin.json"
-INSTALLED_FILE="$HOME/.claude/plugins/installed_plugins.json"
-
-if [ -f "$CATALOG_FILE" ] && [ -f "$INSTALLED_FILE" ]; then
-  UPDATE_STATE=$(python3 -c "
-import json
-try:
-    catalog = json.load(open('$CATALOG_FILE')).get('version', '')
-    inst_d = json.load(open('$INSTALLED_FILE'))
-    installed = ''
-    entries = inst_d.get('plugins', {}).get('sf-demo-scout@scout', [])
-    if entries:
-        installed = entries[0].get('version', '')
-    if not (catalog and installed):
-        print('UNKNOWN')
-    elif catalog != installed:
-        print('UPDATE_AVAILABLE')
-    else:
-        print('ALIGNED')
-except Exception:
-    print('UNKNOWN')
-" 2>/dev/null)
-
-  case "$UPDATE_STATE" in
-    UPDATE_AVAILABLE)
-      OUTPUT+="## 🆕 SF Demo Scout update available — close + reopen this Claude tab to apply.\n\n"
-      ;;
-    *)
-      : # ALIGNED or UNKNOWN — silent.
-      ;;
-  esac
-fi
-
-# --- 6.5. Plugin First-Run Nudge ---
+# --- 6. Plugin First-Run Nudge ---
 # If the SE installed the plugin but never ran /scout-setup,
 # config.json is absent and the workspace is unconfigured. Surface
 # a one-line nudge so they know what to do next.

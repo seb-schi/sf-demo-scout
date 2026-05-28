@@ -11,7 +11,7 @@ Switch to a different Salesforce demo org. Follow these steps:
 0. Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This fragment cd's into the Scout workspace and aborts cleanly if it cannot. Do not proceed with the steps below if the fragment aborted.
 
 1. Run `sf org list` to show all available orgs
-2. Read `.claude/.update-block` (always present, written by workspace-bootstrap Step 2). Ask the SE which org they want to use (show the list clearly with aliases and usernames). The first SE-facing reply MUST start with the contents of `.claude/.update-block` verbatim (empty file = no extra lines), followed by the org list, followed by:
+2. Ask the SE which org they want to use (show the list clearly with aliases and usernames), followed by:
    > "Pick an org from the list, or type **new** to connect a different org."
 3. If the SE picks an existing org, skip to step 5.
    If the SE types "new" or names an org not in the list, ask for an alias, then:

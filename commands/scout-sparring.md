@@ -56,10 +56,9 @@ Run `sf config get target-org --json` and `sf org display --json`. Extract alias
 
 Do not continue to audit routing without an org.
 
-Output as a single message, then wait for the SE's reply. Read `.claude/.update-block` (always present, written by workspace-bootstrap Step 2) and include its contents verbatim immediately after the model-gate warning. Empty file = no extra lines.
+Output as a single message, then wait for the SE's reply.
 
 > "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
-> {{contents of .claude/.update-block, verbatim}}
 >
 > Active org: [alias] ([username]). Right org, or switch? (run /scout-switch-org)
 >
