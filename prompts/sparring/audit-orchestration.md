@@ -10,16 +10,19 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    rm -f orgs/[alias]-[customer]/.audit-* 2>/dev/null || true
    rm -f orgs/[alias]-[customer]/retrieve-*.xml 2>/dev/null || true
    rm -f orgs/[alias]-[customer]/*.tmp 2>/dev/null || true
+   rm -f orgs/[alias]-[customer]/package-*.xml 2>/dev/null || true
+   rm -f orgs/[alias]-[customer]/manifest-*.xml 2>/dev/null || true
    rm -rf unpackaged/ 2>/dev/null || true
    find . -maxdepth 1 -name 'manifest-*.xml' -delete 2>/dev/null || true
    find . -maxdepth 1 -name 'temp-*.xml' -delete 2>/dev/null || true
+   find . -maxdepth 1 -name 'package-*.xml' -delete 2>/dev/null || true
    ```
    Notes:
    - The `2>/dev/null || true` wrappers keep zsh's `NO_MATCH` from erroring on empty globs (lesson 68); without them the bundled cleanup step fails silently and step 2 (`printf` to init the progress log) never runs.
    - The `.audit-*` sweep is intentionally a wildcard, not a fixed list — it catches `.audit-progress.log` from a crashed prior run AND any ad-hoc files the model may have invented during a hang (e.g. `.audit-manifest-app.xml`).
-   - `retrieve-*.xml` and `*.tmp` per-customer sweeps catch model-invented working files inside the customer folder (e.g. `retrieve-layouts-custom.xml` left by an ad-hoc retrieve workaround). Pattern-prefixed, not blanket `*.xml` — audit outputs are `.md`, but a future feature may legitimately store customer-owned XML in this folder, so we sweep only model-known prefixes.
-   - `find . -maxdepth 1 -name 'manifest-*.xml' -delete` and the parallel `temp-*.xml` sweep are the zsh-safe shapes for repo-root sweeps — `rm -f manifest-*.xml` errors at glob expansion time on zsh before the redirection takes effect, so the `2>/dev/null` doesn't help. `find -delete` does its own argv handling and returns 0 on no matches.
-   - `unpackaged/` is the directory `retrieve_metadata` drops at the repo root; `manifest-*.xml` and `temp-*.xml` are repo-root files the model sometimes writes during ad-hoc retrieve workarounds. All are gitignored — their presence carries no SE-meaningful state.
+   - `retrieve-*.xml`, `*.tmp`, `package-*.xml`, and `manifest-*.xml` per-customer sweeps catch model-invented working files inside the customer folder (e.g. `retrieve-layouts-custom.xml`, `package-layouts-all.xml` left by ad-hoc retrieve workarounds). Pattern-prefixed, not blanket `*.xml` — audit outputs are `.md`, but a future feature may legitimately store customer-owned XML in this folder, so we sweep only model-known prefixes.
+   - `find . -maxdepth 1 -name 'manifest-*.xml' -delete` and the parallel `temp-*.xml` / `package-*.xml` sweeps are the zsh-safe shapes for repo-root sweeps — `rm -f manifest-*.xml` errors at glob expansion time on zsh before the redirection takes effect, so the `2>/dev/null` doesn't help. `find -delete` does its own argv handling and returns 0 on no matches.
+   - `unpackaged/` is the directory `retrieve_metadata` drops at the repo root; `manifest-*.xml`, `temp-*.xml`, and `package-*.xml` are repo-root files the model sometimes writes during ad-hoc retrieve workarounds (e.g. `package-prelude-app.xml`, `package-prelude-objects.xml`, `package-prelude-profile.xml` from prelude sub-agent retrieves). All are gitignored — their presence carries no SE-meaningful state.
    - The sweep list grows as model-invented patterns surface in the field. When a new orphan appears in repo-root or a customer folder, add a pattern-prefixed sweep here rather than relying on the existing wildcards to catch it.
 2. Initialize progress log — truncate the file and write a header so the SE-facing link opens to a non-empty file:
    ```
@@ -49,17 +52,13 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 5a. **Emit the live-status heartbeat (MUST, before any sub-agent dispatch).** Async sub-agent work begins at step 6 (prelude) and continues through the parallel sub-agent dispatch — total async window is 5-10 min on SDO-scale orgs, all of it invisible to the SE in chat. The progress log is the only signal.
 
-   **The link MUST be an absolute `file://` URI** — relative `orgs/...` paths don't open in VS Code when CC was launched from outside the Scout workspace (which is the default since Scout went global as a plugin). Pre-compute the absolute path with one Bash call, then substitute it into the message template:
+   **The link MUST be a workspace-relative path**, not an absolute `file://` URI. The VSCode native CC extension renders markdown links relative to the SE's VSCode workspace root (which is reliably `~/claude-projects/sf-demo-scout` for Scout SEs) and does not open `file://` URIs as in-editor file opens. Emit exactly this message as the next assistant turn — single message, verbatim:
 
-   ```bash
-   echo "file://$HOME/claude-projects/sf-demo-scout/orgs/[alias]-[customer]/.audit-progress.log"
-   ```
+   > Audit running. Live status → [.audit-progress.log](orgs/[alias]-[customer]/.audit-progress.log) — click to open. VS Code auto-updates as Scout works through the org. Typical runtime 5-10 min on SDO-scale orgs.
 
-   Capture the printed string as `[ABS_LOG_URI]`. Then emit exactly this message as the next assistant turn — single message, verbatim, with `[ABS_LOG_URI]` replaced by the captured value:
+   Substitute `[alias]-[customer]` with the actual customer folder name before emitting (e.g. `orgs/voice-wt-26-wsa/.audit-progress.log`).
 
-   > Audit running. Live status → [.audit-progress.log]([ABS_LOG_URI]) — click to open, VS Code auto-updates as the prelude and the 3 parallel sub-agents append. Typical runtime 5-10 min on SDO-scale orgs.
-
-   The heartbeat exists because SE-facing silence is expensive — minutes of sub-agent runtime with no signal reads as "is Scout stuck?" Do not skip it. Do not paraphrase it. Do not bundle it into a later message. **If you find yourself about to call a tool here, stop — the heartbeat goes first** (the Bash pre-compute above is the one allowed exception).
+   The heartbeat exists because SE-facing silence is expensive — minutes of sub-agent runtime with no signal reads as "is Scout stuck?" Do not skip it. Do not paraphrase it. Do not bundle it into a later message. **If you find yourself about to call a tool here, stop — the heartbeat goes first.**
 
 6. **Dispatch the audit-prelude sub-agent** to retrieve and parse the heavy metadata. This keeps CustomApplication/CustomObject/Profile XML out of Opus context.
 
@@ -195,7 +194,10 @@ Append the Notable Gaps section (written by Opus from the JSON summaries) to the
    rm -rf unpackaged/ 2>/dev/null || true
    find . -maxdepth 1 -name 'manifest-*.xml' -delete 2>/dev/null || true
    find . -maxdepth 1 -name 'temp-*.xml' -delete 2>/dev/null || true
+   find . -maxdepth 1 -name 'package-*.xml' -delete 2>/dev/null || true
    rm -f orgs/[alias]-[customer]/retrieve-*.xml 2>/dev/null || true
    rm -f orgs/[alias]-[customer]/*.tmp 2>/dev/null || true
+   rm -f orgs/[alias]-[customer]/package-*.xml 2>/dev/null || true
+   rm -f orgs/[alias]-[customer]/manifest-*.xml 2>/dev/null || true
    ```
    These mirror the Pre-Spawn sweep exactly. Start-of-run cleanup remains the safety net for crashed / interrupted / SE-cancelled prior runs (the corrupt-state hang it prevents is documented in `pipeline-lessons/sub-agent-architecture.md`); end-of-success cleanup is hygiene for the clean-success path, so a successful audit doesn't leave manifest/temp orphans visible in the SE's `ls` or VS Code file tree. The two layers are complementary, not redundant: end-of-success doesn't fire when a run crashes; start-of-run doesn't fire until the *next* audit kicks off — without symmetry, orphans linger between successful runs. The SE workspace at `~/claude-projects/sf-demo-scout/` is not a git repo and has no `.gitignore`, so these files are visible until swept.

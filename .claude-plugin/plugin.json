@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "2026.05.28.5-heartbeat-uri-precompute-and-opus-1m",
+  "version": "2026.05.28.6-audit-link-revert-and-workspace-cleanup",
   "requires_reload": true,
   "author": {
     "name": "Sebastian Schickhoff"

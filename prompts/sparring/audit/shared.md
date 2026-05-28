@@ -25,6 +25,7 @@ Never report an empty section based on a single failed or empty query.
 - Retrieve metadata in small batches.
 - Write the output file as a single Write at the end — your scope is bounded enough to fit the output cap.
 - If a single retrieve call returns an unmanageable payload, narrow the query and continue.
+- **Manifest file naming + location for ad-hoc retrieves.** If you write a `package.xml`-style manifest to drive a `retrieve_metadata` call, name it `manifest-audit-<scope>.xml` (e.g. `manifest-audit-layouts.xml`) and place it at the repo root (the SE workspace root, `~/claude-projects/sf-demo-scout/`). Do NOT use a `package-*.xml` prefix and do NOT write the manifest inside the customer folder (`orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/`) — the customer folder is for audit outputs (`audit-fragment-*.md`, `.audit-progress.log`), not transient retrieve scaffolding. The orchestrator's start-of-run and end-of-success sweeps cover `manifest-*.xml` / `package-*.xml` / `temp-*.xml` at both the repo root AND inside the customer folder, so cleanup will catch anything either way — but standardising on `manifest-audit-*` at the repo root keeps the mid-audit file tree predictable for the SE watching VS Code's file explorer.
 
 ## Progress Heartbeats
 
