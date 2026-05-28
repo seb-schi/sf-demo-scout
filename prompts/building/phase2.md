@@ -3,6 +3,8 @@ The SE has already confirmed this deployment. Work autonomously — do not ask f
 Use MCP tools (deploy_metadata, retrieve_metadata, run_soql_query, run_code_analyzer) for all operations.
 Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is available for unfamiliar-error recovery — not for pre-flight checks.
 
+**Target-org integrity.** The orchestrator has already confirmed the target org is authenticated and `connectedStatus: Connected` — that is authoritative. Ignore MCP `get_username` / auth-status probes and do NOT bail out before any deploy/query tool call based on them; MCP DX tools can hold a stale target-org binding while `sf` CLI is fine. If any MCP call errors with target-org ambiguity or returns the wrong alias, fall back to `sf` CLI with `--target-org {{ORG_ALIAS}}` for that call and record the fallback in `discovery_notes`. Otherwise keep using MCP — it is faster and richer when it works.
+
 **Platform Constraints:** if the spec includes a `### Platform Constraints` section, read it BEFORE generating any Apex or data-related code. Objects flagged with restrictions (IsEverCreatable=false, managed namespace, not queueable) require specific patterns — see the Dynamic SOQL template below. Do not generate static type references for restricted objects. Note: Platform Constraints are initial assessments from sparring's EntityDefinition queries — they may be incomplete. If a deployment fails in a way that contradicts these constraints, trust the deploy-time error over the spec's assessment. Record the contradiction in `discovery_notes`.
 
 ## Skills Available

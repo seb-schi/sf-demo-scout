@@ -2,6 +2,8 @@ You are deploying Salesforce metadata to org {{ORG_ALIAS}} ({{ORG_USERNAME}}).
 Use MCP tools (deploy_metadata, retrieve_metadata, run_soql_query, assign_permission_set) for all operations.
 Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is available for unfamiliar-error recovery — not for pre-flight checks.
 
+**Target-org integrity.** The orchestrator has already confirmed the target org is authenticated and `connectedStatus: Connected` — that is authoritative. Ignore MCP `get_username` / auth-status probes and do NOT bail out before any deploy/query tool call based on them; MCP DX tools can hold a stale target-org binding while `sf` CLI is fine. If any MCP call errors with target-org ambiguity or returns the wrong alias, fall back to `sf` CLI with `--target-org {{ORG_ALIAS}}` for that call and record the fallback in `discovery_notes`. Otherwise keep using MCP — it is faster and richer when it works.
+
 ## Skills Available
 Invoke these skills via the Skill tool when you need detailed metadata rules:
 <!-- IF:STRUCTURAL -->
@@ -27,6 +29,23 @@ Invoke these skills via the Skill tool when you need detailed metadata rules:
 3. **Auto-apply** the computed value — override any literal number the spec listed for that seed field. The SE chose calibration-by-rule over calibration-by-literal.
 4. Record in `discovery_notes` verbatim: `"Calibration applied: <directive text> — reference query returned <X>, seed value computed as <Y> (spec literal was <Z>)"` so the adjustment surfaces in the change log and the SE sees it in the handover.
 5. **Degraded path:** if the reference query returns 0 rows or errors, fall back to the spec's literal value and record in `issues`: `"Calibration reference query returned no data / failed: <error> — used spec literal <Z>. Adjust manually if needed."` Do not block on calibration — seeding proceeds with the literal.
+
+### Salesforce Data Seeding Quirks
+Recurring data-seeding gotchas observed across deployments. Apply these before reaching for `salesforce_docs_search` — they are confirmed.
+
+1. **Knowledge article publish + archive — single PATCH endpoint.** The `POST /services/data/vXX.0/knowledgeManagement/articleVersions/masterVersions/{id}/actions/archive` sub-resource returns `NOT_FOUND` in current API versions. Working pattern for both publish and archive:
+   ```
+   PATCH /services/data/v66.0/knowledgeManagement/articleVersions/masterVersions/{versionId}
+   Body: {"publishStatus": "Online"}     # publish
+   Body: {"publishStatus": "Archived"}   # archive
+   ```
+   The `{versionId}` path segment is the article **version Id** (`ka0...`), NOT the parent `KnowledgeArticleId` (`kA0...`). Query for the version Id via `SELECT Id, KnowledgeArticleId FROM Knowledge__kav WHERE PublishStatus = 'Online' AND ...` before calling PATCH.
+2. **EmailMessage records auto-create a paired Task on activity timelines.** When Salesforce sends an outbound email, it auto-creates a `Task` record alongside the `EmailMessage` as the activity-timeline log entry. The Task's `Subject` is prefixed `Email: ` (e.g. `Email: Maintenance Required: ...`). To fully scrub a single email from a record's activity timeline, the seed/cleanup step MUST delete BOTH records — querying only `EmailMessage` (or only `Task`) leaves half the timeline entry behind. Cleanup pattern:
+   ```
+   SELECT Id FROM EmailMessage WHERE ParentId = :recordId AND Subject = :subject
+   SELECT Id FROM Task        WHERE WhatId   = :recordId AND Subject = 'Email: ' + :subject
+   ```
+   Delete both result sets in the same transaction.
 <!-- /IF:DATA_SEEDING -->
 
 - Deploy in small increments — never batch unrelated changes.
