@@ -4,26 +4,23 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 ## Pre-Spawn Setup (orchestrator runs directly)
 
-1. Clean ALL stale orchestrator artifacts before any work begins. End-of-success cleanup (Cleanup & Validation steps 3–4) does not fire when a prior run crashes, hangs, or is SE-interrupted — the next run then inherits corrupt state and typically hangs at the parse step that consumes it, with no causal link visible to the SE. Run all sweeps unconditionally:
+1. Clean stale orchestrator artifacts and prepare a bounded scratch dir for this run. End-of-success cleanup (Cleanup & Validation steps 3–4) does not fire when a prior run crashes, hangs, or is SE-interrupted — the next run then inherits corrupt state and typically hangs at the parse step that consumes it, with no causal link visible to the SE. Run unconditionally:
    ```
    rm -f orgs/[alias]-[customer]/audit-fragment-*.md 2>/dev/null || true
    rm -f orgs/[alias]-[customer]/.audit-* 2>/dev/null || true
-   rm -f orgs/[alias]-[customer]/retrieve-*.xml 2>/dev/null || true
-   rm -f orgs/[alias]-[customer]/*.tmp 2>/dev/null || true
-   rm -f orgs/[alias]-[customer]/package-*.xml 2>/dev/null || true
-   rm -f orgs/[alias]-[customer]/manifest-*.xml 2>/dev/null || true
+   rm -rf orgs/[alias]-[customer]/.scout-tmp/ 2>/dev/null || true
+   mkdir -p orgs/[alias]-[customer]/.scout-tmp/
    rm -rf unpackaged/ 2>/dev/null || true
-   find . -maxdepth 1 -name 'manifest-*.xml' -delete 2>/dev/null || true
-   find . -maxdepth 1 -name 'temp-*.xml' -delete 2>/dev/null || true
    find . -maxdepth 1 -name 'package-*.xml' -delete 2>/dev/null || true
    ```
    Notes:
-   - The `2>/dev/null || true` wrappers keep zsh's `NO_MATCH` from erroring on empty globs (lesson 68); without them the bundled cleanup step fails silently and step 2 (`printf` to init the progress log) never runs.
-   - The `.audit-*` sweep is intentionally a wildcard, not a fixed list — it catches `.audit-progress.log` from a crashed prior run AND any ad-hoc files the model may have invented during a hang (e.g. `.audit-manifest-app.xml`).
-   - `retrieve-*.xml`, `*.tmp`, `package-*.xml`, and `manifest-*.xml` per-customer sweeps catch model-invented working files inside the customer folder (e.g. `retrieve-layouts-custom.xml`, `package-layouts-all.xml` left by ad-hoc retrieve workarounds). Pattern-prefixed, not blanket `*.xml` — audit outputs are `.md`, but a future feature may legitimately store customer-owned XML in this folder, so we sweep only model-known prefixes.
-   - `find . -maxdepth 1 -name 'manifest-*.xml' -delete` and the parallel `temp-*.xml` / `package-*.xml` sweeps are the zsh-safe shapes for repo-root sweeps — `rm -f manifest-*.xml` errors at glob expansion time on zsh before the redirection takes effect, so the `2>/dev/null` doesn't help. `find -delete` does its own argv handling and returns 0 on no matches.
-   - `unpackaged/` is the directory `retrieve_metadata` drops at the repo root; `manifest-*.xml`, `temp-*.xml`, and `package-*.xml` are repo-root files the model sometimes writes during ad-hoc retrieve workarounds (e.g. `package-prelude-app.xml`, `package-prelude-objects.xml`, `package-prelude-profile.xml` from prelude sub-agent retrieves). All are gitignored — their presence carries no SE-meaningful state.
-   - The sweep list grows as model-invented patterns surface in the field. When a new orphan appears in repo-root or a customer folder, add a pattern-prefixed sweep here rather than relying on the existing wildcards to catch it.
+   - **Bounded scratch dir.** `orgs/[alias]-[customer]/.scout-tmp/` is the only location sub-agents write transient working files (manifests for ad-hoc `retrieve_metadata` calls, intermediate XML, anything that isn't an audit fragment or the progress log). Sub-agents see the absolute path via the `{{SCOUT_TMPDIR}}` envelope placeholder in Sub-Agent Dispatch and are instructed in `prompts/sparring/audit/shared.md` to write only inside it. The whole directory is `rm -rf`'d on entry (above) and on successful exit (Cleanup & Validation step 4), so any new working-file pattern the model invents lands inside the disposable boundary automatically — no need to widen a per-pattern sweep list.
+   - The `.audit-*` sweep stays as a wildcard — it catches `.audit-progress.log` from a crashed prior run AND any ad-hoc files the model may have invented at the customer-folder root (where the SE looks first). Hidden-file convention; the model knows to write hidden state files there.
+   - `audit-fragment-*.md` stays as an explicit sweep — these are first-class audit outputs the consolidation step concatenates, not transient scratch, so they live at the customer folder root, not inside `.scout-tmp/`.
+   - The `2>/dev/null || true` wrappers keep zsh's `NO_MATCH` from erroring on empty globs (`pipeline-lessons/mcp-platform-constraints.md` lesson 68); without them the bundled cleanup step fails silently and step 2 (`printf` to init the progress log) never runs.
+   - **Why two repo-root sweeps survive.** `unpackaged/` is the directory the MCP `retrieve_metadata` server drops at the repo root when no manifest argument is supplied — it is SFDX-controlled, not redirectable through the `manifest` argument. `package-*.xml` at the repo root is an MCP-side sibling artifact (e.g. `package-prelude-app.xml` from prelude retrieves). Both are model-uncontrollable, so they get explicit sweeps. The model-controllable equivalents (`manifest-*.xml`, `retrieve-*.xml`, `temp-*.xml`, `*.tmp`, model-written `package-*.xml`) are now structurally impossible — sub-agents only write inside `.scout-tmp/`.
+   - **If a new MCP-side orphan pattern appears at the repo root** (unrelated to model writes — i.e. the SE sees an unfamiliar repo-root file after a clean audit), add a pattern-prefixed sweep here. Inside `.scout-tmp/` no sweep additions are ever needed.
+   - `find . -maxdepth 1 -name 'package-*.xml' -delete` is the zsh-safe shape — `rm -f package-*.xml` errors at glob expansion time on zsh before the redirection takes effect, so the `2>/dev/null` doesn't help. `find -delete` does its own argv handling and returns 0 on no matches.
 2. Initialize progress log — truncate the file and write a header so the SE-facing link opens to a non-empty file:
    ```
    printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\n\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[alias]-[customer]" > orgs/[alias]-[customer]/.audit-progress.log
@@ -73,6 +70,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    {{CANDIDATE_APP}} = [label]
    {{CANDIDATE_APP_DEVELOPER_NAME}} = [developer name]
    {{CURRENT_USER_ID}} = [user id]
+   {{SCOUT_TMPDIR}} = [absolute path to orgs/[alias]-[customer]/.scout-tmp/]
 
    Execute the prompt and return the JSON block per its Output Format section.
    ```
@@ -98,7 +96,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 Do NOT read the sub-agent prompt bodies. Each sub-agent reads its own prompt file and `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit/shared.md`. The orchestrator's job is to construct each envelope with the right placeholder values and dispatch.
 
-Build a per-sub-agent envelope. Common placeholder values (computed by the orchestrator from earlier steps): `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`. The two LRP-aware sub-agents receive a sliced `{{ACTIVE_LRP_MAP}}`:
+Build a per-sub-agent envelope. Common placeholder values (computed by the orchestrator from earlier steps): `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`, `{{SCOUT_TMPDIR}}`. The two LRP-aware sub-agents receive a sliced `{{ACTIVE_LRP_MAP}}`:
   - standard-objects: `ACTIVE_LRP_MAP_STANDARD`
   - custom-objects: `ACTIVE_LRP_MAP_CUSTOM`
   - apps-flows-agents: omit the placeholder (its prompt does not reference it).
@@ -116,6 +114,7 @@ Read your prompt file at `[PROMPT_PATH]`. Also read `${CLAUDE_PLUGIN_ROOT}/promp
 {{DEFAULT_APP}} = [label]
 {{DEFAULT_APP_TABS}} = [tabs JSON]
 {{ACTIVE_LRP_MAP}} = [sliced map JSON — omit this line for apps-flows-agents]
+{{SCOUT_TMPDIR}} = [absolute path to orgs/[alias]-[customer]/.scout-tmp/]
 
 Execute the prompt and return the JSON block per its Output Format section.
 ```
@@ -189,15 +188,10 @@ Append the Notable Gaps section (written by Opus from the JSON summaries) to the
 1. Delete the 3 fragment files after successful concatenation.
 2. **Star marker validation:** Grep the consolidated audit file for `★`. If 0 matches, flag to the SE: "The audit file has no ★ markers — build surface identification may have failed." Keep the progress log in place — SE may need the heartbeat history to debug which sub-agent failed to star-flag.
 3. Delete the progress log — `rm -f orgs/[alias]-[customer]/.audit-progress.log`. Run this only after star-marker validation passes; on validation failure, leave the log so the SE can inspect sub-agent heartbeats.
-4. **Symmetric workspace sweep.** Run the same orphan-file sweeps the Pre-Spawn Setup runs at start-of-run, so clean successful audits don't leave model-invented working files in the SE workspace:
+4. **Symmetric workspace sweep.** Mirror the Pre-Spawn sweep exactly so a clean successful audit doesn't leave orphans in the SE workspace:
    ```
+   rm -rf orgs/[alias]-[customer]/.scout-tmp/ 2>/dev/null || true
    rm -rf unpackaged/ 2>/dev/null || true
-   find . -maxdepth 1 -name 'manifest-*.xml' -delete 2>/dev/null || true
-   find . -maxdepth 1 -name 'temp-*.xml' -delete 2>/dev/null || true
    find . -maxdepth 1 -name 'package-*.xml' -delete 2>/dev/null || true
-   rm -f orgs/[alias]-[customer]/retrieve-*.xml 2>/dev/null || true
-   rm -f orgs/[alias]-[customer]/*.tmp 2>/dev/null || true
-   rm -f orgs/[alias]-[customer]/package-*.xml 2>/dev/null || true
-   rm -f orgs/[alias]-[customer]/manifest-*.xml 2>/dev/null || true
    ```
-   These mirror the Pre-Spawn sweep exactly. Start-of-run cleanup remains the safety net for crashed / interrupted / SE-cancelled prior runs (the corrupt-state hang it prevents is documented in `pipeline-lessons/sub-agent-architecture.md`); end-of-success cleanup is hygiene for the clean-success path, so a successful audit doesn't leave manifest/temp orphans visible in the SE's `ls` or VS Code file tree. The two layers are complementary, not redundant: end-of-success doesn't fire when a run crashes; start-of-run doesn't fire until the *next* audit kicks off — without symmetry, orphans linger between successful runs. The SE workspace at `~/claude-projects/sf-demo-scout/` is not a git repo and has no `.gitignore`, so these files are visible until swept.
+   Start-of-run cleanup remains the safety net for crashed / interrupted / SE-cancelled prior runs (the corrupt-state hang it prevents is documented in `pipeline-lessons/sub-agent-architecture.md`); end-of-success cleanup is hygiene for the clean-success path. The two layers are complementary, not redundant: end-of-success doesn't fire when a run crashes; start-of-run doesn't fire until the *next* audit kicks off — without symmetry, orphans linger between successful runs. The SE workspace at `~/claude-projects/sf-demo-scout/` is not a git repo and has no `.gitignore`, so these files are visible until swept. The bounded `.scout-tmp/` directory is the structural improvement: every model-controllable transient file lives inside it, so the sweep list is fixed (one `rm -rf` for the model surface, two for the MCP-server-controlled surface) and does not grow as new model-invented patterns surface in the field.
