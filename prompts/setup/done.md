@@ -29,3 +29,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Extract `requires_reloa
 **If `ZSHRC_MODIFIED` is true:** append before the close:
 
 > "Note: Scout refreshed your shell environment. Open a new terminal window for non-Claude-Code shell sessions to pick up the changes — current Claude Code session is unaffected."
+
+**If STATE was REFRESH and `ZSHRC_MODIFIED` is true:** also append before the close:
+
+> "Heads-up: Scout no longer manages model selection. Any `ANTHROPIC_DEFAULT_*_MODEL` exports it previously set in your shell have been removed — set them yourself if you want a specific Bedrock model profile, or rely on the `opus[1m]` default in `~/.claude/settings.json` (resolves to whatever your CC build calls Opus, with the 1M window)."

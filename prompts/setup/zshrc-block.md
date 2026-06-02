@@ -22,18 +22,12 @@ END = "# END SF-DEMO-SCOUT"
 KEYS = [
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
     "MAX_THINKING_TOKENS",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
 ]
 BLOCK_LINES = [
     BEGIN,
     "# Managed by Scout plugin — do not edit. Refreshed on first-run setup.",
     "export CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384",
     "export MAX_THINKING_TOKENS=8192",
-    "export ANTHROPIC_DEFAULT_OPUS_MODEL=us.anthropic.claude-opus-4-7[1m]",
-    "export ANTHROPIC_DEFAULT_SONNET_MODEL=us.anthropic.claude-sonnet-4-6",
-    "export ANTHROPIC_DEFAULT_HAIKU_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0",
     END,
 ]
 

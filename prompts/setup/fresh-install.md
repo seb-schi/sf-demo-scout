@@ -212,7 +212,7 @@ Surface inline:
 
 ## g.8: Pin Opus 1M context window
 
-Set `~/.claude/settings.json` `model` to `opus[1m]` so Scout sessions land on the 1M-context Opus 4.7 variant regardless of CC launch path (terminal vs VS Code GUI). Only upgrades when current value is the bare `opus` alias — preserves any deliberate SE override (`sonnet`, `haiku`, custom model ID). Idempotent, safe-fail.
+Set `~/.claude/settings.json` `model` to `opus[1m]` so Scout sessions land on the 1M-context Opus variant regardless of CC launch path (terminal vs VS Code GUI). `opus[1m]` is an alias — it resolves to whatever this SE's CC build calls "Opus," just with the 1M window — so it can never name a Bedrock version the CLI can't reach. Only upgrades when current value is the bare `opus` alias — preserves any deliberate SE override (`sonnet`, `haiku`, custom model ID). Idempotent, safe-fail.
 
 ```bash
 USER_SETTINGS="$HOME/.claude/settings.json"
@@ -261,6 +261,64 @@ Surface inline:
 - `MODEL_UPGRADED` — "Upgraded `~/.claude/settings.json` model from `opus` to `opus[1m]` — Scout sessions now use the 1M-context window. Restart CC to pick up."
 - `MODEL_SET` — "Set `~/.claude/settings.json` model to `opus[1m]` — Scout sessions use the 1M-context window. Restart CC to pick up."
 - `MODEL_PRESERVED: <value>` — "Left existing `model: <value>` in `~/.claude/settings.json` untouched. Set to `opus[1m]` manually if you want the 1M-context window for Scout."
+- Any error variant — one-line note, proceed.
+
+## g.9: Mirror quality-knob env vars to settings.json
+
+Write Scout's two CC-native quality knobs — `MAX_THINKING_TOKENS=8192` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384` — into `~/.claude/settings.json` `env`. These also live in the `.zshrc` managed block, but `.zshrc` is not read by the VS Code extension (GUI launches skip interactive shell rc files), so settings.json is the launch-path-independent home. Authoritative overwrite (these are Scout-owned, CC-native, and version-independent — unlike model-profile vars, there's no CLI-version trap). Surgical: only the two keys, never auth/gateway/OTEL keys. Idempotent, safe-fail.
+
+```bash
+USER_SETTINGS="$HOME/.claude/settings.json"
+
+python3 - "$USER_SETTINGS" <<'PYEOF'
+import json, os, sys, tempfile
+path = sys.argv[1]
+KNOBS = {
+    "MAX_THINKING_TOKENS": "8192",
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "16384",
+}
+
+if not os.path.exists(path):
+    data = {}
+else:
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"ENV_PARSE_ERROR: {e}"); sys.exit(0)
+
+if not isinstance(data, dict):
+    print("ENV_NOT_OBJECT"); sys.exit(0)
+
+env = data.get("env")
+if not isinstance(env, dict):
+    env = {}
+    data["env"] = env
+
+changed = [k for k, v in KNOBS.items() if env.get(k) != v]
+if not changed:
+    print("ENV_KNOBS_CURRENT"); sys.exit(0)
+for k in changed:
+    env[k] = KNOBS[k]
+
+tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".settings.", suffix=".tmp")
+try:
+    with os.fdopen(tmp_fd, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.rename(tmp_path, path)
+except Exception as e:
+    try: os.unlink(tmp_path)
+    except OSError: pass
+    print(f"ENV_WRITE_FAILED: {e}"); sys.exit(0)
+
+print("ENV_KNOBS_SET: " + ",".join(changed))
+PYEOF
+```
+
+Surface inline:
+- `ENV_KNOBS_CURRENT` — silent.
+- `ENV_KNOBS_SET: <keys>` — "Wrote Scout quality settings (thinking + output budgets) to `~/.claude/settings.json` — now active in both terminal and VS Code. Restart CC to pick up."
 - Any error variant — one-line note, proceed.
 
 ## g.5: Ensure marketplace autoUpdate is enabled
