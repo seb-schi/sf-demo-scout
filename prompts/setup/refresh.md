@@ -30,59 +30,6 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it with `mod
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/zshrc-block.md` and execute it. Capture the result (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) — the orchestrator's done step needs it.
 
-## d.5: Pin Opus 1M context window
-
-Set `~/.claude/settings.json` `model` to `opus[1m]` so Scout sessions land on the 1M-context Opus variant regardless of CC launch path (terminal vs VS Code GUI). `opus[1m]` is an alias — it resolves to whatever this SE's CC build calls "Opus," just with the 1M window — so it can never name a Bedrock version the CLI can't reach. Only upgrades when current value is the bare `opus` alias — preserves any deliberate SE override (`sonnet`, `haiku`, custom model ID). Idempotent, safe-fail.
-
-```bash
-USER_SETTINGS="$HOME/.claude/settings.json"
-
-python3 - "$USER_SETTINGS" <<'PYEOF'
-import json, os, sys, tempfile
-path = sys.argv[1]
-
-if not os.path.exists(path):
-    data = {}
-else:
-    try:
-        with open(path) as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        print(f"MODEL_PARSE_ERROR: {e}"); sys.exit(0)
-
-if not isinstance(data, dict):
-    print("MODEL_NOT_OBJECT"); sys.exit(0)
-
-current = data.get("model")
-if current == "opus[1m]":
-    print("MODEL_ALREADY_1M"); sys.exit(0)
-if current is not None and current != "opus":
-    print(f"MODEL_PRESERVED: {current}"); sys.exit(0)
-
-data["model"] = "opus[1m]"
-
-tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".settings.", suffix=".tmp")
-try:
-    with os.fdopen(tmp_fd, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-    os.rename(tmp_path, path)
-except Exception as e:
-    try: os.unlink(tmp_path)
-    except OSError: pass
-    print(f"MODEL_WRITE_FAILED: {e}"); sys.exit(0)
-
-print("MODEL_UPGRADED" if current == "opus" else "MODEL_SET")
-PYEOF
-```
-
-Surface inline:
-- `MODEL_ALREADY_1M` — silent.
-- `MODEL_UPGRADED` — "Upgraded `~/.claude/settings.json` model from `opus` to `opus[1m]` — Scout sessions now use the 1M-context window. Restart CC to pick up."
-- `MODEL_SET` — "Set `~/.claude/settings.json` model to `opus[1m]` — Scout sessions use the 1M-context window. Restart CC to pick up."
-- `MODEL_PRESERVED: <value>` — "Left existing `model: <value>` in `~/.claude/settings.json` untouched. Set to `opus[1m]` manually if you want the 1M-context window for Scout."
-- Any error variant — one-line note, proceed.
-
 ## d.6: Mirror quality-knob env vars to settings.json
 
 Write Scout's two CC-native quality knobs — `MAX_THINKING_TOKENS=8192` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384` — into `~/.claude/settings.json` `env`. These also live in the `.zshrc` managed block, but `.zshrc` is not read by the VS Code extension (GUI launches skip interactive shell rc files), so settings.json is the launch-path-independent home. Authoritative overwrite (these are Scout-owned, CC-native, and version-independent — unlike model-profile vars, there's no CLI-version trap). Surgical: only the two keys, never auth/gateway/OTEL keys. Idempotent, safe-fail.
@@ -143,7 +90,7 @@ Surface inline:
 
 ## d.7: Strip stale model pins (self-heal old installs)
 
-Older Scout/aisuite installs hard-pinned three model env vars and a `modelOverrides` block in `~/.claude/settings.json`. Claude Code collapses the `/model` picker to those pins, hiding newer models (e.g. Opus 4.8). Scout no longer writes these (since 2026-06-02), so on existing installs they're pure stale state. This step REMOVES them — it never writes a model value (d.5's `opus[1m]` alias is the only model Scout sets). Surgical: only the three `ANTHROPIC_DEFAULT_*_MODEL` keys and top-level `modelOverrides`; never auth/gateway/OTEL/quality keys. Idempotent, safe-fail.
+Older Scout/aisuite installs hard-pinned three model env vars and a `modelOverrides` block in `~/.claude/settings.json`. Claude Code collapses the `/model` picker to those pins, hiding newer models (e.g. Opus 4.8). Scout no longer writes these (since 2026-06-02), so on existing installs they're pure stale state. This step REMOVES them — it never writes a model value (Scout is out of the model-selection business entirely; the `/scout-sparring` and `/scout-building` model gate is the only place Scout nudges a model choice, and the SE makes it). Surgical: only the three `ANTHROPIC_DEFAULT_*_MODEL` keys and top-level `modelOverrides`; never auth/gateway/OTEL/quality keys. Idempotent, safe-fail.
 
 ```bash
 USER_SETTINGS="$HOME/.claude/settings.json"

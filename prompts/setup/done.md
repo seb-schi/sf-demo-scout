@@ -32,4 +32,4 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Extract `requires_reloa
 
 **If STATE was REFRESH and `ZSHRC_MODIFIED` is true:** also append before the close:
 
-> "Heads-up: Scout no longer manages model selection. Any `ANTHROPIC_DEFAULT_*_MODEL` exports it previously set in your shell have been removed — set them yourself if you want a specific Bedrock model profile, or rely on the `opus[1m]` default in `~/.claude/settings.json` (resolves to whatever your CC build calls Opus, with the 1M window)."
+> "Heads-up: Scout no longer manages model selection. Any `ANTHROPIC_DEFAULT_*_MODEL` exports it previously set in your shell have been removed, and Scout no longer pins a default model in `~/.claude/settings.json` — pick whatever model you want with `/model` (the `/scout-sparring` and `/scout-building` commands will remind you to switch to Opus when you run them)."
