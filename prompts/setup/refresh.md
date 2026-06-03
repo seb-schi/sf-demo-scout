@@ -88,13 +88,16 @@ Surface inline:
 - `ENV_KNOBS_SET: <keys>` — "Wrote Scout quality settings (thinking + output budgets) to `~/.claude/settings.json` — now active in both terminal and VS Code. Restart CC to pick up."
 - Any error variant — one-line note, proceed.
 
-## d.7: Strip stale model pins (self-heal old installs)
+## d.7: Strip stale model pins across all surfaces (self-heal)
 
-Older Scout/aisuite installs hard-pinned three model env vars and a `modelOverrides` block in `~/.claude/settings.json`. Claude Code collapses the `/model` picker to those pins, hiding newer models (e.g. Opus 4.8). Scout no longer writes these (since 2026-06-02), so on existing installs they're pure stale state. This step REMOVES them — it never writes a model value (Scout is out of the model-selection business entirely; the `/scout-sparring` and `/scout-building` model gate is the only place Scout nudges a model choice, and the SE makes it). Surgical: only the three `ANTHROPIC_DEFAULT_*_MODEL` keys and top-level `modelOverrides`; never auth/gateway/OTEL/quality keys. Idempotent, safe-fail.
+Older Scout/aisuite installs hard-pinned three model env vars (`ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL`) and/or a `modelOverrides` block across several config surfaces. Claude Code collapses the `/model` picker to those pins, hiding newer models (e.g. Opus 4.8). Scout no longer writes any of them (since 2026-06-02), so on existing installs they're pure stale state. This step REMOVES them from every surface so the SE gets the full model list in both terminal and VS Code — it never writes a model value (Scout is out of model selection; the `/scout-sparring` and `/scout-building` gate is the only nudge, and the SE picks via `/model`). **Removal set is exactly the 3 model keys + `modelOverrides`. Token-window knobs (`MAX_THINKING_TOKENS`, `CLAUDE_CODE_MAX_OUTPUT_TOKENS`), auth, gateway, and OTEL keys are NEVER touched.** Idempotent, safe-fail.
+
+The `.zshrc` surface is handled in step d (the managed-block refresh now sweeps these three keys as out-of-block stragglers — see `zshrc-block.md`). This step covers the two `~/.claude` JSON files, VS Code's settings, and launchctl.
+
+**d.7a — `~/.claude/settings.json` and `~/.claude/settings.local.json` (Scout-owned JSON, auto-remove):**
 
 ```bash
-USER_SETTINGS="$HOME/.claude/settings.json"
-
+for USER_SETTINGS in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
 python3 - "$USER_SETTINGS" <<'PYEOF'
 import json, os, sys, tempfile
 path = sys.argv[1]
@@ -103,17 +106,18 @@ PIN_KEYS = [
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL",
 ]
+label = os.path.basename(path)
 
 if not os.path.exists(path):
-    print("PINS_NO_SETTINGS"); sys.exit(0)
+    print(f"PINS_ABSENT[{label}]"); sys.exit(0)
 try:
     with open(path) as f:
         data = json.load(f)
 except (json.JSONDecodeError, OSError) as e:
-    print(f"PINS_PARSE_ERROR: {e}"); sys.exit(0)
+    print(f"PINS_PARSE_ERROR[{label}]: {e}"); sys.exit(0)
 
 if not isinstance(data, dict):
-    print("PINS_NOT_OBJECT"); sys.exit(0)
+    print(f"PINS_NOT_OBJECT[{label}]"); sys.exit(0)
 
 removed = []
 env = data.get("env")
@@ -127,7 +131,7 @@ if "modelOverrides" in data:
     removed.append("modelOverrides")
 
 if not removed:
-    print("PINS_NONE"); sys.exit(0)
+    print(f"PINS_NONE[{label}]"); sys.exit(0)
 
 tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".settings.", suffix=".tmp")
 try:
@@ -138,29 +142,126 @@ try:
 except Exception as e:
     try: os.unlink(tmp_path)
     except OSError: pass
-    print(f"PINS_WRITE_FAILED: {e}"); sys.exit(0)
+    print(f"PINS_WRITE_FAILED[{label}]: {e}"); sys.exit(0)
 
-print("PINS_REMOVED: " + ",".join(removed))
+print(f"PINS_REMOVED[{label}]: " + ",".join(removed))
+PYEOF
+done
+```
+
+**d.7b — VS Code `claudeCode.environmentVariables` (JSONC, comment-preserving auto-edit with backup/validate/restore):**
+
+VS Code's user settings is JSONC — it may contain `//` comments and trailing commas, and it's the SE's hand-curated personal config. Strategy: back it up, surgically delete just the three `ANTHROPIC_DEFAULT_*_MODEL` array entries via line-oriented editing that preserves comments, then validate the result still parses (comments/trailing-commas stripped for the parse check only). On ANY anomaly — parse failure after edit, unexpected structure — restore the backup and fall back to the warn message. The token-knob entries and every other entry are preserved.
+
+```bash
+python3 - "$HOME/Library/Application Support/Code/User/settings.json" <<'PYEOF'
+import os, sys, re, shutil
+
+path = sys.argv[1]
+if not os.path.exists(path):
+    print("VSCODE_ABSENT"); sys.exit(0)
+
+try:
+    with open(path) as f:
+        src = f.read()
+except OSError as e:
+    print(f"VSCODE_READ_ERROR: {e}"); sys.exit(0)
+
+PINS = ("ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL")
+
+if not any(p in src for p in PINS):
+    print("VSCODE_PINS_NONE"); sys.exit(0)
+
+# --- helper: strip JSONC comments + trailing commas for a parse-only check
+def jsonc_loads(text):
+    import json
+    # remove /* */ block comments
+    t = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    # remove // line comments (not inside strings — best-effort: only at line starts or after whitespace/commas)
+    t = re.sub(r"(^|[\s,{\[])//[^\n]*", r"\1", t)
+    # remove trailing commas before } or ]
+    t = re.sub(r",(\s*[}\]])", r"\1", t)
+    return json.loads(t)
+
+# Validate the file parses BEFORE we touch it; if it doesn't, don't risk an edit.
+try:
+    before = jsonc_loads(src)
+except Exception as e:
+    print(f"VSCODE_UNPARSEABLE_PREEDIT: {e}"); sys.exit(0)
+
+# Backup
+bak = path + ".scout-bak"
+try:
+    shutil.copy2(path, bak)
+except OSError as e:
+    print(f"VSCODE_BACKUP_FAILED: {e}"); sys.exit(0)
+
+# Surgical removal: the entries are objects of the shape
+#   { "name": "ANTHROPIC_DEFAULT_*_MODEL", "value": "..." }
+# possibly spanning multiple lines, each followed by an optional comma.
+# Remove each such object literal wherever it appears in the array.
+out = src
+for pin in PINS:
+    # match an object literal containing "name": "<pin>" with its trailing comma (or leading comma)
+    pattern = re.compile(
+        r"\{\s*\"name\"\s*:\s*\"" + re.escape(pin) + r"\"\s*,\s*\"value\"\s*:\s*\"[^\"]*\"\s*\}\s*,?\s*\n?",
+        re.S,
+    )
+    out = pattern.sub("", out)
+    # also handle value-before-name ordering
+    pattern2 = re.compile(
+        r"\{\s*\"value\"\s*:\s*\"[^\"]*\"\s*,\s*\"name\"\s*:\s*\"" + re.escape(pin) + r"\"\s*\}\s*,?\s*\n?",
+        re.S,
+    )
+    out = pattern2.sub("", out)
+
+# Fix any dangling comma left before a closing bracket of the array
+out = re.sub(r",(\s*\])", r"\1", out)
+
+# Validate post-edit
+try:
+    after = jsonc_loads(out)
+except Exception as e:
+    shutil.copy2(bak, path)
+    print(f"VSCODE_VALIDATE_FAILED_RESTORED: {e}"); sys.exit(0)
+
+# Sanity: the only difference should be the removed pins. Confirm no pin remains.
+flat = str(after)
+if any(p in flat for p in PINS):
+    shutil.copy2(bak, path)
+    print("VSCODE_PINS_SURVIVED_RESTORED"); sys.exit(0)
+
+try:
+    with open(path, "w") as f:
+        f.write(out)
+except OSError as e:
+    shutil.copy2(bak, path)
+    print(f"VSCODE_WRITE_FAILED_RESTORED: {e}"); sys.exit(0)
+
+print("VSCODE_PINS_REMOVED")
 PYEOF
 ```
 
-Then check VS Code's own settings (a separate surface Scout must NOT auto-edit — it's JSONC with SE-authored comments). Detect-and-warn only:
+**d.7c — launchctl GUI env (best-effort detect + unset):**
 
 ```bash
-VSC="$HOME/Library/Application Support/Code/User/settings.json"
-if [ -f "$VSC" ] && grep -q 'ANTHROPIC_DEFAULT_[A-Z]*_MODEL' "$VSC"; then
-  echo "VSCODE_PINS_PRESENT"
-else
-  echo "VSCODE_PINS_ABSENT"
-fi
+LC_HIT=0
+for K in ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL; do
+  if [ -n "$(launchctl getenv $K 2>/dev/null)" ]; then
+    launchctl unsetenv $K 2>/dev/null && LC_HIT=1
+  fi
+done
+[ "$LC_HIT" = "1" ] && echo "LAUNCHCTL_PINS_CLEARED" || echo "LAUNCHCTL_PINS_NONE"
 ```
 
-Surface inline:
-- `PINS_NONE` + `VSCODE_PINS_ABSENT` — silent (nothing stale).
-- `PINS_REMOVED: <keys>` — "Removed stale model pins from `~/.claude/settings.json` (`<keys>`) — your `/model` picker now shows the full model list including Opus 4.8. Restart CC to pick up."
-- `VSCODE_PINS_PRESENT` — "Heads up: VS Code's own settings (`~/Library/Application Support/Code/User/settings.json`) still pin the model env vars under `claudeCode.environmentVariables`, which keeps the VS Code picker locked. Scout won't auto-edit that file (it's hand-curated). Remove the three `ANTHROPIC_DEFAULT_*_MODEL` entries from the `claudeCode.environmentVariables` array, then fully quit VS Code (Cmd+Q, not just close the window) and relaunch."
-- Any error variant — one-line note, proceed.
+Surface inline (compose one combined note; silent only if every surface was already clean):
+- All clean (`PINS_NONE`/`PINS_ABSENT` for both JSON files + `VSCODE_PINS_NONE`/`VSCODE_ABSENT` + `LAUNCHCTL_PINS_NONE`) — silent.
+- Any `PINS_REMOVED[...]` and/or `VSCODE_PINS_REMOVED` and/or `LAUNCHCTL_PINS_CLEARED` — "Cleared stale model pins so your `/model` picker shows the full list (including Opus 4.8): [list the surfaces that changed in plain words — e.g. 'Claude settings, VS Code settings']. Your thinking/output token settings were kept. **Restart Claude Code** (and if VS Code changed, fully quit it with Cmd+Q and relaunch) to pick up."
+- `VSCODE_VALIDATE_FAILED_RESTORED` / `VSCODE_PINS_SURVIVED_RESTORED` / `VSCODE_UNPARSEABLE_PREEDIT` / `VSCODE_BACKUP_FAILED` — "Couldn't safely auto-edit VS Code's settings (`~/Library/Application Support/Code/User/settings.json`) — left it untouched. Remove the three `ANTHROPIC_DEFAULT_*_MODEL` entries from the `claudeCode.environmentVariables` array by hand, then fully quit VS Code (Cmd+Q) and relaunch."
+- Any other error variant — one-line note, proceed.
 
 ## Done
 
-Refresh procedure complete. Return to the orchestrator. Pass the result of step d (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note. If d.7 emitted `PINS_REMOVED` or `VSCODE_PINS_PRESENT`, the SE has a restart/manual-edit action pending — make sure that note survived into the done summary.
+Refresh procedure complete. Return to the orchestrator. Pass the result of step d (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note. If d.7 emitted any `PINS_REMOVED[...]`, `VSCODE_PINS_REMOVED`, `LAUNCHCTL_PINS_CLEARED`, or a VS-Code-restore/warn variant, the SE has a restart (and possibly a manual VS Code edit) pending — make sure that note survived into the done summary.

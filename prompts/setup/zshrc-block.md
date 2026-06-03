@@ -22,6 +22,13 @@ END = "# END SF-DEMO-SCOUT"
 KEYS = [
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
     "MAX_THINKING_TOKENS",
+    # Model-profile pins: swept as out-of-block stragglers so a loose
+    # legacy export no longer collapses the terminal /model picker. NOT in
+    # BLOCK_LINES — Scout strips these, never re-adds them (Scout is out of
+    # model selection; SE picks via /model). Reverses 2026-06-02's removal.
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
 ]
 BLOCK_LINES = [
     BEGIN,
