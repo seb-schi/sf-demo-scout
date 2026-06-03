@@ -217,6 +217,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/data-shape.md` and execute the proc
 
 ## Stage 6: Spec Generation
 
+**External inputs — digest, never quote.** If the SE uploaded a PDF/doc or pasted external material this session, capture the *decisions and concrete values* you drew from it — never raw excerpts. `/scout-building` runs in a fresh session that never sees the upload; an excerpt it cannot resolve gets re-interpreted and diverges (worst in the SE Must-Dos / Manual Checklist). Convert every reference into explicit spec values — field names, record counts, layout names, manual steps. If something cannot be resolved to a concrete instruction, surface it as `gap — SE to fill`, not a quote.
+
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/spec-template.md` for the format, then write the spec to `orgs/[alias]-[customer]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`
 
 **Residual feasibility check:** Before writing, scan the final scenario for any feature or metadata type NOT already covered by Stage 4 research. For each uncovered item, run a quick `salesforce_docs_search`. This is a safety net — Stage 4 should have caught most things.
