@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-06-03
+
+- **The model picker shows every model again — including Opus 4.8.** If your `/model` list looked oddly short (just a few "Custom … model" rows with long Bedrock IDs, no Opus 4.8), an old install was the culprit: it had hard-pinned the model environment variables, which collapses Claude Code's picker and hides newer models. Run `/scout-setup` once (refresh mode) and Scout now clears those stale pins from `~/.claude/settings.json` automatically — restart Claude Code and the full list is back. Scout only *removes* the pins; it never picks a model for you. If you open Claude Code from VS Code and the picker is still short there, Scout will tell you exactly which VS Code setting to clear by hand (it won't touch that file itself, since it's yours to curate).
+
 ## 2026-05-28
 
 - **Better audit transparency: the live-status link works again no matter how you started Claude Code.** During an audit, Scout posts a clickable link to `.audit-progress.log` so you can watch the 3 parallel sub-agents work in real time. That link had quietly stopped opening for a lot of you — clicking it did nothing if you'd launched Claude Code from anywhere other than your Scout folder (which, since Scout went global, is most of you). Fixed: the link now opens straight into VS Code every time. No more wondering whether Scout is stuck or just busy.
