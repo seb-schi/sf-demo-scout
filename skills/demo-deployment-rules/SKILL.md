@@ -14,7 +14,7 @@ description: >
 
 One home per category:
 - **Phase 1** (Queues, Picklists, Page Layouts, Lightning Record Page field sections, Business Processes, Paths) — rules live inlined under IF markers in `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md`. This skill file does NOT duplicate them. If a Phase 1 sub-agent needs a rule, it reads its own prompt.
-- **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `sf-apex`, `sf-lwc`, `developing-agentforce`). This skill file carries the rollback commands, the attempt-rule meta-rule + Known Deploy-Error Patterns, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline.
+- **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `sf-apex`, `sf-lwc`, `developing-agentforce`). This skill file carries the rollback commands, the attempt-rule meta-rule, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline. The Known Deploy-Error Patterns catalog lives in `references/deploy-error-patterns.md` (loaded on demand on a deploy failure).
 - **Cross-phase** — Script Deliverable Rules (below) apply to any sub-agent producing a reusable shell / language script, regardless of phase.
 
 **Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix —
@@ -41,69 +41,21 @@ consultation in `docs_consulted`.
 
 ## Known Deploy-Error Patterns
 
-Deterministic fixes for recurring Salesforce metadata deploy errors. The
-attempt rule above gates these: on a deploy failure, match the error here,
-apply the fix, and count it as the next attempt. These are org-agnostic parse
-errors (distinct from `building-lessons`, which holds org-specific gotchas).
-A rule-based fix is preferred over improvising — the patch shape is exact.
+The full catalog of deterministic fixes for recurring Salesforce metadata
+deploy errors lives in
+[`references/deploy-error-patterns.md`](references/deploy-error-patterns.md).
+**On a deploy failure, read that file**, match the error, and apply the
+documented fix — the attempt rule above counts a match as the next attempt.
+These are org-agnostic parse errors (distinct from `building-lessons`, which
+holds org-specific gotchas); a rule-based fix is preferred over improvising.
 
-Scope: covers the component types Scout's build phases deploy (FlexiPage,
-PermissionSet, LWC). Integration/site metadata (NamedCredential,
-ExternalCredential, CSP, Experience Cloud) is out of Scout's deploy scope and
-not covered here.
-
-### Pattern A — FlexiPage: duplicate componentInstance (Phase 1)
-- **Signature:** `Element componentInstance is duplicated at this location in type ItemInstance`
-- **File:** `flexipages/<Name>.flexipage-meta.xml`
-- **Cause:** each `<itemInstances>` may contain exactly ONE `<componentInstance>`.
-- **Fix:** split each extra `<componentInstance>` into its own `<itemInstances>`
-  block inside the same `<flexiPageRegions>`. Structural reshape — no component
-  is lost. Redeploy.
-- **Handoff:** none — nothing dropped. Note the reshape in `discovery_notes`.
-
-### Pattern B — FlexiPage: design-time component not found (Phase 1)
-- **Signature:** `We couldn't retrieve the design time component information for component <name>` (e.g. `flexipage:recordDetails`, `c:record_detail`, `force:recordDetail`)
-- **File:** `flexipages/<Name>.flexipage-meta.xml`
-- **Cause:** the standard Record Detail component API name varies by org and is
-  frequently unavailable via metadata deploy — it must be added in Lightning App
-  Builder.
-- **Fix:** remove the `<itemInstances>` block referencing the missing component.
-  Redeploy.
-- **Handoff:** **SE Manual Checklist** — the removed component must be re-added
-  post-deploy via Lightning App Builder. Record the FlexiPage name and the
-  removed component in the Manual Checklist AND `issues`. (Consistent with the
-  existing `record_detail` → SE Manual routing.)
-
-### Pattern C — PermissionSet: FLS on a required or master-detail field (Phase 1)
-- **Signature:** `You cannot deploy to a required field: <Object>.<Field>`
-- **File:** `permissionsets/<Name>.permissionset-meta.xml`
-- **Cause:** required fields are implicitly read/write for anyone with
-  object-level access; master-detail fields inherit access from the parent —
-  neither can carry their own FLS entry.
-- **Fix:** delete the `<fieldPermissions>` block for the offending field.
-  Redeploy. To pre-empt: grep the object's field metadata for
-  `<required>true</required>` / `<type>MasterDetail</type>` before deploying the
-  permission set.
-- **Handoff:** none — the field stays implicitly accessible; nothing for the SE
-  to redo. Note the removed block in `issues`.
-
-### Pattern D — LWC: literal in template expression (Phase 2)
-- **Signature:** `LWC1210: Template expression doesn't allow Literal. The current component API version (62) is insufficient and must be increased to at least 66`
-- **Files:** `lwc/<component>/<component>.html` (the literal) and
-  `lwc/<component>/<component>.js-meta.xml` (the apiVersion).
-- **Cause:** template literals like `multiple={false}` require LWC API v66+.
-  NOTE: this error blames the template but the real cause is the API version —
-  the most misleading error class in this library.
-- **Fix (pick one):** (A) remove the literal — e.g. drop `multiple={false}` (the
-  default is single), or for truthy literals use a JS-backed getter; OR (B) bump
-  `<apiVersion>` in `.js-meta.xml` to `66.0`. Prefer A unless the component needs
-  newer LWC features. Redeploy.
-- **Handoff:** none — lossless. Note the fix choice in `discovery_notes`.
-
-### Extending this library
-When a Scout deploy hits a recurring org-agnostic parse error not covered here,
-propose a new pattern (signature / file / cause / fix / handoff) via
-`/project-sparring`. Org-*specific* gotchas still go to `building-lessons`.
+The catalog currently covers FlexiPage (Pattern A — duplicate
+componentInstance; Pattern B — design-time component not found), PermissionSet
+(Pattern C — FLS on a required / master-detail field), and LWC (Pattern D —
+literal in template expression / apiVersion-66). Pattern B removes a component
+the SE must re-add via Lightning App Builder → SE Manual Checklist. To extend
+the catalog, add a new pattern there via `/project-sparring`; org-*specific*
+gotchas still go to `building-lessons`.
 
 ---
 

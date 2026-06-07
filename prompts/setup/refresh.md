@@ -4,23 +4,54 @@ Workspace already configured. Update CLIs, sync skills, refresh `.zshrc` block, 
 
 **Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an abort (e.g. SE returning from `/mcp` Slack auth) is safe and fast — completed steps fast-no-op via their own probes (`SLACK_MCP_ALREADY_REGISTERED`, `ZSHRC_UNCHANGED`, etc.). Always run end-to-end; do NOT skip steps trying to "resume" — the no-ops are the resume mechanism. Within the same CC session you may rely on conversation memory to fast-forward; across sessions, just run the full sequence — it will land in the right place naturally.
 
-## a: Update Salesforce CLI
+## a: Update Salesforce CLI (only if behind latest)
+
+Reinstall the global `sf` CLI ONLY when the installed version is behind the
+latest published version. An unconditional `npm install --global` on every
+refresh churns the global binary needlessly and can orphan the keychain-backed
+org-auth token across a node rebuild — the SE then sees an empty/stale org list
+and assumes their connections were lost (the auth files in `~/.sfdx` are never
+actually deleted). Version-gating makes the common no-op case a true no-op.
 
 ```bash
-echo "UPDATING_SF_CLI"
-npm install @salesforce/cli --global 2>&1 | tail -1
-echo "SF_CLI_AT $(sf --version | head -1)"
+echo "CHECKING_SF_CLI"
+SF_LATEST=$(npm view @salesforce/cli version 2>/dev/null)
+SF_CURRENT=$(sf --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+if [ -z "$SF_LATEST" ]; then
+  echo "SF_CLI_VERSION_CHECK_FAILED (offline?) — skipping update, current: ${SF_CURRENT:-unknown}"
+elif [ "$SF_CURRENT" != "$SF_LATEST" ]; then
+  echo "UPDATING_SF_CLI ($SF_CURRENT -> $SF_LATEST)"
+  npm install @salesforce/cli --global 2>&1 | tail -1
+  echo "SF_CLI_AT $(sf --version | head -1)"
+else
+  echo "SF_CLI_CURRENT ($SF_CURRENT)"
+fi
 ```
 
-## b: Update Claude Code CLI
+## b: Update Claude Code CLI (only if behind latest)
+
+Same version-gate rationale as step a — reinstall only when behind latest.
 
 ```bash
-echo "UPDATING_CLAUDE_CLI"
-npm install @anthropic-ai/claude-code --global 2>&1 | tail -1
-echo "CLAUDE_CLI_AT $(claude --version 2>/dev/null || echo 'unknown')"
+echo "CHECKING_CLAUDE_CLI"
+CC_LATEST=$(npm view @anthropic-ai/claude-code version 2>/dev/null)
+CC_CURRENT=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+if [ -z "$CC_LATEST" ]; then
+  echo "CLAUDE_CLI_VERSION_CHECK_FAILED (offline?) — skipping update, current: ${CC_CURRENT:-unknown}"
+elif [ "$CC_CURRENT" != "$CC_LATEST" ]; then
+  echo "UPDATING_CLAUDE_CLI ($CC_CURRENT -> $CC_LATEST)"
+  npm install @anthropic-ai/claude-code --global 2>&1 | tail -1
+  echo "CLAUDE_CLI_AT $(claude --version 2>/dev/null || echo 'unknown')"
+else
+  echo "CLAUDE_CLI_CURRENT ($CC_CURRENT)"
+fi
 ```
 
-If either npm command fails (non-zero exit), surface a one-line note ("[sf|claude] CLI update failed — continuing") and proceed. Don't abort.
+Surface inline:
+- `SF_CLI_CURRENT` / `CLAUDE_CLI_CURRENT` — silent (already latest; the common case).
+- `UPDATING_SF_CLI` / `UPDATING_CLAUDE_CLI` followed by a clean install — one-line note that the CLI was updated.
+- `SF_CLI_VERSION_CHECK_FAILED` / `CLAUDE_CLI_VERSION_CHECK_FAILED` — one-line note ("couldn't reach npm to check [sf|claude] CLI version — kept the installed one"), proceed.
+- If an `npm install` that DID run fails (non-zero exit), surface a one-line note ("[sf|claude] CLI update failed — continuing") and proceed. Don't abort.
 
 ## c: Slack MCP
 
