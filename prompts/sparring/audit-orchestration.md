@@ -2,6 +2,13 @@
 
 Execute this procedure to run a fresh 3-agent parallel audit.
 
+**This audit runs in the BACKGROUND.** The orchestrator does sync setup (Phase A), launches the prelude sub-agent with `Agent(run_in_background: true)`, and RETURNS control to the caller so the SE can answer discovery questions while the audit runs. Background sub-agent completions push a notification that wakes the orchestrator even while an SE answer is pending — so the orchestrator must be able to react to a completion at any point: collect it, do the next background step, log to the progress file, and emit NO new SE-facing chat message (an SE discovery ask may be in flight — a second simultaneous ask is the confusion the 2026-05-11 ask-while-async lesson warns against). The caller pulls the consolidated result at the join point (Phase C) once the SE has finished the audit-independent discovery questions.
+
+**Three phases:**
+- **Phase A — Sync setup + launch prelude (blocking, fast).** Pre-Spawn steps 0–5a, then launch the prelude in the background and return control to the caller. The caller proceeds to ask Stage 3 discovery questions.
+- **Phase B — Prelude completion (push-triggered, log-only).** On the prelude's background-completion notification: collect + parse it, slice ACTIVE_LRP_MAP, launch the 3 parallel sub-agents in the background, append a progress-log line. NO chat message. If a discovery ask is pending, the SE keeps answering — the parallel agents run silently.
+- **Phase C — Consolidation (foreground join).** Invoked by the caller once the SE has answered the audit-independent discovery questions. Collect the 3 parallel sub-agents (await their completions if not all arrived), run the spot-check, consolidate, write the Notable Gaps narrative, clean up, and surface the star summary. This is the audit-dependent join — the star summary and the anchor-app discovery question surface here.
+
 ## Pre-Spawn Setup (orchestrator runs directly)
 
 0. **Resolve the absolute plugin root (MUST — before any sub-agent envelope is built).** `${CLAUDE_PLUGIN_ROOT}` resolves in this orchestrator context but is **empty inside Agent-tool sub-agents** — if you pass the literal `${CLAUDE_PLUGIN_ROOT}/prompts/...` into a sub-agent envelope, the sub-agent cannot expand it and wastes ~10 tool calls hunting for its prompt file via `find`, with a real risk of reading a stale cached plugin version (13 versions sit side by side in the cache). Resolve the active install path once here and reuse it in every envelope below as `PLUGIN_ROOT_ABS`:
@@ -89,10 +96,12 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    Execute the prompt and return the JSON block per its Output Format section.
    ```
 
-   Spawn:
-   - `Agent(description="Org audit: prelude (LRP resolution)", model="sonnet", prompt=[envelope above])`
+   Spawn in the BACKGROUND (this ends Phase A — return control to the caller immediately after this spawn; do NOT block):
+   - `Agent(description="Org audit: prelude (LRP resolution)", model="sonnet", prompt=[envelope above], run_in_background=true)`
 
-   Wait for the sub-agent to return. Extract the fenced JSON block. Parse it.
+   **End of Phase A.** Return to the caller (scout-sparring.md Stage 3 / showtime.md S1b) so the SE can begin answering discovery questions. The steps below (parse prelude, slice, launch parallel) execute as **Phase B** when the prelude's background completion notification arrives — which may be while an SE discovery answer is still pending. Do NOT wait synchronously here.
+
+   **Phase B begins on the prelude background-completion notification.** Extract the fenced JSON block. Parse it.
    - `status: SUCCESS` or `status: PARTIAL` → use the returned `default_app_tabs` and `active_lrp_map`. If `PARTIAL`, log each `degradations` entry to `audit-progress.log` so the SE can see which level was lost.
    - `status: FAILED` or missing/malformed JSON → degrade the audit: set `DEFAULT_APP_TABS` to core-6, set `ACTIVE_LRP_MAP` to `[]`, and flag the SE: "Audit prelude failed — proceeding with core-6 fallback only. Retry in a fresh window if you need full LRP resolution."
 
@@ -135,12 +144,14 @@ Execute the prompt and return the JSON block per its Output Format section.
 
 Each entry in the sliced map carries `record_type`, `resolution_level`, and `source`. The sub-agent treats each entry as an independent LRP retrieval target — multiple record types on the same object mean multiple retrievals.
 
-Spawn all 3 in parallel (`[PLUGIN_ROOT_ABS]` = the absolute path from Pre-Spawn step 0):
-- `Agent(description="Org audit: standard objects", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/standard-objects.md])`
-- `Agent(description="Org audit: apps/flows/agents", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/apps-flows-agents.md])`
-- `Agent(description="Org audit: custom objects", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/custom-objects.md])`
+Spawn all 3 in the BACKGROUND (`[PLUGIN_ROOT_ABS]` = the absolute path from Pre-Spawn step 0):
+- `Agent(description="Org audit: standard objects", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/standard-objects.md], run_in_background=true)`
+- `Agent(description="Org audit: apps/flows/agents", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/apps-flows-agents.md], run_in_background=true)`
+- `Agent(description="Org audit: custom objects", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/custom-objects.md], run_in_background=true)`
 
-The live-status heartbeat was already emitted in step 5a — do not re-emit it here. Wait for all 3 to return. Do not read the progress log — it is SE-facing only.
+After spawning, append ONE progress-log line (`echo "[$(date +%H:%M:%S)] [orchestrator] prelude done — 3 parallel audit agents launched" >> orgs/[alias]-[customer]/.audit-progress.log`) and emit **NO chat message** — a discovery ask may be pending. The live-status heartbeat was already emitted in step 5a. **This ends Phase B.** Do not block waiting for the 3 agents here; their completions will push notifications. As each arrives, you MAY collect it eagerly (hold the parsed JSON), but do NOT begin consolidation until Phase C is invoked by the caller — consolidation emits the SE-facing star summary, which must not compete with a pending discovery ask.
+
+**Phase C — Consolidation join (invoked by the caller after the SE answers the audit-independent discovery questions).** Ensure all 3 parallel sub-agents have completed (await any whose background completion has not yet arrived). Do not read the progress log — it is SE-facing only. Then run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup below, and return the consolidated summary to the caller for the star-summary emission.
 
 ## Post-Return Processing
 

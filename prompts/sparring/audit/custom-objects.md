@@ -37,11 +37,22 @@ If MCP is unavailable, stop and return a JSON error block (see Output Format).
 
 **Discovery query:**
 ```
-SELECT QualifiedApiName, Label FROM EntityDefinition
+SELECT QualifiedApiName, Label, DurableId FROM EntityDefinition
 WHERE KeyPrefix LIKE 'a%' AND IsCustomizable = true
 ORDER BY Label
 ```
 This returns all custom objects. Filter out managed package objects (those where `QualifiedApiName` contains a namespace prefix — pattern: `namespace__ObjectName__c` with two sets of double underscores before `__c`). Keep unmanaged objects only (pattern: `ObjectName__c` with only one `__c` at the end, no namespace prefix).
+
+**Step C0 — Bulk record-count signal (has-data map).** Before relevance enumeration, get an approximate has-data flag for every unmanaged `__c` object from the discovery query in 1–3 HTTP calls via the REST `recordCount` endpoint — far cheaper than the per-object `SELECT COUNT()` loop this replaces. Build a comma-separated list of the unmanaged `__c` API names and call (keep each URL under ~4000 chars — roughly 100–150 objects per call; split into multiple calls if the list is larger):
+```
+sf api request rest "/services/data/v62.0/limits/recordCount?sObjects=Obj1__c,Obj2__c,..." --target-org {{ORG_ALIAS}}
+```
+The response is `{"sObjects":[{"name":"Obj1__c","count":N}, ...]}`. Parse it (pipe through `python3 -c` or `jq`) into `HAS_DATA_MAP` keyed by API name. **Interpretation rules (verified against a live org):**
+- An object **present** with `count: 0` genuinely has **no data** → `has_data: false`.
+- An object **present** with `count > 0` → `has_data: true`; keep the count as the approximate record count.
+- An object **absent** from the response is **not supported** by the endpoint (NOT zero data). For absent objects ONLY, fall back to a per-object `SELECT COUNT() FROM [Object]`. Absent objects are typically a small minority.
+
+`sf api request rest` is currently flagged beta by the CLI — it prints a one-line beta warning to stderr that you can ignore. If the command itself errors (non-zero exit, not just the warning), fall back to per-object `SELECT COUNT()` for the whole set and log `⚠️ recordCount endpoint unavailable — fell back to per-object COUNT` to the progress log. Persist `HAS_DATA_MAP` to `{{SCOUT_TMPDIR}}/has-data-map.json` if you need it across tool calls; otherwise hold it inline.
 
 **Bulk-fetch pattern (default):** the 2026-05-20 field run hit the sub-agent tool budget (>90 calls) on a customer SDO because layout discovery was per-object with a fallback retry loop. Replace per-object iteration with two bulk calls up front:
 
@@ -54,15 +65,15 @@ WHERE TableEnumOrId IN ('Obj1__c', 'Obj2__c', ...)
 ```
 Group results by `TableEnumOrId` to build a per-object layout map. Objects with 0 ProfileLayout rows (common for objects without record types) carry through to step C2's Tooling fallback. Note: `TableEnumOrId` returns the entity key ID for custom objects, but `IN` accepts the API name list because Salesforce normalises both sides — verify in the result set, and if a row's `TableEnumOrId` looks like an ID (e.g. `01I...`), reverse-resolve via the `EntityDefinition.QualifiedApiName` lookup you already ran in discovery.
 
-**Step C2 — Tooling Layout fallback for objects with no ProfileLayout row.** Single bulk Tooling SOQL across the unresolved set:
+**Step C2 — Tooling Layout fallback for objects with no ProfileLayout row.** Resolve the remaining objects by the entity key-ID join (verified mechanism — far more precise than label-prefix matching, which collides whenever two objects share a layout name). The discovery query above supplies each object's 15-char `DurableId` from `EntityDefinition`. `Layout.TableEnumOrId` for a custom object holds the object's 18-char key-ID, NOT its API name — so a single bulk Tooling SOQL keyed on the DurableIds resolves layouts exactly:
 ```
-SELECT Name, TableEnumOrId FROM Layout WHERE Name LIKE '[Obj1 Label]%' OR Name LIKE '[Obj2 Label]%' OR ...
+SELECT Id, Name, TableEnumOrId FROM Layout WHERE TableEnumOrId IN ('01I...', '01I...', ...)
 ```
-(Tooling Layout supports `OR` across `LIKE` patterns; cap at 10-clause OR groups if the unresolved set is larger — re-run in batches of 10.) Match results back to objects by label-prefix. If multiple layouts match an object, capture all and flag the active-layout ambiguity in `discovery_notes`. If neither C1 nor C2 yields a layout for a given object, record "No layout found (ProfileLayout empty, Tooling Layout returned 0)" — do not guess.
+(Pass the 15-char `DurableId` values — SOQL normalizes the 15↔18-char ID forms in the `IN` clause, verified live. Cap at ~200 IDs per `IN`; re-run in batches if the unresolved set is larger.) Match each returned row back to its object by stripping its `TableEnumOrId` to the first 15 chars and looking it up against the `DurableId` from discovery. This join is exact and 1:1 — there is no ambiguity to flag (the old label-prefix matcher emitted spurious "ambiguous — manual disambiguation needed" notes whenever two objects shared a layout name, e.g. `AI_Agent__c` and `AI_Agent_Conversation__c` both carrying an "AI Agent Layout"; the key-ID join distinguishes them by their own `TableEnumOrId`). If a row's `TableEnumOrId` strip-and-match finds no owner, record it in `discovery_notes` and skip. If neither C1 nor C2 yields a layout for a given object, record "No layout found (ProfileLayout empty, Tooling Layout returned 0)" — do not guess.
 
 **Per-object data after the bulk pass:**
 - API name, label
-- Record count: `SELECT COUNT() FROM [ObjectApiName]` (still per-object — counts cannot be bulked across heterogeneous objects)
+- Record count: from `HAS_DATA_MAP` (Step C0). The bulk `recordCount` endpoint already supplied an approximate count for every supported object — use it directly. Only objects that were *absent* from the C0 response need a per-object `SELECT COUNT()` (C0's fallback rule already handled these).
 - Record types (if any)
 - Active page layout: the resolved name from C1/C2 (name only — no layout XML retrieve)
 
@@ -71,7 +82,7 @@ Do NOT retrieve classic-layout XML for custom objects. Layout *names* from C1/C2
 For remaining unmanaged custom objects (not demo-relevant), list them in a summary table with API name and label only. Note total count of managed package objects as a single line.
 
 **Demo-relevance heuristic** (apply when classifying which unmanaged custom objects warrant full enumeration vs summary-table):
-- Always demo-relevant: any object with record_count > 0, any object whose name contains the customer name (from {{CUSTOMER}}), any object in `{{ACTIVE_LRP_MAP}}`.
+- Always demo-relevant: any object with `has_data: true` in `HAS_DATA_MAP` (Step C0), any object whose name contains the customer name (from {{CUSTOMER}}), any object in `{{ACTIVE_LRP_MAP}}`.
 - Heuristically demo-relevant: names containing scenario-domain keywords (e.g. for service: `Case`, `Service`, `Agent`, `Bot`, `Reply`; for sales: `Opportunity`, `Quote`, `Pipeline`; for industry: cloud-specific terms).
 - Default to inclusion when uncertain — under-enumeration silently hides candidate build surfaces. Over-enumeration is recoverable via the summary-table fallback for non-starred objects.
 

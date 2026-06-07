@@ -20,23 +20,25 @@ The format is a continuous engaged experience: audit runs while SE does opening 
 
 Showtime always runs a fresh audit. A stale audit risks customer-facing deploy failures, which is the worst possible outcome of this format. The SE was warned at Stage 1: ideal pattern is to fire up Showtime when the customer sits down, so the audit runs in parallel with the SE's opening discovery questions. Audit takes ~5–10min via 3 parallel Sonnet sub-agents; opening discovery should take at least that long.
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit-orchestration.md` and execute. Opus never reads raw metadata payloads.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit-orchestration.md` and execute **Phase A only** — sync setup through launching the prelude sub-agent in the background. Phase A returns control here; the audit then runs in the background (Phase B launches the 3 parallel sub-agents on the prelude's push completion) while the SE does opening discovery with the customer and prepares the transcript. Opus never reads raw metadata payloads. The audit-orchestration procedure already emitted the live-status note pointing at `.audit-progress.log` in its step 5a.
 
-**Do NOT prompt for the transcript while the audit is still running.** Two simultaneous asks (audit running + transcript wanted) confuse the SE — they can't tell which input Scout is waiting on, and the in-flight operation reads as ambient. The audit-orchestration procedure already emits the live-status note pointing at `.audit-progress.log`; that note stands alone until all 3 sub-agents return. The SE should be doing opening discovery during this window, not pasting a transcript that doesn't exist yet.
+This is exactly the intended Showtime shape — the audit overlaps the SE's opening discovery instead of blocking it. Because the audit now runs silently in the background, you MAY prompt for the transcript right away (S2): one pending ask (transcript) + one silent background op (audit) is the resolvable case — not the two-simultaneous-asks confusion the 2026-05-11 rule guards against. The transcript paste is the join: when the SE says `go`, pull the audit to completion (Phase C) before extracting.
 
-After all 3 audit sub-agents return AND post-return processing (spot-check, consolidation, Notable Gaps narrative, cleanup) is complete, extract star-flagged items (default app, active layouts, relevant custom objects) and proceed to S2.
+Proceed to S2.
 
 ## Step S2 — Transcript Paste
 
-Only emit this AFTER S1 has fully returned. Emit:
+Emit this right after S1 returns from Phase A — the audit is running in the background; do not wait for it. Emit:
 
-> "Audit complete — [N] active layouts ★, [N] active flows, [N] agents. Full file: orgs/[alias]-[customer]/audit-[YYYY-MM-DD]-[HHMM].md
+> "Audit running in the background — live status → [.audit-progress.log](orgs/[alias]-[customer]/.audit-progress.log). Do your opening discovery with the customer; it'll finish while you talk.
 >
 > When you're done with discovery, paste the customer transcript here. Multiple chunks fine — say `go` when done.
 >
 > Tip: if you don't have a transcript, paste your own notes from the conversation. Scout works on whatever signal you give it."
 
 Wait. Concatenate chunks until SE says `go` (or equivalent: "done", "that's it", "ready"). Do not start extraction until the SE signals end.
+
+**On `go` — the audit join.** Before extraction, invoke audit-orchestration **Phase C**: ensure all 3 parallel sub-agents have completed (await any still in flight; if the SE said `go` very fast and the audit is still mid-prelude, await the prelude, let Phase B fire, then await the parallel agents), then run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup to produce the consolidated summary + audit file. Extract star-flagged items (default app, active layouts, relevant custom objects). If the audit completed long before `go`, Phase C collection is instant. Then proceed to S3.
 
 ## Step S3 — Auto-Extract (silent)
 

@@ -95,21 +95,20 @@ Check `orgs/[alias]-[customer]/` for existing audits and change logs.
 
 **Reuse branch (audit exists, <=7 days old, SE confirms no manual changes):** read the audit markdown file directly. Extract the star-flagged items from it.
 
-**Fresh audit branch (stale >7 days or absent):** Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit-orchestration.md` and execute the procedure. This delegates bulk metadata retrieval to 3 parallel Sonnet sub-agents, runs spot-checks, and consolidates results. Opus never reads raw metadata payloads.
+**Fresh audit branch (stale >7 days or absent):** Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit-orchestration.md` and execute **Phase A only** — sync setup through launching the prelude sub-agent in the background. Phase A returns control here so the SE answers discovery while the audit runs in the background; the audit delegates bulk metadata retrieval to 3 parallel Sonnet sub-agents (launched in Phase B on the prelude's background completion), runs spot-checks, and consolidates in Phase C. Opus never reads raw metadata payloads. **Do NOT surface the star summary now — the fresh audit is still running.** Mark this session as `AUDIT_MODE = background-fresh` and proceed directly to the route table / Stage 3; the star summary and the anchor-app question surface at the Stage 3 join (see "Discovery ‖ background audit join" below), after the SE answers the audit-independent questions and you invoke audit-orchestration Phase C.
 
 **Reuse-org intent always takes the fresh audit branch** — the SE is reusing an org from a prior customer, so the audit must rediscover what's there regardless of age.
 
 Respect SE judgment if they explicitly ask to skip a fresh audit.
 
-After the audit (fresh or reused), surface the star-flagged items:
+**Reuse branch only** (`AUDIT_MODE` ≠ `background-fresh` — the audit was read from a ≤7-day-old file, so stars are available immediately): surface the star-flagged items now, then proceed to the route table.
 > "Primary build surface for this org:
 > ★ Default app: [app name]
 > ★ Active layouts: [object -> layout name, per record type]
 > ★ Relevant custom objects: [if any]
 > We'll build into these unless you tell me otherwise."
 
-**If the audit was fresh** (not reused): append a second standalone message after the star summary, then continue:
-> "💡 Heavy audit just loaded — if context feels tight, run `/compact` before we dive into Stage 3. Conversation history is preserved."
+**Background-fresh branch** (`AUDIT_MODE = background-fresh`): do NOT surface stars here — they are not ready. The star summary (same blockquote shape as above) is emitted at the Stage 3 join after Phase C consolidates. The `/compact` heads-up is also deferred to that join (the heavy audit lands there, not here).
 
 ### Route
 
@@ -132,13 +131,20 @@ For **new scenario** and **reuse-org**: proceed to Stage 3 below.
 
 Produce a structured summary: customer profile, key pain points (direct quotes), stakeholders, competitive context, gaps.
 
+**In background-fresh mode (`AUDIT_MODE = background-fresh`), prepend this italic lead-in to the discovery-questions message — same message as Q1–Q4+Q6, before Q1:**
+> *The org audit is running in the background (watch the log link above) — no need to wait on it. Answer these while it works, and I'll fold in the build surface once it lands.*
+
+In reuse mode, omit the lead-in (the audit is already done and stars were just shown).
+
 Ask max 6 clarifying questions:
 1. Single most compelling pain point — in the customer's words if you have a direct quote
 2. **Which Salesforce clouds?** If this is an industry cloud (Health Cloud, Life Sciences Cloud, Financial Services Cloud, Manufacturing Cloud, etc.), name it — it determines the data model. If the audit found non-universal standard objects with data, mention them: "The audit found [objects] — this looks like [cloud]. Confirm?"
 3. Customer's definition of success — a concrete outcome or metric they'd point to in 12 months
 4. Which stakeholder's reaction matters most
-5. **Which existing app and objects from the audit should anchor the demo?** Show the star-flagged items and ask the SE to confirm or redirect.
+5. **Which existing app and objects from the audit should anchor the demo?** *(Reuse mode: ask here, showing the star-flagged items. Background-fresh mode: DEFERRED to the Stage 3 join — see the note below; do not ask it in this message.)*
 6. **Any specific Salesforce feature you want to showcase?** (Agentforce, Data Cloud, a specific Flow pattern, a guided screen flow / wizard, an industry-specific capability — or "nothing specific, you decide")
+
+**Q5 (anchor app + objects) is deferred to the join when `AUDIT_MODE = background-fresh`** — it needs the star-flagged build surface, which is not ready while the background audit runs. In background-fresh mode, ask Q1–Q4 + Q6 (and the P.S. below) in the first discovery message; hold Q5. In reuse mode (stars already surfaced above), ask all of Q1–Q6 together as before, with Q5 reading: "**Which existing app and objects from the audit should anchor the demo?** Show the star-flagged items and ask the SE to confirm or redirect."
 
 **For New and Reuse-org intents only** (iteration skips): append a single-line italicised P.S. right after Q6 in the same message. No header, no blockquote, no numbered slot — it must read as a by-the-way, not a 7th question. Use an em-dash lead-in and lean on "no need":
 
@@ -148,11 +154,29 @@ Ask max 6 clarifying questions:
 
 ### Slack lookup handling
 
-If the SE's reply names one or more canvases or a channel: read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/slack-lookup.md` and execute its procedure with the names as inputs. If the SE answers only 1-6 and doesn't mention Slack: move on to Stage 4 without ceremony — do not re-ask.
+If the SE's reply names one or more canvases or a channel: read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/slack-lookup.md` and execute its procedure with the names as inputs. If the SE answers only 1-6 and doesn't mention Slack: move on without ceremony — do not re-ask.
 
 Slack findings feed scenario proposal as **context only** — attributed, never asserted. Canvas content may shape demo storylines directly (its intended use); SE knowledge and Salesforce docs remain authoritative.
 
-Then proceed to Stage 4 (Platform & Data Model Research).
+### Discovery ‖ background audit join (`AUDIT_MODE = background-fresh` only)
+
+The SE has now answered the audit-independent discovery questions (Q1–Q4, Q6) while the audit ran in the background. Before Stage 4 (which needs the audit's `demo_surface_notes` for its capability pre-flight), pull the audit to completion:
+
+1. **Invoke audit-orchestration Phase C** (read the fragment again only if needed; you are mid-procedure). Ensure all 3 parallel sub-agents have completed — await any whose background completion has not yet arrived. If the background audit is somehow still mid-prelude (SE answered very fast), await the prelude completion, let Phase B fire, then await the parallel agents. Run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup to produce the consolidated summary + the written audit file.
+2. **Emit the star summary + the deferred Q5 as a single message:**
+   > "Audit complete — primary build surface for this org:
+   > ★ Default app: [app name]
+   > ★ Active layouts: [object -> layout name, per record type]
+   > ★ Relevant custom objects: [if any]
+   >
+   > **Q5 — which existing app and objects should anchor the demo?** Confirm these, or redirect.
+   >
+   > 💡 Heavy audit just loaded — if context feels tight, run `/compact` before we continue. Conversation history is preserved."
+3. If the standard-objects sub-agent's `demo_surface_notes` flagged non-universal standard objects with data (an industry-cloud signal), and the SE's Q2 answer did not already name that cloud, add one line to the message above: "*The audit found [objects] — this looks like [cloud]. Confirm?*"
+
+**Wait for the SE's Q5 answer.** Then proceed to Stage 4 (Platform & Data Model Research).
+
+For **reuse mode** (stars surfaced in Stage 2, all of Q1–Q6 asked together): no join step — proceed to Stage 4 once discovery is answered.
 
 ---
 
