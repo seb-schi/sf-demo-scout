@@ -4,6 +4,20 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 ## Pre-Spawn Setup (orchestrator runs directly)
 
+0. **Resolve the absolute plugin root (MUST — before any sub-agent envelope is built).** `${CLAUDE_PLUGIN_ROOT}` resolves in this orchestrator context but is **empty inside Agent-tool sub-agents** — if you pass the literal `${CLAUDE_PLUGIN_ROOT}/prompts/...` into a sub-agent envelope, the sub-agent cannot expand it and wastes ~10 tool calls hunting for its prompt file via `find`, with a real risk of reading a stale cached plugin version (13 versions sit side by side in the cache). Resolve the active install path once here and reuse it in every envelope below as `PLUGIN_ROOT_ABS`:
+   ```bash
+   python3 -c "
+   import json, os
+   d = json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))
+   entries = d['plugins']['sf-demo-scout@scout']
+   e = next((x for x in entries if x.get('scope') == 'user'), entries[0])
+   print(e['installPath'])
+   "
+   ```
+   - The value is an absolute path like `/Users/<user>/.claude/plugins/cache/scout/sf-demo-scout/<active-version>`. Record it as `PLUGIN_ROOT_ABS`.
+   - **Why `installed_plugins.json` and not `find ... | sort -V | tail -1`:** Scout ships multiple same-date versions whose topic suffix breaks version-sort (`2026.06.07-deploy-error-extract-and-cli-guard` sorts after `2026.06.07-audit-field-dump-cut`, so `tail -1` would pick the PRIOR version). `installed_plugins.json` names the actually-installed path regardless of version-string shape. The per-plugin value is a LIST of install records (one per scope) — prefer the `scope=="user"` entry, fall back to the first.
+   - **On failure** (file missing, key absent, empty output): fall back to `${CLAUDE_PLUGIN_ROOT}` literal in the envelopes (current behaviour — sub-agents will hunt, but the audit still completes) and log to `audit-progress.log`: `⚠️ plugin-root resolution failed — sub-agents will self-locate prompts (slower; verify they read the active version)`. Do NOT abort the audit over this.
+
 1. Clean stale orchestrator artifacts and prepare a bounded scratch dir for this run. End-of-success cleanup (Cleanup & Validation steps 3–4) does not fire when a prior run crashes, hangs, or is SE-interrupted — the next run then inherits corrupt state and typically hangs at the parse step that consumes it, with no causal link visible to the SE. Run unconditionally:
    ```
    rm -f orgs/[alias]-[customer]/audit-fragment-*.md 2>/dev/null || true
@@ -59,10 +73,10 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 6. **Dispatch the audit-prelude sub-agent** to retrieve and parse the heavy metadata. This keeps CustomApplication/CustomObject/Profile XML out of Opus context.
 
-   Construct the dispatch envelope (do NOT read the prompt body — the sub-agent reads it itself). The envelope is the only string passed to `Agent()`:
+   Construct the dispatch envelope (do NOT read the prompt body — the sub-agent reads it itself). The envelope is the only string passed to `Agent()`. **Substitute the absolute `PLUGIN_ROOT_ABS` resolved in Pre-Spawn step 0 for `[PLUGIN_ROOT_ABS]` below — do NOT emit the literal `${CLAUDE_PLUGIN_ROOT}`, which the sub-agent cannot expand:**
 
    ```
-   Read your prompt file at `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit/prelude.md`. Also read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
+   Read your prompt file at `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/prelude.md`. Also read `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
 
    {{ORG_ALIAS}} = [alias]
    {{ORG_USERNAME}} = [username]
@@ -94,17 +108,17 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 ## Sub-Agent Dispatch
 
-Do NOT read the sub-agent prompt bodies. Each sub-agent reads its own prompt file and `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit/shared.md`. The orchestrator's job is to construct each envelope with the right placeholder values and dispatch.
+Do NOT read the sub-agent prompt bodies. Each sub-agent reads its own prompt file and `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` (the absolute path resolved in Pre-Spawn step 0). The orchestrator's job is to construct each envelope with the right placeholder values and dispatch. **Every `[PLUGIN_ROOT_ABS]` and `[PROMPT_PATH]` below must be the resolved absolute path — never the literal `${CLAUDE_PLUGIN_ROOT}`, which is empty in sub-agent context.**
 
 Build a per-sub-agent envelope. Common placeholder values (computed by the orchestrator from earlier steps): `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`, `{{SCOUT_TMPDIR}}`. The two LRP-aware sub-agents receive a sliced `{{ACTIVE_LRP_MAP}}`:
   - standard-objects: `ACTIVE_LRP_MAP_STANDARD`
   - custom-objects: `ACTIVE_LRP_MAP_CUSTOM`
   - apps-flows-agents: omit the placeholder (its prompt does not reference it).
 
-Envelope template (substitute the prompt path and the placeholder block):
+Envelope template (substitute the prompt path and the placeholder block). `[PROMPT_PATH]` = `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/<sub-agent>.md`:
 
 ```
-Read your prompt file at `[PROMPT_PATH]`. Also read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
+Read your prompt file at `[PROMPT_PATH]`. Also read `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
 
 {{ORG_ALIAS}} = [alias]
 {{ORG_USERNAME}} = [username]
@@ -121,10 +135,10 @@ Execute the prompt and return the JSON block per its Output Format section.
 
 Each entry in the sliced map carries `record_type`, `resolution_level`, and `source`. The sub-agent treats each entry as an independent LRP retrieval target — multiple record types on the same object mean multiple retrievals.
 
-Spawn all 3 in parallel:
-- `Agent(description="Org audit: standard objects", model="sonnet", prompt=[envelope with PROMPT_PATH=${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit/standard-objects.md])`
-- `Agent(description="Org audit: apps/flows/agents", model="sonnet", prompt=[envelope with PROMPT_PATH=${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit/apps-flows-agents.md])`
-- `Agent(description="Org audit: custom objects", model="sonnet", prompt=[envelope with PROMPT_PATH=${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit/custom-objects.md])`
+Spawn all 3 in parallel (`[PLUGIN_ROOT_ABS]` = the absolute path from Pre-Spawn step 0):
+- `Agent(description="Org audit: standard objects", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/standard-objects.md])`
+- `Agent(description="Org audit: apps/flows/agents", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/apps-flows-agents.md])`
+- `Agent(description="Org audit: custom objects", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/custom-objects.md])`
 
 The live-status heartbeat was already emitted in step 5a — do not re-emit it here. Wait for all 3 to return. Do not read the progress log — it is SE-facing only.
 
