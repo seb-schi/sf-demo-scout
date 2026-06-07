@@ -17,9 +17,9 @@ Invoke these skills via the Skill tool when you need detailed rules:
 
 ## Deployment Rules
 
-**Two-attempt rule:** if a deployment fails twice, STOP that item, record it as SKIPPED in your JSON output with the error message, and continue with remaining items.
+**Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix — never redeploy unchanged metadata. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill (Pattern D covers the misleading LWC1210 literal/apiVersion-66 error). If it matches, apply the documented fix and redeploy (attempt 2); a different matching error on attempt 2 earns attempt 3. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record SKIPPED (with error + any pattern id tried) when an attempt fails with no new fix, or after attempt 3.
 
-**Unfamiliar errors:** if the error message is not self-evident, invoke the `demo-docs-consultation` skill before the second attempt. Record the consultation in `docs_consulted`.
+**Unfamiliar errors:** if the error message is not self-evident and not matched by a Known Deploy-Error Pattern, invoke the `demo-docs-consultation` skill before the next attempt. Record the consultation in `docs_consulted`.
 
 Deploy in small increments. One component per deploy call.
 
@@ -216,7 +216,7 @@ Scope: single-trigger, single-object. No test classes (demo org context).
 1. Invoke `sf-apex` skill for generation rules.
 2. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`.
 3. If the spec's Platform Constraints section flags any object with restrictions, follow the dynamic SOQL pattern below for that object.
-4. If compile or runtime tests fail on the first deploy attempt, invoke `sf-testing` before the second attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). The two-attempt rule still applies: one sf-testing loop counts as one attempt.
+4. If compile or runtime tests fail on the first deploy attempt, invoke `sf-testing` before the next attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). The attempt rule still applies: one sf-testing loop counts as one attempt.
 5. Rollback: `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]`
 
 **InvocableMethod pattern (for Agentforce backing actions).** Use this template:

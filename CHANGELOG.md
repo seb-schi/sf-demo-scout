@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-06-07
+
+- **Common deploy errors now fix themselves instead of landing in your "skipped" pile.** A handful of Salesforce metadata errors show up on almost every build — a duplicated FlexiPage component, a permission set trying to set field access on a required field, an LWC that needs a newer API version, a record-detail component that won't deploy. Scout now recognizes these on sight, applies the known fix automatically, and retries — taking a third swing only when there's an actual new fix to try (it never just redeploys the same broken file hoping for a different result). When a fix means dropping a component you'll need to re-add in App Builder, Scout still flags it in your manual checklist, so a clean deploy never hides a missing piece.
+
 ## 2026-06-03
 
 - **🩹 Hotfix: the model picker shows every model again — including Opus 4.8.** If your `/model` list looked oddly short — just a few "Custom … model" rows with long Bedrock IDs, and no Opus 4.8 — an older install was the culprit. It had hard-pinned the model environment variables, and whenever Claude Code sees those it collapses the picker down to exactly those pinned models and hides everything newer. Scout stopped writing those pins on 2026-06-02, but existing machines still carried them as leftover state, so the short picker lingered until something cleared them.

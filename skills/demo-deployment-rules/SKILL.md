@@ -2,8 +2,8 @@
 name: demo-deployment-rules
 description: >
   Canonical deployment rules for Flows, Apex, LWC, Agentforce, Page Layouts,
-  Queues, and Picklists in SF Demo Prep. Two-attempt rule, rollback commands,
-  and per-category deployment procedures.
+  Queues, and Picklists in SF Demo Prep. Pattern-gated 3-attempt rule, known
+  deploy-error patterns, rollback commands, and per-category deployment procedures.
   TRIGGER when: a phase sub-agent needs deployment rules outside its inlined
   scope, or needs to verify rollback command syntax.
   DO NOT TRIGGER when: deploying metadata (phase prompts inline the relevant
@@ -14,16 +14,96 @@ description: >
 
 One home per category:
 - **Phase 1** (Queues, Picklists, Page Layouts, Lightning Record Page field sections, Business Processes, Paths) — rules live inlined under IF markers in `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md`. This skill file does NOT duplicate them. If a Phase 1 sub-agent needs a rule, it reads its own prompt.
-- **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `sf-apex`, `sf-lwc`, `developing-agentforce`). This skill file carries the rollback commands, two-attempt meta-rule, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline.
+- **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `sf-apex`, `sf-lwc`, `developing-agentforce`). This skill file carries the rollback commands, the attempt-rule meta-rule + Known Deploy-Error Patterns, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline.
 - **Cross-phase** — Script Deliverable Rules (below) apply to any sub-agent producing a reusable shell / language script, regardless of phase.
 
-**Two-attempt rule:** if a deployment fails twice, STOP that item, record it
-as SKIPPED in your JSON output with the error message, and continue with
-remaining items. Do not wrestle with a broken deploy.
+**Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix —
+never redeploy unchanged metadata, it fails identically.
+- **Attempt 1** — deploy. On failure, check the error against the **Known
+  Deploy-Error Patterns** section below.
+- **Attempt 2** — if the error **matched a pattern**, apply the documented fix
+  and redeploy. If **no pattern matched**, follow the Unfamiliar-errors path,
+  then redeploy.
+- **Attempt 3** — allowed ONLY if attempt 2 surfaced a *different* error that
+  also carries a new fix (a different matched pattern, or a docs-consult
+  insight). Apply it and redeploy.
+- **STOP** when an attempt fails with no new fix available, or after attempt 3.
+  Record the item as SKIPPED in your JSON output with the error message and
+  the pattern id(s) tried, and continue with remaining items. Do not wrestle
+  with a broken deploy.
 
-**Unfamiliar errors:** if the error message is not self-evident and not
-already in `building-lessons`, invoke the `demo-docs-consultation` skill
-before the second attempt. Record the consultation in `docs_consulted`.
+**Unfamiliar errors:** if the error message is not self-evident, not already
+in `building-lessons`, and not matched by a Known Deploy-Error Pattern, invoke
+the `demo-docs-consultation` skill before the next attempt. Record the
+consultation in `docs_consulted`.
+
+---
+
+## Known Deploy-Error Patterns
+
+Deterministic fixes for recurring Salesforce metadata deploy errors. The
+attempt rule above gates these: on a deploy failure, match the error here,
+apply the fix, and count it as the next attempt. These are org-agnostic parse
+errors (distinct from `building-lessons`, which holds org-specific gotchas).
+A rule-based fix is preferred over improvising — the patch shape is exact.
+
+Scope: covers the component types Scout's build phases deploy (FlexiPage,
+PermissionSet, LWC). Integration/site metadata (NamedCredential,
+ExternalCredential, CSP, Experience Cloud) is out of Scout's deploy scope and
+not covered here.
+
+### Pattern A — FlexiPage: duplicate componentInstance (Phase 1)
+- **Signature:** `Element componentInstance is duplicated at this location in type ItemInstance`
+- **File:** `flexipages/<Name>.flexipage-meta.xml`
+- **Cause:** each `<itemInstances>` may contain exactly ONE `<componentInstance>`.
+- **Fix:** split each extra `<componentInstance>` into its own `<itemInstances>`
+  block inside the same `<flexiPageRegions>`. Structural reshape — no component
+  is lost. Redeploy.
+- **Handoff:** none — nothing dropped. Note the reshape in `discovery_notes`.
+
+### Pattern B — FlexiPage: design-time component not found (Phase 1)
+- **Signature:** `We couldn't retrieve the design time component information for component <name>` (e.g. `flexipage:recordDetails`, `c:record_detail`, `force:recordDetail`)
+- **File:** `flexipages/<Name>.flexipage-meta.xml`
+- **Cause:** the standard Record Detail component API name varies by org and is
+  frequently unavailable via metadata deploy — it must be added in Lightning App
+  Builder.
+- **Fix:** remove the `<itemInstances>` block referencing the missing component.
+  Redeploy.
+- **Handoff:** **SE Manual Checklist** — the removed component must be re-added
+  post-deploy via Lightning App Builder. Record the FlexiPage name and the
+  removed component in the Manual Checklist AND `issues`. (Consistent with the
+  existing `record_detail` → SE Manual routing.)
+
+### Pattern C — PermissionSet: FLS on a required or master-detail field (Phase 1)
+- **Signature:** `You cannot deploy to a required field: <Object>.<Field>`
+- **File:** `permissionsets/<Name>.permissionset-meta.xml`
+- **Cause:** required fields are implicitly read/write for anyone with
+  object-level access; master-detail fields inherit access from the parent —
+  neither can carry their own FLS entry.
+- **Fix:** delete the `<fieldPermissions>` block for the offending field.
+  Redeploy. To pre-empt: grep the object's field metadata for
+  `<required>true</required>` / `<type>MasterDetail</type>` before deploying the
+  permission set.
+- **Handoff:** none — the field stays implicitly accessible; nothing for the SE
+  to redo. Note the removed block in `issues`.
+
+### Pattern D — LWC: literal in template expression (Phase 2)
+- **Signature:** `LWC1210: Template expression doesn't allow Literal. The current component API version (62) is insufficient and must be increased to at least 66`
+- **Files:** `lwc/<component>/<component>.html` (the literal) and
+  `lwc/<component>/<component>.js-meta.xml` (the apiVersion).
+- **Cause:** template literals like `multiple={false}` require LWC API v66+.
+  NOTE: this error blames the template but the real cause is the API version —
+  the most misleading error class in this library.
+- **Fix (pick one):** (A) remove the literal — e.g. drop `multiple={false}` (the
+  default is single), or for truthy literals use a JS-backed getter; OR (B) bump
+  `<apiVersion>` in `.js-meta.xml` to `66.0`. Prefer A unless the component needs
+  newer LWC features. Redeploy.
+- **Handoff:** none — lossless. Note the fix choice in `discovery_notes`.
+
+### Extending this library
+When a Scout deploy hits a recurring org-agnostic parse error not covered here,
+propose a new pattern (signature / file / cause / fix / handoff) via
+`/project-sparring`. Org-*specific* gotchas still go to `building-lessons`.
 
 ---
 
