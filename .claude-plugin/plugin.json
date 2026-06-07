@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "2026.06.07-audit-quiet-heartbeats-and-readpath",
+  "version": "2026.06.07-audit-scratch-cleanup-deny-fix",
   "requires_reload": true,
   "author": {
     "name": "Sebastian Schickhoff"
