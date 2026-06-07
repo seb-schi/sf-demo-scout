@@ -19,7 +19,7 @@ If MCP is unavailable, stop and return a JSON error block (see Output Format).
 
 ## Step 1: Retrieve confirmed app's tabs + action overrides
 
-`retrieve_metadata` with type `CustomApplication`, member `{{CANDIDATE_APP_FULL_NAME}}`. From the retrieved XML extract two things in one parse:
+`retrieve_metadata` with type `CustomApplication`, member `{{CANDIDATE_APP_FULL_NAME}}` (pass `directory` = the SE workspace root). Then read the CONVERTED file at `force-app/main/default/applications/{{CANDIDATE_APP_FULL_NAME}}.app-meta.xml` — NOT the result-JSON `fileName`, which is the in-ZIP MDAPI path and does not exist on disk (see `{{AUDIT_SHARED_RULES}}` read-back rule). From that XML extract two things in one parse:
 - `<tabs>` elements → `DEFAULT_APP_TABS` (list of tab API names).
 - `<actionOverrides>` elements where `<actionName>View</actionName>` AND `<type>Flexipage</type>` AND `<formFactor>Large</formFactor>` → for each, capture `<pageOrSobjectType>` (the object), `<content>` (the LRP DeveloperName), and `<recordType>` if present (e.g. `Account.VIP`; null if absent). Hold these as `APP_OVERRIDES`.
 
@@ -40,7 +40,7 @@ SELECT Profile.Name FROM User WHERE Id = '{{CURRENT_USER_ID}}' LIMIT 1
 
 Profile metadata API name is the DeveloperName of the profile, not the Label — for stock profiles, `System Administrator` retrieves as `Admin`, `Standard User` as `Standard`, etc. If the SOQL returns `Profile.Name` matching one of the system labels, map it: `System Administrator → Admin`, `Standard User → Standard`, `Read Only → ReadOnly`, `Marketing User → MarketingProfile`, `Contract Manager → ContractManager`, `Solution Manager → SolutionManager`, `Standard Platform User → StandardAul`. For all other (custom) profiles, the Profile.Name is already the metadata API name — use it directly.
 
-Then `retrieve_metadata` with type `Profile`, member `[mapped DeveloperName]`. From the retrieved XML, parse `<profileActionOverrides>` where `<actionName>View</actionName>` AND `<type>Flexipage</type>` AND `<formFactor>Large</formFactor>` → capture `<content>` (LRP), `<pageOrSobjectType>` (object), `<recordType>` (e.g. `Case.SDO_Service_Case`). Hold as `PROFILE_OVERRIDES`.
+Then `retrieve_metadata` with type `Profile`, member `[mapped DeveloperName]`. Read the converted file at `force-app/main/default/profiles/[mapped DeveloperName].profile-meta.xml` (NOT the result-JSON `fileName`). From that XML, parse `<profileActionOverrides>` where `<actionName>View</actionName>` AND `<type>Flexipage</type>` AND `<formFactor>Large</formFactor>` → capture `<content>` (LRP), `<pageOrSobjectType>` (object), `<recordType>` (e.g. `Case.SDO_Service_Case`). Hold as `PROFILE_OVERRIDES`. Note: on SDO-scale orgs the converted Profile file is large — apply `{{AUDIT_SHARED_RULES}}` Overflow File Handling (chunked Read / `python3` / `jq` to extract only `<profileActionOverrides>`).
 
 **Profile XML overflow on SDO-scale orgs is expected** — every FLS row + layoutAssignment + objectPermission lives in there. If the retrieve writes to an overflow temp file, parse it via `python3` / `jq` per `{{AUDIT_SHARED_RULES}}` Overflow File Handling — extract only `<profileActionOverrides>` blocks, ignore the rest. If the retrieve fails outright (error, not overflow), log to `audit-progress.log` (`⚠️ Profile:[Name] retrieve failed — profile-scoped LRP detection degraded`), set `PROFILE_OVERRIDES` to `[]`, continue. A failure here means level-1 detection is degraded; levels 2–4 still apply.
 
@@ -83,6 +83,6 @@ Return a single fenced JSON block — nothing else, no prose. The orchestrator p
 - `PARTIAL` — at least one retrieve failed and was handled per the inline rules (CustomApplication short-circuit to core-6, individual CustomObject failure, or Profile failure). Populate `degradations` with one entry per failure: `{"step": "1|2|3", "target": "metadata API name", "impact": "core-6 fallback | level-4 missing for [object] | level-1 disabled"}`.
 - `FAILED` — unrecoverable error before Step 4 could complete. Return `default_app_tabs: []`, `active_lrp_map: []`, and a `degradations` entry describing the failure. Orchestrator will fall through to a degraded audit.
 
-Heartbeats: emit one at start (`starting`), after each step (`step 1 done — N tabs, M app overrides`, etc.), before writing JSON (`writing JSON`), and immediately before returning (`done`). On any failure: `⚠️ <step>: <one-line reason>`.
+Heartbeats: the audit runs in the background while the SE answers discovery questions, and every log `echo` renders as a Bash card in the SE's main chat — so do NOT emit routine heartbeats (no `starting`, no per-step, no `writing JSON`, no `done`). Emit a log line ONLY on a failure: `⚠️ <step>: <one-line reason>` (the per-step failure heartbeats already specified in steps 1-3 above). See `{{AUDIT_SHARED_RULES}}` "Progress Log — failures only".
 
 Do NOT write a fragment file. Your output is the JSON block only — the orchestrator carries it forward.

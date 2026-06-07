@@ -42,9 +42,9 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    - **Why two repo-root sweeps survive.** `unpackaged/` is the directory the MCP `retrieve_metadata` server drops at the repo root when no manifest argument is supplied — it is SFDX-controlled, not redirectable through the `manifest` argument. `package-*.xml` at the repo root is an MCP-side sibling artifact (e.g. `package-prelude-app.xml` from prelude retrieves). Both are model-uncontrollable, so they get explicit sweeps. The model-controllable equivalents (`manifest-*.xml`, `retrieve-*.xml`, `temp-*.xml`, `*.tmp`, model-written `package-*.xml`) are now structurally impossible — sub-agents only write inside `.scout-tmp/`.
    - **If a new MCP-side orphan pattern appears at the repo root** (unrelated to model writes — i.e. the SE sees an unfamiliar repo-root file after a clean audit), add a pattern-prefixed sweep here. Inside `.scout-tmp/` no sweep additions are ever needed.
    - `find . -maxdepth 1 -name 'package-*.xml' -delete` is the zsh-safe shape — `rm -f package-*.xml` errors at glob expansion time on zsh before the redirection takes effect, so the `2>/dev/null` doesn't help. `find -delete` does its own argv handling and returns 0 on no matches.
-2. Initialize progress log — truncate the file and write a header so the SE-facing link opens to a non-empty file:
+2. Initialize progress log — truncate the file and write a header so the SE-facing link opens to a non-empty file. The log now carries only coarse orchestrator phase markers + sub-agent `⚠️` failure lines (routine sub-agent heartbeats were removed — they rendered as chat-card noise during background discovery):
    ```
-   printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\n\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[alias]-[customer]" > orgs/[alias]-[customer]/.audit-progress.log
+   printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\nThis log shows phase milestones + failures only.\n\n[%s] [orchestrator] Phase A — sync setup + prelude launch\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[alias]-[customer]" "$(date '+%H:%M:%S')" > orgs/[alias]-[customer]/.audit-progress.log
    ```
 3. Resolve the current user Id: `run_soql_query` with `SELECT Id FROM User WHERE Username = '[username from Stage 1]' LIMIT 1`. Record as `CURRENT_USER_ID`.
 4. Resolve the candidate default app — 2 SOQL queries:
@@ -72,7 +72,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
    **The link MUST be a workspace-relative path**, not an absolute `file://` URI. The VSCode native CC extension renders markdown links relative to the SE's VSCode workspace root (which is reliably `~/claude-projects/sf-demo-scout` for Scout SEs) and does not open `file://` URIs as in-editor file opens. Emit exactly this message as the next assistant turn — single message, verbatim:
 
-   > Audit running. Live status → [.audit-progress.log](orgs/[alias]-[customer]/.audit-progress.log) — click to open. VS Code auto-updates as Scout works through the org. Typical runtime 5-10 min on SDO-scale orgs.
+   > Audit running in the background. Status → [.audit-progress.log](orgs/[alias]-[customer]/.audit-progress.log) — click to open; it logs phase milestones and any failures (not every step). Typical runtime 5-10 min on SDO-scale orgs. No need to watch it — I'll fold the results in once it lands.
 
    Substitute `[alias]-[customer]` with the actual customer folder name before emitting (e.g. `orgs/voice-wt-26-wsa/.audit-progress.log`).
 
@@ -151,7 +151,7 @@ Spawn all 3 in the BACKGROUND (`[PLUGIN_ROOT_ABS]` = the absolute path from Pre-
 
 After spawning, append ONE progress-log line (`echo "[$(date +%H:%M:%S)] [orchestrator] prelude done — 3 parallel audit agents launched" >> orgs/[alias]-[customer]/.audit-progress.log`) and emit **NO chat message** — a discovery ask may be pending. The live-status heartbeat was already emitted in step 5a. **This ends Phase B.** Do not block waiting for the 3 agents here; their completions will push notifications. As each arrives, you MAY collect it eagerly (hold the parsed JSON), but do NOT begin consolidation until Phase C is invoked by the caller — consolidation emits the SE-facing star summary, which must not compete with a pending discovery ask.
 
-**Phase C — Consolidation join (invoked by the caller after the SE answers the audit-independent discovery questions).** Ensure all 3 parallel sub-agents have completed (await any whose background completion has not yet arrived). Do not read the progress log — it is SE-facing only. Then run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup below, and return the consolidated summary to the caller for the star-summary emission.
+**Phase C — Consolidation join (invoked by the caller after the SE answers the audit-independent discovery questions).** Ensure all 3 parallel sub-agents have completed (await any whose background completion has not yet arrived). Append one coarse marker — `echo "[$(date +%H:%M:%S)] [orchestrator] Phase C — all sub-agents in, consolidating" >> orgs/[alias]-[customer]/.audit-progress.log` — then (do not read the progress log back — it is SE-facing only) run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup below, and return the consolidated summary to the caller for the star-summary emission.
 
 ## Post-Return Processing
 

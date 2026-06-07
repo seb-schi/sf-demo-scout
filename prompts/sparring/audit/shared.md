@@ -25,24 +25,15 @@ Never report an empty section based on a single failed or empty query.
 - Retrieve metadata in small batches.
 - Write the output file as a single Write at the end — your scope is bounded enough to fit the output cap.
 - If a single retrieve call returns an unmanageable payload, narrow the query and continue.
+- **Reading back a `retrieve_metadata` result: read the CONVERTED source path, not the result-JSON `fileName`.** The SE workspace (`~/claude-projects/sf-demo-scout/`) is a source-format SFDX project (it has `force-app/` and `sfdx-project.json`), so `retrieve_metadata` converts what it pulls into source format under `force-app/main/default/<type-dir>/`. The `fileName` field in the tool's result JSON (e.g. `unpackaged/applications/Field_Sales.app`) is the in-ZIP MDAPI path and does NOT exist on disk — reading it fails. To read retrieved XML, use the converted path: `force-app/main/default/<type-dir>/<FullName>.<ext>-meta.xml`. Common type-dirs: CustomApplication → `applications/<Name>.app-meta.xml`; CustomObject → `objects/<Name>/<Name>.object-meta.xml`; Profile → `profiles/<Name>.profile-meta.xml`; FlexiPage → `flexipages/<Name>.flexipage-meta.xml`; Layout → `layouts/<Name>.layout-meta.xml`. If a read still misses (unusual conversion target), `find force-app/main/default -name '<Name>*'` ONCE to locate it — do not loop. Pass `directory` = the SE workspace root to `retrieve_metadata` so conversion lands in this project's `force-app/`.
 - **Working-file location: `{{SCOUT_TMPDIR}}` only.** Every transient file you write during the audit — ad-hoc `package.xml`-style manifests, intermediate XML chunks, anything that isn't your output fragment or a progress-log line — goes inside `{{SCOUT_TMPDIR}}` (an absolute path the orchestrator passes in via the envelope). Name manifests `manifest-audit-<scope>.xml` (e.g. `manifest-audit-layouts.xml`) and pass the full path `{{SCOUT_TMPDIR}}/manifest-audit-<scope>.xml` as the `manifest` argument to `retrieve_metadata`. Do NOT write working files at the repo root (`~/claude-projects/sf-demo-scout/`) and do NOT write them at the customer folder root (`orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/`) — those locations are for SE-visible artifacts (audit outputs, progress log, deployment scaffolding). The orchestrator `rm -rf`s `{{SCOUT_TMPDIR}}` on entry and on successful exit, so anything inside is treated as disposable scratch.
 
-## Progress Heartbeats
+## Progress Log — failures only
 
-The SE watches `orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/.audit-progress.log` in VS Code during the audit. Append one line at each milestone so the file updates live. Opus does not read this file — it is purely SE-facing.
+The audit runs in the BACKGROUND while the SE answers discovery questions. Each `echo >> .audit-progress.log` you run renders as a Bash card in the SE's main chat (the VS Code extension streams background sub-agent tool calls inline — there is no harness knob to suppress this). Routine per-section heartbeats therefore crowd out the SE's discovery prompts with no benefit, because the SE is busy answering questions, not watching the log. So: **do NOT emit routine progress heartbeats.** Do not announce `starting`, per-section completions, `writing fragment`, or `done`.
 
-**How to append** (one-liner, no Read — never read this file back):
+**Emit ONE log line only on a section FAILURE**, so a failed audit is still debuggable from the log:
 ```
-Bash: echo "[$(date +%H:%M:%S)] [<your-agent-id>] <milestone text>" >> orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/.audit-progress.log
+Bash: echo "[$(date +%H:%M:%S)] [<your-agent-id>] ⚠️ <section>: <one-line reason>" >> orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/.audit-progress.log
 ```
-
-Your agent-id is declared at the top of your prompt (`Progress log agent-id:`). Use it verbatim.
-
-**When to emit a heartbeat** — one line at each of:
-1. Start: immediately after you read your prompt, before the first tool call. Text: `starting`.
-2. After each numbered or ##-headed section in your prompt completes. Text: short summary including a count where relevant (e.g., `discovery done — 12 non-universal objects`, `flow count — 247 active across 18 objects`, `layout XML retrieved for 6 ★ layouts`).
-3. Before writing your output fragment file. Text: `writing fragment`.
-4. Immediately before returning your JSON block. Text: `done`.
-5. On any section failure: `⚠️ <section>: <one-line reason>`. Continue with fallbacks as usual — the heartbeat is in addition to, not instead of, your normal error handling.
-
-Keep heartbeat text under 100 characters. One line per milestone. Do not emit heartbeats inside tight loops (per-query counts) — only at section boundaries.
+Your agent-id is declared at the top of your prompt (`Progress log agent-id:`). Use it verbatim. Never read this file back. Continue with your normal fallbacks after logging — the failure line is in addition to, not instead of, your error handling. Opus does not read this file; the orchestrator writes coarse phase markers to it separately.
