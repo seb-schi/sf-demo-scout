@@ -35,12 +35,11 @@ For each standard object commonly used in demos (Account, Contact, Opportunity, 
   AND Profile.Name = 'System Administrator'
   ```
   List the active layout name for each record type. Flag these explicitly — they are the primary build surface.
-- Key fields present on the active layout (retrieve layout XML, list fields by section)
+- Field-count signal (standard objects only): total field count + custom field count via `SELECT QualifiedApiName FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName = '[Object]'`. Do NOT retrieve layout XML for the field dump — full field lists are fetched on demand at spec time (sparring Stage 5b), scoped to the locked scenario's objects.
 
 ### Custom Objects
 - API name, label, record count
-- Key fields and relationships
-- Active page layout per record type (same ProfileLayout query as above)
+- Active page layout per record type (name only — same ProfileLayout query as above; no layout-XML field dump)
 
 ### Existing Lightning Apps
 - App API name and label
@@ -63,7 +62,6 @@ For each standard object commonly used in demos (Account, Contact, Opportunity, 
 - If any: name, topics, active/inactive status
 
 ### Notable Gaps and Risks
-- Fields or relationships missing from active layouts that would be needed for the demo scenario
 - Objects with no records (data seeding required)
 - Managed package components (prefixed) that cannot be modified
 - Execution order conflicts from existing active flows

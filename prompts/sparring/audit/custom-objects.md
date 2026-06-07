@@ -60,17 +60,13 @@ SELECT Name, TableEnumOrId FROM Layout WHERE Name LIKE '[Obj1 Label]%' OR Name L
 ```
 (Tooling Layout supports `OR` across `LIKE` patterns; cap at 10-clause OR groups if the unresolved set is larger — re-run in batches of 10.) Match results back to objects by label-prefix. If multiple layouts match an object, capture all and flag the active-layout ambiguity in `discovery_notes`. If neither C1 nor C2 yields a layout for a given object, record "No layout found (ProfileLayout empty, Tooling Layout returned 0)" — do not guess.
 
-**Step C3 — Single manifest retrieve for all resolved layouts.** After C1+C2 produce the master list of layout names (`ALL_LAYOUTS = union of C1 hits + C2 hits`), run **one** `retrieve_metadata` call with type `Layout`, members = the full `ALL_LAYOUTS` list. Salesforce's manifest retrieve treats missing members as soft outcomes — they appear as FILE_NOT_FOUND in the result rather than as tool errors. Parse the result:
-- Layouts present in the result XML → fully retrieved, ready for field/related-list extraction.
-- Layouts marked FILE_NOT_FOUND → record an `issues[]` entry: `"Layout '[name]' named in ProfileLayout/Tooling but retrieve returned FILE_NOT_FOUND — layout may be orphaned or namespace-restricted"`. Do NOT retry per-object — the manifest retrieve is the single attempt.
-
 **Per-object data after the bulk pass:**
 - API name, label
 - Record count: `SELECT COUNT() FROM [ObjectApiName]` (still per-object — counts cannot be bulked across heterogeneous objects)
 - Record types (if any)
-- Active page layout: the resolved name from C1/C2, with retrieval status from C3
-- Key fields on layout: extracted from C3's manifest result (same annotation rules as standard objects: `(Required)`, `(Readonly)`, `(Edit)`)
-- **Related Lists on the ★ active layout** — from the same layout XML in C3's result, list the `<relatedList>` entries.
+- Active page layout: the resolved name from C1/C2 (name only — no layout XML retrieve)
+
+Do NOT retrieve classic-layout XML for custom objects. Layout *names* from C1/C2 are sufficient at proposal stage; the full field list is fetched on demand at sparring Stage 5b (describe-before-spec), scoped to the objects the locked scenario touches. A field-count signal is NOT emitted for custom objects — "has custom fields?" is definitionally yes, so the signal carries no information (it is emitted for standard objects only, where customization is a real question).
 
 For remaining unmanaged custom objects (not demo-relevant), list them in a summary table with API name and label only. Note total count of managed package objects as a single line.
 
@@ -95,16 +91,15 @@ Star the following:
 
 ## Output Budget
 
-- **Output budget:** if your file exceeds 250 lines, trim non-starred custom objects to a summary table (API name, label, count). Starred objects always get full layout + field content.
+- **Output budget:** with per-layout field content removed, starred custom objects carry name + label + record count + record types + active layout name + (where mapped) LRP composition. If the fragment exceeds 200 lines, trim non-starred custom objects to a summary table (API name, label, count).
 
 ## Pre-Return Completeness Checklist
 
 Before writing your JSON output block, verify each of these. If any fails, fix it before returning.
 
 1. **Custom object layouts resolved.** Every ★ custom object must have a layout entry — from ProfileLayout, Tooling API Layout query, or explicit "not found after N methods." **Layout names must be the bare metadata API name** as stored in `Layout.Name` — do NOT prefix with the object name. The Tooling API returns the name in round-trippable form; preserving it lets downstream specs pass it directly to `retrieve_metadata`.
-2. **Layout field content exists for all ★ layouts.** Every ★-marked active layout must have a "Key Fields" subsection. If layout XML retrieval failed, note the failure explicitly.
-3. **Permission sets listed.** At minimum a count. If the full list overflowed, report the count and any demo-relevant matches.
-4. **Every section header has content beneath it.**
+2. **Permission sets listed.** At minimum a count. If the full list overflowed, report the count and any demo-relevant matches.
+3. **Every section header has content beneath it.**
 
 ## Output Format
 
