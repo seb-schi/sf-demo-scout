@@ -3,7 +3,7 @@ Your scope: **standard objects only**. Two sibling sub-agents handle apps/flows/
 and custom objects/permsets in parallel.
 
 Target org: {{ORG_ALIAS}} ({{ORG_USERNAME}})
-Output file: orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/audit-fragment-standard-objects.md
+Output file: {{ORG_FOLDER}}/audit-fragment-standard-objects.md
 Progress log agent-id: standard-objects
 
 ## Tools
@@ -171,7 +171,7 @@ Write the fragment file, then return EXACTLY one fenced JSON block. No prose out
 
 ```json
 {
-  "fragment_file": "orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/audit-fragment-standard-objects.md",
+  "fragment_file": "{{ORG_FOLDER}}/audit-fragment-standard-objects.md",
   "status": "SUCCESS|PARTIAL|FAILED",
   "active_layouts": [
     {"object": "string", "record_type": "string|null", "layout_name": "string"}

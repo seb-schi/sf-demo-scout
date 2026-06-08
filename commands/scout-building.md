@@ -40,9 +40,9 @@ Read `orgs/building-lessons.md` — these are mistakes from previous building se
 
 ## Step 1: Confirm Org & Identify Customer
 
-Run `sf config get target-org --json` and `sf org display --json`. Extract alias and username.
+Run `sf config get target-org --json` and `sf org display --json`. Extract the raw alias and username. The raw alias (e.g. `Metro CPQ`) is for `--target-org`. To find the customer folder, slugify the alias first — read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/slug-rule.md` and apply its transform to the alias (sparring names folders by the slugified alias, so a raw caps/space alias would not match).
 
-List org folders: `ls -d orgs/[alias]-*/`
+List org folders: `ls -d orgs/<slug(alias)>-*/`. Once the SE confirms the customer, set `ORG_FOLDER` = the matched folder (e.g. `orgs/metro-cpq-metro`) and use `[ORG_FOLDER]` for every path below.
 
 Present both in a single message. Prepend the model-gate warning verbatim as the FIRST line of whichever branch fires, then a blank line, then the active-org sentence:
 - No folders -> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.\n\nActive org: [alias] ([username]). No customer folders found — run /scout-sparring first." Stop.
@@ -56,7 +56,7 @@ Wait for confirmation. If the SE wants to switch orgs: *"Stopping. Run `/scout-s
 ## Step 2: Load Spec
 
 ```
-ls -lt orgs/[alias]-[customer]/demo-spec-*.md
+ls -lt [ORG_FOLDER]/demo-spec-*.md
 ```
 
 - No specs -> "Run /scout-sparring first." Stop.
@@ -67,7 +67,7 @@ ls -lt orgs/[alias]-[customer]/demo-spec-*.md
 
 ## Step 3: Load Org Audit
 
-Find most recent audit in `orgs/[alias]-[customer]/`.
+Find most recent audit in `[ORG_FOLDER]/`.
 Check `Org Audit Used:` field in spec header.
 
 - Audits match -> proceed.

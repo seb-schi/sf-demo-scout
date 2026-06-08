@@ -71,7 +71,7 @@ Output as a single message, then wait for the SE's reply.
 
 Wait for the SE's reply. Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/customer-normalization.md` and execute the procedure — it normalizes the customer name to a folder-safe slug and prompts the SE on existing-folder matches.
 
-**Org folder:** `orgs/[alias]-[customer]/`
+**ORG_FOLDER** (resolved by customer-normalization): `orgs/<slug(alias)>-<slug(customer)>/`
 
 ---
 
@@ -91,7 +91,7 @@ The SE selected one of three paths in Stage 1. Confirm and branch.
 
 ### Audit Routing
 
-Check `orgs/[alias]-[customer]/` for existing audits and change logs.
+Check `[ORG_FOLDER]` for existing audits and change logs.
 
 **Reuse branch (audit exists, <=7 days old, SE confirms no manual changes):** read the audit markdown file directly. Extract the star-flagged items from it.
 
@@ -243,7 +243,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/data-shape.md` and execute the proc
 
 **External inputs — digest, never quote.** If the SE uploaded a PDF/doc or pasted external material this session, capture the *decisions and concrete values* you drew from it — never raw excerpts. `/scout-building` runs in a fresh session that never sees the upload; an excerpt it cannot resolve gets re-interpreted and diverges (worst in the SE Must-Dos / Manual Checklist). Convert every reference into explicit spec values — field names, record counts, layout names, manual steps. If something cannot be resolved to a concrete instruction, surface it as `gap — SE to fill`, not a quote.
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/spec-template.md` for the format, then write the spec to `orgs/[alias]-[customer]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/spec-template.md` for the format, then write the spec to `[ORG_FOLDER]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`
 
 **Residual feasibility check:** Before writing, scan the final scenario for any feature or metadata type NOT already covered by Stage 4 research. For each uncovered item, run a quick `salesforce_docs_search`. This is a safety net — Stage 4 should have caught most things.
 

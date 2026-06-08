@@ -3,7 +3,7 @@ Your scope: **Lightning apps, flows, LWC components, and Agentforce agents**. Tw
 sub-agents handle standard objects and custom objects/permsets in parallel.
 
 Target org: {{ORG_ALIAS}} ({{ORG_USERNAME}})
-Output file: orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/audit-fragment-apps-flows-agents.md
+Output file: {{ORG_FOLDER}}/audit-fragment-apps-flows-agents.md
 Progress log agent-id: apps-flows-agents
 
 ## Tools
@@ -106,7 +106,7 @@ Write the fragment file, then return EXACTLY one fenced JSON block. No prose out
 
 ```json
 {
-  "fragment_file": "orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/audit-fragment-apps-flows-agents.md",
+  "fragment_file": "{{ORG_FOLDER}}/audit-fragment-apps-flows-agents.md",
   "status": "SUCCESS|PARTIAL|FAILED",
   "agents_found": [
     {"name": "string", "type": "string"}

@@ -30,7 +30,7 @@ Proceed to S2.
 
 Emit this right after S1 returns from Phase A — the audit is running in the background; do not wait for it. Emit:
 
-> "Audit running in the background — live status → [.audit-progress.log](orgs/[alias]-[customer]/.audit-progress.log). Do your opening discovery with the customer; it'll finish while you talk.
+> "Audit running in the background — live status → [.audit-progress.log]([ORG_FOLDER]/.audit-progress.log). Do your opening discovery with the customer; it'll finish while you talk.
 >
 > When you're done with discovery, paste the customer transcript here. Multiple chunks fine — say `go` when done.
 >
@@ -111,7 +111,7 @@ If the chosen scenario includes Apex, Flow, or Agentforce that queries or writes
 
 ## Step S7 — Spec Generation
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/spec-template.md` and write the spec to `orgs/[alias]-[customer]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/spec-template.md` and write the spec to `[ORG_FOLDER]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`.
 
 Mark the spec header with `Sparring mode: Showtime` so /scout-building knows the provenance — useful for retros.
 
@@ -238,13 +238,13 @@ Emit (substitute `[CANVAS_URL]` with the URL captured in S7.5; if canvas write w
 
 > "Spec saved. Customer-facing canvas live: [CANVAS_URL]
 >
-> **Now: open a fresh Claude Code window** and run `/scout-building` to deploy the PoC slice. Hand over the spec at `orgs/[alias]-[customer]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`.
+> **Now: open a fresh Claude Code window** and run `/scout-building` to deploy the PoC slice. Hand over the spec at `[ORG_FOLDER]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`.
 >
 > While /scout-building deploys (~5–15min depending on envelope), walk the customer through the full Slack canvas — they're seeing the architecture for everything they asked for, not just what's about to land in the org. When the build completes, review the working slice together. The continuous experience is the format."
 
 **Canvas-unavailable variant** (if S7.5 skipped or errored):
 
-> "Spec saved at `orgs/[alias]-[customer]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`. Slack canvas unavailable — present from the spec directly.
+> "Spec saved at `[ORG_FOLDER]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`. Slack canvas unavailable — present from the spec directly.
 >
 > **Open a fresh Claude Code window** and run `/scout-building` to deploy the PoC slice. While it deploys, walk the customer through the spec's Holistic Scenario + Showtime PoC sections."
 

@@ -42,7 +42,7 @@ This demo isn't locked. If the seeded data doesn't fit the narrative, a topic re
 **Your Files**
 All files for this demo live in one folder. To open it in Finder:
 ```
-open orgs/[alias]-[customer]/
+open [ORG_FOLDER]/
 ```
 - `demo-spec-[...].md` — full build spec (what and why)
 - `changes-[...].md` — deployment log (what actually happened, rollback commands)

@@ -27,15 +27,15 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 1. Clean stale orchestrator artifacts and prepare a bounded scratch dir for this run. End-of-success cleanup (Cleanup & Validation steps 3–4) does not fire when a prior run crashes, hangs, or is SE-interrupted — the next run then inherits corrupt state and typically hangs at the parse step that consumes it, with no causal link visible to the SE. Run unconditionally:
    ```
-   rm -f orgs/[alias]-[customer]/audit-fragment-*.md 2>/dev/null || true
-   rm -f orgs/[alias]-[customer]/.audit-* 2>/dev/null || true
-   find orgs/[alias]-[customer]/.scout-tmp -mindepth 0 -delete 2>/dev/null || true
-   mkdir -p orgs/[alias]-[customer]/.scout-tmp/
+   rm -f [ORG_FOLDER]/audit-fragment-*.md 2>/dev/null || true
+   rm -f [ORG_FOLDER]/.audit-* 2>/dev/null || true
+   find [ORG_FOLDER]/.scout-tmp -mindepth 0 -delete 2>/dev/null || true
+   mkdir -p [ORG_FOLDER]/.scout-tmp/
    rm -rf unpackaged/ 2>/dev/null || true
    find . -maxdepth 1 -name 'package-*.xml' -delete 2>/dev/null || true
    ```
    Notes:
-   - **Bounded scratch dir.** `orgs/[alias]-[customer]/.scout-tmp/` is the only location sub-agents write transient working files (manifests for ad-hoc `retrieve_metadata` calls, intermediate XML, anything that isn't an audit fragment or the progress log). Sub-agents see the absolute path via the `{{SCOUT_TMPDIR}}` envelope placeholder in Sub-Agent Dispatch and are instructed in `prompts/sparring/audit/shared.md` to write only inside it. The whole directory is wiped on entry (above, via `find … -delete`) and on successful exit (Cleanup & Validation step 4), so any new working-file pattern the model invents lands inside the disposable boundary automatically — no need to widen a per-pattern sweep list.
+   - **Bounded scratch dir.** `[ORG_FOLDER]/.scout-tmp/` is the only location sub-agents write transient working files (manifests for ad-hoc `retrieve_metadata` calls, intermediate XML, anything that isn't an audit fragment or the progress log). Sub-agents see the absolute path via the `{{SCOUT_TMPDIR}}` envelope placeholder in Sub-Agent Dispatch and are instructed in `prompts/sparring/audit/shared.md` to write only inside it. The whole directory is wiped on entry (above, via `find … -delete`) and on successful exit (Cleanup & Validation step 4), so any new working-file pattern the model invents lands inside the disposable boundary automatically — no need to widen a per-pattern sweep list.
    - The `.audit-*` sweep stays as a wildcard — it catches `.audit-progress.log` from a crashed prior run AND any ad-hoc files the model may have invented at the customer-folder root (where the SE looks first). Hidden-file convention; the model knows to write hidden state files there.
    - `audit-fragment-*.md` stays as an explicit sweep — these are first-class audit outputs the consolidation step concatenates, not transient scratch, so they live at the customer folder root, not inside `.scout-tmp/`.
    - The `2>/dev/null || true` wrappers keep zsh's `NO_MATCH` from erroring on empty globs (`pipeline-lessons/mcp-platform-constraints.md` lesson 68); without them the bundled cleanup step fails silently and step 2 (`printf` to init the progress log) never runs.
@@ -45,7 +45,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    - **Why `.scout-tmp` is cleared with `find … -mindepth 0 -delete`, NOT `rm -rf`.** The SE workspace `.claude/settings.json` ships a catastrophic-deletion deny rule `Bash(rm -rf orgs*)`. Claude Code denies the ENTIRE compound command if any segment matches a deny glob, and a prefix-glob cannot distinguish `rm -rf orgs/<customer>/.scout-tmp` from `rm -rf orgs/<customer>` — so an `rm -rf orgs/...` scratch sweep gets the whole Pre-Spawn block hard-denied and the audit can't start. `find <dir> -mindepth 0 -delete` removes the directory and its contents (depth-first, dir last — same net effect as `rm -rf <dir>/`) but matches no deny rule. `-mindepth 0` includes the top dir itself in the delete set; `2>/dev/null || true` swallows the "No such file or directory" when the dir is absent (first run). Do NOT change this back to `rm -rf orgs/...` — it will re-trip the deny rule. (2026-06-07)
 2. Initialize progress log — truncate the file and write a header so the SE-facing link opens to a non-empty file. The log now carries only coarse orchestrator phase markers + sub-agent `⚠️` failure lines (routine sub-agent heartbeats were removed — they rendered as chat-card noise during background discovery):
    ```
-   printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\nThis log shows phase milestones + failures only.\n\n[%s] [orchestrator] Phase A — sync setup + prelude launch\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[alias]-[customer]" "$(date '+%H:%M:%S')" > orgs/[alias]-[customer]/.audit-progress.log
+   printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\nThis log shows phase milestones + failures only.\n\n[%s] [orchestrator] Phase A — sync setup + prelude launch\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[ORG_FOLDER]" "$(date '+%H:%M:%S')" > [ORG_FOLDER]/.audit-progress.log
    ```
 3. Resolve the current user Id: `run_soql_query` with `SELECT Id FROM User WHERE Username = '[username from Stage 1]' LIMIT 1`. Record as `CURRENT_USER_ID`.
 4. Resolve the candidate default app — 2 SOQL queries:
@@ -73,9 +73,9 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
    **The link MUST be a workspace-relative path**, not an absolute `file://` URI. The VSCode native CC extension renders markdown links relative to the SE's VSCode workspace root (which is reliably `~/claude-projects/sf-demo-scout` for Scout SEs) and does not open `file://` URIs as in-editor file opens. Emit exactly this message as the next assistant turn — single message, verbatim:
 
-   > Audit running in the background. Status → [.audit-progress.log](orgs/[alias]-[customer]/.audit-progress.log) — click to open; it logs phase milestones and any failures (not every step). Typical runtime 5-10 min on SDO-scale orgs. No need to watch it — I'll fold the results in once it lands.
+   > Audit running in the background. Status → [.audit-progress.log]([ORG_FOLDER]/.audit-progress.log) — click to open; it logs phase milestones and any failures (not every step). Typical runtime 5-10 min on SDO-scale orgs. No need to watch it — I'll fold the results in once it lands.
 
-   Substitute `[alias]-[customer]` with the actual customer folder name before emitting (e.g. `orgs/voice-wt-26-wsa/.audit-progress.log`).
+   Substitute `[ORG_FOLDER]` with the actual resolved folder path before emitting (e.g. `orgs/voice-wt-26-wsa/.audit-progress.log`).
 
    The heartbeat exists because SE-facing silence is expensive — minutes of sub-agent runtime with no signal reads as "is Scout stuck?" Do not skip it. Do not paraphrase it. Do not bundle it into a later message. **If you find yourself about to call a tool here, stop — the heartbeat goes first.**
 
@@ -86,13 +86,14 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    ```
    Read your prompt file at `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/prelude.md`. Also read `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
 
-   {{ORG_ALIAS}} = [alias]
+   {{ORG_ALIAS}} = [raw alias — for --target-org; NOT slugified]
    {{ORG_USERNAME}} = [username]
+   {{ORG_FOLDER}} = [resolved ORG_FOLDER path, e.g. orgs/metro-cpq-metro]
    {{CANDIDATE_APP_FULL_NAME}} = [computed value]
    {{CANDIDATE_APP}} = [label]
    {{CANDIDATE_APP_DEVELOPER_NAME}} = [developer name]
    {{CURRENT_USER_ID}} = [user id]
-   {{SCOUT_TMPDIR}} = [absolute path to orgs/[alias]-[customer]/.scout-tmp/]
+   {{SCOUT_TMPDIR}} = [absolute path to [ORG_FOLDER]/.scout-tmp/]
 
    Execute the prompt and return the JSON block per its Output Format section.
    ```
@@ -120,7 +121,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 Do NOT read the sub-agent prompt bodies. Each sub-agent reads its own prompt file and `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` (the absolute path resolved in Pre-Spawn step 0). The orchestrator's job is to construct each envelope with the right placeholder values and dispatch. **Every `[PLUGIN_ROOT_ABS]` and `[PROMPT_PATH]` below must be the resolved absolute path — never the literal `${CLAUDE_PLUGIN_ROOT}`, which is empty in sub-agent context.**
 
-Build a per-sub-agent envelope. Common placeholder values (computed by the orchestrator from earlier steps): `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{CUSTOMER}}`, `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`, `{{SCOUT_TMPDIR}}`. The two LRP-aware sub-agents receive a sliced `{{ACTIVE_LRP_MAP}}`:
+Build a per-sub-agent envelope. Common placeholder values (computed by the orchestrator from earlier steps): `{{ORG_ALIAS}}` (raw — `--target-org` only), `{{ORG_FOLDER}}` (resolved folder path — every file path uses this), `{{ORG_USERNAME}}`, `{{CUSTOMER}}` (raw — object name-matching only), `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`, `{{SCOUT_TMPDIR}}`. The two LRP-aware sub-agents receive a sliced `{{ACTIVE_LRP_MAP}}`:
   - standard-objects: `ACTIVE_LRP_MAP_STANDARD`
   - custom-objects: `ACTIVE_LRP_MAP_CUSTOM`
   - apps-flows-agents: omit the placeholder (its prompt does not reference it).
@@ -130,15 +131,16 @@ Envelope template (substitute the prompt path and the placeholder block). `[PROM
 ```
 Read your prompt file at `[PROMPT_PATH]`. Also read `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
 
-{{ORG_ALIAS}} = [alias]
+{{ORG_ALIAS}} = [raw alias — for --target-org; NOT slugified]
 {{ORG_USERNAME}} = [username]
-{{CUSTOMER}} = [customer]
+{{ORG_FOLDER}} = [resolved ORG_FOLDER path, e.g. orgs/metro-cpq-metro]
+{{CUSTOMER}} = [raw customer name — for object name-matching only, NOT paths]
 {{YYYY-MM-DD}} = [date]
 {{HHMM}} = [time]
 {{DEFAULT_APP}} = [label]
 {{DEFAULT_APP_TABS}} = [tabs JSON]
 {{ACTIVE_LRP_MAP}} = [sliced map JSON — omit this line for apps-flows-agents]
-{{SCOUT_TMPDIR}} = [absolute path to orgs/[alias]-[customer]/.scout-tmp/]
+{{SCOUT_TMPDIR}} = [absolute path to [ORG_FOLDER]/.scout-tmp/]
 
 Execute the prompt and return the JSON block per its Output Format section.
 ```
@@ -150,9 +152,9 @@ Spawn all 3 in the BACKGROUND (`[PLUGIN_ROOT_ABS]` = the absolute path from Pre-
 - `Agent(description="Org audit: apps/flows/agents", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/apps-flows-agents.md], run_in_background=true)`
 - `Agent(description="Org audit: custom objects", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/custom-objects.md], run_in_background=true)`
 
-After spawning, append ONE progress-log line (`echo "[$(date +%H:%M:%S)] [orchestrator] prelude done — 3 parallel audit agents launched" >> orgs/[alias]-[customer]/.audit-progress.log`) and emit **NO chat message** — a discovery ask may be pending. The live-status heartbeat was already emitted in step 5a. **This ends Phase B.** Do not block waiting for the 3 agents here; their completions will push notifications. As each arrives, you MAY collect it eagerly (hold the parsed JSON), but do NOT begin consolidation until Phase C is invoked by the caller — consolidation emits the SE-facing star summary, which must not compete with a pending discovery ask.
+After spawning, append ONE progress-log line (`echo "[$(date +%H:%M:%S)] [orchestrator] prelude done — 3 parallel audit agents launched" >> [ORG_FOLDER]/.audit-progress.log`) and emit **NO chat message** — a discovery ask may be pending. The live-status heartbeat was already emitted in step 5a. **This ends Phase B.** Do not block waiting for the 3 agents here; their completions will push notifications. As each arrives, you MAY collect it eagerly (hold the parsed JSON), but do NOT begin consolidation until Phase C is invoked by the caller — consolidation emits the SE-facing star summary, which must not compete with a pending discovery ask.
 
-**Phase C — Consolidation join (invoked by the caller after the SE answers the audit-independent discovery questions).** Ensure all 3 parallel sub-agents have completed (await any whose background completion has not yet arrived). Append one coarse marker — `echo "[$(date +%H:%M:%S)] [orchestrator] Phase C — all sub-agents in, consolidating" >> orgs/[alias]-[customer]/.audit-progress.log` — then (do not read the progress log back — it is SE-facing only) run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup below, and return the consolidated summary to the caller for the star-summary emission.
+**Phase C — Consolidation join (invoked by the caller after the SE answers the audit-independent discovery questions).** Ensure all 3 parallel sub-agents have completed (await any whose background completion has not yet arrived). Append one coarse marker — `echo "[$(date +%H:%M:%S)] [orchestrator] Phase C — all sub-agents in, consolidating" >> [ORG_FOLDER]/.audit-progress.log` — then (do not read the progress log back — it is SE-facing only) run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup below, and return the consolidated summary to the caller for the star-summary emission.
 
 ## Post-Return Processing
 
@@ -201,10 +203,10 @@ Using the consolidated JSON summary — especially `demo_surface_notes` from all
 
 Concatenate fragment files:
 ```
-cat orgs/[alias]-[customer]/audit-fragment-standard-objects.md \
-    orgs/[alias]-[customer]/audit-fragment-apps-flows-agents.md \
-    orgs/[alias]-[customer]/audit-fragment-custom-objects.md \
-    > orgs/[alias]-[customer]/audit-[YYYY-MM-DD]-[HHMM].md
+cat [ORG_FOLDER]/audit-fragment-standard-objects.md \
+    [ORG_FOLDER]/audit-fragment-apps-flows-agents.md \
+    [ORG_FOLDER]/audit-fragment-custom-objects.md \
+    > [ORG_FOLDER]/audit-[YYYY-MM-DD]-[HHMM].md
 ```
 
 Append the Notable Gaps section (written by Opus from the JSON summaries) to the end of that file.
@@ -213,10 +215,10 @@ Append the Notable Gaps section (written by Opus from the JSON summaries) to the
 
 1. Delete the 3 fragment files after successful concatenation.
 2. **Star marker validation:** Grep the consolidated audit file for `★`. If 0 matches, flag to the SE: "The audit file has no ★ markers — build surface identification may have failed." Keep the progress log in place — SE may need the heartbeat history to debug which sub-agent failed to star-flag.
-3. Delete the progress log — `rm -f orgs/[alias]-[customer]/.audit-progress.log`. Run this only after star-marker validation passes; on validation failure, leave the log so the SE can inspect sub-agent heartbeats.
+3. Delete the progress log — `rm -f [ORG_FOLDER]/.audit-progress.log`. Run this only after star-marker validation passes; on validation failure, leave the log so the SE can inspect sub-agent heartbeats.
 4. **Symmetric workspace sweep.** Mirror the Pre-Spawn sweep exactly so a clean successful audit doesn't leave orphans in the SE workspace:
    ```
-   find orgs/[alias]-[customer]/.scout-tmp -mindepth 0 -delete 2>/dev/null || true
+   find [ORG_FOLDER]/.scout-tmp -mindepth 0 -delete 2>/dev/null || true
    rm -rf unpackaged/ 2>/dev/null || true
    find . -maxdepth 1 -name 'package-*.xml' -delete 2>/dev/null || true
    ```

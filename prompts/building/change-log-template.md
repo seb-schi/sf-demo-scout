@@ -1,6 +1,6 @@
 # Change Log — Template
 
-Save to: `orgs/[alias]-[customer]/changes-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`
+Save to: `[ORG_FOLDER]/changes-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md` (the ORG_FOLDER resolved at building Step 1)
 Also output the full change log to the terminal.
 
 HHmm = local time at change log creation (e.g. 0930, 1445).

@@ -1,6 +1,6 @@
 # Demo Spec — Output Format
 
-Save to: `orgs/[alias]-[customer]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`
+Save to: `[ORG_FOLDER]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md` (the resolved ORG_FOLDER from customer-normalization)
 
 HHmm = local time at spec creation (e.g. 0930, 1445). Prevents silent overwrites when sparring runs multiple times in a day for the same customer. Date-first ordering keeps the customer folder sorted chronologically in `ls`.
 

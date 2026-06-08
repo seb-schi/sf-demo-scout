@@ -37,9 +37,9 @@ Switch to a different Salesforce demo org. Follow these steps:
    - Org ID (18-char): from the `id` field
    - Instance URL: from the `instanceUrl` field
 
-6. Check for existing org folders:
+6. Check for existing org folders. Slugify the alias first (read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/slug-rule.md`; folders are slug-named, so a raw caps/space alias would not match):
    ```
-   ls -d orgs/[chosen-alias]-*/ 2>/dev/null
+   ls -d orgs/<slug(chosen-alias)>-*/ 2>/dev/null
    ```
    - If folders exist: list them and tell the SE:
      "Found existing customer folder(s) for [alias]: [list]. **Open a fresh Claude Code session** and run /scout-sparring to continue with one of these or start a new customer."

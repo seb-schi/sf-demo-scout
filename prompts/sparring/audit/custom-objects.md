@@ -3,7 +3,7 @@ Your scope: **custom objects and custom permission sets**. Two sibling sub-agent
 handle standard objects and apps/flows/agents/LWC in parallel.
 
 Target org: {{ORG_ALIAS}} ({{ORG_USERNAME}})
-Output file: orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/audit-fragment-custom-objects.md
+Output file: {{ORG_FOLDER}}/audit-fragment-custom-objects.md
 Progress log agent-id: custom-objects
 
 Active LRP map for this org's default app: {{ACTIVE_LRP_MAP}} — this is the **custom-object-scoped slice** prepared by the orchestrator. Every entry's `object` ends in `__c`. **Standard-object LRPs (Case, Account, Opportunity, Lead, Contact, Order, ServiceResource, MessagingSession, etc.) are owned by the sibling standard-objects sub-agent — never emit `active_lrps` entries for them, even if a stale or unsliced map happens to include one.** If you see a non-`__c` entry in `{{ACTIVE_LRP_MAP}}`, drop it silently and add a `discovery_notes` entry: `"ACTIVE_LRP_MAP contained non-custom entry [Object] — orchestrator slice may have drifted"`.
@@ -118,7 +118,7 @@ Write the fragment file, then return EXACTLY one fenced JSON block. No prose out
 
 ```json
 {
-  "fragment_file": "orgs/{{ORG_ALIAS}}-{{CUSTOMER}}/audit-fragment-custom-objects.md",
+  "fragment_file": "{{ORG_FOLDER}}/audit-fragment-custom-objects.md",
   "status": "SUCCESS|PARTIAL|FAILED",
   "relevant_custom_objects": ["string — API names of ★-flagged custom objects"],
   "active_layouts": [
