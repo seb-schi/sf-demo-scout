@@ -1,5 +1,7 @@
 You are deploying Salesforce metadata to org {{ORG_ALIAS}} ({{ORG_USERNAME}}).
 Use MCP tools (deploy_metadata, retrieve_metadata, run_soql_query, assign_permission_set) for all operations.
+
+**Retrieve output location.** When calling `retrieve_metadata`, ALWAYS pass `directory` = `$HOME/claude-projects/sf-demo-scout` (the SFDX project root — it has `sfdx-project.json` and `force-app/`). The MCP server converts retrieved metadata into source format under that root's `force-app/main/default/`. Without an explicit `directory`, conversion lands wherever your cwd resolves — often the customer org folder — littering `orgs/<customer>/force-app/`. Pin it so every retrieve converges on the one project `force-app/`, which the orchestrator sweeps clean after deployment. Do NOT drop this argument.
 Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is available for unfamiliar-error recovery — not for pre-flight checks.
 
 **Target-org integrity.** The orchestrator has already confirmed the target org is authenticated and `connectedStatus: Connected` — that is authoritative. Ignore MCP `get_username` / auth-status probes and do NOT bail out before any deploy/query tool call based on them; MCP DX tools can hold a stale target-org binding while `sf` CLI is fine. If any MCP call errors with target-org ambiguity or returns the wrong alias, fall back to `sf` CLI with `--target-org {{ORG_ALIAS}}` for that call and record the fallback in `discovery_notes`. Otherwise keep using MCP — it is faster and richer when it works.
@@ -228,7 +230,7 @@ Reference XML model (from a real Service Console Case LRP — `Case_Record_Page_
 
 For a single-column section, the `<flexipage:fieldSection>.columns` Facet contains `<fieldInstance>` entries directly — no intermediate `<flexipage:column>` indirection. Identical insert shape, one fewer hop.
 
-1. **Retrieve the FlexiPage XML.** `retrieve_metadata` with type `FlexiPage`, member `[LRP DeveloperName from spec]`. The retrieved file lands at `force-app/main/default/flexipages/[Name].flexipage-meta.xml`. Save a verbatim copy of the pre-edit XML in session memory (or a sibling `.flexipage-meta.xml.preedit` file) — that is your rollback artifact.
+1. **Retrieve the FlexiPage XML.** `retrieve_metadata` with type `FlexiPage`, member `[LRP DeveloperName from spec]`. The retrieved file lands at `force-app/main/default/flexipages/[Name].flexipage-meta.xml`. **Save a verbatim copy of the pre-edit XML as your rollback artifact** — this is the ONLY irreplaceable file produced this phase, so it must survive the end-of-deployment `force-app/` sweep. Write it to `{{ROLLBACK_DIR}}/[Name].flexipage-meta.xml.preedit` (create `{{ROLLBACK_DIR}}` with `mkdir -p` first; `{{ROLLBACK_DIR}}` is an absolute path, so it is independent of your cwd). Do NOT save it as a sibling inside `force-app/` — that tree is swept after deployment and the copy would be lost.
 2. **Pre-flight composition check.** Grep the retrieved XML for `<componentName>flexipage:fieldSection</componentName>` and `<componentName>force:detailPanel</componentName>`. The XML must contain at least one `flexipage:fieldSection`. If it contains only `force:detailPanel` (composition flipped to `record_detail` since audit), SKIP this LRP step with reason "LRP composition is `record_detail` post-audit — classic Page Layout add already covers visibility, no LRP edit needed." Audit data is at most a few hours old; flipped composition is rare but possible. Record in `discovery_notes`.
 3. **Resolve the deploy-target Facet UUID** from the spec + retrieved XML:
    a. Find the `<componentInstance>` whose `<componentName>` is `flexipage:fieldSection` AND whose `<componentInstanceProperties><name>label</name><value>[label]</value>` matches the spec's target section label exactly. The label may be wrapped in `@@@SFDC...SFDC@@@` placeholders — match the wrapped form from the FlexiPage, but compare against the spec by stripping the wrappers (e.g. `@@@SFDCCase_InformationSFDC@@@` → spec target "Case Information"). If no match: SKIP with reason "Target field section `[label]` not found in FlexiPage `[Name]` — audit-specified section may have been renamed or removed. Drop into App Builder." The attempt rule does NOT apply (no deploy was attempted — this is a pre-deploy SKIP).
@@ -265,8 +267,8 @@ For a single-column section, the `<flexipage:fieldSection>.columns` Facet contai
    - Sections where the audit reported `facet_uuid: null` (opaque structure)
    - Editing tabsets, dynamic-form regions, or any non-field-section / non-column component
    - Any LRP whose pre-flight check finds zero `flexipage:fieldSection` instances
-10. **Rollback** (record in `rollback_commands`): restore the pre-edit XML from step 1's saved copy and redeploy:
-   `sf project deploy start --metadata FlexiPage:[Name] --target-org [alias]` after restoring the pre-edit XML.
+10. **Rollback** (record in `rollback_commands`): restore the pre-edit XML saved at `{{ROLLBACK_DIR}}/[Name].flexipage-meta.xml.preedit` (step 1) back over `force-app/main/default/flexipages/[Name].flexipage-meta.xml`, then redeploy:
+   `sf project deploy start --metadata FlexiPage:[Name] --target-org [alias]`. Record the absolute `.preedit` path in `rollback_commands` so the SE can perform the rollback in a later session after `force-app/` has been swept.
 <!-- /IF:LRP -->
 
 <!-- IF:PERMSET -->

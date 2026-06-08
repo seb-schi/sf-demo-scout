@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "2026.06.08-deterministic-org-folder-slug",
+  "version": "2026.06.08-flexipage-rollback-out-of-force-app",
   "requires_reload": true,
   "author": {
     "name": "Sebastian Schickhoff"
