@@ -4,7 +4,7 @@ Compose the closing message. The orchestrator passes you two pieces of context:
 - `STATE` — `FRESH`, `COLLISION`, or `REFRESH`
 - `ZSHRC_MODIFIED` — boolean (true if step j / step d reported `ZSHRC_MODIFIED`)
 
-Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Extract `requires_reload` (default `false` if absent) and `version`.
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract `version`.
 
 ## Compose
 
@@ -14,15 +14,11 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Extract `requires_reloa
 >
 > FYI — run `/scout-switch-org` next to connect a demo org, then `/scout-sparring` to start a demo."
 
-**If STATE was REFRESH and `requires_reload: false`:**
+**If STATE was REFRESH:**
 
-> "✓ Scout refreshed to v[VERSION]. CLIs current. You're good to keep working."
-
-**If STATE was REFRESH and `requires_reload: true`:**
-
-> "✓ Scout refreshed to v[VERSION] (command surface changed). CLIs current.
+> "✓ Scout refreshed to v[VERSION]. CLIs current.
 >
-> **Close + reopen this Claude tab** to load the new commands. (If running in VS Code and the new tab still feels stale, fully restart VS Code.) Then continue your work."
+> **Close + reopen this Claude tab** to pick up any updated commands. (If running in VS Code and the new tab still feels stale, fully restart VS Code.) Then continue your work."
 
 ## Append (any branch)
 
