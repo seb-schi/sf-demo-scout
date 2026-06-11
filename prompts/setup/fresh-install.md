@@ -6,21 +6,48 @@ End-to-end install procedure. Run on `STATE=FRESH` or after a `STATE=COLLISION` 
 
 ## a: Brew Check (hard abort if missing)
 
+`command -v brew` misses when brew is installed but not yet on PATH (Apple
+Silicon installs to `/opt/homebrew/bin`; the post-install `eval` line adds it
+to PATH). So probe the known install locations before concluding it's missing —
+otherwise an SE who installed brew but skipped the `eval` step gets a false
+`BREW_MISSING` and dead-ends.
+
 ```bash
-command -v brew >/dev/null 2>&1 && echo "BREW_OK" || echo "BREW_MISSING"
+if command -v brew >/dev/null 2>&1; then
+  echo "BREW_OK"
+elif [ -x /opt/homebrew/bin/brew ]; then
+  echo "BREW_NOT_ON_PATH /opt/homebrew/bin/brew"
+elif [ -x /usr/local/bin/brew ]; then
+  echo "BREW_NOT_ON_PATH /usr/local/bin/brew"
+else
+  echo "BREW_MISSING"
+fi
 ```
+
+If `BREW_NOT_ON_PATH <path>`, brew is installed but this shell can't see it.
+Do NOT report it as missing. ABORT and emit (substitute the `<path>` dir from
+the probe output — `/opt/homebrew/bin` or `/usr/local/bin`):
+
+> ⚠️ **Homebrew is installed but not on your PATH yet** — one line fixes it.
+>
+> Run this, then re-run `/scout-setup`:
+> ```
+> eval "$(<path>/brew shellenv)"
+> ```
+> To make it stick for new shells, add that same line to your `~/.zprofile`.
 
 If `BREW_MISSING`, ABORT and emit:
 
-> "Scout setup needs Homebrew installed first. Brew install requires interactive sudo so it can't run inside Claude Code.
+> ⚠️ **Homebrew isn't installed — the one step Claude Code can't do for you** (the installer needs your Mac password).
 >
-> Open a terminal and run:
->
-> ```
-> /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-> ```
->
-> Then re-run `/scout-setup`."
+> 1. Open a **fresh macOS Terminal**: ⌘+Space → type `Terminal` → Enter. *Not* the terminal running Claude (VS Code / desktop app / current tab) — you need a separate window at a plain `you@Mac ~ %` prompt.
+> 2. Paste & run:
+>    ```
+>    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+>    ```
+> 3. Enter your Mac password (invisible as you type — normal).
+> 4. Run the `eval …` lines it prints at the end — skip these and brew won't be found.
+> 5. Back in Claude Code: `/scout-setup` again.
 
 ## b: Auto-install Node, Python, sf CLI
 
