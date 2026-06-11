@@ -123,7 +123,7 @@ If only Phase 1 applies:
 
 ### Sub-Agent Output Validation
 
-After EVERY sub-agent returns, load `${CLAUDE_PLUGIN_ROOT}/prompts/building/sub-agent-validation.md` and run the validation procedure before proceeding. The procedure covers JSON parse checks, per-phase required-keys lists, empirical org-probe queries for schema-drift-with-successful-deployment, and the retry-or-skip gate when the org confirms an incomplete deployment.
+After EVERY sub-agent returns, load `${CLAUDE_PLUGIN_ROOT}/prompts/building/sub-agent-validation.md` and run the validation procedure before proceeding. The procedure covers JSON parse checks, per-phase required-keys lists, empirical org-probe queries for schema-drift-with-successful-deployment, an unconditional Data Seeding Integrity Probe (runs whenever Phase 1's `data_seeded[]` is non-empty — verifies seeded counts and field values against the org using spec-parsed expectations, catching a schema-valid envelope that reports zero or short seeds as SUCCESS), and the retry-or-skip gate when the org confirms an incomplete deployment.
 
 ### Phase Prep Procedure
 

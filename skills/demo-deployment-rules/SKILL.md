@@ -65,13 +65,13 @@ Applies whenever a sub-agent produces a reusable shell or language script as par
 
 **Default execution pattern (Pattern B — idempotent script):**
 1. The script MUST be idempotent — safe to re-run after partial success. Upserts or existence-check-then-insert over blind inserts; external-Id lookups over hardcoded Ids.
-2. The script MUST expose a `--pilot-only` flag that exercises every code path against one target record (or the minimum viable slice) before the bulk path runs. Exit code 0 with expected counts = pass; anything else = fail.
+2. The script MUST expose a `--pilot-only` flag that exercises **every distinct command/object path the bulk run uses** — one real guarded write per (CLI verb × target object) combination, against one target record each (or the minimum viable slice) — before the bulk path runs. A pilot that touches only one path while the bulk run uses several is structurally unable to catch a bug in the untested paths. Exit code 0 with expected counts on every exercised path = pass; anything else = fail.
 3. The orchestrator runs the script within the current session after SE confirmation (immediate verified state). The same script is the SE's re-run path for future re-spins or handoffs.
 4. If the script cannot be idempotent for a legitimate reason (single-shot schema migration, destructive cleanup), Pattern A applies: a resumable sub-agent invoked via SendMessage. Document the reason in `discovery_notes`. Pattern B is the default; Pattern A is the exception.
 
 **Mandatory self-test before returning the deliverable:**
 1. `bash -n [script]` — syntax check. Cheap insurance against later edits; will NOT catch runtime bugs (subshell exports, `declare -A` under Bash 3.2, JSON envelope unwrap, while-loop counter scope). Run it anyway.
-2. `bash [script] --pilot-only` against the live target org — the mandatory step that exercises every code path at low cost. Confirm exit 0 AND expected record counts (e.g., 1 pilot record inserted) BEFORE returning the sub-agent's output. This is what actually catches the Bash 3.2 / declare -A class of failure.
+2. `bash [script] --pilot-only` against the live target org — the mandatory step that exercises every distinct command/object path at low cost. If the bulk run does `import bulk` on three objects plus an `update record` on a fourth, the pilot MUST exercise all four (verb × object) combinations, not just the cheapest one — a pilot that validates a single path while the real run uses several will certify a script whose untested paths are broken. Confirm exit 0 AND expected record counts (e.g., 1 pilot record per exercised path) BEFORE returning the sub-agent's output. This is what actually catches the Bash 3.2 / declare -A class of failure AND a wrong CLI verb on a path the pilot would otherwise skip.
 3. If the self-test fails, fix the script and re-run `--pilot-only` until it passes. Every bug caught during self-test goes in the `issues` array verbatim (with the error or symptom). Do NOT hide them behind a successful final run — the orchestrator and the SE need to know what was fragile. The sub-agent MUST be honest about the state of its deliverable.
 4. If a bug reflects a runtime-environment design constraint that future sub-agents should know about (e.g., "target SE Mac runs Bash 3.2 — avoid `declare -A`, use temp-file JSON for Python↔bash state handoff"), record it in `discovery_notes` as well — it carries forward; `issues` is this session only.
 
@@ -83,6 +83,20 @@ Applies whenever a sub-agent produces a reusable shell or language script as par
 **Target environment defaults (macOS SE laptop):**
 - Assume Bash 3.2 (Apple ships this as `/bin/bash`). No `declare -A`, no `${var^^}`, no `&>`. If associative arrays are genuinely needed, use temp-file JSON parsed via `python3` / `jq`.
 - Assume `python3` and `jq` available (both in standard SE install). `sf` CLI and MCP available in-session only — the SE re-run path uses `sf` CLI.
+
+**Salesforce CLI data-write command reference (pin these — do not invent verbs):**
+
+At demo-seed scale (handfuls to low hundreds of records — every Scout seed) use the **single-record** commands. They return clean JSON and need no CSV:
+- Create one record: `sf data create record --sobject <Object> --values "Field1=val Field2=val" --target-org <alias> --json`
+- Update one record: `sf data update record --sobject <Object> --record-id <Id> --values "Field=val" --target-org <alias> --json`
+- Query: `sf data query --query "<SOQL>" --target-org <alias> --json`
+
+**Bulk API 2.0** is for thousands of records and is rarely warranted in a demo seed. If genuinely needed, the verbs are (Bulk API 2.0, `sf` v2):
+- Create / insert: `sf data import bulk` (paired with `sf data import resume`). **There is NO `sf data create bulk`** — that verb does not exist; `import bulk` IS the insert path.
+- Upsert: `sf data upsert bulk` (paired with `sf data upsert resume`) — requires an external-Id field.
+- Update: `sf data update bulk`. Delete: `sf data delete bulk`. Export: `sf data export bulk`.
+- Bulk commands take **CSV input only (not JSON)** and one object per call. They run async: the `bulk` verb submits a job and returns a `jobId`; the success/failed record counts and the `*-success-records.csv` / `*-failed-records.csv` files come from `sf data bulk results --job-id <id>` (or the paired `resume` command) — NOT from the submitting command's immediate output.
+- Bulk-write success-check therefore reads the job result's failed-record count, NOT the submit command's exit code — a submitted job can exit 0 yet have per-record failures.
 
 ---
 

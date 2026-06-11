@@ -7,7 +7,7 @@ Loaded on-demand by scout-building.md Step 5 between every sub-agent return and 
 After EVERY sub-agent returns, validate its output before proceeding:
 
 1. Extract the fenced `json` block from the sub-agent's response.
-2. Parse it. If parsing succeeds and the top-level keys match the phase schema, validation passes. Required top-level keys:
+2. Parse it. If parsing succeeds and the top-level keys match the phase schema, schema validation passes. **For Phase 1, schema validity is necessary but not sufficient when `data_seeded[]` is non-empty — also run the Data Seeding Integrity Probe (below) before declaring the phase passed.** Required top-level keys:
    - Phase 1: `deployed`, `skipped`, `issues`
    - Phase 2: `deployed`, `skipped`, `discovery_notes`, `issues`
    - Phase 3: `deployed`, `smoke_test`, `actions_unverified_in_preview`, `skipped`, `discovery_notes`, `issues`
@@ -76,3 +76,33 @@ Same SUCCESS / partial-FAILED rule as Phase 1.
   ```
 
 If the agent exists and `Status='Active'` → treat as SUCCESS with `schema_validation_failed: true`. Do NOT retry — re-publishing an active agent risks state corruption and bumps the version number. Preserve the raw sub-agent output verbatim in the change log's Issues Encountered section under a `⚠️ SUB-AGENT OUTPUT SCHEMA VALIDATION FAILED` heading. Flag the sub-agent output as a lessons candidate — the schema the sub-agent emitted may reveal a drift vector worth patching.
+
+## Data Seeding Integrity Probe (Phase 1 — runs unconditionally when `data_seeded[]` is non-empty)
+
+A schema-valid envelope can still report a seeding failure as success — e.g. `{"object": "EmailMessage", "records": 0, "status": "SUCCESS"}`. The probes above only fire on parse/key failure, so a well-formed contradiction slips through. This probe runs **regardless of schema validity**, whenever Phase 1's `data_seeded[]` array has one or more rows. It removes the sub-agent from the trust path: expected counts come from the SPEC, actual counts come from the ORG.
+
+**Step 1 — Cheap contradiction catch (always, before any query).** Scan every `data_seeded[]` row. Any row with `status: "SUCCESS"` AND `records: 0` is an immediate hard FAIL — a success cannot have seeded zero rows. Flag that object for re-seed.
+
+**Step 2 — Parse expected counts from the SPEC, not the sub-agent.** In the spec's Data Seeding section, each object line carries a structured token: `Object: **<Name>**, Records: <N> (<VERB> ...` where `<VERB>` is CREATE or UPDATE. Regex each object's `<N>` and `<VERB>` directly from the spec. Do NOT use any count the sub-agent reported — the sub-agent is the component that may have lied.
+
+**Step 3 — Probe the org, branching on VERB:**
+
+- **CREATE** → count rows matching the spec's stable keys for that object; FAIL if `matched_count < N`. Use `>=`, never `==` — Salesforce auto-inserts paired rows the spec never counted (e.g. an outbound `EmailMessage` auto-creates a paired `Email:`-prefixed `Task`, so Task may legitimately exceed its spec count). Match on the spec's stable identifying keys, for example:
+  ```
+  SELECT COUNT() FROM EmailMessage WHERE ParentId='[CaseId]' AND Incoming=true
+  SELECT COUNT() FROM Task WHERE WhatId='[CaseId]' AND Subject LIKE 'Pharmacovigilance%'
+  SELECT COUNT() FROM CaseComment WHERE ParentId='[CaseId]' AND IsPublished=false
+  ```
+- **UPDATE** → ignore row count (the record already existed). Probe that the named target fields on the identified record are populated as the spec requires:
+  - Fields the spec gives a **literal value** (e.g. `Regulatory_Market__c → EU`, `Market_Response_Path__c → On-label scientific exchange`, a Product Id) → exact-match: FAIL if the org value ≠ the spec value.
+  - Fields the spec marks **⚠️ SE refines prose** (freeform `Scientific_Question__c`, `MSL_Response__c`) → presence-check only: FAIL if null/blank, PASS if non-empty (freeform prose can't be equality-checked).
+  ```
+  SELECT Regulatory_Market__c, Market_Response_Path__c, Product__c, Scientific_Question__c, MSL_Response__c FROM Case WHERE Id='[CaseId]'
+  ```
+
+**Step 4 — Degrade loud, never silent.** If an object appears in `data_seeded[]` but the spec has no parseable `Records: N` token for it (hand-edited or older spec with counts buried in prose), do NOT pass it implicitly. Probe `SELECT COUNT() ... ` for presence and surface the ambiguity to the SE:
+> "Phase 1 seeded `[object]` but I couldn't parse an expected record count from the spec. The org shows [N] rows present. Confirm this is correct, or tell me the expected count."
+
+An unparseable count must never become an implicit PASS — that reintroduces the original gap one level up.
+
+**Step 5 — On FAIL.** Re-run the seed script's bulk path for the failed object(s) (or re-invoke the seeding step), then re-probe. This is a hard gate: do not report Phase 1 complete with a failed seeding probe. If re-seed fails twice, record the object as FAILED in the change log's Issues Encountered section with the probe's expected-vs-actual, and surface to the SE.
