@@ -191,6 +191,8 @@ Scope: anything beyond appending into an existing field section. Use when audit 
 - Path: New Agent / Modify Existing Agent (specify which)
 - Plain English: [what agent does, why it strengthens demo]
 - Agent: [name], Type: AgentforceEmployeeAgent / AgentforceServiceAgent
+- Role: [one line — who the agent is / who it helps; REQUIRED identity field]
+- Company: [one line — the customer org description; REQUIRED identity field]
 - Agent Script file: [developer_name].agent
 - Subagents: [name] — [description] — backing action: [apex://ClassName or flow://FlowName]
 - Backing Apex classes: [name] — [InvocableMethod description]

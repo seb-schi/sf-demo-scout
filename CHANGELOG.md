@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-06-11
+
+- **🩹 Hotfix: Agentforce builds are more reliable end-to-end.** Scout now confirms an agent's actions actually fire before reporting it working — a real record write or an event-log row, with an automatic fallback when live preview is blocked — so you get an honest "validated" or "deployed but unconfirmed," never a false green off a nice conversation. New agents always build on the modern (Builder 2.0) path with editable source intact, the build runs straight through without stalling at an approval prompt, and every agent ships with its required Role and Company fields populated.
+
 ## 2026-06-07
 
 - **Spar while the audit runs — no more staring at a progress bar.** The org audit now runs in the *background*. The moment you confirm which app to audit, Scout fires off the audit and immediately starts asking you discovery questions — so you're scoping the demo while the metadata work happens behind the scenes, instead of watching a log for 5–10 minutes. The build-surface summary (your default app, active layouts, relevant custom objects) and the "which app should anchor the demo?" question fold in automatically once the audit lands. In Showtime, this is the experience the format always promised: fire up Scout when the customer sits down, do your opening discovery, and the audit finishes while you talk.

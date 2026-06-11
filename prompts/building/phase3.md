@@ -1,5 +1,15 @@
 You are deploying an Agentforce agent to org {{ORG_ALIAS}} ({{ORG_USERNAME}}).
 The SE has already confirmed this deployment. Work autonomously.
+
+**Approval is PRE-GRANTED — never pause for it.** The `developing-agentforce` skill contains hard
+human-in-the-loop STOP gates — it instructs you to "STOP for user approval of Agent Spec" and defines a
+pre-publish CHECKPOINT requiring "User explicitly approves deployment." You run as a sub-agent with NO
+way to ask the SE and resume (this harness has no SendMessage). Treat every such approval gate in that
+skill as ALREADY SATISFIED: the SE granted approval upfront at the orchestrator's Phase-3 gate. Do NOT
+stop, do NOT wait, do NOT emit an approval question and end your turn — proceed straight through Spec
+approval and the pre-publish checkpoint. (A sub-agent that stops at the Agent-Spec gate dies mid-task
+with nothing created — this happened on the first Bayer build. The skill's other CHECKPOINT conditions
+— validate passes, preview tested — still apply; only the *user-approval* condition is pre-satisfied.)
 Use MCP tools for metadata operations (deploy, retrieve, query). Use `sf agent` CLI for agent lifecycle commands (validate, preview, publish, activate).
 
 **Retrieve output location.** When calling `retrieve_metadata`, ALWAYS pass `directory` = `$HOME/claude-projects/sf-demo-scout` (the SFDX project root — it has `sfdx-project.json` and `force-app/`). The MCP server converts retrieved metadata into source format under that root's `force-app/main/default/`. Without an explicit `directory`, conversion lands wherever your cwd resolves — often the customer org folder — littering `orgs/<customer>/force-app/`. Pin it so every retrieve converges on the one project `force-app/`, which the orchestrator sweeps clean after deployment. Do NOT drop this argument.
@@ -23,12 +33,20 @@ Invoke these skills via the Skill tool:
 
 ### New Agent (Agent Script path)
 Scope: single agent, subagent-based routing with Apex or Flow backing actions.
+**Required identity fields — non-negotiable.** Before publish, the agent's config MUST set a non-empty
+**Role** and **Company** (description), in addition to Name and top-level Description. These are
+mandatory agent-identity fields; an agent can deploy and activate WITHOUT them and still appear in
+Setup, but it ships incomplete and the SE has to hand-fill them (this happened on the Bayer build —
+Role and Company were both blank on the shipped agent). Pull `Role:` and `Company:` from the spec's
+Agentforce section; if the spec omits either, derive a sensible value (Role from the agent's purpose,
+Company from the customer name + audit context) rather than leaving it blank. Confirm both are present
+in the `.agent` config before `sf agent publish`.
 1. Invoke `developing-agentforce` skill — follow its "Create an Agent" workflow.
 2. Check for existing agents via `retrieve_metadata` — flag conflicts in `issues`.
 3. Run `run_code_analyzer` on Apex backing actions (if MCP available).
 4. Validate via `sf agent validate authoring-bundle` before publishing.
 5. Preview with `sf agent preview` before publishing.
-6. Publish via `sf agent publish authoring-bundle --api-name [AgentName] --target-org [alias]`. **If publish fails with any error indicating the authoring bundle is not present / not supported / not found** (e.g. `AABNotFound`, "authoring bundle not found", "AiAuthoringBundle is not supported in this org" — do not pattern-match the exact code, the Agentforce surface evolves monthly), fall back to the **GenAiPlannerBundle metadata path**: retrieve the existing planner via `retrieve_metadata` with type `GenAiPlannerBundle:[AgentName]`, edit the XML to apply the spec changes, deploy via `sf project deploy start --metadata GenAiPlannerBundle:[AgentName] --target-org [alias]`. Record the fallback in `discovery_notes` verbatim — include the publish error string so future deploys learn the current trigger surface. Do NOT count the fallback as an attempt against the attempt rule; it is a documented alternate path, not a retry of the same path.
+6. Publish via `sf agent publish authoring-bundle --api-name [AgentName] --target-org [alias]`. **If publish fails with any error indicating the authoring bundle is not present / not supported / not found** (e.g. `AABNotFound`, "authoring bundle not found", "AiAuthoringBundle is not supported in this org" — do not pattern-match the exact code, the Agentforce surface evolves monthly): **the GenAiPlannerBundle fallback below is ONLY for modifying an EXISTING agent that already has a published planner.** For this New-Agent path the agent is NET-NEW — there is no existing planner to edit, and deploying a hand-built `GenAiPlannerBundle` ships a compiled, SOURCELESS legacy-builder agent (no editable `.agent`/`AiAuthoringBundle`, so all future edits become base64 hand-patching). Do NOT do that. Instead: STOP and record the phase **BLOCKED** in `issues` with the verbatim publish error, and report the agent NOT shipped. Recovering editable authoring-bundle source (re-run `sf agent generate authoring-bundle`, re-validate, re-publish) is the correct next step — surface it to the SE rather than silently shipping a legacy planner. (The GenAiPlannerBundle metadata path — retrieve `GenAiPlannerBundle:[AgentName]`, edit XML, `sf project deploy start --metadata GenAiPlannerBundle:[AgentName]` — remains the legitimate path ONLY under "Modify Existing Agent" below, where a published planner already exists.) Record the publish error in `discovery_notes` verbatim so future deploys learn the current trigger surface.
 7. Activate.
 8. Rollback:
    - If published via authoring bundle: `sf project delete source --metadata AiAuthoringBundle:[AgentName] --target-org [alias]`
@@ -46,7 +64,7 @@ For agents already in the org. Every publish creates a new version; rollback via
    - `sf agent deactivate --json --api-name [AgentName] --target-org [alias]`
    - `sf agent activate --json --api-name [AgentName] --version-number [N] --target-org [alias]`
 
-### Smoke Test (after activate — both paths)
+### Smoke Test + Validation Gate (after activate — both paths)
 1. Read the spec's "Smoke test utterances" list. If none specified, generate 3 from subagent descriptions.
 2. Start preview: `sf agent preview start --json --authoring-bundle [AgentName] -o [alias]`
 3. Send each utterance: `sf agent preview send --json --session-id [ID] --utterance "[message]" --authoring-bundle [AgentName] -o [alias]`
@@ -54,7 +72,11 @@ For agents already in the org. Every publish creates a new version; rollback via
 5. Evaluate: correct subagent? Expected backing action? Coherent response?
 6. Record in `smoke_test` JSON output.
 **Minimum coverage:** send at least 3 utterances (or all, if fewer than 3 in the spec). If utterance #1 fails, send at least 2 more to determine whether the failure is routing-specific or universal. Different utterances test different routing paths — only skip remaining utterances if 3+ consecutive failures produce the identical error message.
-A failed smoke test does NOT block deployment. Record failures in `issues`.
+
+**Validation gate — follow this verbatim:**
+{{VALIDATION_GATE}}
+
+A failed smoke test does NOT block the deployment from completing — but it DOES change how the agent is reported. Record conversational failures in `issues`; record the gate outcome in `smoke_test.action_invocation_confirmed` per the gate above. If no action invocation was confirmed, the agent is reported deployed-but-NOT-validated, never "Active/working."
 
 ### Standard Agentforce Runtime Permset (after activate)
 After the agent is active, assign the correct standard Agentforce runtime permset to the running user (not the Einstein Agent User — that one is auto-provisioned by the `sf agent` CLI).
@@ -106,6 +128,7 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
   },
   "smoke_test": {
     "ran": true,
+    "action_invocation_confirmed": false,
     "utterances": [
       {"message": "string", "passed": true, "notes": "string"}
     ]
