@@ -36,8 +36,12 @@ These are Salesforce platform limits, not Scout gaps — the Metadata API does n
   - [ ] After creating the Data Library, run one grounded utterance in Builder (e.g. an utterance that should pull from a specific Knowledge article) and confirm a citation or source reference appears in the response. If the response is plausible prose without a source, the Data Library is not linked — fix before demo.
 - **Any other entry** (MessagingSession-dependent actions, etc.): append one line per entry in the form `- [ ] [action name]: [reason from the entry]`.
 
-**Want to Change Something? Iterate It.**
-This demo isn't locked. If the seeded data doesn't fit the narrative, a topic reads flat, the CIO angle needs sharpening, or the customer just asked for a different headline — open a fresh Claude Code session and run `/scout-sparring`. Tell Scout what you want to change; it'll write a new spec, and `/scout-building` re-deploys over the top. Iterating an existing demo is a first-class Scout capability — not a restart.
+**Want to Change Something? Two Ways.**
+This demo isn't locked. Pick the door that fits:
+
+**Quick tweak, fix, or tinker — stay right here.** Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? Just tell Claude what you want changed in this session — it'll reach for the right Salesforce skill (`sf-flow`, `sf-lwc`, `sf-data`, and friends came with Scout) and make the change live against your org. Free-wheeling and fast. These edits won't be written back to the spec — and that's fine for iteration.
+
+**New scenario or structural rework — run `/scout-sparring`.** A different headline, a new agent, a story rebuild, anything you want captured in a clean spec with a fresh talk track and click path. Open a new Claude Code session and run `/scout-sparring` (iteration intent — and if you know the scenario cold, just tell Scout to move fast). It writes a new spec; `/scout-building` re-deploys over the top. Iterating an existing demo is a first-class Scout capability — not a restart.
 
 **Your Files**
 All files for this demo live in one folder. To open it in Finder:

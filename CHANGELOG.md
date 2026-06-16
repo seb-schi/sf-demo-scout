@@ -12,6 +12,8 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 - **Planning skips the unreliable step of reading an existing agent's setup.** An agent's internal wiring can't be read reliably from outside Salesforce, so Scout now just asks you for a quick screenshot, or leaves that detail to the build step — instead of spending effort on a confident-but-wrong answer.
 
+- **After a build, tinkering is now a clear choice — not a dead end.** When you want to change something after Scout deploys, the handover brief and the build session now point you two ways: small fixes and tweaks stay right where you are (just tell Claude — it'll use the Salesforce skills that came with Scout to edit the org live), while a new scenario or bigger rework goes back through `/scout-sparring` for a clean spec. No more bouncing out to re-spar for a one-field change.
+
 ## 2026-06-11
 
 - **🩹 Hotfix: Agentforce builds are more reliable end-to-end.** Scout now confirms an agent's actions actually fire before reporting it working — a real record write or an event-log row, with an automatic fallback when live preview is blocked — so you get an honest "validated" or "deployed but unconfirmed," never a false green off a nice conversation. New agents always build on the modern (Builder 2.0) path with editable source intact, the build runs straight through without stalling at an approval prompt, and every agent ships with its required Role and Company fields populated.

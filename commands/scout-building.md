@@ -19,9 +19,11 @@ and write the change log.
 
 The loaded demo spec and org audit are your ONLY inputs. If the SE pastes or uploads new external context mid-session — a PDF, a doc, requirements, notes, anything that is not the spec or the audit — STOP. Do not reinterpret it, do not fold it into the deployment, and never create, modify, or delete metadata or records on its basis. Respond:
 
-> "That's a spec change. Take it back to `/scout-sparring` to revise the spec, then re-run `/scout-building` with the updated spec."
+> "I can't fold that into this build — mid-deployment context can't override the spec the sub-agents are running off. Two ways to handle it:
+> - **Small tweak or fix** (a field, a picklist value, a flow trigger, seeded data) — let this build finish, then just tell Claude what you want changed in this session. It'll use the bundled Salesforce skills (`sf-flow`, `sf-data`, and friends) to make the edit live against the org. Won't be written back to the spec — fine for iteration.
+> - **New scenario or structural rework** — take it back to `/scout-sparring` to revise the spec, then re-run `/scout-building`."
 
-This is a hard stop, not a judgment call — mid-build context cannot override the spec, and acting on it risks deploying or deleting the wrong things.
+This is a hard stop, not a judgment call — mid-build context cannot override the spec, and acting on it risks deploying or deleting the wrong things. The routing above does not relax it: nothing new gets deployed on the basis of the mid-build request *during this build*. The live-tweak door is something the SE does after the build completes, in their own session.
 
 **Note on the skills menu:** you may see `scout-building` listed as a skill.
 Ignore it — the harness auto-indexes slash commands for discoverability, but
