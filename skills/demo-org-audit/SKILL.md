@@ -59,7 +59,8 @@ For each standard object commonly used in demos (Account, Contact, Opportunity, 
 - Custom only (exclude standard and managed)
 
 ### Existing Agentforce Agents and Topics
-- If any: name, topics, active/inactive status
+- If any: name, topics, active/inactive status, AgentType
+- **★ Authoring mode / upgrade flag** — flag any UI-built agent (pre-filter: AgentType='EinsteinServiceAgent' or Type='ExternalCopilot') whose `GenAiPlannerBundle` does not retrieve via Metadata API. These can't be edited safely as metadata; topic/action iteration triggers the sparring net-new-vs-upgrade fork. AgentType alone is only the pre-filter — it does NOT change on upgrade, so the planner-retrieve probe is the actual trigger. Topics/descriptions are NOT enumerable on a non-retrievable agent. The sub-agent prompt `prompts/sparring/audit/apps-flows-agents.md` carries the full procedure.
 
 ### Notable Gaps and Risks
 - Objects with no records (data seeding required)
@@ -75,5 +76,6 @@ Mark the following clearly in the audit output with ★:
 - The default Lightning app for System Administrator
 - The active page layout for each standard object record type in scope
 - Any existing custom objects directly relevant to the demo scenario
+- Any UI-built Agentforce agent whose planner won't retrieve via Metadata API (pre-filtered by AgentType='EinsteinServiceAgent' / Type='ExternalCopilot') — topic/action iteration triggers the sparring net-new-vs-upgrade fork
 
 These starred items are the primary build surface. Scout Sparring will use them to anchor scenario design before proposing any new metadata.

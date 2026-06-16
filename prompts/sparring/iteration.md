@@ -31,6 +31,14 @@ After the SE answers, review the existing audit and any prior specs/change logs 
 - **Conflicts:** existing flows on the same object, field name collisions, layout crowding, permission set overlaps
 - **Quality evaluation:** does the existing setup make sense as a foundation? If not, say so:
   > "Before we add [proposed change] — I reviewed the current org state. [Problem]. Adding this on top will [consequence]. Want to address that first, or proceed anyway?"
+- **UI-built Agentforce agent — net-new-vs-upgrade fork (hard gate).** If the change adds or moves a topic/action on an Agentforce agent that the audit ★-flagged as UI-built (planner did not retrieve via Metadata API), do NOT default to "upgrade." That agent can't be safely edited as metadata, and upgrading it is a remediation project, not a quick step. Present the SE the real fork BEFORE speccing, keyed on whether the change reuses the agent's existing wiring, and stop for the answer:
+  > "The audit flags **[agent]** as a UI-built agent — its planner can't be retrieved via Metadata API, so Scout can't edit it safely as metadata. There are two real paths, and which is cheaper turns on one question: **does your change build on this agent's existing topics, voice, or knowledge — or is it largely self-contained?**
+  > - **Self-contained scenario →** I'd build a **net-new Agent-Script agent** for it. That's Scout's strong lane — clean, editable source from day one — and we leave the legacy agent untouched.
+  > - **Builds on the existing agent's wiring** (its other topics, voice config, knowledge/Data Library you'd otherwise rebuild) **→** then we **upgrade it to the new Agentforce Builder** first. Be honest with yourself that this is a **remediation project, not a quick step**: expect the first commit of the upgraded version to fail several times (blank required descriptions on legacy actions, missing standalone action records, stale knowledge-grounding IDs), and expect to de-conflict legacy SDO template topics that compete with your new topic for routing (which I can only check after the upgrade makes the planner readable). It's reversible — the old version stays Active until you activate the upgraded one — but on a managed, packaged, or template-derived agent confirm reversibility (or test in a sandbox) first. Plan a dedicated session for the upgrade itself.
+  >
+  > Which fits — self-contained (net-new), or builds-on-existing (upgrade-and-remediate)?"
+
+  Carry the SE's choice into the spec. If text-only (no new/moved topic or action), this gate does not apply — building's editability pre-flight is the authoritative backstop.
 
 Only surface genuine concerns — don't re-litigate prior decisions that are working fine.
 

@@ -70,22 +70,35 @@ Use a count-first, enumerate-selectively approach.
 
 ## Existing Agentforce Agents and Subagents
 
-Discovery requires TWO queries — run both:
-1. `SELECT DeveloperName, MasterLabel, Type FROM BotDefinition` — returns Einstein Bots (Type='Bot') and Agentforce agents (Type='AgentforceServiceAgent', 'AgentforceEmployeeAgent', 'Copilot')
-2. `retrieve_metadata` with type `GenAiPlannerBundle` — returns Agentforce agent planning definitions. This often fails (unsupported API version or no local source) — that is expected.
+### Step 1 — Discover + classify (SOQL)
+`SELECT DeveloperName, MasterLabel, Type, AgentType FROM BotDefinition` — returns Einstein Bots (Type='Bot') and Agentforce agents (Type='AgentforceServiceAgent', 'AgentforceEmployeeAgent', 'ExternalCopilot', 'Copilot'). `AgentType` is the agent-class signal used to pre-filter upgrade candidates in Step 2. (BotDefinition queries reliably; do NOT try to query `GenAiPlugin`/`GenAiFunction`/`AiDataLibrary` for topic or action detail — those sObjects are not SOQL-supported in many SDO orgs.)
 
-**If GenAiPlannerBundle fails**, use this fallback to isolate Agentforce agents from Einstein Bots:
-```
-SELECT DeveloperName, MasterLabel, Type FROM BotDefinition WHERE Type != 'Bot'
-```
-If this returns 0, there are no Agentforce agents — only classic Einstein Bots.
+If that query returns 0 or errors, fall back to `SELECT DeveloperName, MasterLabel, Type, AgentType FROM BotDefinition WHERE Type != 'Bot'`. If THAT returns 0, there are no Agentforce agents — only classic Einstein Bots; skip Steps 2–3.
 
-Report all BotDefinition results in a table with DeveloperName, MasterLabel, and Type. Clearly distinguish Einstein Bots (Type='Bot') from Agentforce agents (other Type values). Note which GenAiPlannerBundle method was attempted and whether it succeeded or failed.
+### Step 2 — Pre-filter upgrade candidates (cheap, no retrieve)
+From the Step 1 results, mark each Agentforce agent (Type != 'Bot') as an **upgrade candidate** when `AgentType = 'EinsteinServiceAgent'` OR `Type = 'ExternalCopilot'` — the UI-built / Atlas class. Other AgentType values (`AgentforceEmployeeAgent`, `Employee`, `ServicePlanner`, etc.) are not candidates; report them in the table with no flag.
+
+⚠️ **AgentType is NOT the upgrade trigger — it does not change when an agent is upgraded to the new Builder** (verified live: an already-upgraded agent still reads `EinsteinServiceAgent`/`ExternalCopilot`). Using it as the flag would re-flag a clean agent every audit. It is only the cheap pre-filter that decides *which* agents are worth the Step 3 probe.
+
+### Step 3 — Decide per candidate (planner retrieve probe)
+For EACH upgrade candidate from Step 2 (typically 1–2 agents, not all), probe whether its planner retrieves via Metadata API — this is the signal that actually tracks upgrade state (verified live: failed with `UNKNOWN_EXCEPTION` before the upgrade, retrieved cleanly after):
+- `retrieve_metadata` for `GenAiPlannerBundle:[DeveloperName]` (single member — do NOT bulk-retrieve all planners; scope to the candidate).
+- **Retrieve fails / `UNKNOWN_EXCEPTION`** → the agent is UI-built and its planner is not safely metadata-editable → ★-flag it (note below).
+- **Retrieve succeeds** → treat as already on the new Builder → no flag.
+
+This is an ADVISORY signal — building's editability pre-flight runs the authoritative per-agent retrieve-confirm before any edit. When a failure is ambiguous, flag it: a false flag costs the SE one dismissal; a missed flag costs a dead-topic build. (Single-agent caveat: in the one observed case clean-retrieve meant upgraded, but n=1 — the authoritative confirm + any future hand-patch-fingerprint guard live on the building side, not here.)
+
+For each ★-flagged agent, add this exact note directly beneath the agent table:
+> ★ **[AgentName] is a UI-built agent (AgentType=[value]) whose planner did not retrieve via Metadata API.** It cannot be safely edited as metadata, so topic/action iteration on it requires a decision in sparring (build net-new vs upgrade-and-remediate — see the iteration gate). **The audit cannot enumerate this agent's topics or their descriptions** (the planner won't retrieve and the topic sObjects aren't SOQL-queryable), so any SDO-vs-demo topic de-confliction can only be assessed AFTER an upgrade makes the planner retrievable — flag it as expected-future-work, do not attempt it here. If the SE chooses to upgrade, expect it to be a remediation project (legacy actions with blank required descriptions, missing standalone action records, stale knowledge-grounding IDs) — not a one-click step.
+
+### Step 4 — Report
+Report all BotDefinition results in a table with DeveloperName, MasterLabel, Type, AgentType, and — for each Agentforce agent — the upgrade-candidate verdict and (for candidates) the planner-retrieve result (succeeded / failed). Clearly distinguish Einstein Bots (Type='Bot') from Agentforce agents.
 
 ## ★ Priority Markers
 
 Star the following:
 - The default Lightning app for the current user
+- Any UI-built Agentforce agent whose planner does not retrieve via Metadata API (pre-filtered by AgentType='EinsteinServiceAgent' / Type='ExternalCopilot', confirmed by a failed GenAiPlannerBundle retrieve) — topic/action iteration requires the sparring net-new-vs-upgrade fork before any spec
 
 ## Output Budget
 
@@ -97,7 +110,7 @@ Before writing your JSON output block, verify each of these. If any fails, fix i
 
 1. **App tabs populated.** The ★ default app ({{DEFAULT_APP}}) entry must list its tabs. If retrieval failed, say so explicitly.
 2. **Flow count matches.** The `active_flow_count` in your JSON must match the SOQL count from step 1 of the Flows section — not the number of flows you enumerated.
-3. **Agent discovery used both methods.** The Agentforce section must report BotDefinition SOQL results AND GenAiPlannerBundle attempt (or fallback), or explain why one failed.
+3. **Agent discovery classified authoring mode + probed candidates.** The Agentforce section must report BotDefinition SOQL results including `AgentType`. Every Agentforce agent (Type != 'Bot') must be classified as an upgrade candidate or not; every upgrade candidate must carry a per-agent GenAiPlannerBundle retrieve verdict (succeeded/failed) and, on failure, the ★ upgrade note.
 4. **Every section header has content beneath it.** No empty sections — if discovery failed, write what you tried and what failed.
 
 ## Output Format
@@ -109,7 +122,7 @@ Write the fragment file, then return EXACTLY one fenced JSON block. No prose out
   "fragment_file": "{{ORG_FOLDER}}/audit-fragment-apps-flows-agents.md",
   "status": "SUCCESS|PARTIAL|FAILED",
   "agents_found": [
-    {"name": "string", "type": "string"}
+    {"name": "string", "type": "string", "agent_type": "string — BotDefinition.AgentType, empty for Einstein Bots", "upgrade_candidate": false, "planner_retrievable": null, "needs_builder_upgrade": false}
   ],
   "active_flow_count": 0,
   "flow_object_map": [{"object": "string — TriggerObjectOrEventLabel", "count": 0}],
