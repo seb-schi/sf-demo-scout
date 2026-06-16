@@ -35,13 +35,18 @@ needs NO agent-user runtime permset — do not block or await one. The CLI-previ
 error is the `bypassUser` interaction (ladder step 3), NOT a license/permset problem. Route
 validation to the event-log path (step 2) rather than chasing a permset.
 
-### Post-deploy schema check (cheap, do it before the gate)
-After publish/activate, confirm each agent action has a NON-EMPTY Input/Output schema and that the
-planner bundle re-retrieves cleanly (`retrieve_metadata` GenAiPlannerBundle:[AgentName] succeeds).
-Actions added programmatically can land with an empty/unresolved I/O schema — an action with no input
-schema gives the LLM no slots to fill, so it can't meaningfully invoke it. If a schema is empty or
-the planner won't re-retrieve, record it in `issues` and treat the gate as NOT passed; re-adding the
-action via the Builder wizard regenerates the schema.
+### Schema presence check (cheap — do it PRE-DEPLOY, do not rely on a post-deploy re-retrieve)
+The load-bearing structural check is the **on-disk `localActions` folder presence gate** in phase3.md's
+Modify path: for every Topic plugin in the bundle XML that has actions, a `localActions/<topic-fullName>/`
+directory must exist with one non-empty `input/schema.json` + `output/schema.json` per action,
+verified BEFORE deploy via the topic's `<fullName>` (the folder name verbatim — do not guess at the
+Salesforce-assigned Id suffixes). Do this on disk — do NOT defer it to a post-deploy `retrieve_metadata`
+GenAiPlannerBundle re-retrieve, which can fail with UNKNOWN_EXCEPTION and silently skip the one check
+that catches a missing schema. An action with no input schema gives the LLM no slots to fill, so it can
+never be invoked. If a schema folder is absent, block the deploy and record it in `issues`; re-adding the
+action via the Builder wizard regenerates the schema. Independent of this, the orchestrator runs an
+Action-Invocation Probe after Phase 3 (sub-agent-validation.md) that confirms the hero action actually
+fired in the org — that probe, not this sub-agent's self-report, decides validated status.
 
 ### Required identity fields (confirm before reporting done)
 Confirm the deployed agent has a NON-EMPTY **Role** and **Company** (description) field — both are

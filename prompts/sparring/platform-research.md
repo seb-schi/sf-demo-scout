@@ -61,10 +61,12 @@ Based on audit + discovery, infer 3-7 doc search topics. Categories:
 
 1. **Industry data model** (if SE named an industry cloud): search for that cloud's standard data model, key objects, recommended patterns. Cross-reference against objects the audit found with data.
 2. **Feature-specific** (if SE named a feature in question 6): current capabilities, setup requirements, known limitations.
-3. **Agentforce patterns** (if the org has existing agents or scenario involves AI/automation): current Agent Script capabilities, available agent templates, topic routing patterns. Agentforce ships features monthly — always check current state.
+3. **Agentforce patterns** (if the org has existing agents or scenario involves AI/automation): current Agent Script capabilities, available agent templates, topic routing patterns. Agentforce ships features monthly — always check current state. **Do NOT spend sub-agent budget inspecting a live agent's actual topic/action composition during sparring.** `GenAiPlannerBundle` / `AiAuthoringBundle` are non-retrievable via the Metadata API and non-queryable via SOQL — a sub-agent dispatched to "read the live agent's topics" returns unreliable, contradictory output (one such probe cost ~37k tokens / 28 tool calls and returned topics that contradicted both the prior spec and the SE's screenshot). It is a black box from the outside (same constraint the building pipeline hits when it must edit such an agent). If you need the agent's current wiring, ASK the SE for a screenshot of the Agent Builder topics list, or defer the inspection to building (which works against the agent in-org). Research the agent's *intended* design via docs here; do not try to reverse-engineer its *current* state.
 4. **Data Cloud / Analytics** (if mentioned): current integration patterns, relevant features.
 5. **Platform capabilities** (for non-trivial features): Flow capabilities, LWC patterns, custom metadata approaches.
 6. **Flex Credit cost** (if scenario includes Agentforce actions OR Data Cloud meters): invoke `sf-flex-estimator` skill to produce a public-price estimate. Surface the estimate in Step 4 findings so the SE can factor cost into the scope decision. Skip for pure-config scenarios (no AI, no Data Cloud).
+
+**MANDATORY for Agentforce scenarios — do not treat this as optional or skippable.** If the scenario includes ANY Agentforce action, the flex-credit estimate is a first-class research output, not a buried sub-item. Cost-per-conversation is exactly what an executive room deciding whether to fund a PoC asks first, and Agentforce demos are frequently pitched to exactly that audience. Run `sf-flex-estimator` and carry the estimate forward — it MUST appear in the Step 4 findings AND in the Stage 5 scenario proposal (not just the research summary), so the SE sees it at scope-decision time.
 
 For iterations: narrow to 1-3 searches focused on the specific change and its integration points.
 
@@ -104,6 +106,7 @@ Present a structured summary of what docs revealed, grouped by impact:
 > - **Data model:** [which standard objects/fields map to the scenario — cite docs]
 > - **Capabilities confirmed:** [features that work as expected — cite docs]
 > - **Constraints discovered:** [limitations, prerequisites, or gotchas — cite docs]
+> - **Flex credit estimate (if Agentforce/Data Cloud):** [public-price cost-per-conversation or meter estimate from sf-flex-estimator — REQUIRED for Agentforce scenarios; carry into the Stage 5 proposal]
 > - **Recommendation:** [how findings should shape the scenario]
 >
 > "These findings will shape the scenario I propose next. Any questions before I proceed?"

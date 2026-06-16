@@ -2,6 +2,16 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-06-16
+
+- **🩹 Hotfix: Agentforce agents are confirmed working before they're reported done.** After every agent build, Scout now checks the org itself to confirm the agent's main action actually fired — so you get an honest "done and confirmed" or "deployed, but verify this part," never a false all-clear. And when you're adding to an agent built by hand in Salesforce's point-and-click builder, Scout builds the supporting pieces it can deploy safely and puts the rest on your manual checklist, clearly marked, rather than editing the agent's internals.
+
+- **Scope decisions during planning aren't called "final" until Scout has checked they'll actually work.** Sometimes a way to simplify the demo depends on an assumption Scout hasn't tested yet — like "we can reuse this standard field instead of building a new one." Scout now marks those choices as tentative until it validates them against your real data, so you don't lock in a plan that has to be unwound a few minutes later when the shortcut turns out to be blocked.
+
+- **Agentforce demos always come with a cost estimate, shown right when you're deciding scope.** When a demo includes an AI agent, cost-per-conversation is the first thing an executive audience asks about. It's now always included and surfaced in the proposal, so you have the number in hand at decision time.
+
+- **Planning skips the unreliable step of reading an existing agent's setup.** An agent's internal wiring can't be read reliably from outside Salesforce, so Scout now just asks you for a quick screenshot, or leaves that detail to the build step — instead of spending effort on a confident-but-wrong answer.
+
 ## 2026-06-11
 
 - **🩹 Hotfix: Agentforce builds are more reliable end-to-end.** Scout now confirms an agent's actions actually fire before reporting it working — a real record write or an event-log row, with an automatic fallback when live preview is blocked — so you get an honest "validated" or "deployed but unconfirmed," never a false green off a nice conversation. New agents always build on the modern (Builder 2.0) path with editable source intact, the build runs straight through without stalling at an approval prompt, and every agent ships with its required Role and Company fields populated.

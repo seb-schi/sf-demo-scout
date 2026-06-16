@@ -231,6 +231,8 @@ Wait for the SE's answer. Evaluate BOTH halves:
 
 Both halves must be resolved before proceeding to Stage 5b (data shape validation).
 
+**Cut-gate outcomes are PROVISIONAL until Stage 5b clears them.** A scope cut often hinges on a platform assumption that has not yet been probed — e.g. "drop the custom field, write to the standard `EffectiveDate` instead" assumes `EffectiveDate` is writable in the scenario's record state. Stage 5b is where that gets validated, and it runs AFTER this gate. Therefore: when a cut (or a status / write-target decision) depends on a field or object behaviour Stage 5b has not yet confirmed, tag it `[UNVERIFIED — pending 5b]` and do NOT call it "settled," "locked," or "decided." Say "provisionally cut, pending data-shape validation." Carry every `[UNVERIFIED — pending 5b]` decision into Stage 5b as an explicit checklist item so 5b probes it before the spec is written. Over-committing here guarantees rework when 5b reverses a cut the SE already mentally banked.
+
 ---
 
 ## Stage 5b: Data Shape Validation

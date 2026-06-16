@@ -139,7 +139,7 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
 |-------|----------|------------|--------------|-------------------|
 | 1 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` | `QUEUES`, `LAYOUTS`, `LRP`, `PERMSET`, `STRUCTURAL`, `PICKLISTS`, `DATA_SEEDING`, `BUSINESS_PROCESS`, `PATHS` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`), `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning Record Page — Field Section additions, Lightning App / Tabs, Business Processes, Paths) | `Phase 1: Org Config deployment` |
 | 2 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` | `FLOWS`, `APEX`, `LWC` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PHASE1_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Flows, Apex, LWC sections) | `Phase 2: Flows/Apex/LWC deployment` |
-| 3 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` | *(none)* | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PRIOR_PHASES_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Agentforce section), `{{VALIDATION_GATE}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` — read the file and substitute; sub-agents cannot resolve `${CLAUDE_PLUGIN_ROOT}`, so inject the content the same way `{{AUDIT_SHARED_RULES}}` is injected) | `Phase 3: Agentforce deployment` |
+| 3 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` | *(none)* | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PRIOR_PHASES_SUMMARY}}`, `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`; same value injected into Phase 1), `{{SPEC_SECTIONS}}` (Agentforce section), `{{VALIDATION_GATE}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` — read the file and substitute; sub-agents cannot resolve `${CLAUDE_PLUGIN_ROOT}`, so inject the content the same way `{{AUDIT_SHARED_RULES}}` is injected) | `Phase 3: Agentforce deployment` |
 
 ### Phase 1: Org Config
 
@@ -160,6 +160,26 @@ If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 2.
 If `discovery_notes` is empty or contains no Phase 3-relevant entries, proceed normally.
 
 ### Phase 3: Agentforce — if applicable
+
+**Editability pre-flight (MUST — run before the SE gate, before any sub-agent spawn).** The failure this prevents: two consecutive builds shipped a dead topic because the sub-agent hand-patched a compiled `GenAiPlannerBundle` on a UI-built agent (added topic/action graph references but not the matching `localActions/<topic>/<action>/{input,output}/schema.json` folders — so the actions can't resolve at runtime, yet deploy reports SUCCESS and the agent stays Active). Determine editability ONCE here:
+
+1. Read the spec's Agentforce section. Classify the change: **net-new agent** (no existing agent named) vs **modify-existing** (spec targets an agent already in the org), and whether the change **adds or moves a topic/action** (structural) vs **tweaks existing node text/values only** (in-place).
+2. For modify-existing, determine editability with a cheap SOQL query FIRST, then confirm with a single retrieve used as a boolean (do NOT parse error strings — `agentDSLEnabled` is NOT SOQL-reachable; it lives only in `.bot-meta.xml`, so don't query it):
+   ```sql
+   SELECT DeveloperName, Type, AgentType FROM BotDefinition WHERE DeveloperName = '[AgentName]'
+   ```
+   **Risk-class flag:** `AgentType = 'EinsteinServiceAgent'` (or a legacy `Type = 'Bot'` / `Type = 'ExternalCopilot'`) is the UI-built, planner-only, hand-patch-risk class (the WSA/Qiagen class). `AgentType` values like `AgentforceEmployeeAgent` / `Employee` / `ServicePlanner` are the other classes. **The enum is an empirical SDO/IDO mapping, not a guarantee** — a newer Agent-Script-authored service agent could also report `EinsteinServiceAgent` yet have editable source. So treat the SOQL result as the risk flag, then confirm with ONE retrieve used purely as a boolean:
+   ```bash
+   sf project retrieve start --json --metadata "AiAuthoringBundle:[AgentName]" --target-org {{ORG_ALIAS}} 2>&1 | head -40
+   ```
+   Retrieve **succeeds** (a `.agent`/AiAuthoringBundle lands on disk) → **editable source exists** (safe edit). Retrieve **fails** → **confirmed sourceless / UI-built** (route structural edits to Builder). Use success-vs-failure as the boolean — do NOT pattern-match the exact error code (the surface evolves monthly).
+3. **Routing decision:**
+   - **Net-new agent** → Agent Script path (sub-agent builds the `.agent` bundle from scratch). Proceed normally.
+   - **Modify-existing WITH editable source** → version-safe Modify path. Proceed normally.
+   - **Modify-existing, UI-built (no source), IN-PLACE tweak only** → planner XML edit is the legitimate path. Proceed to the Modify path.
+   - **Modify-existing, UI-built (no source), STRUCTURAL add/move of topic or action** → **DO NOT hand-patch the planner.** Re-scope Phase 3: Scout deploys the backing flows/Apex only (the parts that have real source); the topic + action **wiring** is routed to the SE Manual Checklist ("Add topic '[X]' + action '[Y]' in Agent Builder — the agent is UI-built, so structural wiring must be done in the Builder wizard, which regenerates the action I/O schemas"). Record this split in `skipped` with reason "SE Manual Checklist — UI-built agent, structural wiring not source-editable." Surface it in the SE gate below so the SE sees the accurate partial scope.
+
+Record the editability verdict in `discovery_notes` verbatim (e.g. `"Agentforce_Service_Agent: AiAuthoringBundle retrieve failed (AABNotFound) — UI-built, structural wiring routed to SE Manual."`).
 
 **SE gate before spawning.** Enumerate from the spec verbatim — do not paraphrase action types. Pull `Backing Apex classes:` / `Backing actions:` / `Knowledge grounding:` fields from the spec's Agentforce section exactly as written. The SE must be able to see at decision time whether the plan is "no Apex" or "Apex fallback allowed."
 

@@ -55,23 +55,46 @@ in the `.agent` config before `sf agent publish`.
 
 ### Modify Existing Agent (version-safe path)
 For agents already in the org. Every publish creates a new version; rollback via `sf agent activate --version-number N`.
-1. Invoke `developing-agentforce` skill — follow its "Modify an Existing Agent" workflow.
-2. Note the current active version number before changes (rollback target).
-3. Comprehend existing agent structure, update Agent Spec.
-4. Validate and preview before publishing.
-5. Publish (creates new version), then activate.
-6. Rollback:
+
+**Editability is already decided by the orchestrator.** The orchestrator ran an editability pre-flight and routed you here only if EITHER (a) the agent has editable AiAuthoringBundle source, OR (b) the change is an IN-PLACE tweak to existing planner nodes (text/value edits, no new topic/action). **You must NOT add or move a topic or action by hand-patching a compiled `GenAiPlannerBundle`.** If you find yourself about to add a new topic/action graph reference to planner XML, STOP and record the phase **BLOCKED** in `issues` with reason "structural planner hand-patch attempted on UI-built agent — orchestrator should have routed to SE Manual; escalate." Adding graph references without the matching `localActions/<topic>/<action>/{input,output}/schema.json` folders ships a dead topic that deploys SUCCESS but never fires — this is the exact failure that shipped twice.
+
+1. **Pre-edit snapshot (ordered step 1 — MANDATORY).** Before touching anything, copy the retrieved bundle to the sweep-exempt rollback dir so a durable pristine pre-edit artifact survives the post-deploy `force-app/` sweep:
+   ```bash
+   mkdir -p "{{ROLLBACK_DIR}}"
+   cp -R "$HOME/claude-projects/sf-demo-scout/force-app/main/default/genAiPlannerBundles" "{{ROLLBACK_DIR}}/genAiPlannerBundles.preedit" 2>/dev/null || true
+   cp -R "$HOME/claude-projects/sf-demo-scout/force-app/main/default/aiAuthoringBundles" "{{ROLLBACK_DIR}}/aiAuthoringBundles.preedit" 2>/dev/null || true
+   ```
+   Do NOT emit a `git checkout` / `git restore` rollback command — the SE workspace is NOT a git repo and the command would silently no-op. Rollback for this path is the version-number reactivation below plus, if needed, redeploying the `.preedit` copy.
+2. Invoke `developing-agentforce` skill — follow its "Modify an Existing Agent" workflow.
+3. Note the current active version number before changes (rollback target).
+4. Comprehend existing agent structure, update Agent Spec.
+5. **Pre-deploy localActions gate (MUST — for any change that touches topics/actions).** After building the edited bundle on disk but BEFORE deploy, run a STRUCTURAL JOIN between the planner XML and the `localActions/` tree. **Do NOT try to match on the new topic/action names** — the on-disk folders carry 18-char Salesforce-assigned metadata-Id suffixes you cannot know pre-deploy (topic dirs = `<fullName>` which already includes the planner-Id suffix, e.g. `Order_Management_16jKB000000oUsk`; action dirs carry their OWN per-action Id suffix, distinct from the suffix used in the XML reference). A hand-patched dead topic has NO `localActions` folder at all — that absence IS the catch. The gate:
+   ```
+   For each topic in the bundle XML — each <genAiPluginName>/<genAiPlugin> of pluginType=Topic
+     that has one or more child <functionName> entries (i.e. the topic has actions):
+       read the topic's <fullName> (e.g. "Order_Management_16jKB000000oUsk")
+       require a directory localActions/<fullName>/ to EXIST on disk
+       require one child dir per <functionName>, each containing input/schema.json AND output/schema.json
+       require each schema.json to be NON-EMPTY (a 0-byte schema is the Bayer "deployed Active with empty I/O schema" failure — also a fail)
+   → topic referenced in XML but localActions/<fullName>/ absent, OR present but missing an action child, OR any schema.json empty → BLOCK.
+   ```
+   The topic's `<fullName>` string is the folder name verbatim — no name-guessing, suffix-and-all. **Exclude the parallel `plannerActions/<action>_<suffix>/` subtree** — it is planner-level/standard actions (e.g. `AnswerQuestionsWithKnowledge`), one level shallower with no topic dir; folding it into the topic-action check produces false results. On a BLOCK, record the phase BLOCKED in `issues` with the missing path(s). (This gate is cheap, deterministic, runs entirely on disk, and does NOT depend on a post-deploy re-retrieve — which can fail with UNKNOWN_EXCEPTION and silently skip the only check that catches this.)
+6. Validate and preview before publishing.
+7. Publish (creates new version), then activate.
+8. Rollback:
    - `sf agent deactivate --json --api-name [AgentName] --target-org [alias]`
    - `sf agent activate --json --api-name [AgentName] --version-number [N] --target-org [alias]`
+   - If the new version must be discarded entirely, redeploy the pre-edit snapshot from `{{ROLLBACK_DIR}}/*.preedit`.
 
 ### Smoke Test + Validation Gate (after activate — both paths)
+
+**Primary validation is the orchestrator-side Action-Invocation Probe, not this CLI smoke test.** The orchestrator runs an event-log probe after Phase 3 (see sub-agent-validation.md) that is version-stable and removes you from the trust path for "did the hero action fire." CLI-preview smoke testing below is a SECONDARY conversational check — useful for routing/coherence, but it is NOT acceptance and its exact `sf agent preview` interface changes monthly (do not over-trust the flag spelling). If a `sf agent preview` subcommand errors as unrecognized, record the verbatim error in `discovery_notes` and proceed — the event-log probe is what gates the agent's validated status.
+
 1. Read the spec's "Smoke test utterances" list. If none specified, generate 3 from subagent descriptions.
-2. Start preview: `sf agent preview start --json --authoring-bundle [AgentName] -o [alias]`
-3. Send each utterance: `sf agent preview send --json --session-id [ID] --utterance "[message]" --authoring-bundle [AgentName] -o [alias]`
-4. End session: `sf agent preview end --json --session-id [ID] --authoring-bundle [AgentName] -o [alias]`
-5. Evaluate: correct subagent? Expected backing action? Coherent response?
-6. Record in `smoke_test` JSON output.
-**Minimum coverage:** send at least 3 utterances (or all, if fewer than 3 in the spec). If utterance #1 fails, send at least 2 more to determine whether the failure is routing-specific or universal. Different utterances test different routing paths — only skip remaining utterances if 3+ consecutive failures produce the identical error message.
+2. Run the current `sf agent preview` interface to send each utterance against the activated agent (consult `testing-agentforce` for the live invocation — the CLI is an interactive REPL surface that changes monthly; do not assume a `start`/`send`/`end --session-id` triplet exists). If the interface can't be driven non-interactively, skip to the event-log probe and record the skip in `discovery_notes`.
+3. Evaluate each turn: correct subagent? Expected backing action narrated? Coherent response?
+4. Record in `smoke_test` JSON output. A coherent conversation is NOT acceptance — the gate below decides validated status.
+**Minimum coverage (if preview is drivable):** send at least 3 utterances (or all, if fewer than 3 in the spec). If utterance #1 fails, send at least 2 more to determine whether the failure is routing-specific or universal. Different utterances test different routing paths — only skip remaining utterances if 3+ consecutive failures produce the identical error message.
 
 **Validation gate — follow this verbatim:**
 {{VALIDATION_GATE}}

@@ -106,3 +106,33 @@ A schema-valid envelope can still report a seeding failure as success — e.g. `
 An unparseable count must never become an implicit PASS — that reintroduces the original gap one level up.
 
 **Step 5 — On FAIL.** Re-run the seed script's bulk path for the failed object(s) (or re-invoke the seeding step), then re-probe. This is a hard gate: do not report Phase 1 complete with a failed seeding probe. If re-seed fails twice, record the object as FAILED in the change log's Issues Encountered section with the probe's expected-vs-actual, and surface to the SE.
+
+## Action-Invocation Probe (Phase 3 — runs unconditionally when an Agentforce agent was deployed Active)
+
+Mirror of the Data Seeding Integrity Probe, one phase over: a sub-agent can report an agent `Active` with a coherent smoke-test transcript while the hero action never fired (the agent narrates "I'll flag it" and invokes nothing; or a hand-patched topic references an action with no resolvable I/O schema, so it can never be selected). The sub-agent's `smoke_test.action_invocation_confirmed` self-report and its CLI-preview transcript are NOT trusted here — the sub-agent is the component that may be wrong (it has cited `sf agent preview` interfaces that don't exist in the installed CLI). This probe runs **regardless of what the sub-agent reported**, whenever `deployed.agent.status == "Active"`. Expected behaviour comes from the SPEC's hero action; actual comes from the ORG.
+
+The probe runs as a LADDER in this order — structural first (deterministic, no live turn), then runtime confirmation, then corroboration. Do NOT lead with the record-write check: its negative is ambiguous and an affirmative live write mutates demo data the SE must then reset.
+
+**Step 1 — Identify the hero action + its expected effect from the SPEC.** From the spec's Agentforce section, read the primary ("hero") action and what firing it does — its API name (for the event-log check) and, if any, the object + field(s) it writes (for corroboration).
+
+**Step 2 — PRIMARY: localActions structural gate (deterministic, on-disk, no live turn).** This is the real catch — it isolates the structural defect itself, not a downstream symptom, and on a modify-existing build it has already run pre-deploy in phase3.md. Re-confirm it here against the deployed bundle on disk using the SAME `<fullName>`-based structural join phase3.md uses (parse each Topic plugin's `<fullName>` from the bundle XML; require `localActions/<fullName>/` to exist with one non-empty `input/schema.json` + `output/schema.json` per `<functionName>`; exclude the parallel `plannerActions/` subtree). A topic referenced in the planner graph with NO `localActions/<fullName>/` folder is a dead topic regardless of what the transcript said — hard FAIL. Do NOT match on topic/action names — the folders carry unknowable 18-char metadata-Id suffixes; the topic's `<fullName>` IS the folder name, and a hand-patched dead topic has no folder at all.
+
+**Step 3 — Runtime confirmation: event-log FunctionStep (post-activate).** Enabling the log is step 0, not optional — if "Keep a record of conversations with enhanced event logs" is OFF, the query returns zero rows and you'd misread "no rows" as "action didn't fire" when it's really "logging was off."
+   a. Enable enhanced event logs on the agent (Edit Agent Details → "Keep a record of conversations with enhanced event logs") if not already on.
+   b. Send ONE test turn through any working channel that should fire the hero action.
+   c. Query:
+   ```sql
+   SELECT StepType, Action, EventTarget, IsSuccessful, ConversationTurn FROM ConversationDefinitionEventLog WHERE CreatedDate = TODAY ORDER BY CreatedDate DESC
+   ```
+   A `FunctionStep` row naming the hero action with `IsSuccessful = true` = confirmed invocation = PASS. Turn rows that are only `Message`/`CancelDialog`/`Transfer` with ZERO `FunctionStep` = the action never fired = FAIL. (The object is `ConversationDefinitionEventLog` — there is no `GenAiInteraction`.)
+
+**Step 4 — Corroboration only: record-write SOQL (NOT a lead signal).** If the hero action writes a record, SOQL the target for the expected change to corroborate a Step-3 PASS:
+   ```sql
+   SELECT [field(s) the action sets] FROM [Object] WHERE [stable key from the test turn] ORDER BY LastModifiedDate DESC LIMIT 1
+   ```
+   A changed field is strong positive proof. An unchanged/null field proves NOTHING on its own — no turn may have attempted a write — so never use this as the discriminator; use it to confirm a FunctionStep row, not to lead.
+
+**Step 5 — On FAIL.** Do NOT report the agent "Active/working." Override the sub-agent's report: set the agent's status to **"deployed but NOT validated — hero action invocation not confirmed in org"** for the change log and handover brief, record the probe's expected-vs-actual (verbatim org result) in the change log's Issues Encountered section, and surface to the SE. This is NOT a hard stop on the deployment (the agent may still demo for routing/conversation) — it is an honesty gate: the SE must see "deployed but unvalidated" rather than a false green. If Step 2 found a missing `localActions/<fullName>/` folder, flag it as the root cause and recommend re-adding the action via the Builder wizard (which regenerates the schema with its proper Id).
+
+**Step 6 — Degrade loud, never silent.** If the spec has no parseable hero action, or the org can't be probed (event logs unavailable AND no observable write), do NOT pass implicitly. Surface to the SE:
+> "Phase 3 deployed agent `[name]` Active, but I couldn't independently confirm its hero action fired (no observable write and event logs unavailable). Reporting it deployed-but-unvalidated. Confirm in a live Messaging Session, or tell me the expected record effect so I can probe."
