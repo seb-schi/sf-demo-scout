@@ -250,7 +250,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/building/handover-brief.md` for the format, 
 
 **Then offer the Slack handover canvas:**
 
-1. Probe Slack MCP availability: bash `claude mcp list 2>/dev/null | grep -qE '^slack:.*✓ Connected' && echo OK || echo MISSING`.
+1. Probe Slack MCP availability: bash `claude mcp list 2>/dev/null | grep -qE '^slack:.*Connected' && echo OK || echo MISSING`.
    - On `MISSING`: skip silently to the notification (no prompt — nothing to offer).
    - On `OK`: proceed to step 2.
 2. Ask the SE inline:

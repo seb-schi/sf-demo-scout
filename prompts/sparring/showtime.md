@@ -147,7 +147,7 @@ This is the customer-facing artifact of Showtime. While Scout writes it (~1–2m
 Probe Slack MCP availability first:
 
 ```bash
-claude mcp list 2>/dev/null | grep -qE '^slack:.*✓ Connected' && echo OK || echo MISSING
+claude mcp list 2>/dev/null | grep -qE '^slack:.*Connected' && echo OK || echo MISSING
 ```
 
 - On `MISSING`: skip silently to S8 with a one-line note in the Done message that Slack canvas was unavailable.
