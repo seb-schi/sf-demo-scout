@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-06-17
+
+- **Migrating a legacy Agentforce agent is now low-friction — no more remediation cascade.** When you want to add to an agent built in Salesforce's old point-and-click builder, Scout no longer routes the change to your manual checklist. Instead: you flip the one reversible "upgrade to the new builder" switch in Agentforce Studio (the old agent stays live until you say otherwise), and Scout reads the upgraded agent's setup and rebuilds it as clean, editable Agent Script under a side-by-side name — reproducing its topics and actions and adding your new capability on top. The original is left untouched so you can compare them before retiring it. This replaces the old "expect several failures, plan a whole session" path. (Fidelity isn't fully machine-proven yet, so Scout flags that you should diff the rebuilt agent against the original before demo day.)
+
 ## 2026-06-16
 
 - **Scout now handles old vs. new Agentforce agents intelligently — and tells you which you're dealing with.** Salesforce has two agent builders: the legacy point-and-click one (no editable source — the source of every painful hand-patch) and the modern Agent Builder / Agent Script (clean, deployable source). **New agents Scout builds always go to the modern builder** — and if that ever isn't possible, Scout stops and tells you rather than silently dropping you into the legacy one. For *existing* agents, the org audit now flags any legacy/UI-built agent up front, and when you go to change one, Scout gives you a real choice: build a fresh modern agent for a self-contained scenario (its strong, clean lane), or migrate the legacy agent to the new builder when your change reuses its existing topics and knowledge. Migration unlocks safe, deployable edits — but Scout is upfront that it's a remediation session, not a one-click step, so you can plan for it. (Automating that migration is on the roadmap.)
