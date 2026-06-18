@@ -133,18 +133,28 @@ fi
 
 ```bash
 cd "$HOME/claude-projects/sf-demo-scout"
-if [ ! -f orgs/sparring-lessons.md ]; then
-  cat > orgs/sparring-lessons.md <<'EOF'
-# Sparring Lessons
+mkdir -p orgs/lessons
+if [ ! -f orgs/lessons/INDEX.md ]; then
+  cat > orgs/lessons/INDEX.md <<'EOF'
+# Lessons Index
 
-Accumulated lessons from scout-sparring sessions. Add new lessons at the end with today's date.
-EOF
-fi
-if [ ! -f orgs/building-lessons.md ]; then
-  cat > orgs/building-lessons.md <<'EOF'
-# Building Lessons
+Topic-clustered lessons from scout-sparring + scout-building sessions.
+This INDEX is loaded at the start of every session; topic files are
+loaded on demand based on the descriptive lines below.
 
-Accumulated lessons from scout-building sessions. Add new lessons at the end with today's date.
+Each lesson is whole — it may carry both a sparring rule and a building
+backstop. Lessons are not split by phase. Add new lessons to the topic
+file that best fits; create a new topic + INDEX line if none fit.
+
+## Topics
+
+- **agentforce.md** — Agentforce agent build + iteration: action-invocation-as-proof, GenAiPlannerBundle safety, enhanced-event-log diagnostics, pre-Agent-Script (Atlas/UI-built) agent handling, headless/Agent API recipes, agent action schema.
+- **managed-packages.md** — Managed-package write/read restrictions and schema quirks (lsc4ce / LSC, Health Cloud, FSC, industry clouds): namespaced retrieve names, trigger/validation DML gates, stage-gated field locks, territory/sharing blast radius.
+- **flow.md** — Flow + FlowTest: generated-flow defect patterns, FlowTest XML schema, CLI flow-run breakage, record-triggered vs screen flow gotchas.
+- **data-seeding.md** — Data seeding: CLI `sf data` envelope/Bash quirks, pilot-self-test limits, pricebook/SKU gating, paired-record cleanup, idempotency.
+- **metadata-deploy.md** — Org-SPECIFIC metadata deploy/parse gotchas (distinct from the org-agnostic Known Deploy-Error Patterns catalog): roll-up-summary relationship traps, permset description limits, field/picklist verification, RT-specific values.
+- **discovery-and-scoping.md** — Sparring heuristics: customer-evidence gate, reuse-orgs-aggressively, booth-vs-WorldTour scoping, existing-first object/field probing, marketed-vs-shorthand product names, data-quality-before-reuse.
+- **lwc-slds.md** — LWC + SLDS: internal-token hard-fails, SLDS2 utility/global-hook fixes, Code Analyzer deprecation warnings.
 EOF
 fi
 ```

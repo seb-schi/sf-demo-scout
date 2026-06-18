@@ -6,7 +6,7 @@ the error and apply the documented fix. Per the skill's attempt rule, a match
 here counts as the next attempt — apply the fix and redeploy.
 
 Deterministic fixes for recurring Salesforce metadata deploy errors. These are
-org-agnostic parse errors (distinct from `building-lessons`, which holds
+org-agnostic parse errors (distinct from `orgs/lessons/`, which holds
 org-specific gotchas). A rule-based fix is preferred over improvising — the
 patch shape is exact.
 
@@ -66,4 +66,4 @@ not covered here.
 ## Extending this library
 When a Scout deploy hits a recurring org-agnostic parse error not covered here,
 propose a new pattern (signature / file / cause / fix / handoff) via
-`/project-sparring`. Org-*specific* gotchas still go to `building-lessons`.
+`/project-sparring`. Org-*specific* gotchas still go to `orgs/lessons/` (topic-clustered).

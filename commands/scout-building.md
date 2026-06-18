@@ -34,9 +34,9 @@ instructions are this file. Do not go looking for a SKILL.md.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This fragment cd's into the Scout workspace and aborts cleanly if it cannot. Do not proceed with the steps below if the fragment aborted.
 
-Read `orgs/building-lessons.md` — these are mistakes from previous building sessions. Do not repeat known mistakes.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-bootstrap.md` and follow it — it creates the lessons INDEX on first run, loads it, and loads the topic files relevant to this build (matched to the spec's component classes). These topic files hold mistakes from previous sessions; do not repeat known mistakes.
 
-**Docs consultation on error:** when a sub-agent reports a deployment failure with an error message not in `building-lessons` and not self-evident, consult Salesforce Docs MCP BEFORE asking the SE to retry or skip. Load `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` for the decision tree. Record every consultation for the change log.
+**Docs consultation on error:** when a sub-agent reports a deployment failure with an error message not in the loaded `orgs/lessons/` topics (`metadata-deploy.md` / `managed-packages.md`) and not self-evident, consult Salesforce Docs MCP BEFORE asking the SE to retry or skip. Load `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` for the decision tree. Record every consultation for the change log.
 
 ---
 
@@ -155,7 +155,7 @@ Run the Phase Prep Procedure for Phase 1. After it returns, if critical items fa
 If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 2.
 
 **Phase 2→3 Risk Review (if Phase 3 applies):** Before the Phase 3 SE gate, scan Phase 2's `discovery_notes`. For each discovery involving an object also used in Phase 3's Agentforce actions:
-- Cross-check against `orgs/building-lessons.md` — known restriction or new one?
+- Cross-check against the loaded `orgs/lessons/` topics (`managed-packages.md`, `metadata-deploy.md`) — known restriction or new one?
 - Include the risk in the Phase 3 SE confirmation prompt (below).
 - Fold discovery notes into `{{PRIOR_PHASES_SUMMARY}}` as explicit risk callouts, not just deployment facts. Example: "⚠️ Phase 2 discovered MedicalInsight is a managed object requiring dynamic SOQL — Agentforce execution context may also restrict it."
 

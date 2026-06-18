@@ -36,4 +36,4 @@ Do not proceed past this step on `STATE=NO_CONFIG` or `STATE=COLLISION`.
 
 ## After bootstrap
 
-All subsequent `orgs/...`, `sparring-lessons.md`, `building-lessons.md` refs in the parent command resolve against the workspace dir (Bash context) thanks to the `cd` above.
+All subsequent `orgs/...` refs (including `orgs/lessons/`) in the parent command resolve against the workspace dir (Bash context) thanks to the `cd` above.

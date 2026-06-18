@@ -4,6 +4,8 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-06-17
 
+- **Scout's lessons are now organized by topic — and the "your file is too long" nag is gone.** Lessons used to pile into two long flat files that loaded in full every session; now they live in topic files (Agentforce, managed packages, flows, data seeding, deploy errors, discovery, LWC), and Scout loads only the ones relevant to what you're building. The whole-pile trim prompt is replaced by a quick review of just the *one* topic that's gotten long — and sharing lessons upstream to the team is now its own offer, whenever you've added something worth it. Your existing lessons aren't touched until you say so: Scout offers to sort them into topics once, then leaves it alone.
+
 - **Migrating a legacy Agentforce agent is now low-friction — no more remediation cascade.** When you want to add to an agent built in Salesforce's old point-and-click builder, Scout no longer routes the change to your manual checklist. Instead: you flip the one reversible "upgrade to the new builder" switch in Agentforce Studio (the old agent stays live until you say otherwise), and Scout reads the upgraded agent's setup and rebuilds it as clean, editable Agent Script under a side-by-side name — reproducing its topics and actions and adding your new capability on top. The original is left untouched so you can compare them before retiring it. This replaces the old "expect several failures, plan a whole session" path. (Fidelity isn't fully machine-proven yet, so Scout flags that you should diff the rebuilt agent against the original before demo day.)
 
 ## 2026-06-16

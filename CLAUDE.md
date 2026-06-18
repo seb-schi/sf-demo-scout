@@ -86,8 +86,7 @@ sf data create record --sobject PermissionSetAssignment --values "PermissionSetI
 
 ## File Locations
 - Per-org history: `orgs/[alias]-[customer]/` (audits, change logs, specs) — in the SE workspace at `~/claude-projects/sf-demo-scout/`
-- Sparring lessons: `orgs/sparring-lessons.md`
-- Building lessons: `orgs/building-lessons.md`
+- Lessons: `orgs/lessons/` (topic-clustered; loaded via `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-bootstrap.md`, see `INDEX.md`)
 - Deployment rules: `${CLAUDE_PLUGIN_ROOT}/skills/demo-deployment-rules/SKILL.md`
 - Org audit format: `${CLAUDE_PLUGIN_ROOT}/skills/demo-org-audit/SKILL.md`
 - Spec template: `${CLAUDE_PLUGIN_ROOT}/prompts/spec-template.md`

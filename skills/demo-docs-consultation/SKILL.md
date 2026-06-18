@@ -20,7 +20,7 @@ The Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) expo
 3. **Screen-flow component outside Scout's autonomous whitelist** — the SE's screen-flow design references a component Scout cannot autonomously deploy (Repeater, Data Table, File Upload/Preview, Kanban Board, custom LWC screen component, reactive cross-screen formulas). Consult docs to confirm the component's current capabilities and decide: (a) scope down to whitelisted components, or (b) route the whole screen flow to the SE Manual Checklist. Never silently swap components.
 4. **Release-gated feature** mentioned by the SE that you cannot immediately name the release for (e.g. "Agent Script subagents", "Data Cloud zero-copy", "Flow HTTP Callout").
 5. **Novel metadata type** you haven't deployed in this session — unfamiliar XML structure, unfamiliar CLI command, unfamiliar agent-bundle element.
-6. **Unfamiliar deployment error message** — the error text isn't in `building-lessons` and isn't obvious from the component name. Consult docs BEFORE the retry attempt.
+6. **Unfamiliar deployment error message** — the error text isn't in the loaded `orgs/lessons/` topics (`metadata-deploy.md` / `managed-packages.md`) and isn't obvious from the component name. Consult docs BEFORE the retry attempt.
 7. **SE-referenced concept by name** you don't recognise ("is [term] the right fit here?"). One search, one citation, proceed.
 8. **Agentforce Agent Script capability check** — Agent Script ships features monthly; default to consulting docs for any non-trivial agent spec.
 
@@ -30,7 +30,7 @@ The Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) expo
 2. **Standard object structure** — org audit is truth. Docs describe a generic org; the SE's org may have managed-package or admin-made variants.
 3. **Anything you just consulted this session** — cache in your head for the session; don't re-fetch.
 4. **SE-asserted customer fact** — customer context is not in Salesforce docs.
-5. **Known error message already in `building-lessons`** — the lesson is the answer.
+5. **Known error message already in a loaded `orgs/lessons/` topic** — the lesson is the answer.
 
 ## How to Cite
 

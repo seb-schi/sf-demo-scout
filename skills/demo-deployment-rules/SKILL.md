@@ -33,7 +33,7 @@ never redeploy unchanged metadata, it fails identically.
   with a broken deploy.
 
 **Unfamiliar errors:** if the error message is not self-evident, not already
-in `building-lessons`, and not matched by a Known Deploy-Error Pattern, invoke
+in a loaded `orgs/lessons/` topic, and not matched by a Known Deploy-Error Pattern, invoke
 the `demo-docs-consultation` skill before the next attempt. Record the
 consultation in `docs_consulted`.
 
@@ -46,7 +46,7 @@ deploy errors lives in
 [`references/deploy-error-patterns.md`](references/deploy-error-patterns.md).
 **On a deploy failure, read that file**, match the error, and apply the
 documented fix — the attempt rule above counts a match as the next attempt.
-These are org-agnostic parse errors (distinct from `building-lessons`, which
+These are org-agnostic parse errors (distinct from `orgs/lessons/`, which
 holds org-specific gotchas); a rule-based fix is preferred over improvising.
 
 The catalog currently covers FlexiPage (Pattern A — duplicate
@@ -55,7 +55,7 @@ componentInstance; Pattern B — design-time component not found), PermissionSet
 literal in template expression / apiVersion-66). Pattern B removes a component
 the SE must re-add via Lightning App Builder → SE Manual Checklist. To extend
 the catalog, add a new pattern there via `/project-sparring`; org-*specific*
-gotchas still go to `building-lessons`.
+gotchas still go to `orgs/lessons/` (topic-clustered).
 
 ---
 
