@@ -1,63 +1,62 @@
 # External skill manifest for SF Demo Scout (plugin edition).
 # Maintainer-only metadata: consumed by scripts/vendor-skills.sh at
-# vendoring time, NOT read at runtime. All 19 skills (3 demo-* + the
-# 16 upstream skills below) ship vendored inside the plugin under
-# ${CLAUDE_PLUGIN_ROOT}/skills/.
+# vendoring time, NOT read at runtime. Vendored skills ship inside the
+# plugin under ${CLAUDE_PLUGIN_ROOT}/skills/.
+#
+# As of 2026-06-18: 6 upstream skills are actively vendored from the
+# `afv` source (main); 8 sf-* skills are FROZEN (jaganpro source disabled
+# below — see the note there); 2 skills (sf-flex-estimator, sf-permissions)
+# were CUT. The 3 Scout-owned demo-* skills are NOT vendored and not listed
+# here.
 #
 # To re-vendor (e.g. pull latest upstream): run
 #   bash scripts/vendor-skills.sh
 # from the plugin root, review the resulting git diff under skills/,
-# and commit. Edit `branch:` below to pin to a specific upstream
-# branch (or change `repo:` to repoint a source).
+# and commit. With jaganpro disabled, the script touches ONLY the 6 afv
+# skills — the frozen sf-* dirs are left untouched on disk. Edit `branch:`
+# below to pin a different upstream branch (or change `repo:` to repoint).
 
 sources:
-  jaganpro:
-    repo: https://github.com/forcedotcom/sf-skills
-    type: clone
-    branch: Jaganpro/sf-skills
+  # FROZEN 2026-06-18 — the `jaganpro` source is intentionally disabled.
+  # Upstream branch `Jaganpro/sf-skills` was DELETED after merging to main,
+  # where its sf-* skills were renamed (verb-based: sf-flow→generating-flow,
+  # sf-data→handling-sf-data, etc.) AND several (generating-flow,
+  # generating-lightning-app, generating-custom-lightning-type) were
+  # re-architected to call a server-side `execute_metadata_action` MCP tool
+  # that exists ONLY in Agentforce Vibes (A4V) — NOT in the public
+  # @salesforce/mcp package Scout runs. Verified 2026-06-18 by a live
+  # tools/call against the connected org: `-32602: Tool execute_metadata_action
+  # not found` (a control run_soql_query on the same org succeeded). The 8
+  # vendored sf-* skills stay frozen at their last-good vendoring (a37edd0,
+  # 2026-05-25) — the self-contained copies are the only versions that run in
+  # Scout's host. Re-evaluate when/if that tool ships in a GA public
+  # @salesforce/mcp release — see pipeline-changes/2026-06-18 PLAN.
+  #
+  # jaganpro:
+  #   repo: https://github.com/forcedotcom/sf-skills
+  #   type: clone
+  #   branch: Jaganpro/sf-skills   # DELETED upstream — do not re-enable
   afv:
     repo: https://github.com/forcedotcom/sf-skills
     type: clone
     branch: main
 
 skills:
-  # Jaganpro's sf-* skills — cloned from forcedotcom/sf-skills's
-  # Jaganpro/sf-skills branch (canonical Salesforce skills repo,
-  # renamed from forcedotcom/afv-library; both names served identical
-  # content during the transition). The branch is still temporary —
-  # these merge into sf-skills/main eventually. When that happens,
-  # collapse this into the `afv` source.
-  # Full directory clone picks up SKILL.md + assets/ + references/ + hooks/.
-  - name: sf-flow
-    source: jaganpro
-    path: skills/sf-flow
-  - name: sf-permissions
-    source: jaganpro
-    path: skills/sf-permissions
-  - name: sf-deploy
-    source: jaganpro
-    path: skills/sf-deploy
-  - name: sf-apex
-    source: jaganpro
-    path: skills/sf-apex
-  - name: sf-soql
-    source: jaganpro
-    path: skills/sf-soql
-  - name: sf-data
-    source: jaganpro
-    path: skills/sf-data
-  - name: sf-debug
-    source: jaganpro
-    path: skills/sf-debug
-  - name: sf-lwc
-    source: jaganpro
-    path: skills/sf-lwc
-  - name: sf-testing
-    source: jaganpro
-    path: skills/sf-testing
-  - name: sf-flex-estimator
-    source: jaganpro
-    path: skills/sf-flex-estimator
+  # ── FROZEN (source: jaganpro, disabled above) ──────────────────────────
+  # These 8 sf-* skills remain vendored on disk but are NO LONGER fetched by
+  # vendor-skills.sh (their source is commented out). Scout's prompts invoke
+  # them by these local names; the vendored dirs are the working versions.
+  # DO NOT re-add `source: jaganpro` — the branch is gone and the upstream
+  # successors require an A4V-only MCP tool (see the note in `sources:`).
+  #   sf-flow, sf-deploy, sf-apex, sf-soql, sf-data, sf-debug, sf-lwc, sf-testing
+  #
+  # ── CUT 2026-06-18 (removed from the bundle entirely) ──────────────────
+  #   sf-flex-estimator — relied on hardcoded Flex Credit numbers that drift;
+  #     orphaned upstream (no successor). The flex-estimate research output was
+  #     removed from prompts/sparring/platform-research.md in the same PLAN.
+  #   sf-permissions — permission-set ANALYSIS/audit skill with ZERO pipeline
+  #     references; permission-set CREATION runs on generating-permission-set
+  #     (afv, below). Dead weight + the only Python-dependency skill in the bundle.
 
   # forcedotcom/sf-skills — full skill directories, cloned
   - name: generating-custom-field

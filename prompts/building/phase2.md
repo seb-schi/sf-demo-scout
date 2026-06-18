@@ -16,6 +16,7 @@ Invoke these skills via the Skill tool when you need detailed rules:
 - `sf-lwc` — LWC scaffolding with PICKLES methodology and 165-point scoring (invoke before generating any LWC bundle — SLDS 2, accessibility, wire patterns)
 - `sf-testing` — Apex test execution and agentic test-fix loops (invoke when Apex deployment tests fail — up to 3 automated fix iterations before skipping)
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
+{{EXTERNAL_SKILLS}}
 
 ## Deployment Rules
 

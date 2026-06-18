@@ -184,6 +184,12 @@ Scope: anything beyond appending into an existing field section. Use when audit 
 - Plain English: [behaviour]
 - Name: [name], Location: [page], Data: [objects/fields], SLDS: [pattern]
 
+### External Skills (if any — SE-approved, non-bundled)
+> Only present if the SE approved a non-bundled skill during sparring. Each entry is a skill installed by the SE that is NOT part of Scout's bundled set. /scout-building makes these available to phase sub-agents by name; it does NOT validate their output.
+- Skill: [verbatim skill name as it appears in the menu, e.g. `rlm-pricing`]
+- Applies to: [which build areas — e.g. "Quote/Order pricing config", "RLM custom objects"]
+- ⚠️ OUTSIDE SCOUT VALIDATION — output from this skill is NOT covered by Scout's phase checks (data-seed integrity probe, action-invocation probe). SE verifies the result against the org before demo. This caveat is per-skill and non-removable.
+
 ### Agentforce (if applicable)
 - ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
 - ⚠️ Deploys last — ADLC skills are large; org config completes first

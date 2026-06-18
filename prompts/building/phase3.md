@@ -24,6 +24,7 @@ Invoke these skills via the Skill tool:
 - `developing-agentforce` — agent spec, validation, preview, publish, activate
 - `testing-agentforce` — ad-hoc smoke testing via `sf agent preview` (Mode A only — used after activate)
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP
+{{EXTERNAL_SKILLS}}
 
 ## Deployment Rules
 

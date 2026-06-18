@@ -22,7 +22,7 @@ Inside Claude Code, run these four commands in order:
 
 When prompted on the install step, select `Install for you (user scope)`.
 `/scout-setup` handles all prerequisites: Homebrew check, Node / Python /
-Salesforce CLI install, SFDX scaffold, 16 community skills sync, shell
+Salesforce CLI install, SFDX scaffold, 14 community skills sync, shell
 environment, and Slack MCP registration + auth.
 
 After setup, kick off your first demo with `/scout-sparring`.

@@ -15,6 +15,7 @@ Invoke these skills via the Skill tool when you need detailed metadata rules:
 <!-- /IF:STRUCTURAL -->
 - `sf-data` — data seeding patterns, bulk operations, realistic test data generation
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
+{{EXTERNAL_SKILLS}}
 
 ## Deployment Rules
 

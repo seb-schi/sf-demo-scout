@@ -219,6 +219,16 @@ Challenge the SE if they push for new objects or apps when existing ones would s
 
 Evaluate: genuine Salesforce strength? Achievable within build boundaries (see CLAUDE.md)? Resonates with stakeholders? Complete story? Manual work realistic?
 
+### External skills (surface + gated offer)
+
+Scout ships a fixed set of skills (the 6 `generating-*` / `*-agentforce` skills, the 8 frozen `sf-*` skills, and the 3 `demo-*` skills). SEs often have OTHER Salesforce skills installed — an ARM/RLM specialist may carry `rlm-*` skills, for instance. The harness lists every installed skill in your menu; the bundled ones are the names just listed, so anything ELSE in your menu is an external skill the SE installed.
+
+**When the scenario's domain matches an installed external skill, surface it and offer — do not assume use.** If a build category in your proposal (Flow, Apex, LWC, Agentforce, data, config) sits in a domain a non-bundled skill clearly covers, name the skill and offer it as a standalone message:
+
+> "You have `[skill-name]` installed, which isn't part of Scout's bundled set but looks relevant to [the pricing config / the RLM objects / …]. Want me to use it for that part of the build? Two things to know: Scout's deployment validation (the data-seed and action-invocation probes) is calibrated to its bundled skills only, so **output from `[skill-name]` is on you to verify** — I'll flag it in the spec. And I'll only use it where you approve it here."
+
+If the SE approves, record the skill (verbatim name) for the spec's **External Skills** section (file 2 below) with the build areas it applies to. If the SE declines, or no installed skill is relevant, say nothing further — do not invent relevance, and never use an external skill that wasn't approved in this exchange. This is an OFFER gate, not autonomous adoption.
+
 **MANDATORY GATE — send this as a standalone message, then stop:**
 
 > "If you had half the prep time, what would you cut — and which specific customer statement tells you the rest is essential?"
