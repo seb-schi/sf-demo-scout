@@ -55,9 +55,9 @@ Switch to a different Salesforce demo org. Follow these steps:
      > **Open a fresh Claude Code session** and run /scout-sparring to start sparring against this org."
    - If the returned Id does NOT match → MCP is still on the old org:
      > "Switched to [alias] ([username]).
-     > ⚠️ MCP is still connected to the previous org. Restart VS Code now (CMD+Q) — the MCP server only picks up org changes on startup.
+     > ⚠️ MCP is still connected to the previous org. Exit and restart Claude Code to pick up the change — the MCP server only reloads on startup. (In VS Code: Cmd+Q and reopen, not just a new tab.)
      > Once restarted, run /scout-sparring to start sparring against this org."
    - If MCP fails or times out:
      > "Switched to [alias] ([username]).
-     > ⚠️ MCP is not responding. Restart VS Code now (CMD+Q) to initialize the MCP connection.
+     > ⚠️ MCP is not responding. Exit and restart Claude Code to initialize the MCP connection — the MCP server only loads on startup. (In VS Code: Cmd+Q and reopen, not just a new tab.)
      > Once restarted, run /scout-sparring to start sparring against this org."

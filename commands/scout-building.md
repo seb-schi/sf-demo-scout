@@ -270,3 +270,17 @@ Then fire the notification:
 ```bash
 osascript -e 'display notification "Deployment complete — check the handover brief." with title "SF Demo Scout — Done"'
 ```
+
+## Step 7: Closing Note — The Demo Is Yours to Tinker With
+
+After the notification fires, emit this as the FINAL message of the session — a standalone, prominent beat (not folded into the brief above). Output it verbatim:
+
+> ---
+> 💡 **This demo isn't locked — you can change it right now.**
+>
+> Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? **Just tell me what to change, right here in this session** — I'll reach for the right Salesforce skill (`sf-flow`, `sf-lwc`, `sf-data`, and friends) and make the edit live against your org. Fast and free-wheeling; these tweaks aren't written back to the spec, which is exactly right for iteration.
+>
+> 💨 **Tip:** the heavy planning is done, so you don't need Opus for this part — run `/model` and switch to **Sonnet** for quicker, cheaper tinkering. (Bigger changes — a new agent, a story rebuild, anything you want captured in a clean spec — are the other door: open a fresh session and run `/scout-sparring`. That one stays on Opus.)
+> ---
+
+This note is deliberately at the command level (the SE's last beat), separate from the handover brief's own "Want to Change Something? Two Ways." section — the brief documents both doors in full; this closing note makes the quick-tweak door impossible to miss and is the only place the Sonnet `/model` nudge appears.
