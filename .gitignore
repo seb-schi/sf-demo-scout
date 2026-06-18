@@ -4,3 +4,10 @@
 node_modules/
 .env
 .env.local
+
+# Salesforce CLI / Apex Language Server local caches — auto-generated when the
+# repo is opened in an IDE. This repo is NOT an SFDX project; these must never be
+# tracked. (.sfdx/tools/ StandardApexLibrary was committed in a80e5d3 and purged
+# in this PLAN. See pipeline-changes/2026-06-18/2118-purge-sfdx-cache-and-gitignore.)
+.sfdx/
+.sf/
