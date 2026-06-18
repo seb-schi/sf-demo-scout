@@ -36,11 +36,21 @@ Don't pad — omit sub-bullets rather than invent generic filler.
 Pick the topic file from the INDEX whose descriptive line best fits. If the
 lesson spans two topics, put it in the more specific one (e.g. an lsc4ce
 Agentforce-action block goes in `managed-packages.md`, not `agentforce.md`,
-because the managed-package restriction is the load-bearing fact). If NO topic
-fits, create a new topic file (`# <Topic>` header + the lesson) AND add a new
-`- **<file>.md** — <descriptive line>` bullet to `orgs/lessons/INDEX.md` so it
-is discoverable next session. Keep INDEX descriptive lines concrete — they are
-what the next session's topic-selection judgment reads.
+because the managed-package restriction is the load-bearing fact).
+
+If NO existing topic fits, do NOT silently mint one — propose it to the SE
+first, so the taxonomy stays coherent and near-duplicate topics
+(`permissions.md` vs a later `fls-and-sharing.md`) don't accumulate:
+
+> "This lesson doesn't fit any existing topic. I'd start a new one:
+> **`<file>.md` — <proposed descriptive line>**. Use that name, rename it, or
+> point me at an existing topic instead?"
+
+On approval (or a rename), create the topic file (`# <Topic>` header + the
+lesson) AND add a new `- **<file>.md** — <descriptive line>` bullet to
+`orgs/lessons/INDEX.md` so it is discoverable next session. Keep INDEX
+descriptive lines concrete — they are what the next session's topic-selection
+judgment reads. If the SE points at an existing topic instead, file it there.
 
 After appending, count the lessons (top-level `- ` bullets) in the topic file
 you just wrote. If it exceeds 15, continue with the Per-Topic Review below.
@@ -49,16 +59,29 @@ Otherwise you are done with this lesson.
 ## Per-Topic Review (replaces the old global 25-line trim)
 
 You are here because ONE topic file exceeded 15 lessons after the latest
-append. Tell the SE:
+append. A long topic has two cures — trimming dead entries, or splitting a
+topic that has quietly become two or three. Before offering, scan the topic:
+if its lessons cluster into distinct sub-themes (e.g. `agentforce.md` splitting
+into agent-build vs. agent-runtime-diagnostics), lead with the split option;
+otherwise lead with trim.
 
-> "Your `orgs/lessons/[topic].md` is getting long ([N] lessons). Want to review
-> and trim entries that feel obvious, outdated, or now baked into Scout itself?
-> I can show you just this topic. (review / skip)"
+> "Your `orgs/lessons/[topic].md` is getting long ([N] lessons). Two options —
+> I can show you just this topic either way:
+> - **trim** — remove entries that feel obvious, outdated, or now baked into
+>   Scout itself
+> - **split** — this looks like [N] sub-themes ([name them]); break it into
+>   separate topics
+> (trim / split / skip)"
 
-If "review": display that topic file's contents (excluding the header) as a
+If "trim": display the topic file's contents (excluding the header) as a
 numbered list. Ask which entries to remove. Apply removals. A lesson that is
 now enforced by a built-in prompt/skill (i.e. the team upstreamed it via
 `/project-sparring`) is the prime removal candidate — its job is done.
+
+If "split": propose the new topic names + which lessons go to each, get SE
+sign-off, then create the new topic files (preserving each lesson's date +
+`[sha]` verbatim), update `orgs/lessons/INDEX.md` (add the new bullets, remove
+or rewrite the old one), and delete the now-empty original if everything moved.
 
 If "skip": done.
 
