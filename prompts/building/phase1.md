@@ -13,7 +13,10 @@ Invoke these skills via the Skill tool when you need detailed metadata rules:
 - `generating-custom-field` — custom field XML rules (Master-Detail, Roll-up Summary, formulas, picklist value additions)
 - `generating-permission-set` — permission set XML rules (required-field FLS exclusion, tab naming, agent access)
 <!-- /IF:STRUCTURAL -->
-- `sf-data` — data seeding patterns, bulk operations, realistic test data generation
+- `handling-sf-data` — data seeding patterns, bulk operations, realistic test data generation
+- `generating-validation-rule` — Validation Rule XML rules (formula gotchas, CDATA wrapping, error messages) — invoke when the spec has a Validation Rules section
+- `generating-list-view` — List View metadata rules — invoke when the spec has a List Views section
+- `generating-flexipage` — Lightning Page (FlexiPage) authoring rules — invoke when the spec has a Lightning Record Page (Authoring) section
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
 {{EXTERNAL_SKILLS}}
 
@@ -110,6 +113,36 @@ Scope: standard objects only (Opportunity, Lead, Case, Solution). Salesforce's S
 5. Verify: `SELECT Id, MasterLabel FROM BusinessProcess WHERE DeveloperName = '[ApiName]' AND TableEnumOrId = '[Object]'`
 6. Rollback: `sf project delete source --metadata BusinessProcess:[Object].[ApiName] --target-org [alias]`
 <!-- /IF:BUSINESS_PROCESS -->
+
+<!-- IF:VALIDATION_RULES -->
+### Validation Rule Rules
+Scope: declarative `ValidationRule` metadata on any object. Invoke the `generating-validation-rule` skill before authoring — it carries the formula-function gotchas (TEXT/VALUE/DAY/DATEVALUE/ISPICKVAL/CASE misuse) and the two critical rules below.
+1. Invoke `generating-validation-rule` for the formula rules and metadata shape.
+2. **CDATA rule (most common deploy failure):** any `errorConditionFormula` containing XML-significant characters (`<`, `>`, `&`) MUST be wrapped in a `<![CDATA[ ... ]]>` section.
+3. File extension MUST be `.validationRule-meta.xml`. `fullName` ≤40 chars, starts with a letter, no trailing/consecutive underscores. `errorMessage` ≤255 chars.
+4. Deploy the rule (active=true unless the spec says otherwise), then verify: `SELECT Id, ValidationName, Active FROM ValidationRule WHERE EntityDefinition.QualifiedApiName = '[Object]' AND ValidationName = '[ApiName]'` (Tooling API).
+5. Rollback: `sf project delete source --metadata ValidationRule:[Object].[ApiName] --target-org [alias]`.
+<!-- /IF:VALIDATION_RULES -->
+
+<!-- IF:LIST_VIEWS -->
+### List View Rules
+Scope: `ListView` metadata on any object (shared all-users or specific filter scope). Invoke the `generating-list-view` skill before authoring.
+1. Invoke `generating-list-view` for the metadata shape + filter-column rules.
+2. ListView is a child of the object's `.object-meta.xml` in source format but deploys as its own `ListView` metadata type: member name is `[Object].[ListViewApiName]`.
+3. `<filterScope>` is one of `Everything`, `Mine`, `Queue` (or others per object). Columns reference field API names. Filters use `<filters>` with `field`/`operation`/`value`.
+4. Deploy, then verify the list view appears: `retrieve_metadata` for `ListView` member `[Object].[ApiName]` and confirm it round-trips.
+5. Rollback: `sf project delete source --metadata ListView:[Object].[ApiName] --target-org [alias]`.
+<!-- /IF:LIST_VIEWS -->
+
+<!-- IF:FLEXIPAGE_AUTHORING -->
+### Lightning Record Page Authoring Rules
+Scope: authoring a SIMPLE new Lightning Record Page (FlexiPage of type `RecordPage`) — header + a fieldSection (one or two columns) + standard components (Related Lists, Activity, Highlights Panel). This is broader than the field-section *append* path above (which edits an existing LRP). Invoke the `generating-flexipage` skill — it carries the full FlexiPage XML structure, region/facet model, and component catalog.
+1. Invoke `generating-flexipage` BEFORE authoring any FlexiPage XML.
+2. **Bounded autonomous scope** — author only: a single `RecordPage`-type FlexiPage with one header region, one or two `flexipage:fieldSection` components (with `flexipage:column` children for two-column), and standard out-of-the-box components from the skill's catalog. Anything beyond — dynamic-form regions, custom LWC placement (deploy the LWC, leave placement to App Builder), tabsets, conditional visibility rules, multi-region dashboards — SKIP with reason "complex FlexiPage authoring — SE Manual Checklist (App Builder)".
+3. After deploy, the new LRP is NOT active by default. Activation (org-default vs app/profile assignment) is a `FlexiPage` + `CustomApplication`/profile binding the SE confirms — record in the SE Manual Checklist as "assign new LRP as record-page default (App Builder → Activation)" unless the spec explicitly names the activation target.
+4. Verify: `retrieve_metadata` for `FlexiPage` member `[DeveloperName]`, confirm round-trip + the named fieldSection/components are present.
+5. Rollback: `sf project delete source --metadata FlexiPage:[DeveloperName] --target-org [alias]`.
+<!-- /IF:FLEXIPAGE_AUTHORING -->
 
 <!-- IF:PATHS -->
 ### Path Rules
@@ -287,7 +320,7 @@ When done, return EXACTLY one fenced JSON block matching this schema. Do not inc
 {
   "phase": 1,
   "deployed": [
-    {"type": "CustomObject|CustomField|RecordType|Layout|FlexiPage|CustomTab|CustomApplication|Queue|BusinessProcess|PathAssistant", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null, "lrp_section_target": "string|null — for FlexiPage type only: the field section label the deploy targeted; null otherwise"}
+    {"type": "CustomObject|CustomField|RecordType|Layout|FlexiPage|CustomTab|CustomApplication|Queue|BusinessProcess|PathAssistant|ValidationRule|ListView", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null, "lrp_section_target": "string|null — for FlexiPage type only: the field section label the deploy targeted; null otherwise"}
   ],
   "skipped": [
     {"type": "string", "api_name": "string", "reason": "string"}

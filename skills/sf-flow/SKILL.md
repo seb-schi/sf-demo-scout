@@ -4,7 +4,7 @@ description: >
   Creates and validates Salesforce Flows with 110-point scoring.
   TRIGGER when: user builds or edits record-triggered, screen, autolaunched, or
   scheduled flows, or touches .flow-meta.xml files.
-  DO NOT TRIGGER when: Apex automation (use sf-apex), process builder migration
+  DO NOT TRIGGER when: Apex automation (use generating-apex), process builder migration
   questions only, or non-Flow declarative config (use sf-metadata).
 license: MIT
 metadata:
@@ -26,10 +26,10 @@ Use `sf-flow` when the work involves:
 - Flow-specific bulk safety, fault paths, and subflow orchestration
 
 Delegate elsewhere when the user is:
-- writing Apex-first automation → [sf-apex](../sf-apex/SKILL.md)
+- writing Apex-first automation → [generating-apex](../generating-apex/SKILL.md)
 - creating objects / fields first → [sf-metadata](../sf-metadata/SKILL.md)
-- deploying metadata → [sf-deploy](../sf-deploy/SKILL.md)
-- seeding post-deploy test data → [sf-data](../sf-data/SKILL.md)
+- deploying metadata → [deploying-metadata](../deploying-metadata/SKILL.md)
+- seeding post-deploy test data → [handling-sf-data](../handling-sf-data/SKILL.md)
 
 ---
 
@@ -88,8 +88,8 @@ Focus on:
 
 ### 5. Hand off deployment and testing
 Use:
-- [sf-deploy](../sf-deploy/SKILL.md) for deploy / dry-run
-- [sf-data](../sf-data/SKILL.md) for high-volume test data
+- [deploying-metadata](../deploying-metadata/SKILL.md) for deploy / dry-run
+- [handling-sf-data](../handling-sf-data/SKILL.md) for high-volume test data
 
 ---
 
@@ -160,10 +160,10 @@ Flow tests execute in the org and can take 1-5 minutes. `sf flow run test` retur
 | Need | Delegate to | Reason |
 |---|---|---|
 | create objects / fields first | [sf-metadata](../sf-metadata/SKILL.md) | schema readiness |
-| deploy / activate flow | [sf-deploy](../sf-deploy/SKILL.md) | safe deployment sequence |
-| create realistic bulk test data | [sf-data](../sf-data/SKILL.md) | post-deploy verification |
-| create Apex actions / invocables | [sf-apex](../sf-apex/SKILL.md) | imperative logic |
-| embed LWC in a screen flow | [sf-lwc](../sf-lwc/SKILL.md) | custom UI components |
+| deploy / activate flow | [deploying-metadata](../deploying-metadata/SKILL.md) | safe deployment sequence |
+| create realistic bulk test data | [handling-sf-data](../handling-sf-data/SKILL.md) | post-deploy verification |
+| create Apex actions / invocables | [generating-apex](../generating-apex/SKILL.md) | imperative logic |
+| embed LWC in a screen flow | [generating-lwc-components](../generating-lwc-components/SKILL.md) | custom UI components |
 | expose Flow to Agentforce | [sf-ai-agentscript](../sf-ai-agentscript/SKILL.md) | agent action orchestration |
 
 ---

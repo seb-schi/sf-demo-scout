@@ -2,6 +2,12 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-06-18
+
+- **One big skills update: Scout ships with fresher Salesforce skills, and can now build three new things on its own.** The bundled skills for LWC, SOQL, data, debugging, deploys, and Apex tests are refreshed to their current Salesforce-published versions — better guidance, newer patterns — and Apex generation moves to the modern fflib layered architecture with a built-in code-analyzer pass. On top of that, Scout now builds **validation rules**, **list views**, and **simple Lightning record pages** autonomously from your spec, work that used to land on your manual checklist. Flow generation stays on the proven current engine. Just spec what you want — the new sections in the spec template show you how.
+
+- **Scout now works with the Salesforce skills *you* install — not just the ones it ships with.** Got your own specialist skills set up — Data 360, Revenue Cloud / RLM, an industry cloud? During planning, Scout now spots the ones relevant to your scenario and offers to use them in the build, with your say-so each time. You stay in control: Scout surfaces and offers, never reaches for an outside skill on its own, and clearly marks that anything built with a non-Scout skill sits outside Scout's own validation checks. It's how Scout stretches past its bundled toolset into whatever you've equipped your org-prep with.
+
 ## 2026-06-17
 
 - **Scout's lessons are now organized by topic — and the "your file is too long" nag is gone.** Lessons used to pile into two long flat files that loaded in full every session; now they live in topic files (Agentforce, managed packages, flows, data seeding, deploy errors, discovery, LWC), and Scout loads only the ones relevant to what you're building. The whole-pile trim prompt is replaced by a quick review of just the *one* topic that's gotten long — which can now *split* a topic that's grown into two, not just trim it. The topic list grows with you: when a lesson fits nowhere, Scout proposes a new category for you to name, rather than inventing one silently. And sharing lessons upstream to the team is now its own offer, whenever you've added something worth it. Your existing lessons aren't touched until you say so: Scout offers to sort them into topics once, then leaves it alone.

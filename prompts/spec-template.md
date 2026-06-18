@@ -101,6 +101,27 @@ One `BusinessProcess` Metadata API type covers Sales / Lead / Support / Solution
 - Steps (one per picklist value, in order):
   - **[Picklist value]** — key fields: [field1, field2, field3 (max 5)] — guidance: `[1-3 sentences of rich text shown in the Path component]`
 
+### Validation Rules (if applicable)
+- Rule: [ApiName] on [Object], Label: [Label]
+- Error condition formula: `[formula — Scout wraps in CDATA if it contains <, >, &]`
+- Error message: `[≤255 chars shown to the user on save]`
+- Error location: [field API name | top of page]
+- Active: yes/no (default yes)
+
+### List Views (if applicable)
+- List View: [ApiName] on [Object], Label: [Label]
+- Filter scope: [Everything | Mine | Queue]
+- Columns (field API names, in order): [field1, field2, ...]
+- Filters (if any): [field operation value, e.g. `StageName equals "Closed Won"`]
+
+### Lightning Record Page — Authoring (Autonomous, simple pages only)
+Scope: a NEW simple `RecordPage` FlexiPage — header + one/two-column field section + standard components. Complex authoring (dynamic forms, custom LWC placement, tabsets, conditional visibility) stays SE Manual below.
+- FlexiPage DeveloperName: [ApiName]
+- Object: [SObject API]
+- Field section(s): [section label → columns → field API names]
+- Standard components: [Highlights Panel | Activity | Related Lists | ... from the generating-flexipage catalog]
+- Activation: [org default | leave inactive for SE | app/profile name] (if not org-default, SE assigns in App Builder)
+
 ### Data Seeding
 - Object: [name], Records: [count]
 - Key values: [field]: [value] — (reason)

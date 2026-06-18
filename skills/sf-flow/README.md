@@ -84,15 +84,15 @@ The skill generates:
 
 | Related Skill | When to Use |
 |---------------|-------------|
-| sf-apex | Create @InvocableMethod for complex logic |
-| sf-lwc | Create screen components for custom UI |
+| generating-apex | Create @InvocableMethod for complex logic |
+| generating-lwc-components | Create screen components for custom UI |
 | sf-metadata | Deploy custom objects BEFORE flows |
-| sf-deploy | Deploy flows to org |
+| deploying-metadata | Deploy flows to org |
 
 ## Orchestration Order
 
 ```
-sf-metadata → sf-flow → sf-deploy → sf-data
+sf-flow → deploying-metadata → handling-sf-data
 ```
 
 Always deploy custom objects/fields BEFORE flows that reference them.

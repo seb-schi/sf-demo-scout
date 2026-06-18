@@ -14,7 +14,7 @@ description: >
 
 One home per category:
 - **Phase 1** (Queues, Picklists, Page Layouts, Lightning Record Page field sections, Business Processes, Paths) — rules live inlined under IF markers in `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md`. This skill file does NOT duplicate them. If a Phase 1 sub-agent needs a rule, it reads its own prompt.
-- **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `sf-apex`, `sf-lwc`, `developing-agentforce`). This skill file carries the rollback commands, the attempt-rule meta-rule, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline. The Known Deploy-Error Patterns catalog lives in `references/deploy-error-patterns.md` (loaded on demand on a deploy failure).
+- **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `generating-apex`, `generating-lwc-components`, `developing-agentforce`). This skill file carries the rollback commands, the attempt-rule meta-rule, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline. The Known Deploy-Error Patterns catalog lives in `references/deploy-error-patterns.md` (loaded on demand on a deploy failure).
 - **Cross-phase** — Script Deliverable Rules (below) apply to any sub-agent producing a reusable shell / language script, regardless of phase.
 
 **Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix —
@@ -179,7 +179,7 @@ Autonomous-with-SE-gate flow scope matches `sf-flow`'s full trigger spectrum: re
 Scope: single-trigger, single-object. No cross-object Apex. No test classes
 (demo org context).
 
-1. Invoke `sf-apex` skill for generation rules.
+1. Invoke `generating-apex` skill for generation rules.
 2. Run `run_code_analyzer` before deploying (if MCP available). Record any
    high-severity findings in `issues`.
 3. Rollback commands:

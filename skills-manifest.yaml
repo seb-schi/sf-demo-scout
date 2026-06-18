@@ -36,27 +36,35 @@ sources:
   #   repo: https://github.com/forcedotcom/sf-skills
   #   type: clone
   #   branch: Jaganpro/sf-skills   # DELETED upstream — do not re-enable
+  #
+  # 2026-06-18: the renamed/re-architected successors now live on `main` under
+  # verb-based names (sf-lwc→generating-lwc-components, etc.). We re-point the 6
+  # clean renames + adopt the apex methodology swap + 4 net-new declarative skills,
+  # ALL from `afv`/main below. sf-flow stays frozen (A4V-blocked — generating-flow
+  # calls execute_metadata_action, absent from @salesforce/mcp; re-verified live).
   afv:
     repo: https://github.com/forcedotcom/sf-skills
     type: clone
     branch: main
 
 skills:
-  # ── FROZEN (source: jaganpro, disabled above) ──────────────────────────
-  # These 8 sf-* skills remain vendored on disk but are NO LONGER fetched by
-  # vendor-skills.sh (their source is commented out). Scout's prompts invoke
-  # them by these local names; the vendored dirs are the working versions.
-  # DO NOT re-add `source: jaganpro` — the branch is gone and the upstream
-  # successors require an A4V-only MCP tool (see the note in `sources:`).
-  #   sf-flow, sf-deploy, sf-apex, sf-soql, sf-data, sf-debug, sf-lwc, sf-testing
+  # ── FROZEN (NOT vendored — vendored dir stays on disk, hand-managed) ────
+  #   sf-flow — A4V-blocked. Upstream generating-flow calls execute_metadata_action
+  #     (absent from @salesforce/mcp — re-verified live 2026-06-18). Ships 0 assets;
+  #     Scout's sf-flow ships 14 templates + refs phase2 hardcodes. Re-point is a
+  #     content rewrite gated on that tool shipping GA. DO NOT add a source entry.
+  #
+  # ── RE-POINTED 2026-06-18 (6 clean renames, now fetched from afv/main) ──
+  #   sf-lwc→generating-lwc-components, sf-soql→querying-soql, sf-data→handling-sf-data,
+  #   sf-debug→debugging-apex-logs, sf-deploy→deploying-metadata, sf-testing→running-apex-tests.
+  #   Old sf-* dirs are deleted (see Files to Delete in the PLAN); new dirs vendored below.
+  #
+  # ── SWAPPED 2026-06-18 ─────────────────────────────────────────────────
+  #   sf-apex→generating-apex (AFV fflib methodology + mandatory run_code_analyzer).
   #
   # ── CUT 2026-06-18 (removed from the bundle entirely) ──────────────────
-  #   sf-flex-estimator — relied on hardcoded Flex Credit numbers that drift;
-  #     orphaned upstream (no successor). The flex-estimate research output was
-  #     removed from prompts/sparring/platform-research.md in the same PLAN.
-  #   sf-permissions — permission-set ANALYSIS/audit skill with ZERO pipeline
-  #     references; permission-set CREATION runs on generating-permission-set
-  #     (afv, below). Dead weight + the only Python-dependency skill in the bundle.
+  #   sf-flex-estimator — drifting hardcoded Flex Credit numbers, orphaned upstream.
+  #   sf-permissions — zero pipeline refs; creation runs on generating-permission-set.
 
   # forcedotcom/sf-skills — full skill directories, cloned
   - name: generating-custom-field
@@ -77,3 +85,45 @@ skills:
   - name: observing-agentforce
     source: afv
     path: skills/observing-agentforce
+
+  # ── RE-POINTED renames (afv/main) ──────────────────────────────────────
+  - name: generating-lwc-components
+    source: afv
+    path: skills/generating-lwc-components
+  - name: querying-soql
+    source: afv
+    path: skills/querying-soql
+  - name: handling-sf-data
+    source: afv
+    path: skills/handling-sf-data
+  - name: debugging-apex-logs
+    source: afv
+    path: skills/debugging-apex-logs
+  - name: deploying-metadata
+    source: afv
+    path: skills/deploying-metadata
+  - name: running-apex-tests
+    source: afv
+    path: skills/running-apex-tests
+
+  # ── SWAP: Apex methodology (afv/main) ──────────────────────────────────
+  - name: generating-apex
+    source: afv
+    path: skills/generating-apex
+  - name: generating-apex-test
+    source: afv
+    path: skills/generating-apex-test
+  - name: running-code-analyzer
+    source: afv
+    path: skills/running-code-analyzer
+
+  # ── NEW declarative skills (afv/main) ──────────────────────────────────
+  - name: generating-validation-rule
+    source: afv
+    path: skills/generating-validation-rule
+  - name: generating-list-view
+    source: afv
+    path: skills/generating-list-view
+  - name: generating-flexipage
+    source: afv
+    path: skills/generating-flexipage
