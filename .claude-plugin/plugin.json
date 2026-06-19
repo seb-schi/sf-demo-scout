@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "2026.06.18-purge-sfdx-cache",
+  "version": "2026.06.19-two-mode-positioning-and-apex-skill-wiring",
   "author": {
     "name": "Sebastian Schickhoff"
   },
