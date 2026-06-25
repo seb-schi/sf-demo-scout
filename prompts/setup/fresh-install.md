@@ -364,7 +364,11 @@ Surface inline:
 
 ## h: Slack MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it with `mode=strict`. The prompt handles registration + auth probe; in strict mode any failure aborts. Resume here only on success.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it with `mode=soft`. The prompt handles registration + auth probe; it never aborts setup — any failure surfaces a loud "Slack not connected — X will be skipped, re-run anytime" notice and returns. (The `SLACK_MCP_REGISTERED` branch still returns so the SE can `/reload-plugins`.)
+
+## h.5: Google Workspace MCP
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it with `mode=soft`. Optional discovery enhancement (read Docs/Sheets during sparring); gated behind the DevBar `mcp-adaptor` binary. Never aborts — if the binary is absent or auth is pending, it surfaces a note and returns.
 
 ## i: Write config.json
 

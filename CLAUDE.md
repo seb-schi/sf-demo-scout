@@ -8,11 +8,12 @@
 - Type: Personal demo org — destructive operations permitted with prior explanation
 
 ## MCP Tools
-Three MCP servers are configured: Salesforce DX + Salesforce Docs (declared in the plugin's `plugin.json`) and Slack (user-scope, registered separately). Prefer MCP over `sf` CLI; fall back to CLI if MCP is unavailable.
+Four MCP servers may be configured: Salesforce DX + Salesforce Docs (declared in the plugin's `plugin.json`), Slack, and Google Workspace (both user-scope, registered separately; both optional and degrade gracefully when absent). Prefer MCP over `sf` CLI; fall back to CLI if MCP is unavailable.
 
 - **Salesforce DX** — metadata retrieve/deploy, SOQL, permset assignment, org listing, `run_code_analyzer`, and LWC expert tools (complement the `generating-lwc-components` skill's PICKLES methodology + 165-point scoring).
 - **Salesforce Docs** — `salesforce_docs_search` + `salesforce_docs_fetch` for release-gated features and unfamiliar deploy errors. Decision tree in `demo-docs-consultation`. Degrades gracefully if unavailable.
 - **Slack** — canvas + channel lookups during sparring (Stage 3, opt-in) and handover canvas writes after deployment (scout-building 6c). Hard-degrades when unauthenticated.
+- **Google Workspace** — read Docs/Sheets during sparring (Stage 3, opt-in) — e.g. an RfP, capability map, or account plan as discovery context. Bridged via the DevBar `mcp-adaptor` binary (T&P-gated); degrades gracefully when absent or unauthenticated. The connection is read-write (the gateway binds the read-write OAuth provider), but the discovery lookup calls read tools only.
 
 ## Build Boundaries
 

@@ -37,6 +37,11 @@ Context only — Slack content is medium-confidence and attributed to source mes
 - [Canvas title or #channel-name] — [1-line synthesis of what it surfaced, not what is asserted as true]
 - (or: "None — no Slack references pulled this session.")
 
+### Google Workspace References
+Context only. A customer's stated requirements (e.g. RfP questions, capability rows) are high-signal; any solution-fit claim in the doc is the SE's hypothesis, validated against docs + audit, not asserted. List each Doc/Sheet the SE named during sparring, with a 1-line synthesis.
+- [Doc/Sheet title (+ tab if a Sheet)] — [1-line synthesis of the requirements/context it surfaced, not asserted fit]
+- (or: "None — no Google Workspace references pulled this session.")
+
 ## Scenario: [Name]
 **Business story:**
 **Core capability:**

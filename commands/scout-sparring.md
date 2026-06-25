@@ -6,7 +6,7 @@ description: >
   Produces a structured spec for /scout-building to deploy.
   Activate with /scout-sparring.
 model: opus
-allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch, mcp__slack__slack_search_channels, mcp__slack__slack_search_public_and_private, mcp__slack__slack_read_channel, mcp__slack__slack_read_canvas, mcp__slack__slack_create_canvas
+allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch, mcp__slack__slack_search_channels, mcp__slack__slack_search_public_and_private, mcp__slack__slack_read_channel, mcp__slack__slack_read_canvas, mcp__slack__slack_create_canvas, mcp__google-workspace__search_drive_files, mcp__google-workspace__get_spreadsheet_info, mcp__google-workspace__read_sheet_values, mcp__google-workspace__get_doc_as_markdown, mcp__google-workspace__get_drive_file_content
 ---
 
 # Scout Sparring — Demo Discovery & Spec Generation
@@ -148,13 +148,15 @@ Ask max 6 clarifying questions:
 
 **For New and Reuse-org intents only** (iteration skips): append a single-line italicised P.S. right after Q6 in the same message. No header, no blockquote, no numbered slot — it must read as a by-the-way, not a 7th question. Use an em-dash lead-in and lean on "no need":
 
-> *— also, if there's a setup canvas worth peeking at for this org, just name it and I'll look it up on Slack. No need if nothing comes to mind. What flavour of demo org is this, by the way (SDO, IDO, ...)?*
+> *— also, if there's a setup canvas worth peeking at for this org, just name it and I'll look it up on Slack — or point me at a Google Doc/Sheet (an RfP, capability map, account plan) and I'll read it in. No need if nothing comes to mind. What flavour of demo org is this, by the way (SDO, IDO, ...)?*
 
 **Stop and wait for answers.**
 
 ### Slack lookup handling
 
 If the SE's reply names one or more canvases or a channel: read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/slack-lookup.md` and execute its procedure with the names as inputs. If the SE answers only 1-6 and doesn't mention Slack: move on without ceremony — do not re-ask.
+
+If the SE's reply names or links a Google Doc or Sheet (a URL, file name, or "the RfP sheet"): read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/google-workspace-lookup.md` and execute its procedure with the references as inputs. If no Google source is named: move on without ceremony — do not re-ask. Findings feed scenario proposal as attributed context; an RfP's stated requirements are high-signal, but any solution-fit claim in the doc is a hypothesis to validate against Stage 4 docs + the audit, never asserted.
 
 Slack findings feed scenario proposal as **context only** — attributed, never asserted. Canvas content may shape demo storylines directly (its intended use); SE knowledge and Salesforce docs remain authoritative.
 
