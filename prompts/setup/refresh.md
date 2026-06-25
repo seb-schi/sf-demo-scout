@@ -15,16 +15,37 @@ actually deleted). Version-gating makes the common no-op case a true no-op.
 
 ```bash
 echo "CHECKING_SF_CLI"
-SF_LATEST=$(npm view @salesforce/cli version 2>/dev/null)
-SF_CURRENT=$(sf --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-if [ -z "$SF_LATEST" ]; then
-  echo "SF_CLI_VERSION_CHECK_FAILED (offline?) — skipping update, current: ${SF_CURRENT:-unknown}"
-elif [ "$SF_CURRENT" != "$SF_LATEST" ]; then
-  echo "UPDATING_SF_CLI ($SF_CURRENT -> $SF_LATEST)"
-  npm install @salesforce/cli --global 2>&1 | tail -1
-  echo "SF_CLI_AT $(sf --version | head -1)"
+# Gate on what npm would ACTUALLY install here, not on `npm view` latest.
+# `npm view` ignores the SE's ~/.npmrc min-release-age policy (it returns the
+# raw registry latest even with @latest), so comparing against it falsely
+# reports "behind" whenever the newest release is younger than the policy
+# window. The dry-run resolve ("X => Y") honors min-release-age — it is the
+# only policy-aware signal. Skipping the reinstall when already on the newest
+# INSTALLABLE version is what protects the keychain-backed org-auth token from
+# a needless node rebuild (the empty-org-list footgun).
+SF_INSTALLED=$(sf --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+SF_RESOLVED=$(npm install @salesforce/cli --global --dry-run 2>/dev/null \
+  | grep -E '(^| )@salesforce/cli[[:space:]]' \
+  | grep -oE '[0-9]+\.[0-9]+\.[0-9]+ *=> *[0-9]+\.[0-9]+\.[0-9]+' \
+  | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+SF_REGISTRY=$(npm view @salesforce/cli version 2>/dev/null)
+if [ -z "$SF_INSTALLED" ] || [ -z "$SF_RESOLVED" ]; then
+  echo "SF_CLI_CHECK_FAILED (offline or npm probe failed) — kept installed: ${SF_INSTALLED:-unknown}"
+elif [ "$SF_INSTALLED" = "$SF_RESOLVED" ]; then
+  if [ -n "$SF_REGISTRY" ] && [ "$SF_RESOLVED" != "$SF_REGISTRY" ]; then
+    echo "SF_CLI_HELD (installed $SF_INSTALLED; registry $SF_REGISTRY held by your npm min-release-age policy)"
+  else
+    echo "SF_CLI_CURRENT ($SF_INSTALLED)"
+  fi
 else
-  echo "SF_CLI_CURRENT ($SF_CURRENT)"
+  echo "UPDATING_SF_CLI ($SF_INSTALLED -> $SF_RESOLVED)"
+  npm install @salesforce/cli --global 2>&1 | tail -1
+  SF_AFTER=$(sf --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  if [ "$SF_AFTER" = "$SF_INSTALLED" ]; then
+    echo "SF_CLI_UPDATE_NOOP (install ran but version unchanged — still $SF_AFTER)"
+  else
+    echo "SF_CLI_UPDATED ($SF_INSTALLED -> $SF_AFTER)"
+  fi
 fi
 ```
 
@@ -34,23 +55,41 @@ Same version-gate rationale as step a — reinstall only when behind latest.
 
 ```bash
 echo "CHECKING_CLAUDE_CLI"
-CC_LATEST=$(npm view @anthropic-ai/claude-code version 2>/dev/null)
-CC_CURRENT=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-if [ -z "$CC_LATEST" ]; then
-  echo "CLAUDE_CLI_VERSION_CHECK_FAILED (offline?) — skipping update, current: ${CC_CURRENT:-unknown}"
-elif [ "$CC_CURRENT" != "$CC_LATEST" ]; then
-  echo "UPDATING_CLAUDE_CLI ($CC_CURRENT -> $CC_LATEST)"
-  npm install @anthropic-ai/claude-code --global 2>&1 | tail -1
-  echo "CLAUDE_CLI_AT $(claude --version 2>/dev/null || echo 'unknown')"
+# Policy-aware gate — see step a's comment for why dry-run resolve, not `npm view`.
+CC_INSTALLED=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+CC_RESOLVED=$(npm install @anthropic-ai/claude-code --global --dry-run 2>/dev/null \
+  | grep -E '(^| )@anthropic-ai/claude-code[[:space:]]' \
+  | grep -oE '[0-9]+\.[0-9]+\.[0-9]+ *=> *[0-9]+\.[0-9]+\.[0-9]+' \
+  | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+CC_REGISTRY=$(npm view @anthropic-ai/claude-code version 2>/dev/null)
+if [ -z "$CC_INSTALLED" ] || [ -z "$CC_RESOLVED" ]; then
+  echo "CLAUDE_CLI_CHECK_FAILED (offline or npm probe failed) — kept installed: ${CC_INSTALLED:-unknown}"
+elif [ "$CC_INSTALLED" = "$CC_RESOLVED" ]; then
+  if [ -n "$CC_REGISTRY" ] && [ "$CC_RESOLVED" != "$CC_REGISTRY" ]; then
+    echo "CLAUDE_CLI_HELD (installed $CC_INSTALLED; registry $CC_REGISTRY held by your npm min-release-age policy)"
+  else
+    echo "CLAUDE_CLI_CURRENT ($CC_INSTALLED)"
+  fi
 else
-  echo "CLAUDE_CLI_CURRENT ($CC_CURRENT)"
+  echo "UPDATING_CLAUDE_CLI ($CC_INSTALLED -> $CC_RESOLVED)"
+  npm install @anthropic-ai/claude-code --global 2>&1 | tail -1
+  CC_AFTER=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  if [ "$CC_AFTER" = "$CC_INSTALLED" ]; then
+    echo "CLAUDE_CLI_UPDATE_NOOP (install ran but version unchanged — still $CC_AFTER)"
+  else
+    echo "CLAUDE_CLI_UPDATED ($CC_INSTALLED -> $CC_AFTER)"
+  fi
 fi
 ```
 
-Surface inline:
-- `SF_CLI_CURRENT` / `CLAUDE_CLI_CURRENT` — silent (already latest; the common case).
-- `UPDATING_SF_CLI` / `UPDATING_CLAUDE_CLI` followed by a clean install — one-line note that the CLI was updated.
-- `SF_CLI_VERSION_CHECK_FAILED` / `CLAUDE_CLI_VERSION_CHECK_FAILED` — one-line note ("couldn't reach npm to check [sf|claude] CLI version — kept the installed one"), proceed.
+Surface inline (report the OBSERVED outcome token, never the `->` target — the
+token is computed from the actual post-install version, so it is the source of
+truth; do not infer "updated" from the fact that an install command ran):
+- `SF_CLI_CURRENT` / `CLAUDE_CLI_CURRENT` — silent (already on the newest installable version; the common case).
+- `SF_CLI_UPDATED (X -> Y)` / `CLAUDE_CLI_UPDATED (X -> Y)` — one-line note that the CLI was updated, using the observed `Y`.
+- `SF_CLI_HELD` / `CLAUDE_CLI_HELD` — one-line note: a newer version exists in the registry but the SE's npm `min-release-age` policy is intentionally holding it back; this is NOT an error — it will install on a future refresh once the release ages past the policy window. Name the installed version that was kept.
+- `SF_CLI_UPDATE_NOOP` / `CLAUDE_CLI_UPDATE_NOOP` — one-line note: the install ran but the version didn't change; kept the installed version (rare — npm cache/policy edge). Don't claim an update.
+- `SF_CLI_CHECK_FAILED` / `CLAUDE_CLI_CHECK_FAILED` — one-line note ("couldn't check [sf|claude] CLI version — kept the installed one"), proceed.
 - If an `npm install` that DID run fails (non-zero exit), surface a one-line note ("[sf|claude] CLI update failed — continuing") and proceed. Don't abort.
 
 ## c: Slack MCP
@@ -299,4 +338,4 @@ Surface inline (compose one combined note; silent only if every surface was alre
 
 ## Done
 
-Refresh procedure complete. Return to the orchestrator. Pass the result of step d (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note. If d.7 emitted any `PINS_REMOVED[...]`, `VSCODE_PINS_REMOVED`, `LAUNCHCTL_PINS_CLEARED`, or a VS-Code-restore/warn variant, the SE has a restart (and possibly a manual VS Code edit) pending — make sure that note survived into the done summary.
+Refresh procedure complete. Return to the orchestrator. Pass the result of step d (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note. Also pass the CLI outcome tokens from steps a and b (`*_CURRENT` / `*_UPDATED (X->Y)` / `*_HELD` / `*_UPDATE_NOOP` / `*_CHECK_FAILED`) so the done message reflects actual CLI status rather than asserting "current" unconditionally. If d.7 emitted any `PINS_REMOVED[...]`, `VSCODE_PINS_REMOVED`, `LAUNCHCTL_PINS_CLEARED`, or a VS-Code-restore/warn variant, the SE has a restart (and possibly a manual VS Code edit) pending — make sure that note survived into the done summary.
