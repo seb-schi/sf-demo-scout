@@ -2,6 +2,11 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-06-25
+
+- **Scout can now read your Google Docs and Sheets during sparring — point it at an RfP and it ingests the whole thing.** Same as it already peeks at Slack canvases, Scout can now pull a Google Doc or Sheet you name during discovery — an RfP question catalogue, a capability map, an account plan — and fold it into the scenario as attributed context. It gets connected during `/scout-setup`, right alongside Slack — **already a Scout user? Just re-run `/scout-setup` to wire it up.** Honestly a bit of an obvious one in hindsight — half the prep material we work from lives in Google. Better late than never.
+- **Setup no longer dead-ends if an optional integration isn't connected.** `/scout-setup` now hard-stops only on the things Scout genuinely can't run without — Slack and Google Workspace surface a "not connected — here's what you'll be missing, reconnect anytime" note and let setup finish, instead of blocking you.
+
 ## 2026-06-18
 
 - **One big skills update: Scout ships with fresher Salesforce skills, and can now build three new things on its own.** The bundled skills for LWC, SOQL, data, debugging, deploys, and Apex tests are refreshed to their current Salesforce-published versions — better guidance, newer patterns — and Apex generation moves to the modern fflib layered architecture with a built-in code-analyzer pass. On top of that, Scout now builds **validation rules**, **list views**, and **simple Lightning record pages** autonomously from your spec, work that used to land on your manual checklist. Flow generation stays on the proven current engine. Just spec what you want — the new sections in the spec template show you how.
