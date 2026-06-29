@@ -14,12 +14,21 @@ Switch to a different Salesforce demo org. Follow these steps:
 2. Ask the SE which org they want to use (show the list clearly with aliases and usernames), followed by:
    > "Pick an org from the list, or type **new** to connect a different org."
 3. If the SE picks an existing org, skip to step 5.
-   If the SE types "new" or names an org not in the list, ask for an alias, then:
+   If the SE types "new" or names an org not in the list, ask for an alias, then ask:
+   > "Is this a **sandbox** or a **production/developer** org?"
+
+   Then tell the SE:
    > "I'll open a browser now — log in with your demo org credentials."
-   Then run (in the foreground — wait for it to complete before continuing):
-   ```
-   sf org login web --alias [name] --set-default
-   ```
+
+   Run the matching command (in the foreground — wait for it to complete before continuing):
+   - **Production / Developer org** (logs in via `login.salesforce.com`, the CLI default):
+     ```
+     sf org login web --alias [name] --set-default
+     ```
+   - **Sandbox** (sandboxes authenticate against `test.salesforce.com`, not the default):
+     ```
+     sf org login web --alias [name] --set-default --instance-url https://test.salesforce.com
+     ```
    Wait for the command to return successfully before proceeding.
 
 4. Set the chosen org as default for this project (writes to `.sf/config.json` in the project — local scope takes precedence over global, so this is what MCP actually reads):
