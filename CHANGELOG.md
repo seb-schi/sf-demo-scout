@@ -2,6 +2,11 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-06-29
+
+- **Scout now builds record-level sharing rules on its own.** Need a demo where reps see only their own accounts and managers see the whole region? Scout can now generate criteria-, owner-, and guest-based sharing rules straight from your spec — the record-visibility layer that permission sets don't cover. Just add a Sharing Rules section to the spec (the template shows you how). One caveat it'll flag for you: a sharing rule only does anything below a restrictive org-wide default, so for standard objects like Account you'll set the OWD in Setup first — Scout deploys the rule and reminds you.
+- **Custom-object descriptions now write themselves — and stay current.** When Scout creates or changes a custom object, it now composes a clear, human-readable object description (purpose, key fields, the business rules behind them) instead of leaving it blank or generic — and refreshes it whenever you add or change a field or validation rule. You'll see the before/after in the change log so you can tweak or revert any wording you don't like.
+
 ## 2026-06-25
 
 - **Scout can now read your Google Docs and Sheets during sparring — point it at an RfP and it ingests the whole thing.** Same as it already peeks at Slack canvases, Scout can now pull a Google Doc or Sheet you name during discovery — an RfP question catalogue, a capability map, an account plan — and fold it into the scenario as attributed context. It gets connected during `/scout-setup`, right alongside Slack — **already a Scout user? Just re-run `/scout-setup` to wire it up.** Honestly a bit of an obvious one in hindsight — half the prep material we work from lives in Google. Better late than never.
