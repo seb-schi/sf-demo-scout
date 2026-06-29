@@ -14,7 +14,7 @@ description: >
 
 One home per category:
 - **Phase 1** (Queues, Picklists, Page Layouts, Lightning Record Page field sections, Business Processes, Paths) — rules live inlined under IF markers in `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md`. This skill file does NOT duplicate them. If a Phase 1 sub-agent needs a rule, it reads its own prompt.
-- **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `generating-apex`, `generating-lwc-components`, `developing-agentforce`). This skill file carries the rollback commands, the attempt-rule meta-rule, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline. The Known Deploy-Error Patterns catalog lives in `references/deploy-error-patterns.md` (loaded on demand on a deploy failure).
+- **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `platform-apex-generate`, `experience-lwc-generate`, `agentforce-generate`). This skill file carries the rollback commands, the attempt-rule meta-rule, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline. The Known Deploy-Error Patterns catalog lives in `references/deploy-error-patterns.md` (loaded on demand on a deploy failure).
 - **Cross-phase** — Script Deliverable Rules (below) apply to any sub-agent producing a reusable shell / language script, regardless of phase.
 
 **Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix —
@@ -179,7 +179,7 @@ Autonomous-with-SE-gate flow scope matches `sf-flow`'s full trigger spectrum: re
 Scope: single-trigger, single-object. No cross-object Apex. No test classes
 (demo org context).
 
-1. Invoke `generating-apex` skill for generation rules.
+1. Invoke `platform-apex-generate` skill for generation rules.
 2. Run `run_code_analyzer` before deploying (if MCP available). Record any
    high-severity findings in `issues`.
 3. Rollback commands:
@@ -204,14 +204,14 @@ components.
 ## Agentforce Rules (Phase 3)
 
 Two paths depending on whether the agent is new or already exists in the
-org. Both use the ADLC skill suite (`developing-agentforce`,
-`testing-agentforce`, `observing-agentforce`).
+org. Both use the ADLC skill suite (`agentforce-generate`,
+`agentforce-test`, `agentforce-observe`).
 
 ### New Agent (Agent Script path)
 
 Scope: single agent, topic-based routing with Apex or Flow backing actions.
 
-1. Invoke `developing-agentforce` skill — follow its "Create an Agent"
+1. Invoke `agentforce-generate` skill — follow its "Create an Agent"
    workflow.
 2. Check for existing agents via MCP `retrieve_metadata` — flag conflicts
    in `issues`.
@@ -229,7 +229,7 @@ For agents already in the org (e.g., SDO/IDO pre-installed agents). Every
 publish creates a new version; previous versions remain activatable, so
 rollback is instant via `sf agent activate --version-number N`.
 
-1. Invoke `developing-agentforce` skill — follow its "Modify an Existing
+1. Invoke `agentforce-generate` skill — follow its "Modify an Existing
    Agent" workflow.
 2. Note the current active version number before any changes (rollback
    target).
@@ -242,7 +242,7 @@ rollback is instant via `sf agent activate --version-number N`.
 
 ### Smoke Test (after activate — both paths)
 
-After the agent is activated, run an ad-hoc smoke test using `testing-agentforce` skill (Mode A):
+After the agent is activated, run an ad-hoc smoke test using `agentforce-test` skill (Mode A):
 
 1. Read the spec's "Smoke test utterances" list. If no utterances are specified, generate 3 based on the agent's topic descriptions.
 2. Start a preview session: `sf agent preview start --json --authoring-bundle [AgentName] -o [alias]`

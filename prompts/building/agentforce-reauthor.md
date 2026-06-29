@@ -13,7 +13,7 @@ editable agent under a NEW side-by-side API name, and add the spec's new capabil
 
 **Why re-author, not retrieve-and-edit:** an `AiAuthoringBundle` retrieved AFTER a publish is
 `<target>`-locked and read-only — editing it deploys as a misleading no-op (see
-`developing-agentforce` reference agent-metadata-and-lifecycle.md, "Version-suffixed
+`agentforce-generate` reference agent-metadata-and-lifecycle.md, "Version-suffixed
 AiAuthoringBundle"). So you reconstruct from the planner into NEW source, never edit the
 retrieved bundle in place.
 
@@ -41,7 +41,7 @@ Parse the retrieved planner. Build a structured inventory of:
 Record the extracted inventory in `discovery_notes` so the SE can diff it against the legacy agent.
 
 ### Step R3 — Re-author as fresh Agent Script under a NEW api name
-Invoke `developing-agentforce` and follow its New-Agent (create-from-scratch) workflow — NOT the
+Invoke `agentforce-generate` and follow its New-Agent (create-from-scratch) workflow — NOT the
 modify workflow. Build a brand-new authoring bundle whose api-name is the legacy name with a
 `_Scout` suffix (e.g. `Field_Service_Agent_Scout`). Reproduce every extracted topic/action as
 Agent Script subagents + actions. Wire backing logic to the SAME flows/Apex the legacy agent

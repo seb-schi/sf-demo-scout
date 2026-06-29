@@ -119,12 +119,27 @@ One `BusinessProcess` Metadata API type covers Sales / Lead / Support / Solution
 - Columns (field API names, in order): [field1, field2, ...]
 - Filters (if any): [field operation value, e.g. `StageName equals "Closed Won"`]
 
+### Sharing Rules (if applicable)
+Scope: record-level access via `sharingCriteriaRules`, `sharingOwnerRules`, or `sharingGuestRules` (the `platform-sharing-rules-generate` skill). A sharing rule is **inert unless the object's org-wide default (OWD) is restrictive** (`Private` or `Public Read Only`) — capture the OWD prerequisite per object below.
+- Object: [SObject API — standard or custom]
+- OWD prerequisite:
+  - **Custom object (in this spec):** Scout sets `<sharingModel>` to [`Private` | `ReadWrite` if M-D → `ControlledByParent`] in the object metadata — autonomous, deployed in the same phase. Sharing rule is meaningful only if `Private`.
+  - **Standard object (Account, Case, Opportunity, …):** ⚠️ OWD is org-level `SharingSettings` — Scout does NOT change it (destructive, org-wide). **SE Manual prerequisite:** the SE must set the OWD to Private/Read in Setup → Sharing Settings BEFORE the rule has effect. Scout deploys the rule and flags it inert-until-OWD-set in the change log.
+- Rule type: [criteria | owner | guest]
+- Rule: [PascalCase fullName], Label: [Title Case label]
+- Access level: [Read | Edit] (default Read)
+- Shared to: [`<role>`RoleName | `<roleAndSubordinates>`RoleName | `<group>`GroupName | `<guestUser>`CommunityNickname (guest only) | `<portalRole>` …]
+- For criteria rules — criteria (ANDed unless booleanFilter given): [Field operation value, e.g. `Region__c equals "West"`]; `includeRecordsOwnedByAll`: [true | false] (default true)
+- For owner rules — shared from: [`<role>` | `<group>` source]
+- For guest rules — `includeHVUOwnedRecords`: [true | false] (default false); guest user CommunityNickname resolved via org query
+- ⚠️ If object is **Account**: rule MUST include `<accountSettings>` (case/contact/opportunity access — default all `None`)
+
 ### Lightning Record Page — Authoring (Autonomous, simple pages only)
 Scope: a NEW simple `RecordPage` FlexiPage — header + one/two-column field section + standard components. Complex authoring (dynamic forms, custom LWC placement, tabsets, conditional visibility) stays SE Manual below.
 - FlexiPage DeveloperName: [ApiName]
 - Object: [SObject API]
 - Field section(s): [section label → columns → field API names]
-- Standard components: [Highlights Panel | Activity | Related Lists | ... from the generating-flexipage catalog]
+- Standard components: [Highlights Panel | Activity | Related Lists | ... from the platform-flexipage-generate catalog]
 - Activation: [org default | leave inactive for SE | app/profile name] (if not org-default, SE assigns in App Builder)
 
 ### Data Seeding

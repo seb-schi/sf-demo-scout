@@ -9,6 +9,15 @@
 # were CUT. The 3 Scout-owned demo-* skills are NOT vendored and not listed
 # here.
 #
+# 2026-06-29: all 18 actively-vendored skills RENAMED to upstream's domain-first
+# convention (sf-skills v1.21.0 -> v1.26.0, the 2026-06-26 batch): e.g.
+# generating-apex -> platform-apex-generate, developing-agentforce -> agentforce-generate,
+# running-code-analyzer -> dx-code-analyzer-run. See PLAN 2026-06-29/1034. The frozen
+# sf-flow stays sf-flow (A4V-blocked; upstream successor automation-flow-generate). Now
+# that our names match upstream again, vendor-skills.sh re-vendoring works without a name
+# map. The history comments BELOW describe the 06-18 re-point under the OLD names and are
+# kept verbatim — do not rewrite them to the new names.
+#
 # To re-vendor (e.g. pull latest upstream): run
 #   bash scripts/vendor-skills.sh
 # from the plugin root, review the resulting git diff under skills/,
@@ -67,63 +76,68 @@ skills:
   #   sf-permissions — zero pipeline refs; creation runs on generating-permission-set.
 
   # forcedotcom/sf-skills — full skill directories, cloned
-  - name: generating-custom-field
+  - name: platform-custom-field-generate
     source: afv
-    path: skills/generating-custom-field
-  - name: generating-custom-object
+    path: skills/platform-custom-field-generate
+  - name: platform-custom-object-generate
     source: afv
-    path: skills/generating-custom-object
-  - name: generating-permission-set
+    path: skills/platform-custom-object-generate
+  - name: platform-permission-set-generate
     source: afv
-    path: skills/generating-permission-set
-  - name: developing-agentforce
+    path: skills/platform-permission-set-generate
+  - name: agentforce-generate
     source: afv
-    path: skills/developing-agentforce
-  - name: testing-agentforce
+    path: skills/agentforce-generate
+  - name: agentforce-test
     source: afv
-    path: skills/testing-agentforce
-  - name: observing-agentforce
+    path: skills/agentforce-test
+  - name: agentforce-observe
     source: afv
-    path: skills/observing-agentforce
+    path: skills/agentforce-observe
 
   # ── RE-POINTED renames (afv/main) ──────────────────────────────────────
-  - name: generating-lwc-components
+  - name: experience-lwc-generate
     source: afv
-    path: skills/generating-lwc-components
-  - name: querying-soql
+    path: skills/experience-lwc-generate
+  - name: platform-soql-query
     source: afv
-    path: skills/querying-soql
-  - name: handling-sf-data
+    path: skills/platform-soql-query
+  - name: platform-data-manage
     source: afv
-    path: skills/handling-sf-data
-  - name: debugging-apex-logs
+    path: skills/platform-data-manage
+  - name: platform-apex-logs-debug
     source: afv
-    path: skills/debugging-apex-logs
-  - name: deploying-metadata
+    path: skills/platform-apex-logs-debug
+  - name: platform-metadata-deploy
     source: afv
-    path: skills/deploying-metadata
-  - name: running-apex-tests
+    path: skills/platform-metadata-deploy
+  - name: platform-apex-test-run
     source: afv
-    path: skills/running-apex-tests
+    path: skills/platform-apex-test-run
 
   # ── SWAP: Apex methodology (afv/main) ──────────────────────────────────
-  - name: generating-apex
+  - name: platform-apex-generate
     source: afv
-    path: skills/generating-apex
-  - name: generating-apex-test
+    path: skills/platform-apex-generate
+  - name: platform-apex-test-generate
     source: afv
-    path: skills/generating-apex-test
-  - name: running-code-analyzer
+    path: skills/platform-apex-test-generate
+  - name: dx-code-analyzer-run
     source: afv
-    path: skills/running-code-analyzer
+    path: skills/dx-code-analyzer-run
 
   # ── NEW declarative skills (afv/main) ──────────────────────────────────
-  - name: generating-validation-rule
+  - name: platform-validation-rule-generate
     source: afv
-    path: skills/generating-validation-rule
-  - name: generating-list-view
+    path: skills/platform-validation-rule-generate
+  - name: platform-list-view-generate
     source: afv
-    path: skills/generating-list-view
-  - name: generating-flexipage
+    path: skills/platform-list-view-generate
+  - name: platform-flexipage-generate
     source: afv
-    path: skills/generating-flexipage
+    path: skills/platform-flexipage-generate
+
+  # ── NEW 2026-06-29: record-level sharing (afv/main, sf-skills v1.26.0) ──
+  - name: platform-sharing-rules-generate
+    source: afv
+    path: skills/platform-sharing-rules-generate

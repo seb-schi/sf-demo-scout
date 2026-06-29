@@ -26,7 +26,7 @@ The Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) expo
 
 ## When to Consult — NO
 
-1. **Custom field / object / permission set XML structure** — afv-library skills (`generating-custom-field`, `generating-custom-object`, `generating-permission-set`) are authoritative.
+1. **Custom field / object / permission set XML structure** — afv-library skills (`platform-custom-field-generate`, `platform-custom-object-generate`, `platform-permission-set-generate`) are authoritative.
 2. **Standard object structure** — org audit is truth. Docs describe a generic org; the SE's org may have managed-package or admin-made variants.
 3. **Anything you just consulted this session** — cache in your head for the session; don't re-fetch.
 4. **SE-asserted customer fact** — customer context is not in Salesforce docs.

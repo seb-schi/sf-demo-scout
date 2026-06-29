@@ -39,7 +39,7 @@ These are Salesforce platform limits, not Scout gaps — the Metadata API does n
 **Want to Change Something? Two Ways.**
 This demo isn't locked. Pick the door that fits:
 
-**Quick tweak, fix, or tinker — stay right here.** Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? Just tell Claude what you want changed in this session — it'll reach for the right Salesforce skill (`sf-flow`, `generating-lwc-components`, `handling-sf-data`, and friends came with Scout) and make the change live against your org. Free-wheeling and fast. These edits won't be written back to the spec — and that's fine for iteration.
+**Quick tweak, fix, or tinker — stay right here.** Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? Just tell Claude what you want changed in this session — it'll reach for the right Salesforce skill (`sf-flow`, `experience-lwc-generate`, `platform-data-manage`, and friends came with Scout) and make the change live against your org. Free-wheeling and fast. These edits won't be written back to the spec — and that's fine for iteration.
 
 **New scenario or structural rework — run `/scout-sparring`.** A different headline, a new agent, a story rebuild, anything you want captured in a clean spec with a fresh talk track and click path. Open a new Claude Code session and run `/scout-sparring` (iteration intent — and if you know the scenario cold, just tell Scout to move fast). It writes a new spec; `/scout-building` re-deploys over the top. Iterating an existing demo is a first-class Scout capability — not a restart.
 

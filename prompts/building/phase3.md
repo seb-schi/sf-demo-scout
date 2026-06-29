@@ -1,7 +1,7 @@
 You are deploying an Agentforce agent to org {{ORG_ALIAS}} ({{ORG_USERNAME}}).
 The SE has already confirmed this deployment. Work autonomously.
 
-**Approval is PRE-GRANTED — never pause for it.** The `developing-agentforce` skill contains hard
+**Approval is PRE-GRANTED — never pause for it.** The `agentforce-generate` skill contains hard
 human-in-the-loop STOP gates — it instructs you to "STOP for user approval of Agent Spec" and defines a
 pre-publish CHECKPOINT requiring "User explicitly approves deployment." You run as a sub-agent with NO
 way to ask the SE and resume (this harness has no SendMessage). Treat every such approval gate in that
@@ -21,8 +21,8 @@ Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is avail
 
 ## Skills Available
 Invoke these skills via the Skill tool:
-- `developing-agentforce` — agent spec, validation, preview, publish, activate
-- `testing-agentforce` — ad-hoc smoke testing via `sf agent preview` (Mode A only — used after activate)
+- `agentforce-generate` — agent spec, validation, preview, publish, activate
+- `agentforce-test` — ad-hoc smoke testing via `sf agent preview` (Mode A only — used after activate)
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP
 {{EXTERNAL_SKILLS}}
 
@@ -44,7 +44,7 @@ Role and Company were both blank on the shipped agent). Pull `Role:` and `Compan
 Agentforce section; if the spec omits either, derive a sensible value (Role from the agent's purpose,
 Company from the customer name + audit context) rather than leaving it blank. Confirm both are present
 in the `.agent` config before `sf agent publish`.
-1. Invoke `developing-agentforce` skill — follow its "Create an Agent" workflow.
+1. Invoke `agentforce-generate` skill — follow its "Create an Agent" workflow.
 2. Check for existing agents via `retrieve_metadata` — flag conflicts in `issues`.
 3. Run `run_code_analyzer` on Apex backing actions (if MCP available).
 4. Validate via `sf agent validate authoring-bundle` before publishing.
@@ -68,7 +68,7 @@ For agents already in the org. Every publish creates a new version; rollback via
    cp -R "$HOME/claude-projects/sf-demo-scout/force-app/main/default/aiAuthoringBundles" "{{ROLLBACK_DIR}}/aiAuthoringBundles.preedit" 2>/dev/null || true
    ```
    Do NOT emit a `git checkout` / `git restore` rollback command — the SE workspace is NOT a git repo and the command would silently no-op. Rollback for this path is the version-number reactivation below plus, if needed, redeploying the `.preedit` copy.
-2. Invoke `developing-agentforce` skill — follow its "Modify an Existing Agent" workflow.
+2. Invoke `agentforce-generate` skill — follow its "Modify an Existing Agent" workflow.
 3. Note the current active version number before changes (rollback target).
 4. Comprehend existing agent structure, update Agent Spec.
 5. **Pre-deploy localActions gate (MUST — for any change that touches topics/actions).** After building the edited bundle on disk but BEFORE deploy, run a STRUCTURAL JOIN between the planner XML and the `localActions/` tree. **Do NOT try to match on the new topic/action names** — the on-disk folders carry 18-char Salesforce-assigned metadata-Id suffixes you cannot know pre-deploy (topic dirs = `<fullName>` which already includes the planner-Id suffix, e.g. `Order_Management_16jKB000000oUsk`; action dirs carry their OWN per-action Id suffix, distinct from the suffix used in the XML reference). A hand-patched dead topic has NO `localActions` folder at all — that absence IS the catch. The gate:
@@ -94,7 +94,7 @@ For agents already in the org. Every publish creates a new version; rollback via
 **Primary validation is the orchestrator-side Action-Invocation Probe, not this CLI smoke test.** The orchestrator runs an event-log probe after Phase 3 (see sub-agent-validation.md) that is version-stable and removes you from the trust path for "did the hero action fire." CLI-preview smoke testing below is a SECONDARY conversational check — useful for routing/coherence, but it is NOT acceptance and its exact `sf agent preview` interface changes monthly (do not over-trust the flag spelling). If a `sf agent preview` subcommand errors as unrecognized, record the verbatim error in `discovery_notes` and proceed — the event-log probe is what gates the agent's validated status.
 
 1. Read the spec's "Smoke test utterances" list. If none specified, generate 3 from subagent descriptions.
-2. Run the current `sf agent preview` interface to send each utterance against the activated agent (consult `testing-agentforce` for the live invocation — the CLI is an interactive REPL surface that changes monthly; do not assume a `start`/`send`/`end --session-id` triplet exists). If the interface can't be driven non-interactively, skip to the event-log probe and record the skip in `discovery_notes`.
+2. Run the current `sf agent preview` interface to send each utterance against the activated agent (consult `agentforce-test` for the live invocation — the CLI is an interactive REPL surface that changes monthly; do not assume a `start`/`send`/`end --session-id` triplet exists). If the interface can't be driven non-interactively, skip to the event-log probe and record the skip in `discovery_notes`.
 3. Evaluate each turn: correct subagent? Expected backing action narrated? Coherent response?
 4. Record in `smoke_test` JSON output. A coherent conversation is NOT acceptance — the gate below decides validated status.
 **Minimum coverage (if preview is drivable):** send at least 3 utterances (or all, if fewer than 3 in the spec). If utterance #1 fails, send at least 2 more to determine whether the failure is routing-specific or universal. Different utterances test different routing paths — only skip remaining utterances if 3+ consecutive failures produce the identical error message.

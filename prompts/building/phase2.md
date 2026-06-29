@@ -12,12 +12,12 @@ Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is avail
 ## Skills Available
 Invoke these skills via the Skill tool when you need detailed rules:
 - `sf-flow` — flow design and 110-point validation checklist (invoke before generating Flow XML)
-- `generating-apex` — Apex generation rules (fflib layered architecture, mandatory `run_code_analyzer`) (invoke only if Apex is in scope)
-- `generating-lwc-components` — LWC scaffolding with PICKLES methodology and 165-point scoring (invoke before generating any LWC bundle — SLDS 2, accessibility, wire patterns)
-- `generating-apex-test` — Apex test-class authoring (templates, @TestSetup patterns, naming) (invoke whenever Apex is in scope — author a test for every class/trigger; a failing test never blocks the deploy)
-- `running-apex-tests` — Apex test execution and agentic test-fix loops (invoke when Apex deployment tests fail — up to 3 automated fix iterations before skipping)
-- `debugging-apex-logs` — debug-log analysis and runtime-failure forensics (invoke as the escalation when `running-apex-tests` exhausts its fix loop, or ad-hoc for governor-limit / stack-trace analysis)
-- `running-code-analyzer` — deeper/configurable static scan via the `sf code-analyzer run` CLI (engine selection, auto-fix, diff-only). The in-pipeline scan stays the MCP `run_code_analyzer` tool — invoke this skill only when the MCP tool is unavailable or a richer scan is wanted (requires the Code Analyzer CLI plugin)
+- `platform-apex-generate` — Apex generation rules (fflib layered architecture, mandatory `run_code_analyzer`) (invoke only if Apex is in scope)
+- `experience-lwc-generate` — LWC scaffolding with PICKLES methodology and 165-point scoring (invoke before generating any LWC bundle — SLDS 2, accessibility, wire patterns)
+- `platform-apex-test-generate` — Apex test-class authoring (templates, @TestSetup patterns, naming) (invoke whenever Apex is in scope — author a test for every class/trigger; a failing test never blocks the deploy)
+- `platform-apex-test-run` — Apex test execution and agentic test-fix loops (invoke when Apex deployment tests fail — up to 3 automated fix iterations before skipping)
+- `platform-apex-logs-debug` — debug-log analysis and runtime-failure forensics (invoke as the escalation when `platform-apex-test-run` exhausts its fix loop, or ad-hoc for governor-limit / stack-trace analysis)
+- `dx-code-analyzer-run` — deeper/configurable static scan via the `sf code-analyzer run` CLI (engine selection, auto-fix, diff-only). The in-pipeline scan stays the MCP `run_code_analyzer` tool — invoke this skill only when the MCP tool is unavailable or a richer scan is wanted (requires the Code Analyzer CLI plugin)
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
 {{EXTERNAL_SKILLS}}
 
@@ -222,11 +222,11 @@ Scope: single-trigger, single-object. **Test classes are authored for all Apex i
 reverses the prior demo-org-only "no test classes" rule: customer-sandbox work is now co-equal
 with demo prep, and sandbox-bound Apex needs coverage. A failing or low-coverage generated test
 is recorded in `issues` and **NEVER blocks the deploy** — the demo/build ships regardless.
-1. Invoke `generating-apex` skill for generation rules (fflib layered architecture; run `run_code_analyzer` before reporting — the skill mandates it).
-2. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`. **If the MCP tool is unavailable, or the SE wants a deeper/configurable scan (engine selection, auto-fix, diff-only), invoke the `running-code-analyzer` skill instead** — it drives the `sf code-analyzer run` CLI. That CLI requires the Code Analyzer plugin; if it is absent, record the gap in `discovery_notes` and rely on the MCP scan. Do NOT replace the MCP call as the default — it is faster and returns structured findings.
-3. **Author an Apex test class for every Apex class/trigger deployed.** Invoke `generating-apex-test` for templates, `@TestSetup` / `TestDataFactory` patterns, and naming. Deploy the test alongside the class, run it, and record pass/fail in `issues`. A failing or low-coverage test does NOT block the deploy — record it and continue.
+1. Invoke `platform-apex-generate` skill for generation rules (fflib layered architecture; run `run_code_analyzer` before reporting — the skill mandates it).
+2. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`. **If the MCP tool is unavailable, or the SE wants a deeper/configurable scan (engine selection, auto-fix, diff-only), invoke the `dx-code-analyzer-run` skill instead** — it drives the `sf code-analyzer run` CLI. That CLI requires the Code Analyzer plugin; if it is absent, record the gap in `discovery_notes` and rely on the MCP scan. Do NOT replace the MCP call as the default — it is faster and returns structured findings.
+3. **Author an Apex test class for every Apex class/trigger deployed.** Invoke `platform-apex-test-generate` for templates, `@TestSetup` / `TestDataFactory` patterns, and naming. Deploy the test alongside the class, run it, and record pass/fail in `issues`. A failing or low-coverage test does NOT block the deploy — record it and continue.
 4. If the spec's Platform Constraints section flags any object with restrictions, follow the dynamic SOQL pattern below for that object.
-5. If compile or runtime tests fail on the first deploy attempt, invoke `running-apex-tests` before the next attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). The attempt rule still applies: one running-apex-tests loop counts as one attempt. **If the `running-apex-tests` loop exhausts its iterations without resolving the failure, invoke `debugging-apex-logs` for deeper runtime-log forensics before recording the phase SKIPPED.**
+5. If compile or runtime tests fail on the first deploy attempt, invoke `platform-apex-test-run` before the next attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). The attempt rule still applies: one platform-apex-test-run loop counts as one attempt. **If the `platform-apex-test-run` loop exhausts its iterations without resolving the failure, invoke `platform-apex-logs-debug` for deeper runtime-log forensics before recording the phase SKIPPED.**
 6. Rollback: `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]` (plus `ApexClass:[TestClassName]` if a test class was deployed).
 
 **InvocableMethod pattern (for Agentforce backing actions).** Use this template:
@@ -283,11 +283,11 @@ Key rules:
 <!-- IF:LWC -->
 ### LWC Rules
 Scope: demo-specific UI — Customer 360 Cards, custom record views, branded components.
-1. Invoke `generating-lwc-components` skill BEFORE generating any component file. The skill enforces PICKLES methodology, SLDS 2 compliance, dark mode support, accessibility (WCAG/ARIA), and Jest test patterns across a 165-point rubric.
+1. Invoke `experience-lwc-generate` skill BEFORE generating any component file. The skill enforces PICKLES methodology, SLDS 2 compliance, dark mode support, accessibility (WCAG/ARIA), and Jest test patterns across a 165-point rubric.
 
-**Mock data when no backing data source exists.** If the spec describes UI with no objects/fields/Apex class supplying data (no wire target, no Apex `@AuraEnabled` method referenced, no Data Cloud or external source), hardcode realistic mock data directly in the component's JS file and skip the wire service. Demo orgs often have no seeded data for new objects at LWC deploy time — a component that renders a spinning wheel breaks the demo worse than hardcoded values. Use industry-appropriate terminology (medtech device names, pharma product SKUs, etc. per the Customer Context in the spec). When the spec DOES name a backing data source, follow `generating-lwc-components` wire patterns normally.
+**Mock data when no backing data source exists.** If the spec describes UI with no objects/fields/Apex class supplying data (no wire target, no Apex `@AuraEnabled` method referenced, no Data Cloud or external source), hardcode realistic mock data directly in the component's JS file and skip the wire service. Demo orgs often have no seeded data for new objects at LWC deploy time — a component that renders a spinning wheel breaks the demo worse than hardcoded values. Use industry-appropriate terminology (medtech device names, pharma product SKUs, etc. per the Customer Context in the spec). When the spec DOES name a backing data source, follow `experience-lwc-generate` wire patterns normally.
 
-2. Use MCP LWC expert tools when available (scaffolding, SLDS, validation) — these complement generating-lwc-components' guidance.
+2. Use MCP LWC expert tools when available (scaffolding, SLDS, validation) — these complement experience-lwc-generate' guidance.
 3. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`.
 4. Rollback: `sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org [alias]`
 

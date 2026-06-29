@@ -9,14 +9,15 @@ Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is avail
 ## Skills Available
 Invoke these skills via the Skill tool when you need detailed metadata rules:
 <!-- IF:STRUCTURAL -->
-- `generating-custom-object` — custom object XML rules
-- `generating-custom-field` — custom field XML rules (Master-Detail, Roll-up Summary, formulas, picklist value additions)
-- `generating-permission-set` — permission set XML rules (required-field FLS exclusion, tab naming, agent access)
+- `platform-custom-object-generate` — custom object XML rules
+- `platform-custom-field-generate` — custom field XML rules (Master-Detail, Roll-up Summary, formulas, picklist value additions)
+- `platform-permission-set-generate` — permission set XML rules (required-field FLS exclusion, tab naming, agent access)
 <!-- /IF:STRUCTURAL -->
-- `handling-sf-data` — data seeding patterns, bulk operations, realistic test data generation
-- `generating-validation-rule` — Validation Rule XML rules (formula gotchas, CDATA wrapping, error messages) — invoke when the spec has a Validation Rules section
-- `generating-list-view` — List View metadata rules — invoke when the spec has a List Views section
-- `generating-flexipage` — Lightning Page (FlexiPage) authoring rules — invoke when the spec has a Lightning Record Page (Authoring) section
+- `platform-data-manage` — data seeding patterns, bulk operations, realistic test data generation
+- `platform-validation-rule-generate` — Validation Rule XML rules (formula gotchas, CDATA wrapping, error messages) — invoke when the spec has a Validation Rules section
+- `platform-list-view-generate` — List View metadata rules — invoke when the spec has a List Views section
+- `platform-flexipage-generate` — Lightning Page (FlexiPage) authoring rules — invoke when the spec has a Lightning Record Page (Authoring) section
+- `platform-sharing-rules-generate` — record-level Sharing Rules (criteria / owner / guest) — invoke when the spec has a Sharing Rules section. NOTE: a sharing rule only grants access below a restrictive OWD; for a custom object set its `<sharingModel>` to `Private`/`Read` in the same deploy, and for a standard object the OWD is an SE manual prerequisite (record the dependency in `discovery_notes` if the spec flags the standard-object OWD as not-yet-set).
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
 {{EXTERNAL_SKILLS}}
 
@@ -116,8 +117,8 @@ Scope: standard objects only (Opportunity, Lead, Case, Solution). Salesforce's S
 
 <!-- IF:VALIDATION_RULES -->
 ### Validation Rule Rules
-Scope: declarative `ValidationRule` metadata on any object. Invoke the `generating-validation-rule` skill before authoring — it carries the formula-function gotchas (TEXT/VALUE/DAY/DATEVALUE/ISPICKVAL/CASE misuse) and the two critical rules below.
-1. Invoke `generating-validation-rule` for the formula rules and metadata shape.
+Scope: declarative `ValidationRule` metadata on any object. Invoke the `platform-validation-rule-generate` skill before authoring — it carries the formula-function gotchas (TEXT/VALUE/DAY/DATEVALUE/ISPICKVAL/CASE misuse) and the two critical rules below.
+1. Invoke `platform-validation-rule-generate` for the formula rules and metadata shape.
 2. **CDATA rule (most common deploy failure):** any `errorConditionFormula` containing XML-significant characters (`<`, `>`, `&`) MUST be wrapped in a `<![CDATA[ ... ]]>` section.
 3. File extension MUST be `.validationRule-meta.xml`. `fullName` ≤40 chars, starts with a letter, no trailing/consecutive underscores. `errorMessage` ≤255 chars.
 4. Deploy the rule (active=true unless the spec says otherwise), then verify: `SELECT Id, ValidationName, Active FROM ValidationRule WHERE EntityDefinition.QualifiedApiName = '[Object]' AND ValidationName = '[ApiName]'` (Tooling API).
@@ -126,8 +127,8 @@ Scope: declarative `ValidationRule` metadata on any object. Invoke the `generati
 
 <!-- IF:LIST_VIEWS -->
 ### List View Rules
-Scope: `ListView` metadata on any object (shared all-users or specific filter scope). Invoke the `generating-list-view` skill before authoring.
-1. Invoke `generating-list-view` for the metadata shape + filter-column rules.
+Scope: `ListView` metadata on any object (shared all-users or specific filter scope). Invoke the `platform-list-view-generate` skill before authoring.
+1. Invoke `platform-list-view-generate` for the metadata shape + filter-column rules.
 2. ListView is a child of the object's `.object-meta.xml` in source format but deploys as its own `ListView` metadata type: member name is `[Object].[ListViewApiName]`.
 3. `<filterScope>` is one of `Everything`, `Mine`, `Queue` (or others per object). Columns reference field API names. Filters use `<filters>` with `field`/`operation`/`value`.
 4. Deploy, then verify the list view appears: `retrieve_metadata` for `ListView` member `[Object].[ApiName]` and confirm it round-trips.
@@ -136,8 +137,8 @@ Scope: `ListView` metadata on any object (shared all-users or specific filter sc
 
 <!-- IF:FLEXIPAGE_AUTHORING -->
 ### Lightning Record Page Authoring Rules
-Scope: authoring a SIMPLE new Lightning Record Page (FlexiPage of type `RecordPage`) — header + a fieldSection (one or two columns) + standard components (Related Lists, Activity, Highlights Panel). This is broader than the field-section *append* path above (which edits an existing LRP). Invoke the `generating-flexipage` skill — it carries the full FlexiPage XML structure, region/facet model, and component catalog.
-1. Invoke `generating-flexipage` BEFORE authoring any FlexiPage XML.
+Scope: authoring a SIMPLE new Lightning Record Page (FlexiPage of type `RecordPage`) — header + a fieldSection (one or two columns) + standard components (Related Lists, Activity, Highlights Panel). This is broader than the field-section *append* path above (which edits an existing LRP). Invoke the `platform-flexipage-generate` skill — it carries the full FlexiPage XML structure, region/facet model, and component catalog.
+1. Invoke `platform-flexipage-generate` BEFORE authoring any FlexiPage XML.
 2. **Bounded autonomous scope** — author only: a single `RecordPage`-type FlexiPage with one header region, one or two `flexipage:fieldSection` components (with `flexipage:column` children for two-column), and standard out-of-the-box components from the skill's catalog. Anything beyond — dynamic-form regions, custom LWC placement (deploy the LWC, leave placement to App Builder), tabsets, conditional visibility rules, multi-region dashboards — SKIP with reason "complex FlexiPage authoring — SE Manual Checklist (App Builder)".
 3. After deploy, the new LRP is NOT active by default. Activation (org-default vs app/profile assignment) is a `FlexiPage` + `CustomApplication`/profile binding the SE confirms — record in the SE Manual Checklist as "assign new LRP as record-page default (App Builder → Activation)" unless the spec explicitly names the activation target.
 4. Verify: `retrieve_metadata` for `FlexiPage` member `[DeveloperName]`, confirm round-trip + the named fieldSection/components are present.

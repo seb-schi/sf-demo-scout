@@ -10,7 +10,7 @@
 ## MCP Tools
 Four MCP servers may be configured: Salesforce DX + Salesforce Docs (declared in the plugin's `plugin.json`), Slack, and Google Workspace (both user-scope, registered separately; both optional and degrade gracefully when absent). Prefer MCP over `sf` CLI; fall back to CLI if MCP is unavailable.
 
-- **Salesforce DX** — metadata retrieve/deploy, SOQL, permset assignment, org listing, `run_code_analyzer`, and LWC expert tools (complement the `generating-lwc-components` skill's PICKLES methodology + 165-point scoring).
+- **Salesforce DX** — metadata retrieve/deploy, SOQL, permset assignment, org listing, `run_code_analyzer`, and LWC expert tools (complement the `experience-lwc-generate` skill's PICKLES methodology + 165-point scoring).
 - **Salesforce Docs** — `salesforce_docs_search` + `salesforce_docs_fetch` for release-gated features and unfamiliar deploy errors. Decision tree in `demo-docs-consultation`. Degrades gracefully if unavailable.
 - **Slack** — canvas + channel lookups during sparring (Stage 3, opt-in) and handover canvas writes after deployment (scout-building 6c). Hard-degrades when unauthenticated.
 - **Google Workspace** — read Docs/Sheets during sparring (Stage 3, opt-in) — e.g. an RfP, capability map, or account plan as discovery context. Bridged via the DevBar `mcp-adaptor` binary (T&P-gated); degrades gracefully when absent or unauthenticated. The connection is read-write (the gateway binds the read-write OAuth provider), but the discovery lookup calls read tools only.
@@ -28,9 +28,10 @@ Four MCP servers may be configured: Salesforce DX + Salesforce Docs (declared in
 - Lightning Record Page field additions to existing `flexipage:fieldSection` components (gated: SE confirms target FlexiPage + section name; only when audit classifies the LRP composition as `field_section`. `record_detail` LRPs inherit classic Page Layout — no separate LRP step needed. `mixed` / `custom` / `unretrievable` route to SE Manual.)
 - Data seeding — single object always; cross-object (junctions, FK chains) when backed by an idempotent script with `--pilot-only` self-test per `demo-deployment-rules` §Script Deliverable Rules
 - Picklist value additions to existing fields
-- Validation Rules (declarative `ValidationRule` formulas on any object — `generating-validation-rule` skill carries formula gotchas + CDATA rule)
-- List Views (`ListView` metadata — `generating-list-view` skill)
-- Simple Lightning Record Page authoring (new `RecordPage` FlexiPage: header + one/two-column field section + standard components — `generating-flexipage` skill; complex authoring stays SE Manual)
+- Validation Rules (declarative `ValidationRule` formulas on any object — `platform-validation-rule-generate` skill carries formula gotchas + CDATA rule)
+- List Views (`ListView` metadata — `platform-list-view-generate` skill)
+- Sharing Rules (record-level `sharingCriteriaRules` / `sharingOwnerRules` / `sharingGuestRules` — `platform-sharing-rules-generate` skill; autonomous for the rule metadata. ⚠️ Standard-object OWD is an SE manual prerequisite — Scout never changes org-wide defaults)
+- Simple Lightning Record Page authoring (new `RecordPage` FlexiPage: header + one/two-column field section + standard components — `platform-flexipage-generate` skill; complex authoring stays SE Manual)
 
 ### Gated (SE confirms once per category, then autonomous)
 - Record-triggered flows (before-save, after-save, before-delete; any trigger object; cross-object DML allowed)
@@ -49,7 +50,7 @@ Four MCP servers may be configured: Salesforce DX + Salesforce Docs (declared in
 - Complex Apex/LWC
 - Multi-agent orchestration, channel assignment, production-scale agent testing
 - Classic Page Layout visual arrangement (field positioning, sections in App Builder / Page Layout editor)
-- Lightning Record Page authoring beyond simple new-page creation (repositioning sections on an existing page, custom LWC placement, tabsets, dynamic-form regions, conditional visibility — App Builder. Simple new RecordPage authoring is now Autonomous via `generating-flexipage`.)
+- Lightning Record Page authoring beyond simple new-page creation (repositioning sections on an existing page, custom LWC placement, tabsets, dynamic-form regions, conditional visibility — App Builder. Simple new RecordPage authoring is now Autonomous via `platform-flexipage-generate`.)
 - Lightning Record Page field-add when composition is `mixed`, `custom`, or `unretrievable` (drop into App Builder for visual confirmation)
 - Reports, dashboards, OmniStudio
 - Screen-flow visual QA (one-time walkthrough in a record page after Scout deploys)
