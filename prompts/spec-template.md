@@ -245,7 +245,15 @@ Scope: anything beyond appending into an existing field section. Use when audit 
 - Backing Apex classes: [name] — [InvocableMethod description]
 - Existing agents in org: (from audit — note conflicts)
 - If modifying existing: current version v[N], rollback: `sf agent activate --version-number [N]`
-- Smoke test utterances: [3-5 test messages to validate agent after activation]
+- Agent test cases: table below — 4-8 rows that become the official `sf agent test` spec (Testing Center). Columns map 1:1 to the `agentforce-test` skill's YAML fields. **MUST include at least one guardrail/off-topic row** (leave `expectedTopic` empty, describe the decline in `expectedOutcome`) — mirror the skill's `guardrail-test-spec.yaml`.
+
+  | # | Utterance | expectedTopic | expectedActions | expectedOutcome |
+  |---|-----------|---------------|-----------------|-----------------|
+  | 1 | [primary-path user message] | [topic / subagent name] | [Level-2 invocation action name] | [what a correct response does] |
+  | 2 | [action-exercising message] | [topic] | [action] | [observable effect described] |
+  | 3 | [off-topic / guardrail message] | (leave empty) | (none) | [declines gracefully, stays on-domain, no hallucination] |
+
+  Notes: `expectedActions` uses **Level-2 invocation names** (from `reasoning: actions:`), NOT Level-1 definition names; it is a flat list and assertion is superset-match. Always fill `expectedOutcome` — LLM-as-judge is the most reliable assertion. For guardrail rows leave `expectedTopic` empty and rely on `expectedOutcome`. The `agentforce-test` skill's `basic-test-spec.yaml` + `guardrail-test-spec.yaml` are the authoritative templates — do not hand-invent field names.
 - ⚠️ Channel assignment: SE Manual Checklist
 
 ## SE Manual Checklist

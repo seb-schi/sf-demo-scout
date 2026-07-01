@@ -242,16 +242,16 @@ rollback is instant via `sf agent activate --version-number N`.
 
 ### Smoke Test (after activate — both paths)
 
-After the agent is activated, run an ad-hoc smoke test using `agentforce-test` skill (Mode A):
+After the agent is activated, run the official agent test suite using the `agentforce-test` skill. Prefer Mode B (Testing Center) — build the `test-spec.yaml` from the spec's Agent test cases and run it:
 
-1. Read the spec's "Smoke test utterances" list. If no utterances are specified, generate 3 based on the agent's topic descriptions.
-2. Start a preview session: `sf agent preview start --json --authoring-bundle [AgentName] -o [alias]`
-3. Send each utterance: `sf agent preview send --json --session-id [ID] --utterance "[message]" --authoring-bundle [AgentName] -o [alias]`
-4. End the session: `sf agent preview end --json --session-id [ID] --authoring-bundle [AgentName] -o [alias]`
-5. Evaluate each response: did the agent select the correct topic? Did it invoke the expected backing action? Was the response coherent?
+1. Build `test-spec.yaml` in the official format (delegate the schema to `agentforce-test`: `basic-test-spec.yaml` + `guardrail-test-spec.yaml` are authoritative). Map each spec test-case row to `utterance` / `expectedTopic` / `expectedActions` (Level-2 invocation names) / `expectedOutcome`. Include at least one guardrail/off-topic row. **Never attach the `instruction_following` / `conciseness` / `completeness` metrics** (UI crash / score-0 / routing penalty) — rely on `expectedOutcome` (LLM-as-judge).
+2. Create: `sf agent test create --json --spec test-spec.yaml --api-name [Suite] -o [alias]`
+3. Run: `sf agent test run --json --api-name [Suite] --wait 10 --result-format json -o [alias]`
+4. Results: `sf agent test results --json --job-id [runId] -o [alias]` (use `--job-id` from the run output, NEVER `--use-most-recent`). Filter the guardrail false-negative: a `topic_assertion` FAILURE on a row with empty `expectedTopic` is spurious.
+5. If `sf agent test` is unavailable, fall back to a Mode A `sf agent preview` conversational check (`start`/`send`/`end --authoring-bundle`) and record the fallback in `discovery_notes`.
 6. Record results in the `smoke_test` object of your JSON output.
 
-A failed smoke test does NOT block deployment — the agent is already active. Record failures in `issues` and flag for the SE.
+A failed test suite does NOT block deployment — the agent is already active. Record failures in `issues` and flag for the SE. The event-log Action-Invocation Probe (`building/sub-agent-validation.md`) remains the deterministic gate for hero-action invocation; the suite runs alongside it.
 
 ### Always Out of Scope (skip with reason)
 

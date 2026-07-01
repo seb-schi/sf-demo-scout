@@ -22,7 +22,7 @@ Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is avail
 ## Skills Available
 Invoke these skills via the Skill tool:
 - `agentforce-generate` — agent spec, validation, preview, publish, activate
-- `agentforce-test` — ad-hoc smoke testing via `sf agent preview` (Mode A only — used after activate)
+- `agentforce-test` — official agent testing after activate: builds + runs a Testing Center suite (Mode B: `sf agent test create/run/results`) from the spec's Agent test cases, with Mode A `sf agent preview` as fallback. Authoritative for the test-spec YAML schema + Testing Center metric landmines.
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP
 {{EXTERNAL_SKILLS}}
 
@@ -93,10 +93,10 @@ For agents already in the org. Every publish creates a new version; rollback via
 
 **Primary validation is the orchestrator-side Action-Invocation Probe, not this CLI smoke test.** The orchestrator runs an event-log probe after Phase 3 (see sub-agent-validation.md) that is version-stable and removes you from the trust path for "did the hero action fire." CLI-preview smoke testing below is a SECONDARY conversational check — useful for routing/coherence, but it is NOT acceptance and its exact `sf agent preview` interface changes monthly (do not over-trust the flag spelling). If a `sf agent preview` subcommand errors as unrecognized, record the verbatim error in `discovery_notes` and proceed — the event-log probe is what gates the agent's validated status.
 
-1. Read the spec's "Smoke test utterances" list. If none specified, generate 3 from subagent descriptions.
-2. Run the current `sf agent preview` interface to send each utterance against the activated agent (consult `agentforce-test` for the live invocation — the CLI is an interactive REPL surface that changes monthly; do not assume a `start`/`send`/`end --session-id` triplet exists). If the interface can't be driven non-interactively, skip to the event-log probe and record the skip in `discovery_notes`.
-3. Evaluate each turn: correct subagent? Expected backing action narrated? Coherent response?
-4. Record in `smoke_test` JSON output. A coherent conversation is NOT acceptance — the gate below decides validated status.
+1. **Build the official test suite from the spec.** Read the spec's "Agent test cases" table and write a `test-spec.yaml` in the official `sf agent test` format — delegate the exact schema to the `agentforce-test` skill (its `basic-test-spec.yaml` + `guardrail-test-spec.yaml` assets are authoritative; do NOT hand-invent field names). Map each row: `utterance` / `expectedTopic` / `expectedActions` (Level-2 invocation names, flat list, superset match) / `expectedOutcome`. If the spec has no table (older spec) or no rows, derive 3 cases from subagent descriptions and treat them as happy-path. **Metric landmines — do NOT ignore:** never attach `instruction_following` (crashes Testing Center UI), `conciseness` (returns score 0), or `completeness` (penalizes routing/deflection agents); rely on `expectedOutcome` (LLM-as-judge) for correctness and guardrail rows.
+2. **Run the suite (Mode B — Testing Center).** `sf agent test create --json --spec test-spec.yaml --api-name [Suite] -o [alias]`, then `sf agent test run --json --api-name [Suite] --wait 10 --result-format json -o [alias]`, then fetch results with `sf agent test results --json --job-id [runId] -o [alias]` (use `--job-id` from the run output, NEVER `--use-most-recent`). Consult `agentforce-test` for the current flag spelling — the CLI surface changes monthly. If `sf agent test` is unavailable or errors, record the verbatim error in `discovery_notes`, fall back to a Mode A `sf agent preview` conversational check, and note the fallback.
+3. **Judge against the official assertions, not an inferred outcome.** A case PASSES when its `expectedTopic`/`expectedActions`/`expectedOutcome` assertions pass in the run results. For guardrail/off-topic rows (empty `expectedTopic`), pass = the `expectedOutcome` LLM-judge confirms the agent declined/deflected; a confident off-domain answer is a FAILURE. Filter the known false-negative: a `topic_assertion` FAILURE on a guardrail row with empty `expectedTopic` is spurious (empty assertion XML) — do not count it.
+4. Record per-case results in `smoke_test.utterances` (carry `expectedTopic`/`expectedActions`/`expectedOutcome`/`passed`/`mode`). A green suite is NOT full acceptance on its own — the event-log Action-Invocation Probe below remains the deterministic gate for "did the hero action fire," and Mode B runs alongside it, never replacing it.
 **Minimum coverage (if preview is drivable):** send at least 3 utterances (or all, if fewer than 3 in the spec). If utterance #1 fails, send at least 2 more to determine whether the failure is routing-specific or universal. Different utterances test different routing paths — only skip remaining utterances if 3+ consecutive failures produce the identical error message.
 
 **Validation gate — follow this verbatim:**
@@ -156,7 +156,7 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
     "ran": true,
     "action_invocation_confirmed": false,
     "utterances": [
-      {"message": "string", "passed": true, "notes": "string"}
+      {"utterance": "string", "expectedTopic": "string|null", "expectedActions": ["string"], "expectedOutcome": "string", "passed": true, "mode": "B|A-fallback", "notes": "string"}
     ]
   },
   "actions_unverified_in_preview": [

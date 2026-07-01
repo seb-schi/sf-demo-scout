@@ -48,7 +48,7 @@ Four MCP servers may be configured: Salesforce DX + Salesforce Docs (declared in
 - Complex screen flows (branching across screens, reactive across screens with formula dependencies, custom LWC screen components, File Upload, Repeater, Data Table, Kanban Board)
 - Orchestration flows (parent-child, sequential, conditional — multi-day lifecycles with assignees, not demo-day-viable as autonomous)
 - Complex Apex/LWC
-- Multi-agent orchestration, channel assignment, production-scale agent testing
+- Multi-agent orchestration, channel assignment, production-scale load/volume agent testing (functional regression via Testing Center — `sf agent test` — is automated in Phase 3, not manual)
 - Classic Page Layout visual arrangement (field positioning, sections in App Builder / Page Layout editor)
 - Lightning Record Page authoring beyond simple new-page creation (repositioning sections on an existing page, custom LWC placement, tabsets, dynamic-form regions, conditional visibility — App Builder. Simple new RecordPage authoring is now Autonomous via `platform-flexipage-generate`.)
 - Lightning Record Page field-add when composition is `mixed`, `custom`, or `unretrievable` (drop into App Builder for visual confirmation)

@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-07-01
+
+- **Scout now tests every agent it builds with Salesforce's own Testing Center — including the off-topic and guardrail cases, not just the happy path.** After activating an agent, Scout builds and runs an official `sf agent test` suite (the same structured evals the platform ships), so you get real routing, action, and guardrail coverage instead of an ad-hoc chat check. You describe the cases in a simple table in the spec — Scout translates it to the official test spec for you. Results are reported honestly: a failing case flags the agent "deployed but not validated" rather than blocking your demo, and Scout still independently confirms the hero action actually fired against the org's own logs. Functional agent testing is no longer a manual checklist item.
+
 ## 2026-06-29
 
 - **Scout now builds record-level sharing rules on its own.** Need a demo where reps see only their own accounts and managers see the whole region? Scout can now generate criteria-, owner-, and guest-based sharing rules straight from your spec — the record-visibility layer that permission sets don't cover. Just add a Sharing Rules section to the spec (the template shows you how). One caveat it'll flag for you: a sharing rule only does anything below a restrictive org-wide default, so for standard objects like Account you'll set the OWD in Setup first — Scout deploys the rule and reminds you.
