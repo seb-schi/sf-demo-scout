@@ -70,6 +70,8 @@ to a customer document is out of scope for sparring.
 
 ## Output
 
+**Sub-agent return contract.** This procedure is normally dispatched as a Sonnet sub-agent (see scout-sparring.md "Slack & Google Workspace lookup handling"). Return ONLY the compact attributed findings — never the raw sheet rows or doc markdown. Format each finding as `[<doc/sheet title>], [tab/range]: "[quoted requirement]".` Hold any solution-fit/capability claim as the SE's working hypothesis, not fact. If a named source could not be located or read, return a one-line note saying so. The caller (Opus) keeps your return as Stage 5 context; the raw payloads must die in your context, not the caller's.
+
 Findings feed Stage 5 scenario proposal as **context** — attributed, with
 fit-claims held as hypotheses. They also get a 1-line synthesis per source in
 the spec's Google Workspace References section (see `spec-template.md`).

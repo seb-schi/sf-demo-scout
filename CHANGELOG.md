@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-07-03
+
+- **Slack and Google lookups during planning now use less of Scout's working memory.** When you point Scout at a Slack canvas/channel or a Google Doc/Sheet, a fast helper does the reading and returns just the relevant findings, rather than loading the whole source into the planning session — so Scout stays sharper through a long sparring session (Slack reads especially were context-hungry).
+
 ## 2026-07-01
 
 - **Scout now tests every agent it builds with Salesforce's own Testing Center — including the off-topic and guardrail cases, not just the happy path.** After activating an agent, Scout builds and runs an official `sf agent test` suite (the same structured evals the platform ships), so you get real routing, action, and guardrail coverage instead of an ad-hoc chat check. You describe the cases in a simple table in the spec — Scout translates it to the official test spec for you. Results are reported honestly: a failing case flags the agent "deployed but not validated" rather than blocking your demo, and Scout still independently confirms the hero action actually fired against the org's own logs. Functional agent testing is no longer a manual checklist item.
