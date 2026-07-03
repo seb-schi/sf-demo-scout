@@ -152,9 +152,9 @@ Ask max 6 clarifying questions:
 
 **Stop and wait for answers.**
 
-### Slack & Google Workspace lookup handling (delegated to Sonnet sub-agents)
+### Named-source lookup handling (delegated to Sonnet sub-agents)
 
-Both lookups read large blobs (channel history, canvas bodies, sheet ranges, doc markdown) that would otherwise land in this Opus context and be discarded after a few attributed lines are extracted. Delegate each named-source read to a **foreground Sonnet sub-agent** — it reads the source, extracts attributed findings, and returns only the compact synthesis. Same "Opus never reads raw payloads" pattern the audit uses.
+If the SE's reply names an external source to look up — a Slack canvas or channel, or a Google Doc/Sheet (a URL, file name, or "the RfP sheet") — delegate each read to a **foreground Sonnet sub-agent**. Both sources read large blobs (channel history, canvas bodies, sheet ranges, doc markdown) that would otherwise land in this Opus context and be discarded after a few attributed lines are extracted; the sub-agent reads the source, extracts attributed findings, and returns only the compact synthesis. Same "Opus never reads raw payloads" pattern the audit uses. If the SE answers only 1-6 and names no external source, move on without ceremony — do not re-ask.
 
 **Resolve the absolute plugin root once** (sub-agents cannot expand `${CLAUDE_PLUGIN_ROOT}`). If you already resolved `PLUGIN_ROOT_ABS` earlier this session (e.g. a fresh audit ran), reuse it; otherwise:
 ```bash
@@ -168,21 +168,18 @@ print(e['installPath'])
 ```
 On failure (file missing, key absent, empty output), fall back to reading the fragment and executing it inline yourself this once — do NOT abort the lookup.
 
-**Slack** — if the SE's reply names one or more canvases or a channel:
-1. Probe availability inline (so a MISSING never costs a spawn): bash `claude mcp list 2>/dev/null | grep -qE '^slack:.*Connected' && echo OK || echo MISSING`. On MISSING, tell the SE *"Slack MCP not connected — skipping the lookup. (Register via install.sh, authenticate via /mcp.)"* and move on.
-2. On OK, dispatch a foreground Sonnet sub-agent — `Agent(description="Slack lookup", model="sonnet", prompt=[envelope below])`. Substitute the resolved absolute path for `[PLUGIN_ROOT_ABS]`; do NOT emit the literal `${CLAUDE_PLUGIN_ROOT}`:
-   > Read your prompt file at `[PLUGIN_ROOT_ABS]/prompts/sparring/slack-lookup.md` and execute its Procedure. Availability was already confirmed by the caller — SKIP the Availability Probe section. Inputs: canvas_names = [the canvas titles the SE named, or empty]; channel_name = [the channel the SE named, or empty]. Return ONLY the attributed findings per the fragment's Output section return-contract — never the raw canvas or channel text.
+**Procedure — run once per named source, substituting the bracketed fields from the table below:**
+1. Probe availability inline (so a MISSING never costs a spawn): bash `claude mcp list 2>/dev/null | grep -qE '[PROBE_PATTERN]' && echo OK || echo MISSING`. On MISSING, tell the SE the source's `[MISSING_MSG]` and move on.
+2. On OK, dispatch a foreground Sonnet sub-agent — `Agent(description="[DESC]", model="sonnet", prompt=[envelope below])`. Substitute the resolved absolute path for `[PLUGIN_ROOT_ABS]`; do NOT emit the literal `${CLAUDE_PLUGIN_ROOT}`:
+   > Read your prompt file at `[PLUGIN_ROOT_ABS]/prompts/sparring/[FRAGMENT]` and execute its Procedure. Availability was already confirmed by the caller — SKIP the Availability Probe section. Inputs: [INPUTS]. Return ONLY the attributed findings per the fragment's Output section return-contract — never the raw source text.
 3. Take the sub-agent's returned findings as Stage 5 context — attributed, never asserted.
 
-If the SE answers only 1-6 and doesn't mention Slack: move on without ceremony — do not re-ask.
+| Source | `[PROBE_PATTERN]` | `[MISSING_MSG]` | `[DESC]` | `[FRAGMENT]` | `[INPUTS]` |
+|--------|-------------------|-----------------|----------|--------------|------------|
+| **Slack** (SE names canvas(es) or a channel) | `^slack:.*Connected` | *"Slack MCP not connected — skipping the lookup. (Register via install.sh, authenticate via /mcp.)"* | `Slack lookup` | `slack-lookup.md` | canvas_names = [the canvas titles the SE named, or empty]; channel_name = [the channel the SE named, or empty] |
+| **Google Workspace** (SE names/links a Doc or Sheet) | `^[[:space:]]*google-workspace:.*Connected` | *"Google Workspace MCP not connected — skipping the lookup. (Register + authenticate via /scout-setup.)"* | `Google Workspace lookup` | `google-workspace-lookup.md` | doc_refs = [the URLs/IDs/titles the SE named] |
 
-**Google Workspace** — if the SE's reply names or links a Google Doc or Sheet (a URL, file name, or "the RfP sheet"):
-1. Probe availability inline: bash `claude mcp list 2>/dev/null | grep -qE '^[[:space:]]*google-workspace:.*Connected' && echo OK || echo MISSING`. On MISSING, tell the SE *"Google Workspace MCP not connected — skipping the lookup. (Register + authenticate via /scout-setup.)"* and move on.
-2. On OK, dispatch a foreground Sonnet sub-agent — `Agent(description="Google Workspace lookup", model="sonnet", prompt=[envelope below])`. Substitute the resolved absolute path for `[PLUGIN_ROOT_ABS]`:
-   > Read your prompt file at `[PLUGIN_ROOT_ABS]/prompts/sparring/google-workspace-lookup.md` and execute its Procedure. Availability was already confirmed by the caller — SKIP the Availability Probe section. Inputs: doc_refs = [the URLs/IDs/titles the SE named]. Return ONLY the attributed findings per the fragment's Output section return-contract — never the raw sheet rows or doc markdown.
-3. Take the sub-agent's returned findings as Stage 5 context. An RfP's stated requirements are high-signal, but any solution-fit claim in the doc is a hypothesis to validate against Stage 4 docs + the audit, never asserted.
-
-If no Google source is named: move on without ceremony — do not re-ask.
+**Google-only nuance:** an RfP's stated requirements are high-signal, but any solution-fit claim in the doc is a hypothesis to validate against Stage 4 docs + the audit, never asserted.
 
 Both lookups' findings feed scenario proposal as **context only** — attributed, never asserted. Canvas content may shape demo storylines directly (its intended use); SE knowledge and Salesforce docs remain authoritative.
 

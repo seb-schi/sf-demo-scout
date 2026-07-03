@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "2026.07.03-subagent-slack-google-reads",
+  "version": "2026.07.03-consolidate-lookup-handling",
   "author": {
     "name": "Sebastian Schickhoff"
   },
