@@ -64,16 +64,43 @@ fi
   > ```
   > This step is optional — setup continues."
 
-## Step 2: Auth probe
+## Step 2: Auth probe (local, secret-free)
 
-The `google_workspace` server requires the `google-workspace-rw` provider
-token. Probe whether a valid token exists.
+The DevBar adaptor stores its QuantumK tokens in the macOS keychain under
+service `mcp-adaptor.salesforce.com` (two entries: a short-lived `…session`
+*access* token and a `…matrix-agent-service.dx-mcp-adaptor` *service* token the
+serve/proxy path uses and refreshes on demand). Probe LOCALLY for a stored
+token.
+
+**Do NOT use `mcp-adaptor auth --validate`.** That statically inspects the
+short-lived session access token and does NOT credit refresh-token renewal, so
+on the NORMAL working state (access token aged out, refresh token healthy, the
+serve path silently refreshes on the next tool call) it prints
+`no valid Oauth token found` and the probe reports a false `needs_auth` — a
+spurious "Google needs authentication" nag on essentially every refresh. Worse,
+adding `--provider …` to force a provider-scoped check triggers the actual
+browser auth flow — never do that from a probe.
+
+A keychain-presence check is side-effect-free: no gateway call, no browser/auth
+window, and reads NO secret (no `-w`/`-g` flag — attribute lookup only). The
+bare `-s` form (no `-a`) matches ANY token under the adaptor's service, so it
+stays robust if a future adaptor version renames the per-token accounts (the
+`MCP_ADAPTOR_SPLITTING_KEYRING` / `…_GLOBAL_KEYRING` toggles can reshape them).
 
 ```bash
-"$HOME/.devbar/bin/mcp-adaptor" auth --validate 2>&1 | grep -q "no valid" && echo "needs_auth" || echo "authenticated"
+if security find-generic-password -s "mcp-adaptor.salesforce.com" >/dev/null 2>&1; then
+  echo "authenticated"
+else
+  echo "needs_auth"
+fi
 ```
 
-On `authenticated` — silent. Done.
+On `authenticated` — silent. Done. (Presence is a proxy for a reachable token,
+not proof of a live provider grant: a revoked-but-still-present token also reads
+`authenticated`. That case degrades SAFELY — it surfaces at the first Google
+tool call as `PROVIDER_AUTH_REQUIRED`, handled in Troubleshooting below with the
+same re-auth remedy. Silent-then-caught-at-use beats nagging-when-working, and
+the backstop already exists.)
 
 On `needs_auth` — surface and RETURN (do NOT run the auth commands yourself):
 
