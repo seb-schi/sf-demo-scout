@@ -249,7 +249,7 @@ Surface inline:
 
 ## g.9: Mirror quality-knob env vars to settings.json
 
-Write Scout's two CC-native quality knobs — `MAX_THINKING_TOKENS=8192` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384` — into `~/.claude/settings.json` `env`. These also live in the `.zshrc` managed block, but `.zshrc` is not read by the VS Code extension (GUI launches skip interactive shell rc files), so settings.json is the launch-path-independent home. Authoritative overwrite (these are Scout-owned, CC-native, and version-independent — unlike model-profile vars, there's no CLI-version trap). Surgical: only the two keys, never auth/gateway/OTEL keys. Idempotent, safe-fail.
+Write Scout's CC-native output-length knob — `CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384` — into `~/.claude/settings.json` `env`. This also lives in the `.zshrc` managed block, but `.zshrc` is not read by the VS Code extension (GUI launches skip interactive shell rc files), so settings.json is the launch-path-independent home. Authoritative overwrite (Scout-owned, CC-native, version-independent — unlike model-profile vars, there's no CLI-version trap). Surgical: only this key, never auth/gateway/OTEL keys. Idempotent, safe-fail. (`MAX_THINKING_TOKENS` is deliberately NOT written — it is a no-op on adaptive-thinking models and a 400-error landmine on gateway version skew; retired 2026-07-08.)
 
 ```bash
 USER_SETTINGS="$HOME/.claude/settings.json"
@@ -258,7 +258,6 @@ python3 - "$USER_SETTINGS" <<'PYEOF'
 import json, os, sys, tempfile
 path = sys.argv[1]
 KNOBS = {
-    "MAX_THINKING_TOKENS": "8192",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "16384",
 }
 
@@ -302,8 +301,16 @@ PYEOF
 
 Surface inline:
 - `ENV_KNOBS_CURRENT` — silent.
-- `ENV_KNOBS_SET: <keys>` — "Wrote Scout quality settings (thinking + output budgets) to `~/.claude/settings.json` — now active in both terminal and VS Code. Restart CC to pick up."
+- `ENV_KNOBS_SET: <keys>` — "Wrote Scout's output-length setting to `~/.claude/settings.json` — now active in both terminal and VS Code. Restart CC to pick up."
 - Any error variant — one-line note, proceed.
+
+## g.7: Scrub stale AI-Suite hooks (self-heal)
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its procedure. Ex-AI-Suite machines carry hook registrations under `~/.aisuite/` that throw every turn once AI Suite is uninstalled — and because that residue is not written by Scout, it exists even on a Scout-fresh install. The fragment removes only those hook entries from the two `~/.claude` settings JSON files and surfaces (without touching) any leftover aisuite cert path or plugin/marketplace config. Idempotent, safe-fail, never aborts. Carry any `AISUITE_HOOKS_REMOVED` / `FLAGS` note into the closing message.
+
+## g.8: Strip stale model pins across all surfaces (self-heal)
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure. Various Salesforce tools (AI Suite, DevBar, etc.) hard-pin `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` / `modelOverrides`, sometimes erroneously, which collapses the `/model` picker so the SE can't reach newer models (e.g. Opus 4.8) — and because that residue is not written by Scout, it exists even on a Scout-fresh install. The fragment removes those pins (plus the retired `MAX_THINKING_TOKENS`) from the two `~/.claude` settings JSON files, VS Code's user settings, and launchctl GUI env. Idempotent, safe-fail, never aborts. Carry any `PINS_REMOVED[...]` / `VSCODE_PINS_REMOVED` / `LAUNCHCTL_PINS_CLEARED` / VS-Code-restore-or-warn note into the closing message (a restart, and possibly a manual VS Code edit, is pending).
 
 ## g.5: Ensure marketplace autoUpdate is enabled
 

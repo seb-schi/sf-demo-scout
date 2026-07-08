@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-07-08
+
+- **🩹 Hotfix: your `/model` picker now shows the full, current model list — and a rare startup error on the newest models is gone.** Scout used to write an old "thinking budget" setting that does nothing on today's models and, on a few setups, could trip up Claude Code. It's gone now, and `/scout-setup` also clears any stale model *pins* that other Salesforce tools (AI Suite, DevBar) may have left behind — so you can reach every current model in both the terminal and VS Code. **Already a Scout user? Just re-run `/scout-setup` to refresh — a safe, one-shot cleanup that leaves your other settings untouched.**
+
 ## 2026-07-03
 
 - **Slack and Google lookups during planning now use less of Scout's working memory.** When you point Scout at a Slack canvas/channel or a Google Doc/Sheet, a fast helper does the reading and returns just the relevant findings, rather than loading the whole source into the planning session — so Scout stays sharper through a long sparring session (Slack reads especially were context-hungry).

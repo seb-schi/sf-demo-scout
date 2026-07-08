@@ -1,6 +1,6 @@
 # Setup — .zshrc Managed Block
 
-Refresh `~/.zshrc` with the Scout-managed environment block (idempotent). Adds `~/.local/bin` to PATH if missing, rewrites the managed `# BEGIN SF-DEMO-SCOUT` … `# END SF-DEMO-SCOUT` block with current canonical values, sweeps Scout-owned keys that escaped the block, and warns about legacy `ANTHROPIC_MODEL`.
+Refresh `~/.zshrc` with the Scout-managed environment block (idempotent). Adds `~/.local/bin` to PATH if missing, rewrites the managed `# BEGIN SF-DEMO-SCOUT` … `# END SF-DEMO-SCOUT` block with current canonical values, sweeps Scout-owned keys that escaped the block (including the retired `MAX_THINKING_TOKENS` — swept out and never re-added; see below), and warns about legacy `ANTHROPIC_MODEL`.
 
 ```bash
 ZSHRC="$HOME/.zshrc"
@@ -34,7 +34,6 @@ BLOCK_LINES = [
     BEGIN,
     "# Managed by Scout plugin — do not edit. Refreshed on first-run setup.",
     "export CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384",
-    "export MAX_THINKING_TOKENS=8192",
     END,
 ]
 
