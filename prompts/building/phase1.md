@@ -18,6 +18,7 @@ Invoke these skills via the Skill tool when you need detailed metadata rules:
 - `platform-list-view-generate` — List View metadata rules — invoke when the spec has a List Views section
 - `platform-flexipage-generate` — Lightning Page (FlexiPage) authoring rules — invoke when the spec has a Lightning Record Page (Authoring) section
 - `platform-sharing-rules-generate` — record-level Sharing Rules (criteria / owner / guest) — invoke when the spec has a Sharing Rules section. NOTE: a sharing rule only grants access below a restrictive OWD; for a custom object set its `<sharingModel>` to `Private`/`Read` in the same deploy, and for a standard object the OWD is an SE manual prerequisite (record the dependency in `discovery_notes` if the spec flags the standard-object OWD as not-yet-set).
+- `platform-value-set-generate` — GlobalValueSet (a reusable picklist value list shared across fields) + StandardValueSet catalog customization (relabel / activate / reorder values on a built-in picklist like Industry or Lead Source) — invoke when the spec involves a reusable value set or customizing a standard-picklist catalog. For a one-off inline picklist on a single field, stay with `platform-custom-field-generate`.
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
 {{EXTERNAL_SKILLS}}
 
@@ -82,6 +83,8 @@ Scope: queues needed for case/lead/custom object routing.
 2. Add new `<value>` elements to the existing `<valueSet>` — do NOT remove existing values.
 3. For standard value sets (e.g., Case.Type uses `CaseType` StandardValueSet), retrieve and modify the StandardValueSet, not the field directly.
 4. Deploy and verify.
+
+**Reusable / catalog value sets → `platform-value-set-generate`.** The steps above cover inline single-field value additions. When the spec calls for a **GlobalValueSet** (one reusable value list shared across multiple fields) or a **StandardValueSet catalog customization** (relabel / activate / reorder values on a built-in picklist like Industry or Lead Source), invoke `platform-value-set-generate` for the value-set XML rules — it defines the value set and deploys it BEFORE any field that references it via `<valueSetName>` (bare developer name, never a `__gvs` suffix). Adding brand-new values to a standard picklist is not possible; the skill enforces that boundary and proposes a GlobalValueSet or inline restricted picklist instead.
 <!-- /IF:PICKLISTS -->
 
 <!-- IF:BUSINESS_PROCESS -->

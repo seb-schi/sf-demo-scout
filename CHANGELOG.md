@@ -4,6 +4,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-07-08
 
+- **New value-set skill: Scout now builds reusable Global Value Sets (one picklist list shared across fields) and customizes standard-picklist catalogs like Industry or Lead Source — plus sharper handling of dependent picklists and record-type-scoped values.** Spec a value set that several fields share, or relabel/activate values on a built-in picklist, and Scout generates the right metadata and deploys it in the correct order (the value set before the fields that reference it). Folds into the picklist work you already spec — no new section to learn.
 - **🩹 Hotfix: your `/model` picker now shows the full, current model list — and a rare startup error on the newest models is gone.** Scout used to write an old "thinking budget" setting that does nothing on today's models and, on a few setups, could trip up Claude Code. It's gone now, and `/scout-setup` also clears any stale model *pins* that other Salesforce tools (AI Suite, DevBar) may have left behind — so you can reach every current model in both the terminal and VS Code. **Already a Scout user? Just re-run `/scout-setup` to refresh — a safe, one-shot cleanup that leaves your other settings untouched.**
 
 ## 2026-07-03

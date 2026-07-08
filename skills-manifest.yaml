@@ -141,3 +141,8 @@ skills:
   - name: platform-sharing-rules-generate
     source: afv
     path: skills/platform-sharing-rules-generate
+
+  # ── NEW 2026-07-08: reusable value sets (afv/main, sf-skills v1.29.0) ──
+  - name: platform-value-set-generate
+    source: afv
+    path: skills/platform-value-set-generate
