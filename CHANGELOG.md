@@ -4,7 +4,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-07-20
 
-- **Scout now builds Custom Report Types on its own — the cross-object reporting frameworks that let a report span, say, Accounts → Visits → Programs.** Spec a report type (primary object, the related objects to join, and which fields each exposes to the report builder) and Scout generates and deploys the `.reportType-meta.xml` for you. Handy anywhere a demo needs reporting across related records — including Life Sciences Cloud territory/patient-journey stories.
+- **Scout now builds Custom Report Types on its own — the cross-object reporting frameworks that let a report span, say, Accounts → Visits → Programs.** Spec a report type (primary object, the related objects to join, and which fields each exposes to the report builder) and Scout generates and deploys the `.reportType-meta.xml` for you. Handy anywhere a demo needs reporting across related records — including industry-cloud objects that ship no standard report type, like Health Cloud's FHIR clinical records (encounters, conditions, medications).
 
 ## 2026-07-08
 
