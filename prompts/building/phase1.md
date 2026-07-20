@@ -19,6 +19,7 @@ Invoke these skills via the Skill tool when you need detailed metadata rules:
 - `platform-flexipage-generate` — Lightning Page (FlexiPage) authoring rules — invoke when the spec has a Lightning Record Page (Authoring) section
 - `platform-sharing-rules-generate` — record-level Sharing Rules (criteria / owner / guest) — invoke when the spec has a Sharing Rules section. NOTE: a sharing rule only grants access below a restrictive OWD; for a custom object set its `<sharingModel>` to `Private`/`Read` in the same deploy, and for a standard object the OWD is an SE manual prerequisite (record the dependency in `discovery_notes` if the spec flags the standard-object OWD as not-yet-set).
 - `platform-value-set-generate` — GlobalValueSet (a reusable picklist value list shared across fields) + StandardValueSet catalog customization (relabel / activate / reorder values on a built-in picklist like Industry or Lead Source) — invoke when the spec involves a reusable value set or customizing a standard-picklist catalog. For a one-off inline picklist on a single field, stay with `platform-custom-field-generate`.
+- `platform-custom-report-type-generate` — Custom Report Type (`.reportType-meta.xml`) authoring: primary object + up to 3 related objects via join chains, inner/outer join semantics, and per-object field sections exposed to the report builder — invoke when the spec has a Custom Report Type / cross-object reporting section.
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
 {{EXTERNAL_SKILLS}}
 
