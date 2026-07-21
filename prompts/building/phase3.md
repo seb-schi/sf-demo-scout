@@ -8,7 +8,7 @@ way to ask the SE and resume (this harness has no SendMessage). Treat every such
 skill as ALREADY SATISFIED: the SE granted approval upfront at the orchestrator's Phase-3 gate. Do NOT
 stop, do NOT wait, do NOT emit an approval question and end your turn — proceed straight through Spec
 approval and the pre-publish checkpoint. (A sub-agent that stops at the Agent-Spec gate dies mid-task
-with nothing created — this happened on the first Bayer build. The skill's other CHECKPOINT conditions
+with nothing created — this happened on an early customer build. The skill's other CHECKPOINT conditions
 — validate passes, preview tested — still apply; only the *user-approval* condition is pre-satisfied.)
 Use MCP tools for metadata operations (deploy, retrieve, query). Use `sf agent` CLI for agent lifecycle commands (validate, preview, publish, activate).
 
@@ -39,7 +39,7 @@ Scope: single agent, subagent-based routing with Apex or Flow backing actions.
 **Required identity fields — non-negotiable.** Before publish, the agent's config MUST set a non-empty
 **Role** and **Company** (description), in addition to Name and top-level Description. These are
 mandatory agent-identity fields; an agent can deploy and activate WITHOUT them and still appear in
-Setup, but it ships incomplete and the SE has to hand-fill them (this happened on the Bayer build —
+Setup, but it ships incomplete and the SE has to hand-fill them (this happened on an early customer build —
 Role and Company were both blank on the shipped agent). Pull `Role:` and `Company:` from the spec's
 Agentforce section; if the spec omits either, derive a sensible value (Role from the agent's purpose,
 Company from the customer name + audit context) rather than leaving it blank. Confirm both are present
@@ -78,7 +78,7 @@ For agents already in the org. Every publish creates a new version; rollback via
        read the topic's <fullName> (e.g. "Order_Management_16jKB000000oUsk")
        require a directory localActions/<fullName>/ to EXIST on disk
        require one child dir per <functionName>, each containing input/schema.json AND output/schema.json
-       require each schema.json to be NON-EMPTY (a 0-byte schema is the Bayer "deployed Active with empty I/O schema" failure — also a fail)
+       require each schema.json to be NON-EMPTY (a 0-byte schema is the "deployed Active with empty I/O schema" failure seen on an early customer build — also a fail)
    → topic referenced in XML but localActions/<fullName>/ absent, OR present but missing an action child, OR any schema.json empty → BLOCK.
    ```
    The topic's `<fullName>` string is the folder name verbatim — no name-guessing, suffix-and-all. **Exclude the parallel `plannerActions/<action>_<suffix>/` subtree** — it is planner-level/standard actions (e.g. `AnswerQuestionsWithKnowledge`), one level shallower with no topic dir; folding it into the topic-action check produces false results. On a BLOCK, record the phase BLOCKED in `issues` with the missing path(s). (This gate is cheap, deterministic, runs entirely on disk, and does NOT depend on a post-deploy re-retrieve — which can fail with UNKNOWN_EXCEPTION and silently skip the only check that catches this.)

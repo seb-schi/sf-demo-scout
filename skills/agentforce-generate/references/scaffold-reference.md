@@ -72,7 +72,7 @@ force-app/main/default/
 
 Scaffolded stubs MUST return **realistic-looking data**, not `'TODO'` or empty strings. When the platform LLM invokes an action and gets `'TODO'` back, it has no useful data to present — so it falls back to its training data (SMALL_TALK grounding) or fabricates results (hallucination).
 
-**Evidence:** Comcast eval stubs returned realistic comparison data → 93% grounding rate. JPMorgan eval stubs returned `'TODO'` → 40% grounding rate.
+**Evidence:** one eval's stubs returned realistic comparison data → 93% grounding rate; another eval's stubs returned `'TODO'` → 40% grounding rate.
 
 | WRONG | CORRECT |
 |-------|---------|
