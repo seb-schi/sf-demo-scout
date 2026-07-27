@@ -246,7 +246,7 @@ Evaluate: genuine Salesforce strength? Achievable within build boundaries (see C
 
 ### External skills (surface + gated offer)
 
-Scout ships a fixed set of skills (the 6 `generating-*` / `*-agentforce` skills, the 8 frozen `sf-*` skills, and the 3 `demo-*` skills). SEs often have OTHER Salesforce skills installed — an ARM/RLM specialist may carry `rlm-*` skills, for instance. The harness lists every installed skill in your menu; the bundled ones are the names just listed, so anything ELSE in your menu is an external skill the SE installed.
+Scout's bundled skills all sit in six name families: `platform-*`, `demo-*`, `agentforce-*`, `experience-*`, `dx-*`, and the single frozen `sf-flow`. SEs often have OTHER Salesforce skills installed — an ARM/RLM specialist may carry `rlm-*` skills, for instance. The harness lists every installed skill in your menu; anything OUTSIDE those six families is an external skill the SE installed. Judge by family, not by a memorised count — the bundled set grows with every re-vendor.
 
 **When the scenario's domain matches an installed external skill, surface it and offer — do not assume use.** If a build category in your proposal (Flow, Apex, LWC, Agentforce, data, config) sits in a domain a non-bundled skill clearly covers, name the skill and offer it as a standalone message:
 

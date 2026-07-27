@@ -27,11 +27,6 @@ environment, and Slack MCP registration + auth.
 
 After setup, kick off your first demo with `/scout-sparring`.
 
-## Migrating from the clone-install version
-
-Already have Scout? You are on the plugin already — updates arrive
-automatically. Run `/scout-setup` any time something feels out of sync.
-
 ## Updates
 
 Updates are automatic. Claude Code pulls new plugin versions on session
