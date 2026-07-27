@@ -139,6 +139,21 @@ Scope: `ListView` metadata on any object (shared all-users or specific filter sc
 5. Rollback: `sf project delete source --metadata ListView:[Object].[ApiName] --target-org [alias]`.
 <!-- /IF:LIST_VIEWS -->
 
+<!-- IF:SHARING_RULES -->
+### Sharing Rule Rules
+Scope: record-level `sharingCriteriaRules` / `sharingOwnerRules` / `sharingGuestRules` on any object. Invoke the `platform-sharing-rules-generate` skill before authoring — it carries the per-rule-type XML shape, the `<fullName>` PascalCase convention, and the guest-rule requirements.
+1. Invoke `platform-sharing-rules-generate` for the metadata shape and rule-type selection.
+2. **Retrieve before you write — MANDATORY, and the one destructive risk in this category.** `SharingRules` deploys as ONE file per object (`sharingRules/[Object].sharingRules-meta.xml`) and a deploy **replaces that entire file**. Authoring a fresh file for an object that already has sharing rules therefore DELETES the incumbents. Before authoring: `retrieve_metadata` for `SharingRules` member `[Object]`. If rules already exist, (a) save a verbatim pre-edit copy to `{{ROLLBACK_DIR}}/[Object].sharingRules-meta.xml.preedit` (`mkdir -p {{ROLLBACK_DIR}}` first; it is an absolute path, independent of your cwd) — this is a before-state snapshot of the org and is NOT regenerable once overwritten, so it must not live inside `force-app/`, which is swept after deployment — and (b) APPEND your new rule element inside the existing `<SharingRules>` root rather than authoring a new file. Record every pre-existing `<fullName>` you found in `discovery_notes`.
+3. **OWD prerequisite.** A sharing rule is inert unless the object's org-wide default is restrictive. For a **custom object in this spec**, set its `<sharingModel>` to `Private` (or `ControlledByParent` for Master-Detail) in the object metadata in the same deploy — autonomous. For a **standard object**, do NOT deploy an OWD change (see the `platform-sharing-rules-generate` note in Skills Available for why — blast radius, not impossibility); the SE sets it in Setup → Sharing Settings. Deploy the rule anyway and record it in `discovery_notes` as inert-until-OWD-set so the change log and SE Manual Checklist carry the dependency.
+4. **If the object is `Account`, `<accountSettings>` is REQUIRED** — all three sub-access levels default to `None` unless the spec says otherwise. Without it the deploy fails with "AccountSettings is required for account sharing rules".
+5. Deploy `SharingRules` for the object.
+6. Verify (post-deploy read-back — do NOT skip): `retrieve_metadata` for `SharingRules` member `[Object]`, then assert against the retrieved XML:
+   - every `<fullName>` the spec names is present, and its `<accessLevel>` and shared-to target (`<role>` / `<roleAndSubordinates>` / `<group>` / `<guestUser>` / `<portalRole>`) match the spec;
+   - **every pre-existing `<fullName>` recorded in step 2 is STILL present.** This is the check that catches the replace-the-whole-file failure. If any incumbent is missing, the deploy destroyed existing metadata: restore from the `.preedit` copy saved in step 2, redeploy, mark the rule `FAILED`, and surface it in `issues` verbatim.
+   A rule that deploys but is inert (standard-object OWD not yet restrictive) still verifies as SUCCESS here — inertness is an OWD prerequisite recorded in step 3, not a deployment failure. Say so in `discovery_notes` rather than reporting a false failure.
+7. Rollback: if the object had NO pre-existing rules, `sf project delete source --metadata SharingRules:[Object] --target-org [alias]`. If it DID, restore the pre-edit XML from `{{ROLLBACK_DIR}}/[Object].sharingRules-meta.xml.preedit` over `sharingRules/[Object].sharingRules-meta.xml` and redeploy `SharingRules:[Object]` — a bare delete would remove the incumbents too. Record the absolute `.preedit` path in `rollback_commands` so the SE can roll back in a later session after `force-app/` has been swept.
+<!-- /IF:SHARING_RULES -->
+
 <!-- IF:FLEXIPAGE_AUTHORING -->
 ### Lightning Record Page Authoring Rules
 Scope: authoring a SIMPLE new Lightning Record Page (FlexiPage of type `RecordPage`) — header + a fieldSection (one or two columns) + standard components (Related Lists, Activity, Highlights Panel). This is broader than the field-section *append* path above (which edits an existing LRP). Invoke the `platform-flexipage-generate` skill — it carries the full FlexiPage XML structure, region/facet model, and component catalog.
@@ -175,8 +190,13 @@ Scope: PathAssistant metadata — renders the stepped path component on record p
    - `<fieldName>` (singular, top level) is the driving picklist (`StageName`, `Status`, or a custom picklist API).
    - `<info>` contains rich-text HTML — entity-encode `<` and `>` (`&lt;p&gt;...&lt;/p&gt;`).
    - `<active>true</active>` activates immediately; Salesforce allows one active Path per (entity, record type, driving field).
-3. Visual placement of the Path component on the Lightning record page is SE Manual (App Builder).
-4. Rollback: `sf project delete source --metadata PathAssistant:[ApiName] --target-org [alias]`
+3. Verify (post-deploy read-back — do NOT skip): `retrieve_metadata` for `PathAssistant` member `[ApiName]`, then assert all three against the retrieved XML:
+   - `<active>true</active>` is present (when the spec asked for an active Path). **This is the highest-value check** — Salesforce permits only one active Path per (entity, record type, driving field), so an incumbent Path can win and leave yours deployed-but-inactive, which renders nothing on the record page and fails silently.
+   - one `<pathAssistantSteps>` block per picklist value the spec names — compare the set of `<picklistValueName>` values found against the set the spec lists, not merely "steps exist".
+   - the top-level `<fieldName>` equals the spec's driving picklist.
+   If `<active>` is `false` (or absent) where the spec asked for active: an incumbent Path likely holds the slot. Record in `issues` the retrieved `<masterLabel>` plus the (entity, record type, driving field) triple, mark the Path `FAILED` in your JSON output, and add "resolve competing active Path" to the SE Manual Checklist — do NOT deactivate the incumbent (that is existing metadata; see the NEVER rules). If any spec'd picklist value has no matching step, report the Path `FAILED` with the missing values listed.
+4. Visual placement of the Path component on the Lightning record page is SE Manual (App Builder).
+5. Rollback: `sf project delete source --metadata PathAssistant:[ApiName] --target-org [alias]`
 <!-- /IF:PATHS -->
 
 <!-- IF:LAYOUTS -->
@@ -333,7 +353,7 @@ When done, return EXACTLY one fenced JSON block matching this schema. Do not inc
 {
   "phase": 1,
   "deployed": [
-    {"type": "CustomObject|CustomField|RecordType|Layout|FlexiPage|CustomTab|CustomApplication|Queue|BusinessProcess|PathAssistant|ValidationRule|ListView", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null, "lrp_section_target": "string|null — for FlexiPage type only: the field section label the deploy targeted; null otherwise"}
+    {"type": "CustomObject|CustomField|RecordType|Layout|FlexiPage|CustomTab|CustomApplication|Queue|BusinessProcess|PathAssistant|ValidationRule|ListView|SharingRules", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null, "lrp_section_target": "string|null — for FlexiPage type only: the field section label the deploy targeted; null otherwise"}
   ],
   "skipped": [
     {"type": "string", "api_name": "string", "reason": "string"}
