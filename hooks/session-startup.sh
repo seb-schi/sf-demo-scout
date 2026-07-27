@@ -193,11 +193,6 @@ else
   fi
 fi
 
-# --- 6. CLAUDE.md Presence Check ---
-if [ ! -f "CLAUDE.md" ]; then
-  OUTPUT+="## ⚠️ No CLAUDE.md found. Are you in the sf-demo-prep project directory?\n\n"
-fi
-
 # --- 7. Plugin First-Run Nudge ---
 # If the SE installed the plugin but never ran /scout-setup,
 # config.json is absent and the workspace is unconfigured. Surface

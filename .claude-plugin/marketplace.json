@@ -1,5 +1,6 @@
 {
   "name": "scout",
+  "description": "Salesforce demo preparation tooling for SEs — discovery sparring, org audit, and automated demo-org deployment",
   "owner": {
     "name": "Sebastian Schickhoff"
   },

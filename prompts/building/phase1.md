@@ -312,7 +312,15 @@ For a single-column section, the `<flexipage:fieldSection>.columns` Facet contai
 
 <!-- IF:PERMSET -->
 ## Companion Permission Set — MANDATORY
-Follow CLAUDE.md §Companion Permission Set for the canonical rules (object CRUD, FLS, RecordTypeVisibility, TabVisibility, AppVisibility, MCP assignment). Phase-specific reminder: **EXCLUDE Required fields from FLS — the API rejects FLS on required fields.**
+Canonical rules — apply all five:
+- Object CRUD for all new custom objects
+- Field Read + Edit FLS for all new fields — **EXCLUDE Required fields (the API rejects FLS on required fields)**
+- `RecordTypeVisibility`: `visible=true` for new record types
+- `TabVisibility`: `Visible` for new custom tabs (NOT `DefaultOn` — `DefaultOn` is Profile-only)
+- `AppVisibility`: `visible=true` for new Lightning apps
+
+Assign via MCP `assign_permission_set`. If unavailable, fall back to the `sf data query` /
+`sf data create record` path using the alias from `sf config get target-org`.
 <!-- /IF:PERMSET -->
 
 ## Your Spec
