@@ -124,7 +124,7 @@ Scope: record-level access via `sharingCriteriaRules`, `sharingOwnerRules`, or `
 - Object: [SObject API — standard or custom]
 - OWD prerequisite:
   - **Custom object (in this spec):** Scout sets `<sharingModel>` to [`Private` | `ReadWrite` if M-D → `ControlledByParent`] in the object metadata — autonomous, deployed in the same phase. Sharing rule is meaningful only if `Private`.
-  - **Standard object (Account, Case, Opportunity, …):** ⚠️ OWD is org-level `SharingSettings` — Scout does NOT change it (destructive, org-wide). **SE Manual prerequisite:** the SE must set the OWD to Private/Read in Setup → Sharing Settings BEFORE the rule has effect. Scout deploys the rule and flags it inert-until-OWD-set in the change log.
+  - **Standard object (Account, Case, Opportunity, …):** ⚠️ OWD *is* API-settable (`<sharingModel>` on `CustomObject`, API 30.0+) — but Scout does NOT change it, because a `CustomObject:Account` deploy **cannot update a single element**: it redeploys the whole object (every custom field, list view, record type), and a restrictive OWD change also triggers org-wide sharing recalculation. Blast radius, not impossibility. **SE Manual prerequisite:** the SE must set the OWD to Private/Read in Setup → Sharing Settings BEFORE the rule has effect. Scout deploys the rule and flags it inert-until-OWD-set in the change log.
 - Rule type: [criteria | owner | guest]
 - Rule: [PascalCase fullName], Label: [Title Case label]
 - Access level: [Read | Edit] (default Read)

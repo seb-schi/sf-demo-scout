@@ -30,7 +30,7 @@ Four MCP servers may be configured: Salesforce DX + Salesforce Docs (declared in
 - Picklist value additions to existing fields
 - Validation Rules (declarative `ValidationRule` formulas on any object — `platform-validation-rule-generate` skill carries formula gotchas + CDATA rule)
 - List Views (`ListView` metadata — `platform-list-view-generate` skill)
-- Sharing Rules (record-level `sharingCriteriaRules` / `sharingOwnerRules` / `sharingGuestRules` — `platform-sharing-rules-generate` skill; autonomous for the rule metadata. ⚠️ Standard-object OWD is an SE manual prerequisite — Scout never changes org-wide defaults)
+- Sharing Rules (record-level `sharingCriteriaRules` / `sharingOwnerRules` / `sharingGuestRules` — `platform-sharing-rules-generate` skill; autonomous for the rule metadata. ⚠️ Standard-object OWD is an SE manual prerequisite — Scout never changes org-wide defaults, because a standard-object `CustomObject` deploy redeploys the whole object and triggers sharing recalculation)
 - Simple Lightning Record Page authoring (new `RecordPage` FlexiPage: header + one/two-column field section + standard components — `platform-flexipage-generate` skill; complex authoring stays SE Manual)
 
 ### Gated (SE confirms once per category, then autonomous)

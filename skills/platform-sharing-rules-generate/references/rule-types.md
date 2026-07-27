@@ -197,3 +197,30 @@ When creating sharing rules for the Account object, you MUST include `<accountSe
 | `opportunityAccessLevel` | `None`, `Read`, `Edit` | Access to related Opportunities |
 
 Place `<accountSettings>` inside the rule element, after `<accessLevel>`.
+
+### Composed example — Account owner rule (element order matters)
+
+The full rule with `<accountSettings>` in its correct sequence position. Element order is
+XSD-enforced: `fullName` → `accessLevel` → `accountSettings` → `label` → `sharedFrom` → `sharedTo`.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<SharingRules xmlns="http://soap.sforce.com/2006/04/metadata">
+    <sharingOwnerRules>
+        <fullName>ShareDirectorAccountsWithSalesTeam</fullName>
+        <accessLevel>Edit</accessLevel>
+        <accountSettings>
+            <caseAccessLevel>None</caseAccessLevel>
+            <contactAccessLevel>None</contactAccessLevel>
+            <opportunityAccessLevel>None</opportunityAccessLevel>
+        </accountSettings>
+        <label>Share Director Accounts With Sales Team</label>
+        <sharedFrom>
+            <role>SalesDirector</role>
+        </sharedFrom>
+        <sharedTo>
+            <roleAndSubordinates>SalesTeam</roleAndSubordinates>
+        </sharedTo>
+    </sharingOwnerRules>
+</SharingRules>
+```

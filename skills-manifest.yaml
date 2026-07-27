@@ -138,6 +138,12 @@ skills:
     path: skills/platform-flexipage-generate
 
   # ── NEW 2026-06-29: record-level sharing (afv/main, sf-skills v1.26.0) ──
+  # RE-VENDORED 2026-07-27 to v1.1 (sf-skills v1.32.0) WITH the Phase 4 human-in-the-loop
+  # confirmation gate stripped — 2nd gate-strip after platform-custom-object-generate (PLAN
+  # 2026-06-29/1100). Upstream's examples/test-cases.md is deliberately NOT vendored (381 lines,
+  # 12 of 17 cases test Edit/Delete/confirm paths Scout cannot reach); its one useful artifact
+  # (composed Account owner rule) was grafted into references/rule-types.md. Permanent
+  # intentional drift — do NOT "fix" it by re-vendoring verbatim. See PLAN 2026-07-27/0944.
   - name: platform-sharing-rules-generate
     source: afv
     path: skills/platform-sharing-rules-generate
