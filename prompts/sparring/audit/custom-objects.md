@@ -104,9 +104,9 @@ Star the following:
 
 - **Output budget:** with per-layout field content removed, starred custom objects carry name + label + record count + record types + active layout name + (where mapped) LRP composition. If the fragment exceeds 200 lines, trim non-starred custom objects to a summary table (API name, label, count).
 
-## Pre-Return Completeness Checklist
+## Required Output Coverage
 
-Before writing your JSON output block, verify each of these. If any fails, fix it before returning.
+Your output must cover all of the following.
 
 1. **Custom object layouts resolved.** Every ★ custom object must have a layout entry — from ProfileLayout, Tooling API Layout query, or explicit "not found after N methods." **Layout names must be the bare metadata API name** as stored in `Layout.Name` — do NOT prefix with the object name. The Tooling API returns the name in round-trippable form; preserving it lets downstream specs pass it directly to `retrieve_metadata`.
 2. **Permission sets listed.** At minimum a count. If the full list overflowed, report the count and any demo-relevant matches.

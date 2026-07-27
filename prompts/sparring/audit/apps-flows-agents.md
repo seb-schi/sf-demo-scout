@@ -104,9 +104,9 @@ Star the following:
 
 - **Output budget:** if your file exceeds 250 lines, summarize non-starred apps as name-only and reduce flow listings to per-object counts. The starred default app always gets full tab enumeration.
 
-## Pre-Return Completeness Checklist
+## Required Output Coverage
 
-Before writing your JSON output block, verify each of these. If any fails, fix it before returning.
+Your output must cover all of the following.
 
 1. **App tabs populated.** The ★ default app ({{DEFAULT_APP}}) entry must list its tabs. If retrieval failed, say so explicitly.
 2. **Flow count matches.** The `active_flow_count` in your JSON must match the SOQL count from step 1 of the Flows section — not the number of flows you enumerated.

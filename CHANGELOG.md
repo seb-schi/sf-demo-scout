@@ -2,6 +2,12 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-07-27
+
+- **Scout has been re-read end to end against Anthropic's new Opus 5 / Sonnet 5 guidance.** All 48 of Scout's own instruction files went through a full pass against the current best-practice guides. A handful of minor fixes came out of it — the narration change below is the one you'll notice — plus one open question about output limits on background sub-agents that's being investigated separately. Scout is in good shape for the 5-series models. The bundled Salesforce skills weren't touched — those come from Salesforce and stay verbatim.
+- **Scout is quieter during long runs — without going dark on you.** Scout used to announce every single tool call, a workaround for an older model that hid its thinking. Today's models narrate on their own, so the blanket rule is retired. You still get the shape upfront ("8 counts, then 10 layouts, then 3 deploys") and a heads-up whenever Scout finds something important or changes direction — just less line-by-line chatter to read past during an audit or a deploy.
+- **Correction: you *can* set org-wide defaults on standard objects from the spec.** Scout's spec template and build guidance claimed a standard object's org-wide default — the sharing baseline a sharing rule opens up from — wasn't settable via the API. It is. Scout still routes it to your manual checklist, but now for the real reason: changing an OWD redeploys the whole object and kicks off an org-wide sharing recalculation, which you don't want mid-prep.
+
 ## 2026-07-20
 
 - **Scout now builds Custom Report Types on its own — the cross-object reporting frameworks that let a report span, say, Accounts → Visits → Programs.** Spec a report type (primary object, the related objects to join, and which fields each exposes to the report builder) and Scout generates and deploys the `.reportType-meta.xml` for you. Handy anywhere a demo needs reporting across related records — including industry-cloud objects that ship no standard report type, like Health Cloud's FHIR clinical records (encounters, conditions, medications).

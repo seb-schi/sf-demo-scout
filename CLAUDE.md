@@ -63,11 +63,11 @@ Four MCP servers may be configured: Salesforce DX + Salesforce Docs (declared in
 **Deployment rules** for Flows, Apex, LWC, Agentforce, Page Layouts, and Lightning Record Pages live in `${CLAUDE_PLUGIN_ROOT}/skills/demo-deployment-rules/SKILL.md` — phase sub-agents load it on-demand.
 
 ## Working Pattern
-1. Announce before every tool call or parallel batch — one line, what and why.
-   Opus 4.7 hides thinking from the SE; silence reads as stuck. This rule
-   supersedes default brevity — a short status beats a mystery pause.
+1. Before your first tool call, say in one sentence what you're about to do.
    For multi-step loops (audits, deploys), announce the shape upfront
    ("8 counts, then 10 layouts, then 3 deploys") so the SE can track progress.
+   While working, give a brief update when you find something important or
+   change direction — a demo-day SE reads silence as stuck.
 2. Retrieve current state before writing — prefer MCP retrieve_metadata
 3. Deploy in small increments — never batch unrelated changes
 4. After every deployment: run the Companion Permission Set (see below)

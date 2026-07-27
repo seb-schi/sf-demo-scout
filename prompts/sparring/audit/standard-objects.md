@@ -154,16 +154,16 @@ When the active LRP for an object is `gap_risk: true`, the classic Page Layout i
 
 - **Output budget:** with the per-layout field dump removed, this fragment is naturally compact (layout names, record counts, record types, field-count signal, LRP composition). If it nonetheless exceeds 200 lines, trim non-starred object entries to name + record count only.
 
-## Pre-Return Completeness Checklist
+## Required Output Coverage
 
-Before writing your JSON output block, verify each of these. If any fails, fix it before returning.
+Your output must cover all of the following.
 
 1. **Non-universal object scan ran.** The EntityDefinition discovery query must have been executed. Results (if any) are reported in `demo_surface_notes`, not a separate JSON field.
 2. **Every standard object has content.** No empty entries — if discovery failed, write what you tried and what failed.
 3. **Field-count signal emitted for ★ standard objects.** Each ★ standard object has either a `Field-count: N fields, M custom` line (from the FieldDefinition query) or an explicit best-effort skip note (query errored → layout name only). The consolidated `demo_surface_notes` field-count entry is present unless every query errored.
-3a. **Layout names are bare API names.** Every entry in `active_layouts[].layout_name` and every layout name in the fragment file must equal the value `Layout.Name` returned, with no object prefix. Spot-check before returning.
+3a. **Layout names are bare API names.** Every entry in `active_layouts[].layout_name` and every layout name in the fragment file must equal the value `Layout.Name` returned, with no object prefix.
 4. **Default app tabs covered.** Every standard object in the default app tabs list must have at least a record count entry.
-5. **Active LRP entry exists for every object in `{{ACTIVE_LRP_MAP}}`.** If `{{ACTIVE_LRP_MAP}}` is `[]`, skip this check. Otherwise: each mapped object must have a `composition_class` recorded (including `unretrievable` if XML retrieve failed). For `field_section` and `mixed` classes, `field_sections` must be populated — empty arrays are only acceptable on `record_detail`, `custom`, or `unretrievable`.
+5. **Active LRP entry for every object in `{{ACTIVE_LRP_MAP}}`.** If `{{ACTIVE_LRP_MAP}}` is `[]`, this item does not apply. Otherwise: each mapped object must have a `composition_class` recorded (including `unretrievable` if XML retrieve failed). For `field_section` and `mixed` classes, `field_sections` must be populated — empty arrays are only acceptable on `record_detail`, `custom`, or `unretrievable`.
 
 ## Output Format
 

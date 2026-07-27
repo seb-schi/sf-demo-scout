@@ -73,7 +73,7 @@ Context only. A customer's stated requirements (e.g. RfP questions, capability r
 - FLS: Read + Edit (EXCLUDE Required fields)
 - RecordTypeVisibility: visible=true, TabVisibility: Visible (not DefaultOn — DefaultOn is Profile-only), AppVisibility: visible=true
 - Assign to running user
-- **If this spec has an Agentforce section:** Phase 3 auto-detects and assigns the standard Agentforce runtime permset (`AgentforceEmployeeAgentUser` / `AgentforceServiceAgentUser` / `AgentforceUser`, whichever exists in the org) to the running user. Do NOT list those permsets in the Companion permset above — they are standard permsets, assigned separately by Phase 3.
+- **If this spec has an Agentforce section:** Phase 3 auto-detects and assigns the standard Agentforce runtime permset (`AgentforceEmployeeAgentUser` / `AgentforceServiceAgentUser` / `AgentforceUser`, whichever exists in the org) to the running user. The Companion permset above covers custom metadata only — those three are standard permsets, assigned separately by Phase 3.
 
 ### Platform Constraints (from pre-flight — if any managed/industry objects in scope)
 - [Object]: IsEverCreatable=[true/false], IsQueryable=[true/false], queueable=[yes/no], namespace=[if managed]

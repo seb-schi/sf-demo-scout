@@ -25,8 +25,8 @@ fi
 ```
 
 If `BREW_NOT_ON_PATH <path>`, brew is installed but this shell can't see it.
-Do NOT report it as missing. ABORT and emit (substitute the `<path>` dir from
-the probe output — `/opt/homebrew/bin` or `/usr/local/bin`):
+Report it as installed but not on PATH. ABORT and emit (substitute the `<path>`
+dir from the probe output — `/opt/homebrew/bin` or `/usr/local/bin`):
 
 > ⚠️ **Homebrew is installed but not on your PATH yet** — one line fixes it.
 >
