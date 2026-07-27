@@ -26,7 +26,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract `version`.
 
 **If `ZSHRC_MODIFIED` is true:** append before the close:
 
-> "Note: Scout refreshed your shell environment. Open a new terminal window for non-Claude-Code shell sessions to pick up the changes — current Claude Code session is unaffected."
+> "Note: Scout tidied its block in your `~/.zshrc` — it no longer sets any environment variables there. Open a new terminal window for non-Claude-Code shell sessions to pick up the change — current Claude Code session is unaffected."
 
 **If STATE was REFRESH:** compose at most one CLI status line from the step a/b outcome tokens and append before the close (skip entirely if both CLIs were `*_CURRENT` — the refresh line already implies current):
 

@@ -7,7 +7,7 @@ they collapse the picker so the SE can't reach newer models (e.g. Opus 4.8).
 Because that residue is NOT written by Scout, it lands on Scout-FRESH machines
 too — so this runs on the fresh path as well as refresh.
 
-Older Scout/aisuite installs — and other Salesforce tools (AI Suite, DevBar, etc.) — hard-pin three model env vars (`ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL`) and/or a `modelOverrides` block across several config surfaces, sometimes erroneously. Claude Code collapses the `/model` picker to those pins, hiding newer models (e.g. Opus 4.8). Scout no longer writes any of them (since 2026-06-02), so on existing installs they're pure stale state. This step REMOVES them from every surface so the SE gets the full model list in both terminal and VS Code — it never writes a model value (Scout is out of model selection; the `/scout-sparring` and `/scout-building` gate is the only nudge, and the SE picks via `/model`). It also strips the retired `MAX_THINKING_TOKENS` knob (see the PIN_KEYS note below): a no-op on adaptive-thinking models and a 400-error landmine on gateway version skew, so it is removed like a stale pin. **Removal set is exactly the 3 model keys + `modelOverrides` + `MAX_THINKING_TOKENS`. The output-length knob (`CLAUDE_CODE_MAX_OUTPUT_TOKENS`), auth, gateway, and OTEL keys are NEVER touched.** Idempotent, safe-fail.
+Older Scout/aisuite installs — and other Salesforce tools (AI Suite, DevBar, etc.) — hard-pin three model env vars (`ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL`) and/or a `modelOverrides` block across several config surfaces, sometimes erroneously. Claude Code collapses the `/model` picker to those pins, hiding newer models (e.g. Opus 4.8). Scout no longer writes any of them (since 2026-06-02), so on existing installs they're pure stale state. This step REMOVES them from every surface so the SE gets the full model list in both terminal and VS Code — it never writes a model value (Scout is out of model selection; the `/scout-sparring` and `/scout-building` gate is the only nudge, and the SE picks via `/model`). It also strips two retired knobs (see the PIN_KEYS note below): `MAX_THINKING_TOKENS` (a no-op on adaptive-thinking models and a 400-error landmine on gateway version skew) and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` (retired 2026-07-27 — Scout no longer sets an output-length value anywhere; CC's own default applies). Both are removed like stale pins. **Removal set is exactly the 3 model keys + `modelOverrides` + `MAX_THINKING_TOKENS` + `CLAUDE_CODE_MAX_OUTPUT_TOKENS`. Auth, gateway, and OTEL keys are NEVER touched.** Idempotent, safe-fail.
 
 The `.zshrc` surface is handled separately by the dispatching prompt's managed-block refresh (`zshrc-block.md` sweeps these keys as out-of-block stragglers). This fragment covers the two `~/.claude` JSON files, VS Code's settings, and launchctl.
 
@@ -27,6 +27,13 @@ PIN_KEYS = [
     # build to a newer model. Stripped here so existing installs self-heal;
     # Scout no longer writes it anywhere.
     "MAX_THINKING_TOKENS",
+    # Retired 2026-07-27: Scout no longer sets an output-length knob. Probes
+    # showed 16384 was NOT applied as a cap on sub-agent output (a sub-agent
+    # emitted ~24k tokens and completed), so the truncation rationale it was
+    # kept for did not hold. Removed rather than re-tuned: Scout should not
+    # leave an un-sourced tuning value on an SE's machine. CC's own default
+    # applies. Stripped here so existing installs self-heal.
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
 ]
 label = os.path.basename(path)
 
@@ -180,7 +187,7 @@ done
 
 Surface inline (compose one combined note; silent only if every surface was already clean):
 - All clean (`PINS_NONE`/`PINS_ABSENT` for both JSON files + `VSCODE_PINS_NONE`/`VSCODE_ABSENT` + `LAUNCHCTL_PINS_NONE`) — silent.
-- Any `PINS_REMOVED[...]` and/or `VSCODE_PINS_REMOVED` and/or `LAUNCHCTL_PINS_CLEARED` — "Cleared stale model pins so your `/model` picker shows the full list (including Opus 4.8): [list the surfaces that changed in plain words — e.g. 'Claude settings, VS Code settings']. Your thinking/output token settings were kept. **Restart Claude Code** (and if VS Code changed, fully quit it with Cmd+Q and relaunch) to pick up."
+- Any `PINS_REMOVED[...]` and/or `VSCODE_PINS_REMOVED` and/or `LAUNCHCTL_PINS_CLEARED` — "Cleared stale model pins so your `/model` picker shows the full list (including Opus 4.8): [list the surfaces that changed in plain words — e.g. 'Claude settings, VS Code settings']. Scout also removed the leftover output-length setting it used to write — Claude Code's own default applies now. **Restart Claude Code** (and if VS Code changed, fully quit it with Cmd+Q and relaunch) to pick up."
 - `VSCODE_VALIDATE_FAILED_RESTORED` / `VSCODE_PINS_SURVIVED_RESTORED` / `VSCODE_UNPARSEABLE_PREEDIT` / `VSCODE_BACKUP_FAILED` — "Couldn't safely auto-edit VS Code's settings (`~/Library/Application Support/Code/User/settings.json`) — left it untouched. Remove the three `ANTHROPIC_DEFAULT_*_MODEL` entries from the `claudeCode.environmentVariables` array by hand, then fully quit VS Code (Cmd+Q) and relaunch."
 - Any other error variant — one-line note, proceed.
 

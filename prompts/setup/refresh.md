@@ -104,66 +104,9 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it with `mo
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/zshrc-block.md` and execute it. Capture the result (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) — the orchestrator's done step needs it.
 
-## d.6: Mirror quality-knob env vars to settings.json
-
-Write Scout's CC-native output-length knob — `CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384` — into `~/.claude/settings.json` `env`. This also lives in the `.zshrc` managed block, but `.zshrc` is not read by the VS Code extension (GUI launches skip interactive shell rc files), so settings.json is the launch-path-independent home. Authoritative overwrite (Scout-owned, CC-native, version-independent — unlike model-profile vars, there's no CLI-version trap). Surgical: only this key, never auth/gateway/OTEL keys. Idempotent, safe-fail. (`MAX_THINKING_TOKENS` is deliberately NOT written — retired 2026-07-08; the d.7 model-pin strip below removes any that a prior install left behind.)
-
-```bash
-USER_SETTINGS="$HOME/.claude/settings.json"
-
-python3 - "$USER_SETTINGS" <<'PYEOF'
-import json, os, sys, tempfile
-path = sys.argv[1]
-KNOBS = {
-    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "16384",
-}
-
-if not os.path.exists(path):
-    data = {}
-else:
-    try:
-        with open(path) as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        print(f"ENV_PARSE_ERROR: {e}"); sys.exit(0)
-
-if not isinstance(data, dict):
-    print("ENV_NOT_OBJECT"); sys.exit(0)
-
-env = data.get("env")
-if not isinstance(env, dict):
-    env = {}
-    data["env"] = env
-
-changed = [k for k, v in KNOBS.items() if env.get(k) != v]
-if not changed:
-    print("ENV_KNOBS_CURRENT"); sys.exit(0)
-for k in changed:
-    env[k] = KNOBS[k]
-
-tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".settings.", suffix=".tmp")
-try:
-    with os.fdopen(tmp_fd, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-    os.rename(tmp_path, path)
-except Exception as e:
-    try: os.unlink(tmp_path)
-    except OSError: pass
-    print(f"ENV_WRITE_FAILED: {e}"); sys.exit(0)
-
-print("ENV_KNOBS_SET: " + ",".join(changed))
-PYEOF
-```
-
-Surface inline:
-- `ENV_KNOBS_CURRENT` — silent.
-- `ENV_KNOBS_SET: <keys>` — "Wrote Scout's output-length setting to `~/.claude/settings.json` — now active in both terminal and VS Code. Restart CC to pick up."
-- Any error variant — one-line note, proceed.
-
 ## d.7: Strip stale model pins across all surfaces (self-heal)
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure. It removes stale model pins (`ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` + `modelOverrides` + the retired `MAX_THINKING_TOKENS`) from the two `~/.claude` settings JSON files, VS Code's user settings (JSONC, backup/validate/restore), and launchctl GUI env — freeing the `/model` picker. The `.zshrc` surface is handled by step d (`zshrc-block.md` sweeps these as out-of-block stragglers). Idempotent, safe-fail, never aborts. Carry any `PINS_REMOVED[...]` / `VSCODE_PINS_REMOVED` / `LAUNCHCTL_PINS_CLEARED` / VS-Code-restore-or-warn result into the done summary — the SE has a restart (and possibly a manual VS Code edit) pending.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure. It removes stale model pins (`ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` + `modelOverrides`) and the two retired knobs (`MAX_THINKING_TOKENS`, `CLAUDE_CODE_MAX_OUTPUT_TOKENS`) from the two `~/.claude` settings JSON files, VS Code's user settings (JSONC, backup/validate/restore), and launchctl GUI env — freeing the `/model` picker and clearing the output-length value Scout used to set. The `.zshrc` surface is handled by step d (`zshrc-block.md` sweeps these as out-of-block stragglers). Idempotent, safe-fail, never aborts. Carry any `PINS_REMOVED[...]` / `VSCODE_PINS_REMOVED` / `LAUNCHCTL_PINS_CLEARED` / VS-Code-restore-or-warn result into the done summary — the SE has a restart (and possibly a manual VS Code edit) pending.
 
 ## d.8: Scrub stale AI-Suite hooks (self-heal)
 

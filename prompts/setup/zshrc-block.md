@@ -1,6 +1,12 @@
 # Setup — .zshrc Managed Block
 
-Refresh `~/.zshrc` with the Scout-managed environment block (idempotent). Adds `~/.local/bin` to PATH if missing, rewrites the managed `# BEGIN SF-DEMO-SCOUT` … `# END SF-DEMO-SCOUT` block with current canonical values, sweeps Scout-owned keys that escaped the block (including the retired `MAX_THINKING_TOKENS` — swept out and never re-added; see below), and warns about legacy `ANTHROPIC_MODEL`.
+Refresh `~/.zshrc` with the Scout-managed environment block (idempotent). Adds `~/.local/bin` to PATH if missing, rewrites the managed `# BEGIN SF-DEMO-SCOUT` … `# END SF-DEMO-SCOUT` block, sweeps Scout-owned keys that escaped the block (including the retired `MAX_THINKING_TOKENS` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` — swept out and never re-added; see below), and warns about legacy `ANTHROPIC_MODEL`.
+
+As of 2026-07-27 Scout sets no shell environment variables, so the managed block
+is marker-only. The machinery is kept deliberately: it still removes the exports
+Scout used to write (that is how existing installs self-heal) and still catches a
+legacy `ANTHROPIC_MODEL`. Do not delete the block or this fragment — a machine
+that never runs it keeps a stale `CLAUDE_CODE_MAX_OUTPUT_TOKENS` export forever.
 
 ```bash
 ZSHRC="$HOME/.zshrc"
@@ -20,6 +26,10 @@ path = sys.argv[1]
 BEGIN = "# BEGIN SF-DEMO-SCOUT"
 END = "# END SF-DEMO-SCOUT"
 KEYS = [
+    # Retired 2026-07-27: Scout no longer sets an output-length knob on any
+    # surface. Kept in KEYS (not BLOCK_LINES) so prior installs self-heal —
+    # this sweeps both the in-block export, via the block rewrite below, and
+    # any out-of-block straggler.
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
     "MAX_THINKING_TOKENS",
     # Model-profile pins: swept as out-of-block stragglers so a loose
@@ -33,7 +43,7 @@ KEYS = [
 BLOCK_LINES = [
     BEGIN,
     "# Managed by Scout plugin — do not edit. Refreshed on first-run setup.",
-    "export CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384",
+    "# Scout sets no shell environment variables (output-length knob retired 2026-07-27).",
     END,
 ]
 

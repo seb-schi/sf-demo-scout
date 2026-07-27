@@ -247,70 +247,13 @@ Surface inline:
 - `USER_SETTINGS_UPDATED: added N of 6 entries` — "Added N Scout entries to `~/.claude/settings.json` allowlist (inert outside Scout sessions)."
 - Any error variant — one-line note, proceed.
 
-## g.9: Mirror quality-knob env vars to settings.json
-
-Write Scout's CC-native output-length knob — `CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384` — into `~/.claude/settings.json` `env`. This also lives in the `.zshrc` managed block, but `.zshrc` is not read by the VS Code extension (GUI launches skip interactive shell rc files), so settings.json is the launch-path-independent home. Authoritative overwrite (Scout-owned, CC-native, version-independent — unlike model-profile vars, there's no CLI-version trap). Surgical: only this key, never auth/gateway/OTEL keys. Idempotent, safe-fail. (`MAX_THINKING_TOKENS` is deliberately NOT written — it is a no-op on adaptive-thinking models and a 400-error landmine on gateway version skew; retired 2026-07-08.)
-
-```bash
-USER_SETTINGS="$HOME/.claude/settings.json"
-
-python3 - "$USER_SETTINGS" <<'PYEOF'
-import json, os, sys, tempfile
-path = sys.argv[1]
-KNOBS = {
-    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "16384",
-}
-
-if not os.path.exists(path):
-    data = {}
-else:
-    try:
-        with open(path) as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        print(f"ENV_PARSE_ERROR: {e}"); sys.exit(0)
-
-if not isinstance(data, dict):
-    print("ENV_NOT_OBJECT"); sys.exit(0)
-
-env = data.get("env")
-if not isinstance(env, dict):
-    env = {}
-    data["env"] = env
-
-changed = [k for k, v in KNOBS.items() if env.get(k) != v]
-if not changed:
-    print("ENV_KNOBS_CURRENT"); sys.exit(0)
-for k in changed:
-    env[k] = KNOBS[k]
-
-tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".settings.", suffix=".tmp")
-try:
-    with os.fdopen(tmp_fd, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-    os.rename(tmp_path, path)
-except Exception as e:
-    try: os.unlink(tmp_path)
-    except OSError: pass
-    print(f"ENV_WRITE_FAILED: {e}"); sys.exit(0)
-
-print("ENV_KNOBS_SET: " + ",".join(changed))
-PYEOF
-```
-
-Surface inline:
-- `ENV_KNOBS_CURRENT` — silent.
-- `ENV_KNOBS_SET: <keys>` — "Wrote Scout's output-length setting to `~/.claude/settings.json` — now active in both terminal and VS Code. Restart CC to pick up."
-- Any error variant — one-line note, proceed.
-
 ## g.7: Scrub stale AI-Suite hooks (self-heal)
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its procedure. Ex-AI-Suite machines carry hook registrations under `~/.aisuite/` that throw every turn once AI Suite is uninstalled — and because that residue is not written by Scout, it exists even on a Scout-fresh install. The fragment removes only those hook entries from the two `~/.claude` settings JSON files and surfaces (without touching) any leftover aisuite cert path or plugin/marketplace config. Idempotent, safe-fail, never aborts. Carry any `AISUITE_HOOKS_REMOVED` / `FLAGS` note into the closing message.
 
 ## g.8: Strip stale model pins across all surfaces (self-heal)
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure. Various Salesforce tools (AI Suite, DevBar, etc.) hard-pin `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` / `modelOverrides`, sometimes erroneously, which collapses the `/model` picker so the SE can't reach newer models (e.g. Opus 4.8) — and because that residue is not written by Scout, it exists even on a Scout-fresh install. The fragment removes those pins (plus the retired `MAX_THINKING_TOKENS`) from the two `~/.claude` settings JSON files, VS Code's user settings, and launchctl GUI env. Idempotent, safe-fail, never aborts. Carry any `PINS_REMOVED[...]` / `VSCODE_PINS_REMOVED` / `LAUNCHCTL_PINS_CLEARED` / VS-Code-restore-or-warn note into the closing message (a restart, and possibly a manual VS Code edit, is pending).
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure. Various Salesforce tools (AI Suite, DevBar, etc.) hard-pin `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` / `modelOverrides`, sometimes erroneously, which collapses the `/model` picker so the SE can't reach newer models (e.g. Opus 4.8) — and because that residue is not written by Scout, it exists even on a Scout-fresh install. The fragment removes those pins (plus the retired `MAX_THINKING_TOKENS` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS`) from the two `~/.claude` settings JSON files, VS Code's user settings, and launchctl GUI env. Idempotent, safe-fail, never aborts. Carry any `PINS_REMOVED[...]` / `VSCODE_PINS_REMOVED` / `LAUNCHCTL_PINS_CLEARED` / VS-Code-restore-or-warn note into the closing message (a restart, and possibly a manual VS Code edit, is pending).
 
 ## g.5: Ensure marketplace autoUpdate is enabled
 
