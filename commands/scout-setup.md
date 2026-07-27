@@ -19,9 +19,7 @@ Run this Bash:
 ```bash
 mkdir -p "$HOME/claude-projects/sf-demo-scout"
 cd "$HOME/claude-projects/sf-demo-scout"
-if [ -d .git ] && [ -f install.sh ]; then
-  echo "STATE=COLLISION"
-elif [ ! -f "$HOME/.config/sf-demo-scout/config.json" ]; then
+if [ ! -f "$HOME/.config/sf-demo-scout/config.json" ]; then
   echo "STATE=FRESH"
 else
   echo "STATE=REFRESH"
@@ -34,9 +32,6 @@ Capture the STATE value — Step 3 (Done) needs it.
 
 Branch on STATE:
 
-- `STATE=COLLISION` →
-  1. Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/collision-scrub.md` and execute its procedure.
-  2. Then read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/fresh-install.md` and execute its procedure end-to-end.
 - `STATE=FRESH` → Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/fresh-install.md` and execute its procedure end-to-end.
 - `STATE=REFRESH` → Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/refresh.md` and execute its procedure end-to-end.
 

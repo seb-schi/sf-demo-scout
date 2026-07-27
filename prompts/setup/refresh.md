@@ -108,6 +108,15 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/zshrc-block.md` and execute it. Captur
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure. It removes stale model pins (`ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` + `modelOverrides`) and the two retired knobs (`MAX_THINKING_TOKENS`, `CLAUDE_CODE_MAX_OUTPUT_TOKENS`) from the two `~/.claude` settings JSON files, VS Code's user settings (JSONC, backup/validate/restore), and launchctl GUI env — freeing the `/model` picker and clearing the output-length value Scout used to set. The `.zshrc` surface is handled by step d (`zshrc-block.md` sweeps these as out-of-block stragglers). Idempotent, safe-fail, never aborts. Carry any `PINS_REMOVED[...]` / `VSCODE_PINS_REMOVED` / `LAUNCHCTL_PINS_CLEARED` / VS-Code-restore-or-warn result into the done summary — the SE has a restart (and possibly a manual VS Code edit) pending.
 
+## d.75: Repair stale MCP tool-name prefixes (self-heal)
+
+Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/repair-mcp-prefixes.py"`. Scout's allowlists shipped with unnamespaced MCP prefixes (`mcp__Salesforce_DX__*`) until 2026-07-27; plugin-provided MCP tools are actually namespaced `mcp__plugin_sf-demo-scout_<Server_Name>__<tool>`, so those entries matched nothing. The script rewrites them in place in the workspace and user-scope settings files. Idempotent, safe-fail, never aborts.
+
+Surface inline:
+- `MCP_PREFIX_OK` — silent.
+- `MCP_PREFIX_FIXED <file>: N` — "Repaired N stale MCP tool-name entries in `<file>` (restart pending)."
+- Any `MCP_PREFIX_SKIP` / `MCP_PREFIX_WRITE_FAILED` — one-line note, proceed.
+
 ## d.8: Scrub stale AI-Suite hooks (self-heal)
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its procedure. It removes only `~/.aisuite/`-rooted hook entries (which throw every turn once AI Suite is uninstalled) from the two `~/.claude` settings JSON files, and surfaces — without touching — any leftover aisuite cert path or plugin/marketplace config. Idempotent, safe-fail, never aborts. If it emitted any `AISUITE_HOOKS_REMOVED` or `FLAGS`, carry that note into the done summary (a hook removal means a CC restart is pending).

@@ -1,14 +1,14 @@
 # Scout Setup — Done
 
 Compose the closing message. The orchestrator passes you two pieces of context:
-- `STATE` — `FRESH`, `COLLISION`, or `REFRESH`
+- `STATE` — `FRESH` or `REFRESH`
 - `ZSHRC_MODIFIED` — boolean (true if step j / step d reported `ZSHRC_MODIFIED`)
 
 Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract `version`.
 
 ## Compose
 
-**If STATE was FRESH or COLLISION:**
+**If STATE was FRESH:**
 
 > "✓ Scout is set up and ready. Workspace at `~/claude-projects/sf-demo-scout/`.
 >

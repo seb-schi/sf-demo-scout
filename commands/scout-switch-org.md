@@ -3,7 +3,7 @@ name: scout-switch-org
 description: >
   Switch to a different Salesforce demo org.
 model: sonnet
-allowed-tools: Bash, Read, mcp__Salesforce_DX__run_soql_query
+allowed-tools: Bash, Read, mcp__plugin_sf-demo-scout_Salesforce_DX__run_soql_query
 ---
 
 Switch to a different Salesforce demo org. Follow these steps:

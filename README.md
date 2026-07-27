@@ -22,28 +22,15 @@ Inside Claude Code, run these four commands in order:
 
 When prompted on the install step, select `Install for you (user scope)`.
 `/scout-setup` handles all prerequisites: Homebrew check, Node / Python /
-Salesforce CLI install, SFDX scaffold, 14 community skills sync, shell
+Salesforce CLI install, SFDX scaffold, 22 community skills sync, shell
 environment, and Slack MCP registration + auth.
 
 After setup, kick off your first demo with `/scout-sparring`.
 
 ## Migrating from the clone-install version
 
-If you installed Scout before 2026-05-23 (via `git clone` or the curl
-bootstrap), run the migration trampoline one last time:
-
-```
-cd ~/claude-projects/sf-demo-scout
-bash update.sh
-```
-
-This opens a fresh Claude Code window and walks you through the plugin
-install — same four commands as above, plus a finishing
-`/setup-demo-scout` step that migrates your workspace in place. Your
-org data at `~/claude-projects/sf-demo-scout/orgs/` is preserved.
-
-After today, you never run `update.sh` again — Claude Code pulls plugin
-updates automatically in the background.
+Already have Scout? You are on the plugin already — updates arrive
+automatically. Run `/scout-setup` any time something feels out of sync.
 
 ## Updates
 

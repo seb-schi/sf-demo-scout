@@ -21,7 +21,7 @@ Rules:
 
 Run once before the first Slack tool call:
 - Bash: `claude mcp list 2>/dev/null | grep -qE '^slack:.*Connected' && echo OK || echo MISSING`
-- On `MISSING`: tell the SE *"Slack MCP not connected — skipping the lookup. (Register via install.sh, authenticate via /mcp.)"* and return empty.
+- On `MISSING`: tell the SE *"Slack MCP not connected — skipping the lookup. (Register via /scout-setup, authenticate via /mcp.)"* and return empty.
 - On `OK`: proceed.
 
 ## Inputs (from SE reply in Stage 3)

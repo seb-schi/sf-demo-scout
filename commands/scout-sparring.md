@@ -6,7 +6,7 @@ description: >
   Produces a structured spec for /scout-building to deploy.
   Activate with /scout-sparring.
 model: opus
-allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, mcp__Salesforce_DX__retrieve_metadata, mcp__Salesforce_DX__run_soql_query, mcp__Salesforce_DX__list_all_orgs, mcp__Salesforce_Docs__salesforce_docs_search, mcp__Salesforce_Docs__salesforce_docs_fetch, mcp__slack__slack_search_channels, mcp__slack__slack_search_public_and_private, mcp__slack__slack_read_channel, mcp__slack__slack_read_canvas, mcp__slack__slack_create_canvas, mcp__google-workspace__search_drive_files, mcp__google-workspace__get_spreadsheet_info, mcp__google-workspace__read_sheet_values, mcp__google-workspace__get_doc_as_markdown, mcp__google-workspace__get_drive_file_content
+allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, mcp__plugin_sf-demo-scout_Salesforce_DX__retrieve_metadata, mcp__plugin_sf-demo-scout_Salesforce_DX__run_soql_query, mcp__plugin_sf-demo-scout_Salesforce_DX__list_all_orgs, mcp__plugin_sf-demo-scout_Salesforce_Docs__salesforce_docs_search, mcp__plugin_sf-demo-scout_Salesforce_Docs__salesforce_docs_fetch, mcp__slack__slack_search_channels, mcp__slack__slack_search_public_and_private, mcp__slack__slack_read_channel, mcp__slack__slack_read_canvas, mcp__slack__slack_create_canvas, mcp__google-workspace__search_drive_files, mcp__google-workspace__get_spreadsheet_info, mcp__google-workspace__read_sheet_values, mcp__google-workspace__get_doc_as_markdown, mcp__google-workspace__get_drive_file_content
 ---
 
 # Scout Sparring — Demo Discovery & Spec Generation
@@ -176,7 +176,7 @@ On failure (file missing, key absent, empty output), fall back to reading the fr
 
 | Source | `[PROBE_PATTERN]` | `[MISSING_MSG]` | `[DESC]` | `[FRAGMENT]` | `[INPUTS]` |
 |--------|-------------------|-----------------|----------|--------------|------------|
-| **Slack** (SE names canvas(es) or a channel) | `^slack:.*Connected` | *"Slack MCP not connected — skipping the lookup. (Register via install.sh, authenticate via /mcp.)"* | `Slack lookup` | `slack-lookup.md` | canvas_names = [the canvas titles the SE named, or empty]; channel_name = [the channel the SE named, or empty] |
+| **Slack** (SE names canvas(es) or a channel) | `^slack:.*Connected` | *"Slack MCP not connected — skipping the lookup. (Register via /scout-setup, authenticate via /mcp.)"* | `Slack lookup` | `slack-lookup.md` | canvas_names = [the canvas titles the SE named, or empty]; channel_name = [the channel the SE named, or empty] |
 | **Google Workspace** (SE names/links a Doc or Sheet) | `^[[:space:]]*google-workspace:.*Connected` | *"Google Workspace MCP not connected — skipping the lookup. (Register + authenticate via /scout-setup.)"* | `Google Workspace lookup` | `google-workspace-lookup.md` | doc_refs = [the URLs/IDs/titles the SE named] |
 
 **Google-only nuance:** an RfP's stated requirements are high-signal, but any solution-fit claim in the doc is a hypothesis to validate against Stage 4 docs + the audit, never asserted.
