@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-07-28
+
+- **🩹 Hotfix: `/scout-sparring` and `/scout-building` no longer fail to launch.** The commands pinned a bare "Opus" model alias in their configuration; when that alias started resolving to a model your environment can't reach, the command crashed on the first turn. The pin is removed — the commands now run on your current session model and still show the "designed for Opus — run `/model` to switch" prompt as before. Nothing to do on your end; the fix arrives automatically on your next Scout update.
+
 ## 2026-07-27
 
 - **Scout sessions now start in about half a second, down from ten — and a slow org can't stall them.** The startup banner used to run four Salesforce/Claude Code lookups back-to-back on every launch, none of them time-limited: ~10.5s of waiting before you could type, or an indefinite hang if the org wasn't reachable. Those lookups now run in parallel, cache for the day, and each has a hard time limit — so a repeat launch is ~0.5s, a first launch is roughly halved, and an unreachable org degrades to a note instead of a stall. Same banner, same information; switching orgs refreshes it automatically.

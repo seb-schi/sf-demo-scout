@@ -5,7 +5,6 @@ description: >
   Handles both new scenario discovery and targeted iterations on existing demos.
   Produces a structured spec for /scout-building to deploy.
   Activate with /scout-sparring.
-model: opus
 allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, mcp__plugin_sf-demo-scout_Salesforce_DX__retrieve_metadata, mcp__plugin_sf-demo-scout_Salesforce_DX__run_soql_query, mcp__plugin_sf-demo-scout_Salesforce_DX__list_all_orgs, mcp__plugin_sf-demo-scout_Salesforce_Docs__salesforce_docs_search, mcp__plugin_sf-demo-scout_Salesforce_Docs__salesforce_docs_fetch, mcp__slack__slack_search_channels, mcp__slack__slack_search_public_and_private, mcp__slack__slack_read_channel, mcp__slack__slack_read_canvas, mcp__slack__slack_create_canvas, mcp__google-workspace__search_drive_files, mcp__google-workspace__get_spreadsheet_info, mcp__google-workspace__read_sheet_values, mcp__google-workspace__get_doc_as_markdown, mcp__google-workspace__get_drive_file_content
 ---
 
