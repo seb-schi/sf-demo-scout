@@ -76,6 +76,13 @@ skills:
   #   sf-permissions — zero pipeline refs; creation runs on generating-permission-set.
 
   # forcedotcom/sf-skills — full skill directories, cloned
+  #
+  # 2026-08-03 (PLAN 1106): agentforce-generate / agentforce-test / agentforce-observe
+  # RE-VENDORED byte-verbatim to sf-skills v1.33.0 (fe3e2ed). Correctness fix — v1.33
+  # test/observe require --simulate-actions|--use-live-actions on `sf agent preview
+  # start --authoring-bundle` (sf CLI 2.131.0+); Scout's v1.0 copies omitted it. All
+  # three tracked to upstream's current folder layout (stale pre-5a4d9c3 fossils
+  # dropped; no Scout hand-edits existed). Pinned per-skill copy, NOT vendor-skills.sh.
   - name: platform-custom-field-generate
     source: afv
     path: skills/platform-custom-field-generate

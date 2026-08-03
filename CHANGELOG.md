@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-08-03
+
+- **Scout's Agentforce build/test/observe skills refreshed to Salesforce's latest — and a broken preview command on current Salesforce CLI is fixed.** The three bundled Agentforce skills are re-synced to Salesforce's v1.33 release. The one you'll feel: on Salesforce CLI 2.131.0 and newer, `sf agent preview` now requires an action-mode flag (`--simulate-actions` or `--use-live-actions`), and Scout's older copies left it off — so agent testing/preview would error out mid-run. Corrected. The refresh also folds in Salesforce's newer material (OWASP-style guardrail test mode, voice-agent observability, MCP-server management). As always, these come from Salesforce and ship verbatim.
+
 ## 2026-07-28
 
 - **🩹 Hotfix: `/scout-sparring` and `/scout-building` no longer fail to launch.** The commands pinned a bare "Opus" model alias in their configuration; when that alias started resolving to a model your environment can't reach, the command crashed on the first turn. The pin is removed — the commands now run on your current session model and still show the "designed for Opus — run `/model` to switch" prompt as before. Nothing to do on your end; the fix arrives automatically on your next Scout update.
