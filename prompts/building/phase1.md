@@ -154,6 +154,18 @@ Scope: record-level `sharingCriteriaRules` / `sharingOwnerRules` / `sharingGuest
 7. Rollback: if the object had NO pre-existing rules, `sf project delete source --metadata SharingRules:[Object] --target-org [alias]`. If it DID, restore the pre-edit XML from `{{ROLLBACK_DIR}}/[Object].sharingRules-meta.xml.preedit` over `sharingRules/[Object].sharingRules-meta.xml` and redeploy `SharingRules:[Object]` — a bare delete would remove the incumbents too. Record the absolute `.preedit` path in `rollback_commands` so the SE can roll back in a later session after `force-app/` has been swept.
 <!-- /IF:SHARING_RULES -->
 
+<!-- IF:CUSTOM_REPORT_TYPE -->
+### Custom Report Type Rules
+Scope: `ReportType` metadata — a report type exposing a primary object + up to 3 related objects (4 total in the join chain) to the report builder, each object contributing its own field section. Invoke the `platform-custom-report-type-generate` skill before authoring — it carries the `<join>`/`<outerJoin>` nesting rules, the per-object `<sections>` shape, the `<table>` dotted-path derivation, and the `<category>` catalog.
+1. Invoke `platform-custom-report-type-generate` for the metadata shape and join/section rules.
+2. File is `<DeveloperName>.reportType-meta.xml`; `<fullName>` MUST equal the DeveloperName (and the filename). One file per report type — no whole-object replace risk (unlike `SharingRules`), so no pre-edit snapshot is needed.
+3. **Join-chain rules (the skill enforces these — restated here for the verify step):** the primary object is `<baseObject>`; each related object is a nested `<join>` referenced by its child relationship name (`__r` for custom); `<outerJoin>false</outerJoin>` = inner (primary rows require a related record), `true` = outer (primary rows appear with or without one); once a join is outer, every deeper join MUST also be outer (Salesforce rejects inner-after-outer). Max 3 related objects (4 total).
+4. **Field sections:** each object in the chain needs its own `<sections>` block with a `<masterLabel>` and `<columns>` entries — each column is a `<field>` API name + `<table>` (dotted relationship path, e.g. `Account.Contacts`, `Account.Contacts.Assets` — the skill derives it) + `<checkedByDefault>`, plus an optional `<displayNameOverride>`.
+5. `<category>` must be a valid value from the skill's `references/category-values.md`. `<deployed>true</deployed>` makes the report type visible in the report builder; `false` hides it (In Development).
+6. Deploy `ReportType`, then verify (post-deploy read-back — do NOT skip): `retrieve_metadata` for `ReportType` member `[DeveloperName]`, then assert against the retrieved XML — `<baseObject>` equals the spec's primary object; every related object the spec names is present as a nested `<join>` carrying the spec'd `<outerJoin>` value; each object in the chain has its own `<sections>` block. If any is missing, mark the report type `FAILED` in your JSON output and surface it in `issues` verbatim.
+7. Rollback: `sf project delete source --metadata ReportType:[DeveloperName] --target-org [alias]`.
+<!-- /IF:CUSTOM_REPORT_TYPE -->
+
 <!-- IF:FLEXIPAGE_AUTHORING -->
 ### Lightning Record Page Authoring Rules
 Scope: authoring a SIMPLE new Lightning Record Page (FlexiPage of type `RecordPage`) — header + a fieldSection (one or two columns) + standard components (Related Lists, Activity, Highlights Panel). This is broader than the field-section *append* path above (which edits an existing LRP). Invoke the `platform-flexipage-generate` skill — it carries the full FlexiPage XML structure, region/facet model, and component catalog.
@@ -353,7 +365,7 @@ When done, return EXACTLY one fenced JSON block matching this schema. Do not inc
 {
   "phase": 1,
   "deployed": [
-    {"type": "CustomObject|CustomField|RecordType|Layout|FlexiPage|CustomTab|CustomApplication|Queue|BusinessProcess|PathAssistant|ValidationRule|ListView|SharingRules", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null, "lrp_section_target": "string|null — for FlexiPage type only: the field section label the deploy targeted; null otherwise"}
+    {"type": "CustomObject|CustomField|RecordType|Layout|FlexiPage|CustomTab|CustomApplication|Queue|BusinessProcess|PathAssistant|ValidationRule|ListView|SharingRules|ReportType", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null, "lrp_section_target": "string|null — for FlexiPage type only: the field section label the deploy targeted; null otherwise"}
   ],
   "skipped": [
     {"type": "string", "api_name": "string", "reason": "string"}

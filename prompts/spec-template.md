@@ -134,6 +134,24 @@ Scope: record-level access via `sharingCriteriaRules`, `sharingOwnerRules`, or `
 - For guest rules — `includeHVUOwnedRecords`: [true | false] (default false); guest user CommunityNickname resolved via org query
 - ⚠️ If object is **Account**: rule MUST include `<accountSettings>` (case/contact/opportunity access — default all `None`)
 
+### Custom Report Type (if applicable)
+Scope: a report type exposing one primary object + up to 3 related objects (4 total in the join chain) to the report builder (the `platform-custom-report-type-generate` skill). Each object contributes its own field section; join semantics decide whether related records are required (inner) or optional (outer).
+- Report Type: [DeveloperName], Label: [masterLabel]
+- Category: [Accounts & Contacts | Opportunities | Customer Support Reports | Activities | ... | Other Reports] (valid category value — the skill's `references/category-values.md` is authoritative)
+- Description: [one line shown in the report-type chooser]
+- Deployed: [Deployed (visible in builder) | In Development (hidden)] (default Deployed)
+- Primary object: [SObject API]
+- Join chain (in order, max 3 related objects — omit if primary-only):
+  - [Related SObject API] via [child relationship name — `__r` for custom]; join: [inner | outer] (inner = primary rows require a related record; outer = primary rows appear with or without one)
+  - [next related object] via [relationship]; join: [inner | outer]
+  - ⚠️ Once a join is outer, every join after it must also be outer (Salesforce rejects inner-after-outer).
+- Field sections (one per object in the chain, primary first):
+  - [Object]: section label "[masterLabel]", fields (API name → checked-by-default? → optional display label):
+    - [Field__c] → checked / unchecked → ["Override label" if the builder should show a custom name]
+    - [Field2__c] → checked / unchecked
+  - [Related Object]: section label "[masterLabel]", fields:
+    - [Field__c] → checked / unchecked
+
 ### Lightning Record Page — Authoring (Autonomous, simple pages only)
 Scope: a NEW simple `RecordPage` FlexiPage — header + one/two-column field section + standard components. Complex authoring (dynamic forms, custom LWC placement, tabsets, conditional visibility) stays SE Manual below.
 - FlexiPage DeveloperName: [ApiName]
