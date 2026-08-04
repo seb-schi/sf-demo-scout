@@ -36,6 +36,9 @@ These are Salesforce platform limits, not Scout gaps — the Metadata API does n
   - [ ] After creating the Data Library, run one grounded utterance in Builder (e.g. an utterance that should pull from a specific Knowledge article) and confirm a citation or source reference appears in the response. If the response is plausible prose without a source, the Data Library is not linked — fix before demo.
 - **Any other entry** (MessagingSession-dependent actions, etc.): append one line per entry in the form `- [ ] [action name]: [reason from the entry]`.
 
+**If the change log has an "Agent Not Live — UI Commit Required" section** (Phase 3 `NeedsUICommit`), append this checklist item verbatim under Your Setup — the agent is authored + validated but the org instance's headless publish route 404'd, so go-live is a UI step:
+- [ ] Agent **[api_name]** is authored + validated but NOT live (this org instance's headless publish route is not provisioned — a Salesforce platform gap, not a Scout limit). Take it live via the Builder UI runbook (`skills/agentforce-generate/references/agent-ui-commit-runbook.md`): New Draft → merge your real topics into the template shell → reconcile action I/O → Commit → Activate. Then verify action side-effects in a live Messaging Session. Escalate the instance gap: Salesforce Support case citing the org instance ID.
+
 **Want to Change Something? Two Ways.**
 This demo isn't locked. Pick the door that fits:
 

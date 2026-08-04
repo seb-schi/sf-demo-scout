@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-08-04
+
+- **When agent publish fails on certain orgs, Scout now tells you exactly why — and hands you a step-by-step path to take the agent live in the UI.** On some Salesforce org instances the headless agent-publish API returns a 404 — a per-instance provisioning gap on Salesforce's side, not a Scout, CLI, or org-entitlement problem (agent compile, preview, and Agent Builder all work fine on the same org). Scout used to author a complete, validated agent and only hit the wall at the final publish step, with a cryptic error. Now it recognizes that specific 404, preserves your validated agent, and reports it honestly as "authored + validated, not yet live — commit via Builder UI" — with a runbook that walks you through taking it live (New Draft → drop in your real topics → reconcile action inputs against your flows/apex → Commit → Activate) and the exact evidence to file a Salesforce Support case for the instance. Orgs where headless publish works are unaffected.
+
 ## 2026-08-03
 
 - **Scout's Agentforce build/test/observe skills refreshed to Salesforce's latest — and a broken preview command on current Salesforce CLI is fixed.** The three bundled Agentforce skills are re-synced to Salesforce's v1.33 release. The one you'll feel: on Salesforce CLI 2.131.0 and newer, `sf agent preview` now requires an action-mode flag (`--simulate-actions` or `--use-live-actions`), and Scout's older copies left it off — so agent testing/preview would error out mid-run. Corrected. The refresh also folds in Salesforce's newer material (OWASP-style guardrail test mode, voice-agent observability, MCP-server management). As always, these come from Salesforce and ship verbatim.
