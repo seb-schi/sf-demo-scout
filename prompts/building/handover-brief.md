@@ -27,6 +27,12 @@ Synthesise from the change log — reassure the SE about what they do NOT own. E
 - Calibration applied (only if `discovery_notes` carries a `"Calibration applied:"` entry): [directive — reference query returned X, seed value computed as Y, spec literal was Z]
 - Agentforce smoke test: [pass/fail count from change log]
 
+**Built — Validate in Sonnet (Scout attempted these; finish them in this session)**
+Scout now attempts complex Apex and logic-complex screen flows autonomously, iterating against a build-time signal (Apex test pass; happy-path FlowTest). Where the signal did NOT go green within the bounded loop, the artifact was still deployed — but honestly reported unconfirmed, never "working." These are NOT platform limits; they are things you can finish right here by telling Claude what to fix (it reaches for `sf-flow`, `platform-apex-test-run`, and friends against your org). Include only what applies:
+- [ ] **Test-unvalidated Apex:** for each Apex class in the change log's "Issues Encountered" whose generated test failed or is low-coverage — review the logic and the test, then iterate in this session until it passes (or confirm the demo path works without it). The class IS deployed.
+- [ ] **Draft screen flows:** for each screen flow the change log lists as `Draft` (its happy-path FlowTest did not pass twice) — walk the logic, fix, re-run the test, and activate. A Draft flow will NOT fire on the org until activated.
+- [ ] **Screen-flow visual QA:** walk through each activated screen flow once in the Lightning UI (labels, button order, help text) — this has no metadata signal and is always a human-eyes step.
+
 **Your Setup (Salesforce UI — no API path)**
 These are Salesforce platform limits, not Scout gaps — the Metadata API does not expose these surfaces, so no tool can automate them. Populate from the spec's SE Manual Checklist + the change log's "SE Must Do Next":
 - [ ] [SE Manual Checklist items from spec + change log "SE Must Do Next", rephrased with Setup navigation paths where applicable]

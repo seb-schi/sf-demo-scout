@@ -230,8 +230,8 @@ Scope: anything beyond appending into an existing field section. Use when audit 
 - **Proves:** KP[1|2|3] — [one line: how this screen flow makes a KP land in the demo]
 - Plain English: [what the user sees and accomplishes]
 - Flow name: [ApiName], Type: Screen Flow
-- Screen count: [1-3 default; if 4-5, add SE justification sentence below]
-- SE justification (only if >3 screens): [why the extra screens are essential to the demo]
+- Screen count: [SE names the count — no hard cap; more screens = a longer one-time visual-QA walkthrough, already a named SE step]
+- Logic: [branching, cross-screen reactivity, and formula dependencies are all in scope — describe the flow's decision logic here]
 - Target object: [object for terminal DML, or "none" for display-only]
 - Screens (in order):
   - Screen 1: [label]
@@ -244,13 +244,14 @@ Scope: anything beyond appending into an existing field section. Use when audit 
   - If Get: queriedFields: [explicit list — never storeOutputAutomatically]
 - QuickAction wiring: [yes (label: [button label], layout: [active layout name from audit]) | no — SE will wire manually]
 - Smoke test: Scout auto-generates happy-path FlowTest; SE does a one-time visual walkthrough in the Lightning UI
-- Components outside the autonomous whitelist (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component, reactive-across-screens with formula deps, branching across screens) → move to SE Manual Checklist.
+- Components outside the autonomous whitelist (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) → move to SE Manual Checklist. This is a *no-build-time-signal* gate, not a complexity gate: these components have nothing a happy-path FlowTest can assert. Branching, cross-screen reactivity, and formula dependencies are NOT in this list — they are in scope (gated by the FlowTest; the flow stays Draft if it fails).
 
 ### Apex (if applicable)
 - ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
 - **Proves:** KP[1|2|3] — [one line: how this Apex makes a KP land in the demo]
 - Plain English: [description]
-- Name: [name], Object: [single], Logic: [steps]
+- Name: [name], Object(s): [single or multiple — cross-object is in scope], Logic: [steps]
+- Note: Scout authors a test and self-fixes via a bounded loop; if the test can't be made to pass, the class ships test-unvalidated and is handed to the SE for a Sonnet iteration (see the handover brief). No "too complex" refusal.
 
 ### LWC Components (if applicable)
 - ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
@@ -320,7 +321,7 @@ Scope: anything beyond appending into an existing field section. Use when audit 
 - [ ] Multi-agent orchestration (if applicable)
 
 ### Must Do Before Demo
-- [ ] Build orchestration flows and complex screen flows (components outside autonomous whitelist, branching across screens, reactive-across-screens with formula deps, LWC screen components)
+- [ ] Build orchestration flows (multi-day lifecycles) and any screen flow using a non-whitelisted component (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) — these have no build-time signal. (Branching / cross-screen reactivity / formula-dep screen flows and multi-class/cross-object Apex are now built autonomously and appear under "Built — validate in Sonnet" in the handover brief, NOT here.)
 - [ ] Screen-flow visual QA: walk through each autonomous screen flow once in the Lightning UI (labels, button order, help text read sensibly)
 - [ ] For scheduled flows: verify the Scheduled Jobs page (Setup → Scheduled Jobs) shows the next run time matching the spec
 - [ ] Complete Agentforce manual steps (channel assignment, production testing)

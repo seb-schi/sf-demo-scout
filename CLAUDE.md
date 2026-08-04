@@ -41,20 +41,20 @@ Four MCP servers may be configured: Salesforce DX + Salesforce Docs (declared in
 - Subflows (autolaunched flows invoked by a parent — deploy before the parent in the same phase)
 - Scheduled flows (SE names `<startDate>`, `<startTime>`, and `<frequency>` during sparring — demo-day precision)
 - Platform-event-triggered flows (SE confirms the `<eventType>` object exists in the audit or ships in the same deploy)
-- Simple Apex (single-trigger, single-object)
-- Simple LWC (demo-specific UI)
+- Apex (triggers, classes, invocable actions; multi-class and cross-object allowed). Autonomous within a bounded test-fix loop: Scout authors a test, runs it, and self-fixes via `platform-apex-test-run` (up to 3 iterations) → `platform-apex-logs-debug` on exhaustion. A failing / low-coverage test NEVER blocks the deploy — the class ships and is reported test-unvalidated for the SE to finish in Sonnet. No "complexity" cutoff: the gate is the test signal + the loop, not an undefined size label.
+- Simple LWC (demo-specific UI — complex/multi-component LWC stays SE Manual pending a dedicated signal-gated pass; LWC's visual half has no build-time loop)
 - Agentforce agents via Agent Script (subagents, actions, backing Apex, publish, activate, smoke test)
 
 ### Always Manual (SE Manual Checklist)
-- Complex screen flows (branching across screens, reactive across screens with formula dependencies, custom LWC screen components, File Upload, Repeater, Data Table, Kanban Board)
+- Screen flows using components OUTSIDE the autonomous whitelist (custom LWC screen components, File Upload/Preview, Repeater, Data Table, Kanban Board) — these have no build-time success signal a FlowTest can assert, so they stay manual. NOTE: branching, cross-screen reactivity, and formula-dependency logic are NOT manual — those are now Gated/autonomous (they deploy Draft-first and are gated by a happy-path FlowTest; the flow stays Draft if the test fails twice, so it never ships live-and-broken).
 - Orchestration flows (parent-child, sequential, conditional — multi-day lifecycles with assignees, not demo-day-viable as autonomous)
-- Complex Apex/LWC
+- Complex LWC (multi-component, heavy client-state, or visually-intensive UI) — pending a dedicated signal-gated pass. (Complex Apex is now Gated/autonomous via the test-fix loop — see the Gated list above.)
 - Multi-agent orchestration, channel assignment, production-scale load/volume agent testing (functional regression via Testing Center — `sf agent test` — is automated in Phase 3, not manual)
 - Classic Page Layout visual arrangement (field positioning, sections in App Builder / Page Layout editor)
 - Lightning Record Page authoring beyond simple new-page creation (repositioning sections on an existing page, custom LWC placement, tabsets, dynamic-form regions, conditional visibility — App Builder. Simple new RecordPage authoring is now Autonomous via `platform-flexipage-generate`.)
 - Lightning Record Page field-add when composition is `mixed`, `custom`, or `unretrievable` (drop into App Builder for visual confirmation)
 - Dashboards, OmniStudio (Lightning Reports are now Autonomous via `platform-report-generate` — see Autonomous list above)
-- Screen-flow visual QA (one-time walkthrough in a record page after Scout deploys)
+- Screen-flow visual QA (one-time walkthrough in a record page after Scout deploys) — deliberately manual: a screen flow's rendered UX (label wording, button order, help-text readability) has no metadata read-back or FlowTest signal, so this is the one screen-flow step that cannot be looped and is handed to the SE (see the "Built — validate in Sonnet" surface in the handover brief).
 
 ### NEVER Without Explicit SE Confirmation
 - Delete existing metadata or records

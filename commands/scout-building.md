@@ -157,6 +157,8 @@ Run the Phase Prep Procedure for Phase 1. After it returns, if critical items fa
 **SE gate before spawning.** List what will be deployed and ask:
 > "About to deploy: [plain English list]. Proceed? (yes/no)"
 
+**Runtime heads-up (add when the Phase 2 spec sections include multi-class/cross-object Apex OR a screen flow with branching / cross-screen reactivity / formula dependencies).** These build autonomously but iterate against a build-time signal — Scout writes and self-fixes an Apex test (up to 3 loop iterations), or deploys the flow as Draft and runs a happy-path FlowTest before activating — so the run can take several minutes per such artifact. Append one line to the gate so the SE opts in knowingly: *"Heads-up: this includes complex Apex / logic-heavy flows — Scout will iterate against tests, so this phase may take a few minutes per artifact. Anything the test loop can't confirm ships honestly (Apex flagged, flow left Draft) and lands in your handover brief's 'Built — Validate in Sonnet' list."* Omit the line entirely for simple Phase 2 builds — do not warn where there's nothing to iterate.
+
 If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 2.
 
 **Phase 2→3 Risk Review (if Phase 3 applies):** Before the Phase 3 SE gate, scan Phase 2's `discovery_notes`. For each discovery involving an object also used in Phase 3's Agentforce actions:

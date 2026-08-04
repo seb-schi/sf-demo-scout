@@ -122,7 +122,7 @@ Full procedure lives under `<!-- IF:LRP -->` in `${CLAUDE_PLUGIN_ROOT}/prompts/b
 
 ## Flow Rules (Phase 2)
 
-Autonomous-with-SE-gate flow scope matches `sf-flow`'s full trigger spectrum: record-triggered (before-save / after-save / before-delete; any object; cross-object DML allowed), screen flows (whitelist below), autolaunched flows, subflows, scheduled flows, and platform-event-triggered flows. Orchestration flows and complex screen flows route to SE Manual — if one reaches Phase 2, skip with reason "out of scope for autonomous deploy — SE Manual Checklist."
+Autonomous-with-SE-gate flow scope matches `sf-flow`'s full trigger spectrum: record-triggered (before-save / after-save / before-delete; any object; cross-object DML allowed), screen flows (see the component whitelist below), autolaunched flows, subflows, scheduled flows, and platform-event-triggered flows. Screen-flow logic complexity (branching, cross-screen reactivity, formula deps) is IN scope, with no hard screen-count cap. Only two things route to SE Manual, neither about complexity: (1) a screen using a component outside the whitelist (no FlowTest signal), and (2) orchestration flows (multi-day lifecycles, not demo-day-viable). If one reaches Phase 2, skip with reason "out of scope for autonomous deploy — SE Manual Checklist." Every autonomous screen flow deploys Draft-first, gated by the happy-path FlowTest — fail twice → stays Draft, never ships live-and-broken.
 
 ### All Flow Types
 1. Invoke the `sf-flow` skill before generating any Flow XML — it holds the 110-point validation checklist, the full asset template set, and reference guides.
@@ -176,8 +176,12 @@ Autonomous-with-SE-gate flow scope matches `sf-flow`'s full trigger spectrum: re
 
 ## Apex Rules (Phase 2)
 
-Scope: single-trigger, single-object. No cross-object Apex. No test classes
-(demo org context).
+Scope: triggers, classes, and invocable actions — multi-class and cross-object
+are in scope. No "complexity" cutoff; the gate is the test signal + the bounded
+fix-loop (`platform-apex-test-run` → `platform-apex-logs-debug`), not a size label.
+Author a test class for every class/trigger; a failing / low-coverage test is
+recorded in `issues` and NEVER blocks the deploy (the build ships test-unvalidated
+for the SE to finish in Sonnet).
 
 1. Invoke `platform-apex-generate` skill for generation rules.
 2. Run `run_code_analyzer` before deploying (if MCP available). Record any
