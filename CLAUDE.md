@@ -32,6 +32,7 @@ Four MCP servers may be configured: Salesforce DX + Salesforce Docs (declared in
 - List Views (`ListView` metadata — `platform-list-view-generate` skill)
 - Sharing Rules (record-level `sharingCriteriaRules` / `sharingOwnerRules` / `sharingGuestRules` — `platform-sharing-rules-generate` skill; autonomous for the rule metadata. ⚠️ Standard-object OWD is an SE manual prerequisite — Scout never changes org-wide defaults, because a standard-object `CustomObject` deploy redeploys the whole object and triggers sharing recalculation)
 - Simple Lightning Record Page authoring (new `RecordPage` FlexiPage: header + one/two-column field section + standard components — `platform-flexipage-generate` skill; complex authoring stays SE Manual)
+- Lightning Reports (`Report` metadata — Tabular / Summary / Matrix / Joined; columns, groupings, filters, charts, folder + `<folderShares>` — `platform-report-generate` skill; runs on a standard report type or a deployed Custom Report Type. Dashboards stay SE Manual)
 
 ### Gated (SE confirms once per category, then autonomous)
 - Record-triggered flows (before-save, after-save, before-delete; any trigger object; cross-object DML allowed)
@@ -52,7 +53,7 @@ Four MCP servers may be configured: Salesforce DX + Salesforce Docs (declared in
 - Classic Page Layout visual arrangement (field positioning, sections in App Builder / Page Layout editor)
 - Lightning Record Page authoring beyond simple new-page creation (repositioning sections on an existing page, custom LWC placement, tabsets, dynamic-form regions, conditional visibility — App Builder. Simple new RecordPage authoring is now Autonomous via `platform-flexipage-generate`.)
 - Lightning Record Page field-add when composition is `mixed`, `custom`, or `unretrievable` (drop into App Builder for visual confirmation)
-- Reports, dashboards, OmniStudio
+- Dashboards, OmniStudio (Lightning Reports are now Autonomous via `platform-report-generate` — see Autonomous list above)
 - Screen-flow visual QA (one-time walkthrough in a record page after Scout deploys)
 
 ### NEVER Without Explicit SE Confirmation

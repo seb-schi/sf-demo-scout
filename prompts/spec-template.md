@@ -152,6 +152,21 @@ Scope: a report type exposing one primary object + up to 3 related objects (4 to
   - [Related Object]: section label "[masterLabel]", fields:
     - [Field__c] → checked / unchecked
 
+### Reports (if applicable)
+Scope: a Lightning Report (`.report-meta.xml`) in a folder (the `platform-report-generate` skill). Reports run on a standard report type (e.g. `Opportunity`, `CaseList`, `LeadList`, `AccountList`) or a deployed Custom Report Type from the section above. Columns use platform report column names, NOT raw API field names.
+- Report: [Report Name (max 40 chars)], API/DeveloperName: [DeveloperName]
+- Folder: [FolderName] — [new (Scout creates it + AllInternalUsers share) | existing (Scout deploys the report only, does not touch the folder)]
+- Report type: [Opportunity | CaseList | LeadList | AccountList | ... standard | deployed Custom Report Type DeveloperName]
+- Format: [Tabular | Summary | Matrix | Joined]
+- Columns (platform column names — see the skill's `references/column-names.md`; e.g. `STAGE_NAME`, `AMOUNT`, `CLOSE_DATE`):
+  - [COLUMN_NAME] → optional aggregate: [Sum | Average | Max | Min] (aggregates need Summary/Matrix)
+- Groupings (Summary/Matrix only; a grouping field must NOT also be a column):
+  - Down: [COLUMN_NAME] → [date granularity if a date] → [Asc | Desc]
+  - Across (Matrix only): [COLUMN_NAME]
+- Filters (optional): [COLUMN_NAME] [operator: equals/notEqual/contains/...] [value — comma-separate for multi-value picklist in ONE item]
+- Time frame (optional): [dateColumn] over [interval — e.g. INTERVAL_CURRENT (this quarter), INTERVAL_CURY (this year), INTERVAL_LAST30]
+- Chart (optional, Summary/Matrix only): [chart type — see the skill's `references/chart-types.md`]
+
 ### Lightning Record Page — Authoring (Autonomous, simple pages only)
 Scope: a NEW simple `RecordPage` FlexiPage — header + one/two-column field section + standard components. Complex authoring (dynamic forms, custom LWC placement, tabsets, conditional visibility) stays SE Manual below.
 - FlexiPage DeveloperName: [ApiName]

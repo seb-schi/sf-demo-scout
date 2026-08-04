@@ -164,3 +164,8 @@ skills:
   - name: platform-custom-report-type-generate
     source: afv
     path: skills/platform-custom-report-type-generate
+
+  # ── NEW 2026-08-04: Lightning Reports (afv/main, sf-skills v1.33.0) ──
+  - name: platform-report-generate
+    source: afv
+    path: skills/platform-report-generate
