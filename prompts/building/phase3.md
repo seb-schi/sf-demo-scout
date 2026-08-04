@@ -44,7 +44,7 @@ Role and Company were both blank on the shipped agent). Pull `Role:` and `Compan
 Agentforce section; if the spec omits either, derive a sensible value (Role from the agent's purpose,
 Company from the customer name + audit context) rather than leaving it blank. Confirm both are present
 in the `.agent` config before `sf agent publish`.
-1. Invoke `agentforce-generate` skill — follow its "Create an Agent" workflow.
+1. Invoke `agentforce-generate` skill — follow its "Create an Agent" workflow. **Before declaring any action's inputs/outputs, retrieve the live backing interfaces so authored I/O matches the real schema** — `sf project retrieve start -m Flow:<name>` (read `<variables>` name / isInput / isOutput / dataType) and `sf project retrieve start -m ApexClass:<name>` (read `@InvocableVariable` names / types). Two recurring mismatches the publish/commit compiler rejects: (1) a Flow input often carries a prefix (e.g. `inp_<Name>`) — bind the exact name, not a guessed camelCase; (2) a Flow **Currency** output must be declared `object` with `complex_data_type_name: "lightning__currencyType"`, not `number`. Matching up front de-risks both headless publish and (on a 404 instance) the Builder UI commit (see step 6b).
 2. Check for existing agents via `retrieve_metadata` — flag conflicts in `issues`.
 3. Run `run_code_analyzer` on Apex backing actions (if MCP available).
 4. Validate via `sf agent validate authoring-bundle` before publishing.
