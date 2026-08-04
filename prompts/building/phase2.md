@@ -261,6 +261,13 @@ Key rules:
 - Inner classes for Input/Output (not top-level classes)
 - `List<>` wrapping on method params AND return type (bulkification contract)
 - Loop over inputs — do not use `inputs[0]` shortcut
+- **Never requery a just-inserted record for a system field (e.g. `CaseNumber`) under `WITH USER_MODE`.**
+  Post-insert automation (assignment / routing rules) can reassign the new record's owner to a queue the
+  running user can't see, so a `WITH USER_MODE` requery returns **0 rows** → NPE on the field access →
+  your catch block reports a *successful* DML as a failure. Requery a system field you just wrote in
+  **system context** (you own the value; reading it back is safe) and **null-guard** the result so a
+  missing row degrades to a success-without-number message, never an NPE. A generic catch-block error is
+  NOT proof the DML failed — confirm the row before the agent tells the user "we hit an issue."
 
 **Dynamic SOQL pattern (for managed/industry objects).** When the spec's Platform Constraints flag an object (IsEverCreatable=false, managed namespace, etc.), use dynamic SOQL with bind variables — never static type references:
 ```java

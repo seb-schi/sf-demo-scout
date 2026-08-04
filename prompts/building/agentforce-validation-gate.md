@@ -2,13 +2,24 @@
 
 A coherent conversation is NOT proof an agent works. An agent may be reported `Active` (it deployed
 and published) but it must NOT be reported `validated` / `working` unless at least one of its actions
-has been **confirmed to fire**. "Confirmed to fire" means ONE of:
-- the real record write the action performs is observed in the org (SOQL the target record), OR
-- an event-log row shows the action executed (a `FunctionStep` in `ConversationDefinitionEventLog`).
+has been **confirmed to fire with a real side-effect**. "Confirmed to fire" requires an
+**org-verified side-effect delta against a pre-state you set yourself** — the strongest, and the only
+fully reliable, proof:
+- SET a known pre-state (create the target record with a sentinel field value, or note "0 Cases for
+  this contact"), drive the hero utterance, then RE-QUERY and confirm the delta (row-count increased,
+  or the field mutated from your sentinel to the expected value). A record that merely *exists* is
+  NOT proof — it may predate the turn.
+- An event-log `FunctionStep` row in `ConversationDefinitionEventLog` proves the action was *invoked*,
+  but NOT that it *succeeded* — a backing action can fire and then fail downstream on a RecordType, a
+  dependency read, or a license wall (layers 3/4/5 in phase3's Running-User Backing-Action Access
+  section) and still leave a row. Treat the event-log row as necessary-but-not-sufficient whenever the
+  action has a side effect: pair it with the delta check. (An event-log row alone is acceptance ONLY
+  for a read-only / answer action that has no side effect.)
 
-A green conversation where the agent SAYS it will act, with no record change and no event-log row,
-is explicitly NOT acceptance. This is the exact failure that shipped here once: the agent narrated
-"I'll flag it" on every channel and never invoked the action.
+A green conversation where the agent SAYS it will act, with no verified delta, is explicitly NOT
+acceptance. This is the exact failure that shipped here twice: first the agent narrated "I'll flag it"
+on every channel and never invoked the action; later it invoked the action but silently failed
+downstream and still replied fluently.
 
 ### Fallback ladder (try in order; stop at the first that yields a confirmed invocation)
 1. **CLI preview + traces** — `sf agent preview start --use-live-actions` then send an utterance that
@@ -27,6 +38,22 @@ is explicitly NOT acceptance. This is the exact failure that shipped here once: 
    run as the logged-in/Run-As user; use `bypassUser: false` on the `/sessions` call (NOT `true` —
    public docs say `true` for client-credentials, but that assumes a Service Agent with an assigned
    agent-user; an Employee Agent has `BotUserId=null` and `true` throws "Invalid user ID").
+
+### Why a Service-Agent action didn't fire — read the trace, don't infer
+When an `AgentforceServiceAgent` (dedicated running user) replies coherently but the delta check above
+shows NO side-effect, the cause is almost always the running-user access stack, and the preview trace
+tells you which layer — read it before re-authoring anything:
+- **`EnabledToolsStep.runtime_withheld_actions`** — if the hero action appears here with
+  `NO_USER_ACCESS`, it was never offered to the LLM (layer 1): the running user lacks
+  `SetupEntityAccess` on the backing Apex/Flow. Fix in phase3's Running-User Backing-Action Access
+  grant, NOT by editing the agent.
+- **The action's passed inputs in the trace** — if the action fired with an input empty/null that
+  should have been slot-filled, it was wired as a `boundInput` (`with X = @variables.Y`) that nothing
+  populated, instead of an `llmInput` (`with X = ...`). This is an authoring fix in the `.agent`, not
+  an access grant.
+Record which layer the trace implicated in `discovery_notes`. A missing side-effect with a clean
+`runtime_withheld_actions` AND populated inputs points downstream (layers 3/4/5 — RecordType,
+dependency read, or license wall).
 
 ### Agent-type note (do not mis-diagnose a missing permset as the blocker)
 Before treating a runtime/preview error as an access problem, check the deployed agent TYPE.
@@ -57,7 +84,9 @@ agent complete.
 
 ### Reporting
 Set `smoke_test.action_invocation_confirmed = true` ONLY when the ladder yielded a confirmed
-invocation per the acceptance definition above. If no rung confirmed an invocation, set it `false`,
+side-effect delta per the acceptance definition above (an invocation with no verified delta is NOT
+enough for an action that has a side effect; an event-log row alone suffices only for a read-only
+action). If no rung confirmed the required proof, set it `false`,
 record which rungs were tried (with the verbatim error) in `discovery_notes`, and report the agent
 as NOT validated — NOT "Active/working." A `false` value does not block the deployment from
 completing; it ensures the SE sees an honest "deployed but unvalidated — hero action never confirmed

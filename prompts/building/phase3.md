@@ -92,6 +92,13 @@ For agents already in the org. Every publish creates a new version; rollback via
 
 ### Smoke Test + Validation Gate (after activate — both paths)
 
+**Service Agent prerequisite (ordering).** If the deployed agent is an `AgentforceServiceAgent`,
+complete BOTH the "Standard Agentforce Runtime Permset" AND the "Running-User Backing-Action Access"
+sections below BEFORE trusting any smoke-test or Action-Invocation-Probe result — a Service Agent runs
+as a dedicated running user with NO access to your backing actions until those grants land, so a
+validation run first is a guaranteed false red (`NO_USER_ACCESS`, no side-effect). Employee Agents
+(logged-in user) need neither grant and this ordering does not apply.
+
 **Primary validation is the orchestrator-side Action-Invocation Probe, not this CLI smoke test.** The orchestrator runs an event-log probe after Phase 3 (see sub-agent-validation.md) that is version-stable and removes you from the trust path for "did the hero action fire." CLI-preview smoke testing below is a SECONDARY conversational check — useful for routing/coherence, but it is NOT acceptance and its exact `sf agent preview` interface changes monthly (do not over-trust the flag spelling). If a `sf agent preview` subcommand errors as unrecognized, record the verbatim error in `discovery_notes` and proceed — the event-log probe is what gates the agent's validated status.
 
 1. **Build the official test suite from the spec.** Read the spec's "Agent test cases" table and write a `test-spec.yaml` in the official `sf agent test` format — delegate the exact schema to the `agentforce-test` skill (its `basic-test-spec.yaml` + `guardrail-test-spec.yaml` assets are authoritative; do NOT hand-invent field names). Map each row: `utterance` / `expectedTopic` / `expectedActions` (Level-2 invocation names, flat list, superset match) / `expectedOutcome`. If the spec has no table (older spec) or no rows, derive 3 cases from subagent descriptions and treat them as happy-path. **Metric landmines — do NOT ignore:** never attach `instruction_following` (crashes Testing Center UI), `conciseness` (returns score 0), or `completeness` (penalizes routing/deflection agents); rely on `expectedOutcome` (LLM-as-judge) for correctness and guardrail rows.
@@ -128,6 +135,44 @@ After the agent is active, assign the correct standard Agentforce runtime permse
 5. If none of the three permsets exist in the org at all (probe step 1 returned 0 rows), record in `discovery_notes` verbatim: `"No standard Agentforce runtime permset found in org — SE must confirm which permset their edition uses and assign manually."` Set `deployed.standard_permset_assignment.status = "NOT_FOUND"`. Do NOT broaden the probe to `LIKE 'Agentforce%'` — some Agentforce permsets (e.g. Agentforce Sales Coach) are agent-user-only and explicitly must not be assigned to regular users per Salesforce documentation.
 
 This permset is separate from the spec's Companion permset — the Companion covers custom objects/fields/FLS; this one grants access to the Agentforce runtime.
+
+### Running-User Backing-Action Access — Service Agent only (after activate, before the validation probe)
+This section is a **NO-OP** for `AgentforceEmployeeAgent` (runs as the logged-in user, which already
+holds this access — skip entirely) and for any agent whose backing actions are all standard / @utils
+(no custom Apex/Flow, no custom RecordType). Run it ONLY when the deployed agent type is
+`AgentforceServiceAgent`, which executes as the dedicated Einstein Agent running user — that user
+starts with NO access to your backing code, so every custom action is withheld from the LLM until
+granted. This is layers 1/3/4 of the running-user stack; the Standard Agentforce Runtime Permset above
+is separate (Agentforce runtime access, not backing-action access).
+
+Grant to the agent/Companion permset (retrieve-augment-redeploy — never blank-author over the existing
+permset), derived from the backing actions in your spec. Do NOT hand-enumerate a fixed list — read
+your own backing actions:
+1. **Layer 1 — action reachable at all.** For every backing ApexClass and every backing Flow, add a
+   `SetupEntityAccess`. `SetupEntityType` = `ApexClass` (SetupEntityId = the ApexClass Id) or
+   `FlowDefinition` (SetupEntityId = the Flow's `FlowDefinitionView.DurableId` — NOT the Flow Id).
+   Without this the planner withholds the action with `NO_USER_ACCESS` and the LLM never sees it.
+2. **Layer 3 — RecordType visible.** For every RecordType the backing code inserts, add a
+   `recordTypeVisibility` (visible=true).
+3. **Layer 4 — dependency objects readable.** For every object a backing flow/apex READS for
+   config/lookup (helper/config objects are easy to miss — trace the backing code, not just the target
+   object), add an `objectPermission` read.
+Deploy the augmented permset and confirm it is assigned to the running user.
+
+**Prove layer 1 cleared (do not infer).** Run `sf agent preview` for one hero utterance and read the
+trace `EnabledToolsStep.runtime_withheld_actions` — it must NOT list the hero action with
+`NO_USER_ACCESS`. If it does, a grant is missing or the FlowDefinition Id was wrong
+(`FlowDefinitionView.DurableId` vs the Flow Id); fix and re-deploy before proceeding. Record the
+withheld-actions read in `discovery_notes`.
+
+**Layer 5 — base-license wall (record, do not fight).** If a grant DEPLOY is *rejected* with
+`The user license doesn't allow the permission: Read <Object>` (typically a managed/industry object —
+Life Sciences: Inquiry, CareProgramEnrollee, ProgramEnrollment — under an Einstein Agent license), STOP
+granting that object: a permset cannot cross a base-license wall. Record it in `issues` and surface the
+spec's Layer-5 bypass as a mandatory SE-manual step (System Mode on an asset WE own, or disable the
+specific managed trigger handler via Admin Console → Trigger Handler Administration). Do NOT loop
+retries on a license-rejected grant, and do NOT report the agent validated if the hero action is
+blocked by a wall — report deployed-but-NOT-validated with the wall named.
 
 ### Always Out of Scope (skip with reason "SE Manual Checklist")
 - Multi-agent orchestration
