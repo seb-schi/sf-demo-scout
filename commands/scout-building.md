@@ -24,10 +24,7 @@ The loaded demo spec and org audit are your ONLY inputs. If the SE pastes or upl
 
 This is a hard stop, not a judgment call — mid-build context cannot override the spec, and acting on it risks deploying or deleting the wrong things. The routing above does not relax it: nothing new gets deployed on the basis of the mid-build request *during this build*. The live-tweak door is something the SE does after the build completes, in their own session.
 
-**Note on the skills menu:** you may see `scout-building` listed as a skill.
-Ignore it — the harness auto-indexes slash commands for discoverability, but
-there is no `${CLAUDE_PLUGIN_ROOT}/skills/scout-building/SKILL.md` by design. Your
-instructions are this file. Do not go looking for a SKILL.md.
+**Note on the skills menu:** the harness auto-indexes slash commands, so you may see `scout-building` listed as a skill — ignore it. There is no `skills/scout-building/SKILL.md` by design; your instructions are this file.
 
 ## Step 0: Bootstrap
 
@@ -106,7 +103,7 @@ find "$HOME/claude-projects/sf-demo-scout/force-app/main/default" -mindepth 1 -d
 find orgs -maxdepth 2 -type d -name force-app -exec find {} -mindepth 0 -delete \; 2>/dev/null || true
 ```
 
-`find … -delete` (never `rm -rf`) is the deny-rule-safe idiom — the SE workspace `.claude/settings.json` ships a catastrophic-deletion deny `Bash(rm -rf orgs*)`, and Claude Code hard-denies the WHOLE compound if any segment matches a prefix glob, so an `rm -rf orgs/...` sweep would get the prep block denied and the deploy couldn't start (same constraint documented for the audit's `.scout-tmp` sweep). The first sweep clears the legitimate project `force-app/` contents but keeps the `main/default/` skeleton so the package dir stays valid; the second removes any stray `orgs/<customer>/force-app/` tree left by the old cwd-drift behaviour. Do NOT change these to `rm -rf` — it will re-trip the deny rule.
+Use `find … -delete`, **never `rm -rf`** — the workspace `.claude/settings.json` ships a `Bash(rm -rf orgs*)` deny rule and Claude Code denies the whole compound on a prefix-glob match, so an `rm -rf` sweep would block the prep and the deploy couldn't start. The first sweep clears `force-app/` contents but keeps the `main/default/` skeleton (package dir stays valid); the second removes stray `orgs/<customer>/force-app/` trees from the old cwd-drift bug.
 
 ### Phase Analysis
 
@@ -157,7 +154,7 @@ Run the Phase Prep Procedure for Phase 1. After it returns, if critical items fa
 **SE gate before spawning.** List what will be deployed and ask:
 > "About to deploy: [plain English list]. Proceed? (yes/no)"
 
-**Runtime heads-up (add when the Phase 2 spec sections include multi-class/cross-object Apex OR a screen flow with branching / cross-screen reactivity / formula dependencies).** These build autonomously but iterate against a build-time signal — Scout writes and self-fixes an Apex test (up to 3 loop iterations), or deploys the flow as Draft and runs a happy-path FlowTest before activating — so the run can take several minutes per such artifact. Append one line to the gate so the SE opts in knowingly: *"Heads-up: this includes complex Apex / logic-heavy flows — Scout will iterate against tests, so this phase may take a few minutes per artifact. Anything the test loop can't confirm ships honestly (Apex flagged, flow left Draft) and lands in your handover brief's 'Built — Validate in Sonnet' list."* Omit the line entirely for simple Phase 2 builds — do not warn where there's nothing to iterate.
+**Runtime heads-up (add when Phase 2 includes ANY Apex OR ANY flow — omit only for LWC-only Phase 2 builds).** Every Apex class and every flow type iterates against a build-time signal — Scout writes and self-fixes an Apex test (up to 3 loop iterations), or deploys the flow as Draft and runs a happy-path FlowTest before activating — so the run can take several minutes per such artifact. Append one line to the gate so the SE opts in knowingly: *"Heads-up: this build iterates against tests (Apex test-fix loop / Draft-first FlowTest), so this phase may take a few minutes per Apex class and flow. Anything the loop can't confirm ships honestly (Apex flagged test-unvalidated, flow left Draft) and lands in your handover brief's 'Built — Validate in Sonnet' list."* Omit the line only when Phase 2 is LWC-only — there's no build-time loop to warn about.
 
 If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 2.
 

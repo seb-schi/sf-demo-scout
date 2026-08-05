@@ -249,11 +249,11 @@ Surface inline:
 
 ## g.7: Scrub stale AI-Suite hooks (self-heal)
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its procedure. Ex-AI-Suite machines carry hook registrations under `~/.aisuite/` that throw every turn once AI Suite is uninstalled — and because that residue is not written by Scout, it exists even on a Scout-fresh install. The fragment removes only those hook entries from the two `~/.claude` settings JSON files and surfaces (without touching) any leftover aisuite cert path or plugin/marketplace config. Idempotent, safe-fail, never aborts. Carry any `AISUITE_HOOKS_REMOVED` / `FLAGS` note into the closing message.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its procedure (the fragment carries the full "why"). Carry any `AISUITE_HOOKS_REMOVED` / `FLAGS` note into the closing message — a hook removal means a CC restart is pending.
 
 ## g.8: Strip stale model pins across all surfaces (self-heal)
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure. Various Salesforce tools (AI Suite, DevBar, etc.) hard-pin `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` / `modelOverrides`, sometimes erroneously, which collapses the `/model` picker so the SE can't reach newer models (e.g. Opus 4.8) — and because that residue is not written by Scout, it exists even on a Scout-fresh install. The fragment removes those pins (plus the retired `MAX_THINKING_TOKENS` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS`) from the two `~/.claude` settings JSON files, VS Code's user settings, and launchctl GUI env. Idempotent, safe-fail, never aborts. Carry any `PINS_REMOVED[...]` / `VSCODE_PINS_REMOVED` / `LAUNCHCTL_PINS_CLEARED` / VS-Code-restore-or-warn note into the closing message (a restart, and possibly a manual VS Code edit, is pending).
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure (the fragment carries the full "why"). Carry any `PINS_REMOVED[...]` / `VSCODE_PINS_REMOVED` / `LAUNCHCTL_PINS_CLEARED` / VS-Code-restore-or-warn note into the closing message — a restart, and possibly a manual VS Code edit, is pending.
 
 ## g.5: Ensure marketplace autoUpdate is enabled
 
@@ -314,11 +314,11 @@ Surface inline:
 
 ## h: Slack MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it with `mode=soft`. The prompt handles registration + auth probe; it never aborts setup — any failure surfaces a loud "Slack not connected — X will be skipped, re-run anytime" notice and returns. (The `SLACK_MCP_REGISTERED` branch still returns so the SE can `/reload-plugins`.)
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it. The prompt handles registration + auth probe; it never aborts setup — any failure surfaces a loud "Slack not connected — X will be skipped, re-run anytime" notice and returns. (The `SLACK_MCP_REGISTERED` branch still returns so the SE can `/reload-plugins`.)
 
 ## h.5: Google Workspace MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it with `mode=soft`. Optional discovery enhancement (read Docs/Sheets during sparring); gated behind the DevBar `mcp-adaptor` binary. Never aborts — if the binary is absent or auth is pending, it surfaces a note and returns.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it. Optional discovery enhancement (read Docs/Sheets during sparring); gated behind the DevBar `mcp-adaptor` binary. Never aborts — if the binary is absent or auth is pending, it surfaces a note and returns.
 
 ## i: Write config.json
 

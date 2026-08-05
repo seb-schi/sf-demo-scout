@@ -1,7 +1,6 @@
 # Setup — Slack MCP (registration + auth probe)
 
-The orchestrator passes one parameter:
-- `mode` — `strict` or `soft`. BOTH now behave soft: any failure surfaces a loud note and returns (never aborts setup). Slack powers canvas/channel lookups during sparring and the post-deployment handover canvas — valuable, but the runtime already degrades gracefully when Slack is absent, so setup should not hard-block on it either. The `mode` param is retained for signature/compat; treat `strict` as soft-but-loud.
+This prompt takes no parameters. Any failure surfaces a loud note and returns (never aborts setup). Slack powers canvas/channel lookups during sparring and the post-deployment handover canvas — valuable, but the runtime already degrades gracefully when Slack is absent, so setup should not hard-block on it either.
 
 Slack MCP is user-scope (lives in `~/.claude.json`, not `plugin.json`) because it requires per-SE OAuth. The OAuth `client-id` and `callback-port` are required for the auth flow to work — bare URL is not enough. Lifted from pre-plugin `install.sh` §7.
 
@@ -25,13 +24,8 @@ fi
 Surface inline:
 
 - `SLACK_MCP_ALREADY_REGISTERED` — silent. Proceed to Step 2.
-- `SLACK_MCP_REGISTERED` — Slack was just registered mid-session. The `/mcp` TUI uses an in-memory snapshot taken at session start and won't show the new server until plugins reload. **EXIT to reload regardless of mode** (not a failure — the TUI snapshot blocks the auth flow until `/reload-plugins`, so setup pauses here and resumes on re-run):
+- `SLACK_MCP_REGISTERED` — Slack was just registered mid-session. The `/mcp` TUI uses an in-memory snapshot taken at session start and won't show the new server until plugins reload. **EXIT to reload** (not a failure — the TUI snapshot blocks the auth flow until `/reload-plugins`, so setup pauses here and resumes on re-run):
   > "Registered Slack MCP. Run `/reload-plugins` now, then run `/mcp`, select 'slack', and select 'Authenticate'. Choose 'Salesforce Internal' from the Workspace dropdown menu, then select 'Allow'.
-  >
-  > Once finished, return here and re-run `/scout-setup` to finish up."
-
-  In `soft` mode the message wording shifts slightly (refresh path is heal-when-broken):
-  > "Re-registered Slack MCP (was missing — likely manual removal). Run `/reload-plugins` now, then run `/mcp`, select 'slack', and select 'Authenticate'. Choose 'Salesforce Internal' from the Workspace dropdown menu, then select 'Allow'.
   >
   > Once finished, return here and re-run `/scout-setup` to finish up."
 

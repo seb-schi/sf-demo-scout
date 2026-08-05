@@ -1,12 +1,10 @@
 # Setup — Google Workspace MCP (registration + auth probe)
 
-The orchestrator passes one parameter:
-- `mode` — `strict` or `soft`. BOTH behave soft here: any failure surfaces a
-  loud note and returns (never aborts setup). The Google Workspace MCP is an
-  optional discovery enhancement (read Docs/Sheets during sparring), not a
-  spine-critical prereq — and its `mcp-adaptor` binary is DevBar/T&P-gated, so
-  many SEs will not have it. Hard-aborting setup over it would dead-end those
-  SEs. The `mode` param is kept for signature parity with `slack-mcp.md`.
+This prompt takes no parameters. Any failure surfaces a loud note and returns
+(never aborts setup). The Google Workspace MCP is an optional discovery
+enhancement (read Docs/Sheets during sparring), not a spine-critical prereq —
+and its `mcp-adaptor` binary is DevBar/T&P-gated, so many SEs will not have it.
+Hard-aborting setup over it would dead-end those SEs.
 
 Google Workspace MCP is user-scope (lives in `~/.claude.json`). It bridges via
 the DevBar `mcp-adaptor` binary against the Salesforce QuantumK gateway.

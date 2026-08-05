@@ -94,11 +94,11 @@ truth; do not infer "updated" from the fact that an install command ran):
 
 ## c: Slack MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it with `mode=soft`. The prompt handles registration heal + auth probe; in soft mode failures surface notes and continue (heal-when-broken semantics). The `SLACK_MCP_REGISTERED` branch still returns (TUI snapshot needs `/reload-plugins`).
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it. The prompt handles registration heal + auth probe; failures surface notes and continue (heal-when-broken semantics). The `SLACK_MCP_REGISTERED` branch still returns (TUI snapshot needs `/reload-plugins`).
 
 ## c.5: Google Workspace MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it with `mode=soft`. Heals the registration if the binary is present; surfaces a note and returns if the `mcp-adaptor` binary is absent or auth is pending. Never aborts.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it. Heals the registration if the binary is present; surfaces a note and returns if the `mcp-adaptor` binary is absent or auth is pending. Never aborts.
 
 ## d: Refresh .zshrc managed block
 
@@ -106,7 +106,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/zshrc-block.md` and execute it. Captur
 
 ## d.7: Strip stale model pins across all surfaces (self-heal)
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure. It removes stale model pins (`ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` + `modelOverrides`) and the two retired knobs (`MAX_THINKING_TOKENS`, `CLAUDE_CODE_MAX_OUTPUT_TOKENS`) from the two `~/.claude` settings JSON files, VS Code's user settings (JSONC, backup/validate/restore), and launchctl GUI env — freeing the `/model` picker and clearing the output-length value Scout used to set. The `.zshrc` surface is handled by step d (`zshrc-block.md` sweeps these as out-of-block stragglers). Idempotent, safe-fail, never aborts. Carry any `PINS_REMOVED[...]` / `VSCODE_PINS_REMOVED` / `LAUNCHCTL_PINS_CLEARED` / VS-Code-restore-or-warn result into the done summary — the SE has a restart (and possibly a manual VS Code edit) pending.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure (the fragment carries the full "why"; the `.zshrc` surface is handled by step d, where `zshrc-block.md` sweeps these keys as out-of-block stragglers). Carry any `PINS_REMOVED[...]` / `VSCODE_PINS_REMOVED` / `LAUNCHCTL_PINS_CLEARED` / VS-Code-restore-or-warn result into the done summary — the SE has a restart (and possibly a manual VS Code edit) pending.
 
 ## d.75: Repair stale MCP tool-name prefixes (self-heal)
 
@@ -119,7 +119,7 @@ Surface inline:
 
 ## d.8: Scrub stale AI-Suite hooks (self-heal)
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its procedure. It removes only `~/.aisuite/`-rooted hook entries (which throw every turn once AI Suite is uninstalled) from the two `~/.claude` settings JSON files, and surfaces — without touching — any leftover aisuite cert path or plugin/marketplace config. Idempotent, safe-fail, never aborts. If it emitted any `AISUITE_HOOKS_REMOVED` or `FLAGS`, carry that note into the done summary (a hook removal means a CC restart is pending).
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its procedure (the fragment carries the full "why"). If it emitted any `AISUITE_HOOKS_REMOVED` or `FLAGS`, carry that note into the done summary — a hook removal means a CC restart is pending.
 
 ## Done
 

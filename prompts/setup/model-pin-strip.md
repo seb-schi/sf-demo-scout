@@ -1,13 +1,15 @@
 # Setup — Model-Pin Strip (self-heal)
 
 Read + executed by both `fresh-install.md` and `refresh.md`. Frees the `/model`
-picker on every surface by removing stale model pins. These pins are injected by
-various Salesforce tools (AI Suite, DevBar, etc.), sometimes erroneously, and
-they collapse the picker so the SE can't reach newer models (e.g. Opus 4.8).
-Because that residue is NOT written by Scout, it lands on Scout-FRESH machines
-too — so this runs on the fresh path as well as refresh.
-
-Older Scout/aisuite installs — and other Salesforce tools (AI Suite, DevBar, etc.) — hard-pin three model env vars (`ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL`) and/or a `modelOverrides` block across several config surfaces, sometimes erroneously. Claude Code collapses the `/model` picker to those pins, hiding newer models (e.g. Opus 4.8). Scout no longer writes any of them (since 2026-06-02), so on existing installs they're pure stale state. This step REMOVES them from every surface so the SE gets the full model list in both terminal and VS Code — it never writes a model value (Scout is out of model selection; the `/scout-sparring` and `/scout-building` gate is the only nudge, and the SE picks via `/model`). It also strips two retired knobs (see the PIN_KEYS note below): `MAX_THINKING_TOKENS` (a no-op on adaptive-thinking models and a 400-error landmine on gateway version skew) and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` (retired 2026-07-27 — Scout no longer sets an output-length value anywhere; CC's own default applies). Both are removed like stale pins. **Removal set is exactly the 3 model keys + `modelOverrides` + `MAX_THINKING_TOKENS` + `CLAUDE_CODE_MAX_OUTPUT_TOKENS`. Auth, gateway, and OTEL keys are NEVER touched.** Idempotent, safe-fail.
+picker by removing stale model pins that various Salesforce tools (AI Suite,
+DevBar, etc.) inject, sometimes erroneously — they collapse the picker so the SE
+can't reach newer models. That residue is NOT written by Scout, so it lands on
+Scout-FRESH machines too; this runs on both the fresh and refresh paths.
+**Removal set is exactly the 3 model keys (`ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL`)
++ `modelOverrides` + the two retired knobs `MAX_THINKING_TOKENS` and
+`CLAUDE_CODE_MAX_OUTPUT_TOKENS`. Auth, gateway, and OTEL keys are NEVER touched;
+Scout never writes a model value.** The per-knob retirement rationale lives in the
+`PIN_KEYS` comments below. Idempotent, safe-fail.
 
 The `.zshrc` surface is handled separately by the dispatching prompt's managed-block refresh (`zshrc-block.md` sweeps these keys as out-of-block stragglers). This fragment covers the two `~/.claude` JSON files, VS Code's settings, and launchctl.
 
