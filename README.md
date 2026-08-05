@@ -92,12 +92,12 @@ it can't verify.
 
 | Scout handles automatically | SE judgement takes over |
 |---|---|
-| Custom objects, fields, record types | Complex / multi-screen & orchestration flows |
-| Permission sets (incl. companion sets) | Complex page-layout visual arrangement |
-| Lightning apps, tabs, queues | Dashboards, Data 360, Tableau, OmniStudio |
-| Record-triggered, screen & scheduled flows | Multi-agent orchestration & channel assignment |
-| Apex & simple LWC (bounded test-fix loop) | Anything with no readable success signal |
-| Agentforce agents (deploy, activate, smoke-test) | Anything destructive, without explicit confirmation |
+| Custom objects, fields, record types | Orchestration flows (multi-day lifecycles) |
+| Permission sets (incl. companion sets) | Screen flows using non-whitelisted custom components |
+| Lightning apps, tabs, queues, reports | Complex / visually-intensive LWC |
+| Flows — record-triggered, screen (branching, cross-screen), scheduled | Multi-agent orchestration & channel assignment |
+| Apex — multi-class, cross-object (bounded test-fix loop) | Page-layout visual arrangement, dashboards, OmniStudio |
+| Agentforce agents (deploy, activate, smoke-test) | Anything with no signal to loop against — or anything destructive, without confirmation |
 
 **Showtime** mode collapses the loop for live discovery: it turns a
 conversation happening in front of the customer into a scoped, deployed
