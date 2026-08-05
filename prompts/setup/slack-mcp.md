@@ -30,7 +30,7 @@ Surface inline:
   > Once finished, return here and re-run `/scout-setup` to finish up."
 
   Skip Step 2 on this branch — the TUI doesn't have the row yet, so probing is pointless.
-- `SLACK_MCP_REGISTRATION_FAILED` — surface and CONTINUE to Step 2 (both modes):
+- `SLACK_MCP_REGISTRATION_FAILED` — surface and CONTINUE to Step 2:
   > "⚠️ Slack MCP registration failed — canvas lookups during sparring and the handover canvas will be skipped until it's connected. Run manually, then re-run `/scout-setup` anytime:
   >
   > ```
@@ -47,7 +47,7 @@ security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null | \
 
 On `authenticated` — silent. Done.
 
-On `needs_auth` — surface and CONTINUE (both modes):
+On `needs_auth` — surface and CONTINUE:
   > "ℹ️ Slack MCP isn't authenticated — canvas lookups during sparring and the post-deployment handover canvas will be skipped until it is. To connect it: run `/mcp`, select 'slack', select 'Authenticate', choose 'Salesforce Internal' from the Workspace dropdown, then 'Allow'. Re-run `/scout-setup` anytime. Setup is otherwise complete."
 
 ## Done
