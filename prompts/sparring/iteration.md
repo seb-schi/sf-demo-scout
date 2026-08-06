@@ -4,7 +4,11 @@ Loaded on demand when intent = iteration. Returns to the main command for Stage 
 
 ## Stage 3i: Iteration Discovery
 
-Review the most recent audit, prior specs, and change logs for this org. Understand what's already built before asking anything.
+### Reconcile the living architecture doc FIRST
+
+Before asking anything, reconcile the org's living demo architecture doc so this session builds on a confirmed shared picture instead of a cold interview. Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/demo-architecture-template.md` and execute its **Reconcile Rules (Stage 3i)** — Case A if `[ORG_FOLDER]/demo-architecture.md` exists, Case B (backfill from prior specs + change logs) if it does not. This ends with the SE confirming/correcting the reconciled picture and the doc written to disk with a fresh `Last reconciled` stamp. Only then continue to the iteration questions below.
+
+Review the most recent audit, prior specs, and change logs for this org. Understand what's already built before asking anything. (Much of this is now captured in the reconciled architecture doc above — use it as your primary map; read individual change logs only for detail the doc points you to.)
 
 Ask these three questions in a single message:
 1. **What are you changing — adding, refining, or fixing something that's broken?** Be specific — "add an Agentforce agent for case triage," "tighten the discovery flow's exit criteria," or "the agent's flow action errors on preview, fix it." Name the artifact and the change.

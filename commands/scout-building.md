@@ -264,6 +264,8 @@ After the notification fires, emit this as the FINAL message of the session — 
 >
 > Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? **Just tell me what to change, right here in this session** — I'll reach for the right Salesforce skill (`sf-flow`, `experience-lwc-generate`, `platform-data-manage`, and friends) and make the edit live against your org. Fast and free-wheeling; these tweaks aren't written back to the spec, which is exactly right for iteration.
 >
+> 📝 **When you're done tinkering, ask me to log what changed** — I'll append the live edits to this org's change log so your next `/scout-sparring` session picks them up automatically (that's where the running demo picture is kept current). It's on you to ask before you close the session; if you forget, sparring's next reconciliation will still catch most of it from the org itself — but a quick "log these changes" here is the clean way.
+>
 > 💨 **Tip:** the heavy planning is done, so you don't need Opus for this part — run `/model` and switch to **Sonnet** for quicker, cheaper tinkering. (Bigger changes — a new agent, a story rebuild, anything you want captured in a clean spec — are the other door: open a fresh session and run `/scout-sparring`. That one stays on Opus.)
 > ---
 

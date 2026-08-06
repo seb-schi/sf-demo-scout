@@ -293,6 +293,13 @@ Populate the **Release Notes & Citations** section with every consultation from 
 - Mark [CONFIDENT — SE verify] if certain of the feature's behavior
 - Mark [UNVERIFIED — SE must confirm] if uncertain — these NEVER go in Claude Code Instructions
 
+### Update the Living Architecture Doc
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/demo-architecture-template.md` and execute its authoring rules to (re)write `[ORG_FOLDER]/demo-architecture.md`:
+- **New / reuse-org intent:** follow **Create Rules** — write the doc for the first time from this session's spec (Customer Context + Value Spine + scenario narrative). (If a doc already exists — e.g. reuse-org on a folder that had one — treat it as an update: refresh the narrative, carry the spine forward.)
+- **Iteration intent:** the doc was reconciled + written at Stage 3i bootstrap. Now fold in any decisions/flow changes THIS iteration introduced, re-stamp `Last reconciled`, and re-write.
+- **All paths:** execute **Auto-draft decision entries** — draft this session's material decisions as Decision Log entries and show them to the SE for confirm/edit before writing (SE-gated, never silent).
+
 ### Propose Lessons
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-maintenance.md` and execute the "Propose Lessons (sparring)" section.
