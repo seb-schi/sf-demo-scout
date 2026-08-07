@@ -4,7 +4,6 @@ description: >
   One-stop install, refresh, and repair for Scout.
   Run on first install, after a Scout update, or whenever something feels broken.
   Idempotent — safe to re-run any time.
-model: sonnet
 allowed-tools: Read, Write, Edit, Bash
 ---
 
