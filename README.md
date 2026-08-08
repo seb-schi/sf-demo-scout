@@ -62,13 +62,13 @@ flowchart TD
     end
 
     OUT["✅ Deployed org<br/>+ change log + rollback"]
-    MAN["🧑‍💻 Handover checklist<br/>SE judgement takes over"]
+    MAN["🧑‍💻 Deployed + QA checklist<br/>you confirm the visual result"]
 
     SE --> SPAR
     P -->|"SE approves"| SPEC
     SPEC -->|"Sonnet sub-agents build in phases"| BUILD
     G -->|"yes — auto-verified in a fix-loop"| OUT
-    G -->|"no — won't claim an unverified green"| MAN
+    G -->|"no — deployed, but flagged for your QA"| MAN
 
     classDef opus fill:#e8eefc,stroke:#3b5ba5,color:#1a2a4a;
     classDef contract fill:#fff4e0,stroke:#c9821a,color:#5a3a08;
@@ -80,24 +80,28 @@ flowchart TD
 
 The point of Scout is not to replace SE expertise, and it is not an
 autopilot. It could have been — the tooling makes almost everything
-buildable. But once everything is buildable, the scarce discipline is
-deciding what *not* to hand to the machine. So every capability sits in
-one of four tiers, and the line between them is a single test: **is there
-a success signal Scout can check its own work against?**
+buildable. But once everything is buildable, the scarce discipline is not
+deciding *what to build* — it's deciding *what to trust without checking*.
+So the line Scout draws is a single test: **is there a success signal it
+can check its own work against?**
 
 Where a signal exists — a deploy read-back, a passing Flow test, a fired
-agent action — Scout runs autonomously inside a bounded fix-loop. Where
-none exists, it stops and hands you a checklist rather than claim a green
-it can't verify.
+agent action — Scout runs autonomously inside a bounded fix-loop and
+reports a verified green. Where none exists, it still builds and deploys
+the metadata, then hands you a short QA checklist — it just never claims a
+green it couldn't verify. The only things it won't attempt at all are
+surfaces with no Metadata API path (a few UI-only wiring steps, confirmed
+against Salesforce Docs) and anything destructive or touching existing
+metadata — never without your say-so.
 
-| Scout handles automatically | SE judgement takes over |
+| Scout builds and verifies | Scout builds it — you stay in the loop |
 |---|---|
-| Custom objects, fields, record types | Orchestration flows (multi-day lifecycles) |
-| Permission sets (incl. companion sets) | Screen flows using non-whitelisted custom components |
-| Lightning apps, tabs, queues, reports | Complex / visually-intensive LWC |
-| Flows — record-triggered, screen (branching, cross-screen), scheduled | Multi-agent orchestration & channel assignment |
-| Apex — multi-class, cross-object (bounded test-fix loop) | Page-layout visual arrangement, dashboards, OmniStudio |
-| Agentforce agents (deploy, activate, smoke-test) | Anything with no signal to loop against — or anything destructive, without confirmation |
+| Custom objects, fields, record types | Complex / multi-component LWC (deployed; visual QA) |
+| Permission sets (incl. companion sets) | Lightning pages, page-layout arrangement, dashboards (deployed; visual QA) |
+| Lightning apps, tabs, queues, reports | Screen flows using non-whitelisted components (deployed Draft; QA, then activate) |
+| Flows — record-triggered, screen (branching, cross-screen), scheduled | Orchestration flows (deployed; you validate the lifecycle) |
+| Apex — multi-class, cross-object (bounded test-fix loop) | Multi-agent wiring, channel assignment, OmniStudio (UI-only — Scout builds the metadata around them) |
+| Agentforce agents (deploy, activate, smoke-test) | Anything destructive or on existing metadata — never without confirmation |
 
 **Showtime** mode collapses the loop for live discovery: it turns a
 conversation happening in front of the customer into a scoped, deployed
@@ -126,11 +130,11 @@ After setup, kick off your first demo with `/scout-sparring`.
 > [Demo Scout Canvas](https://salesforce.enterprise.slack.com/docs/T01G0063H29/F0AQP1A7YMD)
 > (internal Salesforce link)
 
-## The four commands
+## The three commands
 
 | Command | What it does |
 |---|---|
-| `/scout-sparring` | Guided sparring + spec generation (Opus; Sonnet sub-agents audit your org) |
+| `/scout-sparring` | Guided sparring + spec generation (Opus; Sonnet sub-agents audit your org). Connects or switches your active org inline at startup. |
 | `/scout-building` | Org deployment from a completed spec (Opus orchestrates, Sonnet sub-agents build) |
 | `/scout-setup` | Setup, updates, and repairs |
 
