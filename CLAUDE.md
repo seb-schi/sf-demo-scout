@@ -45,16 +45,15 @@ Four MCP servers may be configured: Salesforce DX + Salesforce Docs (declared in
 - Simple LWC (demo-specific UI — complex/multi-component LWC stays SE Manual pending a dedicated signal-gated pass; LWC's visual half has no build-time loop)
 - Agentforce agents via Agent Script (subagents, actions, backing Apex, publish, activate, smoke test)
 
-### Always Manual (SE Manual Checklist)
-- Screen flows using components OUTSIDE the autonomous whitelist (custom LWC screen components, File Upload/Preview, Repeater, Data Table, Kanban Board) — these have no build-time success signal a FlowTest can assert, so they stay manual. NOTE: branching, cross-screen reactivity, and formula-dependency logic are NOT manual — those are now Gated/autonomous (they deploy Draft-first and are gated by a happy-path FlowTest; the flow stays Draft if the test fails twice, so it never ships live-and-broken).
-- Orchestration flows (parent-child, sequential, conditional — multi-day lifecycles with assignees, not demo-day-viable as autonomous)
-- Complex LWC (multi-component, heavy client-state, or visually-intensive UI) — pending a dedicated signal-gated pass. (Complex Apex is now Gated/autonomous via the test-fix loop — see the Gated list above.)
-- Multi-agent orchestration, channel assignment, production-scale load/volume agent testing (functional regression via Testing Center — `sf agent test` — is automated in Phase 3, not manual)
-- Classic Page Layout visual arrangement (field positioning, sections in App Builder / Page Layout editor)
-- Lightning Record Page authoring beyond simple new-page creation (repositioning sections on an existing page, custom LWC placement, tabsets, dynamic-form regions, conditional visibility — App Builder. Simple new RecordPage authoring is now Autonomous via `platform-flexipage-generate`.)
-- Lightning Record Page field-add when composition is `mixed`, `custom`, or `unretrievable` (drop into App Builder for visual confirmation)
-- Dashboards, OmniStudio (Lightning Reports are now Autonomous via `platform-report-generate` — see Autonomous list above)
-- Screen-flow visual QA (one-time walkthrough in a record page after Scout deploys) — deliberately manual: a screen flow's rendered UX (label wording, button order, help-text readability) has no metadata read-back or FlowTest signal, so this is the one screen-flow step that cannot be looped and is handed to the SE (see the "Built — validate in Sonnet" surface in the handover brief).
+### Docs-Gated — attempt everything metadata-authorable (there is no capability ceiling)
+
+Scout's build-time job is to go as far as the Metadata API allows. No artifact is refused for being "complex," "advanced," or "visually intensive." Every spec'd artifact resolves to exactly ONE of three dispositions, decided during sparring by consulting Salesforce Docs for anything outside Scout's known-authorable skill set (see `demo-docs-consultation` trigger 9 — near-free, it folds into sparring's existing Stage-4/6 docs budget, and the verdict + citation land in the spec):
+
+1. **Authorable + build-time signal** → build it and loop against the signal (Apex test, happy-path FlowTest, metadata read-back). Today's autonomous/gated behavior.
+2. **Authorable + NO build-time signal** — a rendered visual result, a layout arrangement, a UX, an orchestration runtime (e.g. complex/multi-component LWC, FlexiPage/Lightning-page authoring, classic Page Layout arrangement, a non-whitelist-component screen flow, dashboards) → author + deploy the metadata anyway, then hand it off honestly as **"deployed — needs visual QA"** via the handover brief's *Built — Validate in Sonnet* surface. NEVER report a no-signal artifact as "working." Screen-flow visual QA remains a human-eyes step for the same reason (no signal), but the flow IS deployed.
+3. **Docs-confirmed UI-only / no Metadata API path** (the ONLY hard decline) → skip with the doc citation as the reason, routed to the SE Manual Checklist. Confirmed UI-only to date: multi-agent orchestration **connection wiring** (Beta — Scout still authors the sub-agent + parent connected_subagent metadata; only the live connection is UI), Agentforce channel assignment, OmniStudio. When unsure, consult docs — do NOT decline from memory.
+
+This dissolves the former "Always Manual" capability list: those items are docs-classified now, not banned. A no-signal artifact is *attempted and labeled*, not skipped. (Safety limits are elsewhere and unchanged: the NEVER tier below, and the phase executors' no-clobber rules — e.g. LRP field-adds stay append-only, an incumbent active Path is never deactivated — which protect *existing* metadata and are not capability gates.)
 
 ### NEVER Without Explicit SE Confirmation
 - Delete existing metadata or records

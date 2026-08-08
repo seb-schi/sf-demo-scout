@@ -257,11 +257,10 @@ After the agent is activated, run the official agent test suite using the `agent
 
 A failed test suite does NOT block deployment — the agent is already active. Record failures in `issues` and flag for the SE. The event-log Action-Invocation Probe (`building/sub-agent-validation.md`) remains the deterministic gate for hero-action invocation; the suite runs alongside it.
 
-### Always Out of Scope (skip with reason)
+### Docs-confirmed UI-only (hard decline — skip with the doc citation)
 
-If the spec asks for any of the following, skip with reason
-"out of scope for autonomous deploy — SE Manual Checklist":
-- Multi-agent orchestration
-- Custom model/LLM config
+These Agentforce surfaces have no Metadata API / Agent Script path (docs-confirmed); skip with reason "UI-only — SE Manual Checklist [cite]". They are NOT complexity declines — everything else in a spec is attempted (see CLAUDE.md §Build Boundaries → Docs-Gated):
+- Multi-agent orchestration **connection wiring** (Beta, UI-only) — but Scout DOES author the sub-agent + the parent's `connected_subagent` metadata; only the live connection is UI. See `prompts/building/agentforce-advanced-capabilities.md`.
+- Custom model / LLM config
 - Channel assignment and configuration
-- Production-scale test suites (Testing Center batch regression — Mode B)
+- Production-scale test suites (Testing Center batch regression — Mode B) — a scope choice, not a capability limit; functional regression via `sf agent test` IS automated in Phase 3.

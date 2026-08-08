@@ -23,6 +23,7 @@ The Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) expo
 6. **Unfamiliar deployment error message** — the error text isn't in the loaded `orgs/lessons/` topics (`metadata-deploy.md` / `managed-packages.md`) and isn't obvious from the component name. Consult docs BEFORE the retry attempt.
 7. **SE-referenced concept by name** you don't recognise ("is [term] the right fit here?"). One search, one citation, proceed.
 8. **Agentforce Agent Script capability check** — Agent Script ships features monthly; default to consulting docs for any non-trivial agent spec.
+9. **Capability classification (the autonomy decision)** — any spec'd artifact OUTSIDE Scout's known-authorable skill set (the ~25 generation skills). Consult docs to classify it into one of three build dispositions (see CLAUDE.md §Build Boundaries → Docs-Gated): (1) metadata-authorable WITH a build-time signal → build + loop; (2) metadata-authorable with NO signal → attempt + deploy + hand off "needs visual QA"; (3) genuinely UI-only / no Metadata API path → the only hard decline, skip with the citation. Do NOT decline an artifact as "manual" or "too complex" from memory — that verdict must carry a doc citation. Artifacts a known skill already covers are authorable by definition — no classification call needed. Record the disposition + citation in the spec so building honors it.
 
 ## When to Consult — NO
 
@@ -55,5 +56,6 @@ If `salesforce_docs_search` fails or times out:
 
 - **Sparring Stage 4 (Platform & Data Model Research)**: 3–7 consultations for new scenarios, 1–3 for iterations. This is the primary research step — invest here. More than 7 = too broad; anchor on the SE's #1 pain point.
 - **Sparring Stage 6 (residual feasibility)**: 0–2 consultations. Stage 4 should have caught most things — this is a safety net for features that emerged during scenario definition.
+- **Capability classification (trigger 9)**: fires only for artifacts outside the known-authorable skill set — typically 0 on a standard build (objects / fields / flows / Apex / reports / list views / validation & sharing rules are all known-authorable), 1–2 on an edge-case build (dashboard, orchestration flow, novel platform surface). It folds into the Stage-4/6 budget above — it is a classification, not a research spree: one search, one verdict, cite it.
 - **Building**: 0 consultations is the happy path. Consultations happen on unfamiliar-error recovery, not as a pre-flight check.
 - **Phase 3 (Agentforce)** is the one building exception — expect 1–2 consultations for any non-trivial agent spec (Agent Script surface changes monthly).

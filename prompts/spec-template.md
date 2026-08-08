@@ -313,6 +313,8 @@ Scope: anything beyond appending into an existing field section. Use when audit 
 
 ## SE Manual Checklist
 
+> Only **docs-confirmed UI-only** items belong here (disposition 3 — no Metadata API path; cite the doc). Do NOT list an artifact as manual on "complexity" or "visual" grounds: if it is metadata-authorable, Scout ATTEMPTS + deploys it (see CLAUDE.md §Build Boundaries → Docs-Gated). Artifacts Scout deployed but that carry no build-time signal (a rendered page, a layout arrangement, a UX) are **attempt-with-QA** — they surface in the handover brief's *Built — Validate in Sonnet* section, NOT in this checklist.
+
 ### Complex Flows
 - Name, Type, Trigger, Conflicts, Steps, Activate when
 
