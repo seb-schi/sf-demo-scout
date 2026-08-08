@@ -12,7 +12,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract `version`.
 
 > "✓ Scout is set up and ready. Workspace at `~/claude-projects/sf-demo-scout/`.
 >
-> FYI — run `/scout-switch-org` next to connect a demo org, then `/scout-sparring` to start a demo."
+> FYI — run `/scout-sparring` next to start a demo; if no org is connected yet, it'll offer to connect one for you."
 
 **If STATE was REFRESH:**
 

@@ -1,9 +1,9 @@
 # Folder-Slug Rule (shared)
 
 The single source of truth for turning a Salesforce org alias or a customer
-name into a folder-safe slug. Read by `customer-normalization.md` (sparring),
-`scout-building.md`, and `scout-switch-org.md` so all three derive identical
-folder names. Do NOT re-implement this rule inline anywhere — reference this file.
+name into a folder-safe slug. Read by `customer-normalization.md` (sparring)
+and `scout-building.md` so both derive identical folder names. Do NOT
+re-implement this rule inline anywhere — reference this file.
 
 ## Slug transform
 

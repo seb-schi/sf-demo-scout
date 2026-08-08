@@ -47,11 +47,13 @@ Build boundaries (what's autonomous, gated, or manual) are defined in CLAUDE.md 
 
 Run `sf config get target-org --json` and `sf org display --json`. Extract alias and username.
 
-**If `sf org display` fails** (no org connected, or auth expired): emit this as a standalone message and stop.
+**If `sf org display` fails** (no org connected, or auth expired): emit the model-gate line, then offer to connect an org inline — do NOT bounce the SE to another command or a fresh session.
 
 > "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
 >
-> No demo org connected. Run `/scout-switch-org` to connect one, then re-run `/scout-sparring`."
+> No demo org connected. Want me to connect one now? (yes / no)"
+
+If the SE declines, stop. If the SE says yes (or names an org to connect), read `${CLAUDE_PLUGIN_ROOT}/prompts/switch-org.md` and follow it end-to-end — it lists connected orgs, offers to authenticate a new one, sets the chosen org as default, and returns the active alias + username. Then re-run `sf config get target-org --json` and `sf org display --json` to pick up the new org, and continue.
 
 Do not continue to audit routing without an org.
 
@@ -59,7 +61,7 @@ Output as a single message, then wait for the SE's reply.
 
 > "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
 >
-> Active org: [alias] ([username]). Right org, or switch? (run /scout-switch-org)
+> Active org: [alias] ([username]). Right org, or switch? (say **switch** and I'll list your orgs)
 >
 > I can help you with:
 > - **A new demo scenario** — full sparring for a new customer situation, typically on a fresh demo org
@@ -68,7 +70,7 @@ Output as a single message, then wait for the SE's reply.
 >
 > What shall it be, and for what customer?"
 
-Wait for the SE's reply. Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/customer-normalization.md` and execute the procedure — it normalizes the customer name to a folder-safe slug and prompts the SE on existing-folder matches.
+Wait for the SE's reply. **If the SE says "switch" (or asks to change/connect an org):** read `${CLAUDE_PLUGIN_ROOT}/prompts/switch-org.md` and follow it end-to-end — it lists connected orgs, offers to authenticate a new one, sets the chosen org as default, and returns the active alias + username. Then re-emit the "Active org:" prompt above for the newly-selected org and wait again. **If the SE wants to pull an asset from a DIFFERENT org into this demo (reuse a flow, component, or data sample from another org):** first resolve `[ORG_FOLDER]` for the active demo (run customer-normalization below if not yet done — the extract artifact lands in the active demo's folder), then read `${CLAUDE_PLUGIN_ROOT}/prompts/cross-org-extract.md` and follow it end-to-end — it documents the extraction to `[ORG_FOLDER]/cross-org-extracts.md` before pulling, targets the source org by alias without changing the default, and returns what landed. Then continue. Otherwise, read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/customer-normalization.md` and execute the procedure — it normalizes the customer name to a folder-safe slug and prompts the SE on existing-folder matches.
 
 **ORG_FOLDER** (resolved by customer-normalization): `orgs/<slug(alias)>-<slug(customer)>/`
 

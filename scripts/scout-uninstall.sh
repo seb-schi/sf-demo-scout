@@ -123,7 +123,7 @@ else:
         # skillUsage: drop scout-related accumulators
         SCOUT_SKILL_RE = re.compile(
             r"(^|:)(demo-scout|setup-demo-scout|scout-sparring|scout-building|"
-            r"scout-switch-org|scout-setup|scout-sync-skills|switch-org|"
+            r"scout-setup|scout-sync-skills|switch-org|"
             r"project-sparring|project-building)$|"
             r"^sf-demo-scout(-internal)?:"
         )

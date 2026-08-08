@@ -54,7 +54,7 @@ Aggregated from the Phase 3 sub-agent's `actions_unverified_in_preview` array (s
 - **[Action name]** — [reason]
 
 ## Agent Not Live — UI Commit Required (only if Phase 3 `deployed.agent.status` = NeedsUICommit)
-Include ONLY when the Phase 3 sub-agent set `deployed.agent.status: NeedsUICommit` — the headless SFAP publish route returned 404 on this org instance (a per-instance platform provisioning gap; the agent is authored + validated but NOT live). Record the verbatim endpoint/404/instance-ID evidence from the sub-agent's `discovery_notes`. Go-live path: `${CLAUDE_PLUGIN_ROOT}/skills/agentforce-generate/references/agent-ui-commit-runbook.md` (Builder UI). Escalation: file a Salesforce Support case citing the org instance ID (cross-post evidence to #agentforce-dx).
+Include ONLY when the Phase 3 sub-agent set `deployed.agent.status: NeedsUICommit` — the headless SFAP publish route returned 404 on this org instance (a per-instance platform provisioning gap; the agent is authored + validated but NOT live). Record the verbatim endpoint/404/instance-ID evidence from the sub-agent's `discovery_notes`. Go-live path: `${CLAUDE_PLUGIN_ROOT}/prompts/building/agent-ui-commit-runbook.md` (Builder UI). Escalation: file a Salesforce Support case citing the org instance ID (cross-post evidence to #agentforce-dx).
 - **Agent:** [api_name] — authored + validated, NOT live. Go live via the Builder UI runbook; escalate the instance gap to Support.
 
 ## Execution Order Check

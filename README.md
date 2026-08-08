@@ -132,7 +132,6 @@ After setup, kick off your first demo with `/scout-sparring`.
 |---|---|
 | `/scout-sparring` | Guided sparring + spec generation (Opus; Sonnet sub-agents audit your org) |
 | `/scout-building` | Org deployment from a completed spec (Opus orchestrates, Sonnet sub-agents build) |
-| `/scout-switch-org` | Switch between demo orgs, or connect a new one |
 | `/scout-setup` | Setup, updates, and repairs |
 
 ## Updates

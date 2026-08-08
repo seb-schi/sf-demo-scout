@@ -138,7 +138,7 @@ else
     LOCAL_CONFIG=".sf/config.json"
     OUTPUT+="## ⚠️ Configured target-org '$DEFAULT_ORG' is not in the connected org list.\n"
     OUTPUT+="   This usually means a stale entry in $LOCAL_CONFIG (local scope overrides global).\n"
-    OUTPUT+="   Fix: run /scout-switch-org to reset, or edit $LOCAL_CONFIG manually.\n\n"
+    OUTPUT+="   Fix: run /scout-sparring or /scout-building — they connect or switch the org inline — or edit $LOCAL_CONFIG manually.\n\n"
   else
     # Keyed by alias, so switching org self-invalidates this entry. Aliases can
     # contain spaces ("AFD360 L3 Training"), so sanitize before using as a name.
@@ -155,7 +155,7 @@ else
       OUTPUT+="- **Username:** $USERNAME\n"
       OUTPUT+="- **Org ID:** $ORG_ID\n"
       OUTPUT+="- **Instance:** $INSTANCE_URL\n"
-      OUTPUT+="$ORG_COUNT org(s) available. Switch: /scout-switch-org\n\n"
+      OUTPUT+="$ORG_COUNT org(s) available. To switch, say 'switch' when /scout-sparring or /scout-building asks.\n\n"
 
       # --- 5. Org Folder + Audit Check ---
       # Find customer folders for this org alias (pattern: orgs/[alias]-[customer]/)
@@ -207,7 +207,6 @@ OUTPUT+="---\n"
 OUTPUT+="**Ready.**\n"
 OUTPUT+="  /scout-sparring  — Opus discovery sparring + spec generation\n"
 OUTPUT+="  /scout-building  — Opus orchestrator for org deployment\n"
-OUTPUT+="  /scout-switch-org — change active demo org\n"
 OUTPUT+="  /scout-setup     — install, refresh, or repair Scout\n"
 
 echo -e "$OUTPUT"

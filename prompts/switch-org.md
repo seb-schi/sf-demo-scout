@@ -1,0 +1,87 @@
+# Switch / Connect Org (shared fragment)
+
+Read + followed inline by `/scout-sparring` and `/scout-building` when the SE
+has no connected org, or wants to change orgs, at the startup org-check. It
+replaces the former standalone `/scout-switch-org` command.
+
+**No Claude Code restart required.** Every `@salesforce/mcp` DX tool takes
+`usernameOrAlias` as a per-call parameter — the MCP server resolves the org on
+each call, so a switched org is reachable immediately by passing its alias.
+Restart is a LAST resort, only for the narrow case where the running MCP server
+will not pick up a mid-session change to the *default* org (per-call alias
+targeting still works in that case — see Step 4).
+
+The parent command has already run `workspace-bootstrap.md` (cwd is
+`~/claude-projects/sf-demo-scout`). Do NOT re-cd or re-check config here.
+
+## Step 1: List connected orgs
+
+```bash
+sf org list --json
+```
+
+Present the connected orgs clearly — alias + username per row — then:
+
+> "Pick an org from the list, or type **new** to connect a different one."
+
+## Step 2: SE picks
+
+- **Existing org** (SE names one already in the list) → skip to Step 3.
+- **new** (or an org not in the list) → ask for an alias, then:
+  > "Is this a **sandbox** or a **production/developer** org?"
+
+  Then tell the SE:
+  > "I'll open a browser now — log in with your demo org credentials."
+
+  Run the matching command in the FOREGROUND (wait for it to return before
+  continuing):
+  - **Production / Developer org** (default `login.salesforce.com`):
+    ```
+    sf org login web --alias [name] --set-default
+    ```
+  - **Sandbox** (authenticates against `test.salesforce.com`):
+    ```
+    sf org login web --alias [name] --set-default --instance-url https://test.salesforce.com
+    ```
+  Wait for success, then continue to Step 3.
+
+## Step 3: Set the chosen org as the project default
+
+```
+sf config set target-org [chosen-alias]
+```
+Writes `.sf/config.json` in the project (local scope overrides global — this is
+what the CLI and MCP read for default resolution). `sf org login web --set-default`
+already did this for a `new` org, but run it explicitly for an existing-org pick.
+
+Then read the org details:
+```
+sf org display --target-org [chosen-alias] --json
+```
+Extract: **Alias** (`[chosen-alias]`), **Username** (`username`), **Org ID**
+(`id`), **Instance URL** (`instanceUrl`).
+
+## Step 4: Verify connectivity, then return
+
+Confirm the CLI resolves the new org (authoritative immediately):
+```
+sf config get target-org --json
+```
+It must report `[chosen-alias]`. If it does, the switch is live for every CLI
+call and for every MCP call that passes `[chosen-alias]` as `usernameOrAlias`
+(which the audit/deploy sub-agents do).
+
+**Optional MCP default-resolution check (only if the parent will rely on MCP
+default resolution rather than passing the alias explicitly):** the running MCP
+server can lag on a mid-session change to the *default* org. Downstream Scout
+calls pass the alias explicitly, so this rarely matters — but if a later MCP
+call returns the wrong org's data, that lag is why. The fix is to pass
+`[chosen-alias]` per call (preferred), and only as a LAST resort exit + restart
+Claude Code (Cmd+Q in VS Code, not just a new tab) to reload the MCP server.
+Do NOT present restart as the default step.
+
+## Return to parent
+
+Return control to the parent command with the active org identity
+(alias / username / Org ID / instance URL). The parent re-derives its org
+context (folder slug, etc.) from the new alias and continues — no new session.

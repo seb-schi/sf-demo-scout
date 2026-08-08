@@ -3,7 +3,7 @@
 ## Org
 > Org identity is read from `sf config get target-org` at runtime.
 > Session startup displays the active org, username, and connection status.
-> No manual configuration needed — run /scout-switch-org to connect or change an org. Do NOT use /scout-setup for org switching.
+> No manual configuration needed — /scout-sparring and /scout-building connect or change the active org inline at startup (ask to switch, or say yes when they offer to connect one). Do NOT use /scout-setup for org switching.
 
 - Type: Personal demo org — destructive operations permitted with prior explanation
 
@@ -91,7 +91,7 @@ sf data create record --sobject PermissionSetAssignment --values "PermissionSetI
 ```
 
 ## File Locations
-- Per-org history: `orgs/[alias]-[customer]/` (audits, change logs, specs) — in the SE workspace at `~/claude-projects/sf-demo-scout/`
+- Per-org history: `orgs/[alias]-[customer]/` (audits, change logs, specs, `cross-org-extracts.md` — the append-only log of assets pulled from other orgs) — in the SE workspace at `~/claude-projects/sf-demo-scout/`
 - Lessons: `orgs/lessons/` (topic-clustered; loaded via `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-bootstrap.md`, see `INDEX.md`)
 - Deployment rules: `${CLAUDE_PLUGIN_ROOT}/skills/demo-deployment-rules/SKILL.md`
 - Org audit format: `${CLAUDE_PLUGIN_ROOT}/skills/demo-org-audit/SKILL.md`

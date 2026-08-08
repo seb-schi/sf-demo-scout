@@ -1,6 +1,6 @@
 # Workspace Bootstrap
 
-Shared fragment Read by `/scout-sparring`, `/scout-building`, and `/scout-switch-org` as their first step. Single bash gate — two outcomes — one tool call.
+Shared fragment Read by `/scout-sparring` and `/scout-building` as their first step. Single bash gate — two outcomes — one tool call.
 
 ## Step 1: Sanity gate
 

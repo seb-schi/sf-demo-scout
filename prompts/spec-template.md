@@ -305,6 +305,11 @@ Scope: anything beyond appending into an existing field section. Use when audit 
   handler first, disable ONE not all). The paid Agentforce-for-Life-Sciences add-on is the only
   license-level fix and is not demo-viable.
 - ⚠️ Channel assignment: SE Manual Checklist
+- **Advanced capabilities (if any — flag here so Phase 3 authors the metadata + hands off UI wiring):**
+  - Multi-agent orchestration: [sub-agent api_name(s) the parent delegates to] — Beta, connection wiring is UI-only
+  - Enhanced Chat v2: [yes/no] — REQUIRED if any Lightning types/forms in chat; SE republishes Embedded Service Deployment + creates the chat channel
+  - Lightning types (forms) in chat: [form name(s) + backing Apex class] — Scout authors LightningTypeBundle + LWC (`@api value` contract); SE verifies live render in Test Enhanced Web Chat
+  - (Details + gotchas: Phase 3 reads `prompts/building/agentforce-advanced-capabilities.md`)
 
 ## SE Manual Checklist
 
