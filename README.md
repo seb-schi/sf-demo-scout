@@ -21,7 +21,8 @@ there it does three things:
    already exists, so you build into reality instead of around it.
 2. **Spars with you on the scenario** — guided discovery from customer
    notes, Salesforce Docs, and Slack, through to a structured deployment
-   spec you approve before anything is built.
+   spec you approve — where the real work is deciding what to leave out,
+   not just what to include.
 3. **Builds the configuration** — an Opus orchestrator spawns Sonnet
    sub-agents that deploy in phases, validate each step against the live
    org, and produce a change log with rollback commands.
@@ -45,24 +46,34 @@ flowchart TD
     SE(["👤 Solution Engineer"])
 
     subgraph SPAR["/scout-sparring · Opus"]
-        A["Audit the live org<br/><i>parallel Sonnet sub-agents</i>"]
-        D["Discover the need<br/>+ research official docs"]
-        P["Propose the scenario"]
+        A["`Audit the live org
+_parallel Sonnet sub-agents_`"]
+        D["`Discover the need
++ research official docs`"]
+        P["`Propose the scenario
+**— and what to leave out**`"]
         A --> D --> P
     end
 
-    SPEC[["📄 demo spec<br/><b>the one contract</b>"]]
+    SPEC[["`📄 demo spec
+**the one contract**`"]]
 
     subgraph BUILD["/scout-building · Opus orchestrator"]
-        S1["Phase 1<br/>structural metadata"]
-        S2["Phase 2<br/>flows · Apex · LWC"]
-        S3["Phase 3<br/>Agentforce agents"]
-        G{"success signal<br/>to verify against?"}
+        S1["`Phase 1
+structural metadata`"]
+        S2["`Phase 2
+flows · Apex · LWC`"]
+        S3["`Phase 3
+Agentforce agents`"]
+        G{"`success signal
+to verify against?`"}
         S1 --> S2 --> S3 --> G
     end
 
-    OUT["✅ Deployed org<br/>+ change log + rollback"]
-    MAN["🧑‍💻 Deployed + QA checklist<br/>you confirm the visual result"]
+    OUT["`✅ Deployed org
++ change log + rollback`"]
+    MAN["`🧑‍💻 Deployed + QA checklist
+you confirm the visual result`"]
 
     SE --> SPAR
     P -->|"SE approves"| SPEC
@@ -76,23 +87,29 @@ flowchart TD
     class SPEC contract;
 ```
 
-## What Scout builds, and what it doesn't
+## What Scout builds — and what it leaves to you
 
-The point of Scout is not to replace SE expertise, and it is not an
-autopilot. It could have been — the tooling makes almost everything
-buildable. But once everything is buildable, the scarce discipline is not
-deciding *what to build* — it's deciding *what to trust without checking*.
-So the line Scout draws is a single test: **is there a success signal it
-can check its own work against?**
+Building used to be the hard part. It isn't anymore. Scout will attempt
+anything the Metadata API can express — objects, flows, Apex, agents — and
+loop on its own until it's deployed. Claude configures Salesforce more
+reliably than most of us do by hand.
 
-Where a signal exists — a deploy read-back, a passing Flow test, a fired
-agent action — Scout runs autonomously inside a bounded fix-loop and
-reports a verified green. Where none exists, it still builds and deploys
-the metadata, then hands you a short QA checklist — it just never claims a
-green it couldn't verify. The only things it won't attempt at all are
-surfaces with no Metadata API path (a few UI-only wiring steps, confirmed
-against Salesforce Docs) and anything destructive or touching existing
-metadata — never without your say-so.
+So the scarce discipline has moved. When everything is buildable, the
+question that decides whether a demo lands is no longer *can we build
+this* — it's *what's worth building, and what to leave out*. That judgment
+doesn't automate, and it's the whole reason `/scout-sparring` comes first:
+the point of a sparring session is to decide what **not** to build before
+a line is deployed.
+
+Building, by contrast, is deliberately low-friction. Once you've approved
+the spec, Scout goes as far as the platform allows without stopping to
+re-litigate the plan — the second-guessing already happened, with you, in
+sparring. The one thing it never does is *pretend*: where it can check its
+own work (a deploy read-back, a passing test, a fired agent action) it
+reports a verified green; where it can't (a rendered layout, a visual UX)
+it still builds and deploys, then hands you a short QA checklist rather
+than claim a green it couldn't earn. And it never touches existing
+metadata, or anything destructive, without your say-so.
 
 | Scout builds and verifies | Scout builds it — you stay in the loop |
 |---|---|
