@@ -4,6 +4,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-08-10
 
+- **Hotfix: full Lightning record-page builds are manual again — Scout still adds individual items on its own.** This weekend Scout briefly attempted to author whole record pages from scratch, but `platform-flexipage-generate` emits components whose validity is org-specific, so the deploy loop never converges (one component error after another). Whole-page authoring goes back to App Builder, where a live preview makes it faster by hand. Scout still autonomously adds the pieces — fields, compact layouts, list views, paths, and field-section additions to existing pages — and deploys the underlying metadata (LWC bundles, Path components) for you to place.
 - **A competing Path no longer sinks your whole page-config deploy.** Salesforce allows only one Path per object + record type, and when Scout tried to add a second, the failure took down everything bundled with it — a compact layout and list view that would otherwise have deployed fine got rolled back too. Scout now checks for an incumbent Path up front and skips cleanly (routing it to your manual checklist) instead of failing the whole deploy, so the rest of your page config still lands.
 
 ## 2026-08-08
