@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-08-10
+
+- **A competing Path no longer sinks your whole page-config deploy.** Salesforce allows only one Path per object + record type, and when Scout tried to add a second, the failure took down everything bundled with it — a compact layout and list view that would otherwise have deployed fine got rolled back too. Scout now checks for an incumbent Path up front and skips cleanly (routing it to your manual checklist) instead of failing the whole deploy, so the rest of your page config still lands.
+
 ## 2026-08-08
 
 - **Switching demo orgs no longer needs a restart — just ask.** `/scout-switch-org` is retired as a separate command. Both `/scout-sparring` and `/scout-building` now connect or switch your active org inline at startup: if none is connected they offer to connect one, and mid-session you just say "switch" to see your orgs (or add a new one) — no quitting and relaunching Claude Code. (The old restart step survives only as a last-resort fallback for the rare case where the Salesforce MCP server won't pick up a default-org change.)

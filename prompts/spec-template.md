@@ -167,14 +167,6 @@ Scope: a Lightning Report (`.report-meta.xml`) in a folder (the `platform-report
 - Time frame (optional): [dateColumn] over [interval — e.g. INTERVAL_CURRENT (this quarter), INTERVAL_CURY (this year), INTERVAL_LAST30]
 - Chart (optional, Summary/Matrix only): [chart type — see the skill's `references/chart-types.md`]
 
-### Lightning Record Page — Authoring (Autonomous, simple pages only)
-Scope: a NEW simple `RecordPage` FlexiPage — header + one/two-column field section + standard components. Complex authoring (dynamic forms, custom LWC placement, tabsets, conditional visibility) stays SE Manual below.
-- FlexiPage DeveloperName: [ApiName]
-- Object: [SObject API]
-- Field section(s): [section label → columns → field API names]
-- Standard components: [Highlights Panel | Activity | Related Lists | ... from the platform-flexipage-generate catalog]
-- Activation: [org default | leave inactive for SE | app/profile name] (if not org-default, SE assigns in App Builder)
-
 ### Data Seeding
 - Object: [name], Records: [count]
 - Key values: [field]: [value] — (reason)
@@ -203,7 +195,7 @@ Scope: appending existing fields into the field-bearing leaf Facet of an existin
 - ⚠️ If the audit's `columns` array for the named section contains a column with `facet_uuid: null` (opaque structure), this section is NOT eligible for autonomous deploy — route to the LRP SE Manual section below.
 
 ### Lightning Record Page — SE Manual (App Builder)
-Scope: anything beyond appending into an existing field section. Use when audit reports `composition_class: mixed` AND the field belongs in something other than a field section, OR `custom` / `unretrievable`, OR the spec needs new sections, repositioning, components, tabset edits, or dynamic-form regions. Scout deploys the underlying metadata (LWC bundles, Path components, QuickActions); the SE drags and drops in App Builder.
+Scope: anything beyond appending into an existing field section. Use when audit reports `composition_class: mixed` AND the field belongs in something other than a field section, OR `custom` / `unretrievable`, OR the spec needs new sections, repositioning, components, tabset edits, or dynamic-form regions, OR **an entire new-from-scratch `RecordPage`** (whole-page authoring is SE Manual — the `platform-flexipage-generate` deploy loop is non-convergent for new pages; see CLAUDE.md docs-gated disposition 2's named exception). Scout deploys the underlying metadata (LWC bundles, Path components, QuickActions); the SE composes the page in App Builder, where there is a live preview.
 - [Object] — [LRP name] — Composition: [field_section | mixed | custom | unretrievable] — Why SE Manual: [section creation / reposition / new component / dynamic-form region / unretrievable composition]
 - Components / fields to add: [list]
 
