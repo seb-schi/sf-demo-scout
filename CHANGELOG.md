@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-08-13
+
+- **Scout's per-demo architecture doc now stays lean instead of ballooning on long-running demos.** The living doc introduced on 2026-08-06 was append-only with no size limit, so on a heavily-iterated demo it grew large enough to eat the context it was meant to save — and a fresh sparring session could get so loaded down it skipped writing the build spec. The doc is now a bounded map: its decision log keeps your recent decisions plus every rejected idea (so they're never re-proposed) as one-liners, folds resolved decisions into the current story, and holds to a strict size budget. Reconciliation also caps how much build-log history it reads (the last few in full, older ones by their summary), so opening a mature demo stays fast.
+
 ## 2026-08-10
 
 - **Hotfix: full Lightning record-page builds are manual again — Scout still adds individual items on its own.** This weekend Scout briefly attempted to author whole record pages from scratch, but `platform-flexipage-generate` emits components whose validity is org-specific, so the deploy loop never converges (one component error after another). Whole-page authoring goes back to App Builder, where a live preview makes it faster by hand. Scout still autonomously adds the pieces — fields, compact layouts, list views, paths, and field-section additions to existing pages — and deploys the underlying metadata (LWC bundles, Path components) for you to place.

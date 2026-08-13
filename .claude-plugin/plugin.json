@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "2026.08.10-flexipage-authoring-to-se-manual",
+  "version": "2026.08.13-bound-demo-architecture-doc",
   "author": {
     "name": "Sebastian Schickhoff"
   },
