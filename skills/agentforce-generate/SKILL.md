@@ -249,6 +249,32 @@ User wants to understand Agent Script agent they didn't write or need to revisit
 5. [Known Issues](references/known-issues.md) — only load when code
    contains unexplained workaround patterns
 
+### Audit and Repair an Existing Agent
+
+User wants to "fix my AgentScript", run a health check or common-pitfall review, or run a baseline-versus-candidate repair loop on an existing agent.
+
+#### Required Steps
+
+1. **Read the audit workflow** — Read [Audit and Repair](references/agent-audit-and-repair.md), then follow its linked scope/path-review and repair/report workflow in order.
+2. **Diagnose by category** — Use the [Diagnostic Catalog](references/agent-audit-diagnostic-catalog.md) and its focused diagnostic references only for categories actually present in the artifact. For suspected prompt/control-flow defects, use [Common Control-Flow Pitfalls](references/common-control-flow-pitfalls.md) and its focused references.
+3. **Preserve before changing** — Freeze accepted Surface edits before touching the artifact. **Surface fixes auto-apply; crossing into Structural or Rewrite work modifies existing agent structure and is a hard STOP for SE confirmation** (this is a blast-radius boundary, not a routine consent gate — treat it like the NEVER-tier "modify existing metadata" rule, not like the pre-granted Spec-approval gate).
+4. **Validate against the org, not a bundled compiler** — Scout does NOT run the upstream bundled local AgentScript compiler (`node scripts/index-agent.mjs`); that SDK is not vendored and is not part of the Salesforce CLI. Validate the authoring bundle against the target org (`sf agent` validate / preview, the same signal phase3 uses), compare the unchanged baseline and candidate against the same use cases, and follow [Audit Evaluation Loop](references/agent-audit-evaluation-loop.md). Where any reference says "compile locally" or names `agentscript-toolchain.md` / `index-agent.mjs`, read that as **org-side authoring-bundle validation is Scout's compiler-equivalent signal**; if no org is available, state **compiler not used: org validation is Scout's signal** and continue with a bounded static review — never report a static review as compiler or runtime validation.
+5. **Report by level** — Report Surface, Structural, and Rewrite assessments separately. Stay draft-only unless the user separately requests a release operation.
+
+#### Reference Files
+
+1. [Audit and Repair](references/agent-audit-and-repair.md) — operating contract, workflow entry
+2. [Audit Scope and Path Review](references/agent-audit-scope-path-review.md) — scope, scale, use-case reconstruction
+3. [Audit Repair and Report](references/agent-audit-repair-report.md) — intervention level, baseline, repair, report
+4. [Audit Candidate Verification](references/agent-audit-candidate-verification.md) — baseline-vs-candidate verification
+5. [Diagnostic Catalog](references/agent-audit-diagnostic-catalog.md) — diagnostic category lookup
+6. [Instruction and Routing Diagnostics](references/agent-audit-diagnostics-instructions-routing.md)
+7. [Action and State Diagnostics](references/agent-audit-diagnostics-actions-state.md)
+8. [Architecture and Evaluation Diagnostics](references/agent-audit-diagnostics-architecture-evaluation.md)
+9. [Common Control-Flow Pitfalls](references/common-control-flow-pitfalls.md) — control-flow pitfall checklist
+10. [Action and Sequencing Pitfalls](references/control-flow-actions-sequencing.md)
+11. [Lifecycle and Side-Effect Pitfalls](references/control-flow-lifecycle-side-effects.md)
+
 ### Modify an Existing Agent
 
 User wants to add, remove, or change subagents, actions, instructions, or flow control on existing agent. May describe change in plain language ("add a billing subagent") or reference specific Agent Script constructs.

@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-08-17
+
+- **Scout can now audit and repair an existing Agentforce agent — a structured "fix my AgentScript" health check, not just build-from-scratch.** Point Scout at an agent that misbehaves and it now runs a real diagnostic pass: it reconstructs what the agent is *supposed* to do, catalogs defects by category (instruction/routing, action/state, architecture, control-flow pitfalls), and proposes fixes scoped by blast radius — small surface fixes apply automatically, while anything that would rewrite the agent's structure stops for your OK. It validates candidates against your org the same way a build does. This is Salesforce's newest agent-authoring material, adopted verbatim — with one deliberate change: Scout skips the bundled local compiler it ships (an extra toolchain that isn't part of the Salesforce CLI) and uses your org as the validation signal instead, so there's nothing new to install.
+
 ## 2026-08-13
 
 - **Scout's per-demo architecture doc now stays lean instead of ballooning on long-running demos.** The living doc introduced on 2026-08-06 was append-only with no size limit, so on a heavily-iterated demo it grew large enough to eat the context it was meant to save — and a fresh sparring session could get so loaded down it skipped writing the build spec. The doc is now a bounded map: its decision log keeps your recent decisions plus every rejected idea (so they're never re-proposed) as one-liners, folds resolved decisions into the current story, and holds to a strict size budget. Reconciliation also caps how much build-log history it reads (the last few in full, older ones by their summary), so opening a mature demo stays fast.

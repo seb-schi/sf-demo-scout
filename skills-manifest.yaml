@@ -92,6 +92,15 @@ skills:
   - name: platform-permission-set-generate
     source: afv
     path: skills/platform-permission-set-generate
+  # 2026-08-17 (PLAN 2026-08-17/1000): agentforce-generate PARTIAL adopt of the
+  # v1.38.0 (697c208) Audit/Repair capability. Content-only: 13 new references/
+  # audit + control-flow files vendored byte-verbatim; the Audit/Repair task
+  # domain grafted into SKILL.md COMPILER-NEUTRALIZED (Scout uses org-side
+  # authoring-bundle validation, not the upstream bundled Node compiler).
+  # scripts/ (index-agent.mjs + setup/loader) deliberately NOT vendored — external
+  # @sf-agentscript SDK runtime dep, held out like the LWC SLDS-linter scripts.
+  # SKILL.md is NOT byte-verbatim v1.38 (it retains the 281e296 SFAP-404 + 0242aaa
+  # action-interface-relocation hand-edits); do NOT wholesale re-vendor it.
   - name: agentforce-generate
     source: afv
     path: skills/agentforce-generate
