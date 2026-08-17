@@ -215,6 +215,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/platform-research.md` and execute t
 - Executing searches against Salesforce Docs MCP
 - Surfacing findings for SE review
 
+**Knowledge cartridge consult:** After the platform-research procedure, read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/knowledge-cartridge.md` and execute it. It discovers any installed, contract-conforming knowledge cartridge whose declared Coverage matches the audit's detected industry, and — on a match — proactively consults that cartridge's knowledge skills (read-only, no gate) to ground the scenario. It is silent on orgs with no matching cartridge. This is a knowledge consult, distinct from and earlier than Stage 5's build-executor external-skills offer-gate.
+
 **Symptom-driven iterations (Stage 3i captured a verbatim error):** in addition to the standard procedure, issue at least one `salesforce_docs_search` keyed on the error code or error message text. Surface findings as candidate root-cause families in the Stage 5i proposal — not as asserted fix.
 
 After the procedure completes and the SE confirms the findings, proceed per the route table in Stage 2. For iterations, read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/iteration.md` and execute Stage 5i.
