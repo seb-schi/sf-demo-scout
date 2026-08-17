@@ -188,7 +188,7 @@ import json, os, sys, tempfile
 path = sys.argv[1]
 SCOUT_ALLOW = [
     "mcp__plugin_sf-demo-scout_Salesforce_DX__*",
-    "mcp__plugin_sf-demo-scout_Salesforce_Docs__*",
+    "mcp__salesforce-docs__*",
     "mcp__slack__*",
     "mcp__plugin_slack_*",
     "Agent",
@@ -319,6 +319,10 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it. The prom
 ## h.5: Google Workspace MCP
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it. Optional discovery enhancement (read Docs/Sheets during sparring); gated behind the DevBar `mcp-adaptor` binary. Never aborts — if the binary is absent or auth is pending, it surfaces a note and returns.
+
+## h.7: Salesforce Docs MCP
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute it. Registers the bare-HTTP Salesforce Docs server at user scope (no auth). Never aborts — a failure surfaces the manual command and continues. (The `SFDOCS_MCP_REGISTERED` branch returns so the SE can `/reload-plugins`.)
 
 ## i: Write config.json
 

@@ -100,6 +100,10 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it. The prom
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it. Heals the registration if the binary is present; surfaces a note and returns if the `mcp-adaptor` binary is absent or auth is pending. Never aborts.
 
+## c.6: Salesforce Docs MCP
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute it. Heals the user-scope registration (idempotent — no-ops if already present); surfaces the manual command and returns on failure. Never aborts. This is the migration vehicle for existing installs whose Docs server was the old broken plugin-manifest one — the manifest declaration is gone on update, and this re-registers it at user scope.
+
 ## d: Refresh .zshrc managed block
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/zshrc-block.md` and execute it. Capture the result (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) — the orchestrator's done step needs it.

@@ -2,7 +2,8 @@ import json, os, tempfile
 
 FIX = {
     "mcp__Salesforce_DX__*":   "mcp__plugin_sf-demo-scout_Salesforce_DX__*",
-    "mcp__Salesforce_Docs__*": "mcp__plugin_sf-demo-scout_Salesforce_Docs__*",
+    "mcp__Salesforce_Docs__*": "mcp__salesforce-docs__*",
+    "mcp__plugin_sf-demo-scout_Salesforce_Docs__*": "mcp__salesforce-docs__*",
 }
 TARGETS = [
     os.path.expanduser("~/claude-projects/sf-demo-scout/.claude/settings.json"),

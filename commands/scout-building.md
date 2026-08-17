@@ -5,7 +5,7 @@ description: >
   Parses a completed spec from /scout-sparring, delegates deployment to
   Sonnet sub-agents in phases, and writes a consolidated change log.
   Activate with /scout-building.
-allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, AskUserQuestion, mcp__plugin_sf-demo-scout_Salesforce_DX__retrieve_metadata, mcp__plugin_sf-demo-scout_Salesforce_DX__deploy_metadata, mcp__plugin_sf-demo-scout_Salesforce_DX__run_soql_query, mcp__plugin_sf-demo-scout_Salesforce_DX__assign_permission_set, mcp__plugin_sf-demo-scout_Salesforce_DX__list_all_orgs, mcp__plugin_sf-demo-scout_Salesforce_DX__run_code_analyzer, mcp__plugin_sf-demo-scout_Salesforce_Docs__salesforce_docs_search, mcp__plugin_sf-demo-scout_Salesforce_Docs__salesforce_docs_fetch, mcp__slack__slack_create_canvas
+allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, AskUserQuestion, mcp__plugin_sf-demo-scout_Salesforce_DX__retrieve_metadata, mcp__plugin_sf-demo-scout_Salesforce_DX__deploy_metadata, mcp__plugin_sf-demo-scout_Salesforce_DX__run_soql_query, mcp__plugin_sf-demo-scout_Salesforce_DX__assign_permission_set, mcp__plugin_sf-demo-scout_Salesforce_DX__list_all_orgs, mcp__plugin_sf-demo-scout_Salesforce_DX__run_code_analyzer, mcp__salesforce-docs__salesforce_docs_search, mcp__salesforce-docs__salesforce_docs_fetch, mcp__slack__slack_create_canvas
 ---
 
 # Scout Building — Opus Orchestrator
