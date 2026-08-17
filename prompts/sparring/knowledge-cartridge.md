@@ -70,7 +70,7 @@ cartridge's declared `namespaces` or `objects`.** Declared signals are the
 primary key — precise and self-describing. Match on any signal overlap; do not
 require all.
 
-- **No cartridge matches** → skip to Step 4 (docs cross-check may still flag a gap).
+- **No cartridge matches** → this fragment is done. Proceed silently — do NOT tell the SE a cartridge is missing. Scout grounds the scenario in docs + audit exactly as it always has. (Knowledge cartridges are rare; the LS Booster Pack is the only one today. A "no cartridge for this industry" flag would nag the SE about something they cannot install, and Scout can't tell "no cartridge exists" from "exists but not installed" — it sees only the local plugin cache. Where a future cartridge should go is a maintainer signal, gathered outside the SE's prep session.)
 - **A cartridge matches** → Step 3.
 
 ## Step 3 — Consult the matched cartridge (proactive, read-only)
@@ -105,27 +105,23 @@ prompts. If the cartridge surfaces a build-executor skill that should drive a
 build, route it through the Stage 5 offer-gate (SE approval → `### External
 Skills`), not here.
 
-## Step 4 — Docs cross-check + expansion-gap flag (rides the existing budget)
+## Step 4 — Docs cross-check the matched cartridge (rides the existing budget)
+
+Runs ONLY when Step 3 consulted a matched cartridge — it keeps that cartridge
+honest. On a no-match org there is nothing to cross-check; Step 2 already exited
+silently.
 
 Scout's Stage 4 already consults Salesforce Docs on industry-cloud data models
 (`platform-research.md` + `demo-docs-consultation` trigger 9). Use that SAME
-budget — no new ambient call — to ground-truth the industry:
-
-- **Ground the match:** confirm the audit's detected objects/namespaces map to a
-  real Salesforce industry solution, so a cartridge can't over-claim coverage and
-  the consult is anchored in what Salesforce actually ships.
-- **Flag the expansion gap:** if the audit + docs confirm a distinct industry
-  solution is present (e.g. Manufacturing Cloud, FSC) but NO installed cartridge
-  declared coverage for it, surface one line:
-  > "This org is [industry], but no knowledge cartridge is installed for it — the
-  > scenario is grounded in docs + audit only. (A cartridge for [industry] would
-  > deepen this.)"
-  This is deliberate: it is the signal that tells the SE where the next industry
-  cartridge should be built — the cartridge-as-blueprint expansion path.
+budget — no new ambient call — to **ground the match:** confirm the audit's
+detected objects/namespaces map to a real Salesforce industry solution, so a
+cartridge can't over-claim coverage and the consult is anchored in what
+Salesforce actually ships. If the docs check contradicts the cartridge's claimed
+coverage, trust docs + audit and note the mismatch rather than the cartridge.
 
 ## After this fragment
 
 Return to Stage 4's normal flow (SE confirms findings, proceed per the Stage 2
-route table). This fragment adds knowledge and (optionally) one gap-flag line; it
-changes no gating and blocks nothing. On an org with no matching cartridge and no
-detected industry solution, it is silent.
+route table). This fragment only adds knowledge when a cartridge matches; it
+changes no gating and blocks nothing. On any org with no matching cartridge it is
+fully silent — no "missing cartridge" nag.
