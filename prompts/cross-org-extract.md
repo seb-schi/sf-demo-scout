@@ -67,8 +67,8 @@ does not exist; this file is append-only, never rewrite prior entries):
 - **Status:** requested
 ```
 
-Use a real timestamp (`date '+%Y-%m-%d %H%M'`). Confirm to the SE the entry is
-written before continuing. If the SE cannot articulate what/why, STOP — do not
+Use a real timestamp (`date '+%Y-%m-%d %H%M'`). Confirm the entry is written
+before continuing — and if the SE cannot articulate what/why, STOP rather than
 pull an undocumented asset.
 
 ## Step 3: Pull, targeting the SOURCE org explicitly

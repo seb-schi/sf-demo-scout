@@ -281,21 +281,19 @@ Scope: anything beyond appending into an existing field section. Use when audit 
 
   Notes: `expectedActions` uses **Level-2 invocation names** (from `reasoning: actions:`), NOT Level-1 definition names; it is a flat list and assertion is superset-match. Always fill `expectedOutcome` — LLM-as-judge is the most reliable assertion. For guardrail rows leave `expectedTopic` empty and rely on `expectedOutcome`. The `agentforce-test` skill's `basic-test-spec.yaml` + `guardrail-test-spec.yaml` are the authoritative templates — do not hand-invent field names.
 - **Running-user access (Service Agents only):** if Type is `AgentforceServiceAgent`, the agent
-  executes as a dedicated running user (not the logged-in admin), so every backing action is gated by
-  that user's access. Phase 3 auto-grants the running user access to the backing Apex/Flow, the
-  RecordTypes the backing code inserts, and the dependency objects the backing code reads (derived from
-  the backing actions above — no spec enumeration needed). Employee Agents run as the logged-in user
-  and need none of this.
-- **⚠️ Layer-5 license wall (Service Agent + restricted-license running user):** if any backing action
+  executes as a dedicated running user, so every backing action is gated by that user's access.
+  Phase 3 auto-grants it access to the backing Apex/Flow, the RecordTypes the backing code inserts,
+  and the dependency objects it reads (derived from the backing actions — no spec enumeration
+  needed). Employee Agents run as the logged-in user and need none of this.
+- **⚠️ Layer-5 license wall (Service Agent + restricted-license running user):** if a backing action
   touches a managed/industry object (Life Sciences: Inquiry, CareProgramEnrollee, ProgramEnrollment,
-  etc.) AND the running user is on a restricted license (e.g. Einstein Agent), a permset CANNOT grant
-  access — it is a base-license wall. Pick the bypass at spec time and record it as a manual pre-demo
-  step: (1) blocking query lives in an asset WE own (unmanaged flow/apex) → set that flow to System
-  Mode / the apex to `without sharing` + system-context DML (one line, in our control); (2) blocking
-  query lives in MANAGED code (e.g. an `lsc4ce` trigger) → disable the *specific* handler via the
-  managed Admin Console → Trigger Handler Administration (SE-manual, org-wide toggle — pin the exact
-  handler first, disable ONE not all). The paid Agentforce-for-Life-Sciences add-on is the only
-  license-level fix and is not demo-viable.
+  …) AND the running user is on a restricted license (e.g. Einstein Agent), no permset can grant
+  access — it's a base-license wall. Pick the bypass at spec time, record as a manual pre-demo step:
+  (1) blocking query in an asset WE own → set that flow to System Mode / the apex to `without
+  sharing` + system-context DML; (2) blocking query in MANAGED code (e.g. an `lsc4ce` trigger) →
+  disable the *specific* handler via the managed Admin Console → Trigger Handler Administration (pin
+  the exact handler, disable ONE not all). The paid Agentforce-for-Life-Sciences add-on is the only
+  license-level fix, not demo-viable.
 - ⚠️ Channel assignment: SE Manual Checklist
 - **Advanced capabilities (if any — flag here so Phase 3 authors the metadata + hands off UI wiring):**
   - Multi-agent orchestration: [sub-agent api_name(s) the parent delegates to] — Beta, connection wiring is UI-only

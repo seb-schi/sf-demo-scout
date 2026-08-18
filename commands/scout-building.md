@@ -22,7 +22,7 @@ The loaded demo spec and org audit are your ONLY inputs. If the SE pastes or upl
 > - **Small tweak or fix** (a field, a picklist value, a flow trigger, seeded data) — let this build finish, then just tell Claude what you want changed in this session. It'll use the bundled Salesforce skills (`sf-flow`, `platform-data-manage`, and friends) to make the edit live against the org. Won't be written back to the spec — fine for iteration.
 > - **New scenario or structural rework** — take it back to `/scout-sparring` to revise the spec, then re-run `/scout-building`."
 
-This is a hard stop, not a judgment call — mid-build context cannot override the spec, and acting on it risks deploying or deleting the wrong things. The routing above does not relax it: nothing new gets deployed on the basis of the mid-build request *during this build*. The live-tweak door is something the SE does after the build completes, in their own session.
+This is a hard stop, not a judgment call — nothing new gets deployed on the basis of a mid-build request *during this build*. The live-tweak door (the small-tweak route above) is for after the build completes, in the SE's own session.
 
 **Note on the skills menu:** the harness auto-indexes slash commands, so you may see `scout-building` listed as a skill — ignore it. There is no `skills/scout-building/SKILL.md` by design; your instructions are this file.
 
@@ -214,13 +214,13 @@ The change log must include:
 - Any phases that FAILED validation (raw output preserved)
 - **Docs Consulted** section — aggregate `docs_consulted` arrays from every sub-agent's JSON output, plus any orchestrator-level error-recovery consultations. If nothing was consulted, write "None — no unfamiliar errors encountered."
 
-**Workspace cleanup (after the change log is written).** The change log is now the durable record of this deployment; the converted-retrieve scratch in `force-app/` has served its purpose. Sweep it clean (deny-rule-safe `find … -delete`, never `rm -rf` — see Step 5 Workspace Prep):
+**Workspace cleanup (after the change log is written).** The change log is now the durable record; sweep the converted-retrieve scratch clean (deny-rule-safe `find … -delete`, never `rm -rf` — see Step 5 Workspace Prep):
 
 ```bash
 find "$HOME/claude-projects/sf-demo-scout/force-app/main/default" -mindepth 1 -delete 2>/dev/null || true
 ```
 
-The `main/default/` skeleton is kept so the package dir stays valid. This is the clean-success-path hygiene that complements the start-of-run sweep (which is the safety net for crashed / interrupted prior runs).
+The `main/default/` skeleton is kept so the package dir stays valid (clean-success hygiene complementing the start-of-run safety-net sweep).
 
 ### 6b: Propose Lessons
 
@@ -269,4 +269,4 @@ After the notification fires, emit this as the FINAL message of the session — 
 > 💨 **Tip:** the heavy planning is done, so you don't need Opus for this part — run `/model` and switch to **Sonnet** for quicker, cheaper tinkering. (Bigger changes — a new agent, a story rebuild, anything you want captured in a clean spec — are the other door: open a fresh session and run `/scout-sparring`. That one stays on Opus.)
 > ---
 
-This note is deliberately at the command level (the SE's last beat), separate from the handover brief's own "Want to Change Something? Two Ways." section — the brief documents both doors in full; this closing note makes the quick-tweak door impossible to miss and is the only place the Sonnet `/model` nudge appears.
+This closing note is deliberately command-level (the SE's last beat), separate from the handover brief's own "Want to Change Something?" section — it makes the quick-tweak door impossible to miss and is the only place the Sonnet `/model` nudge appears.

@@ -2,14 +2,13 @@ You are deploying an Agentforce agent to org {{ORG_ALIAS}} ({{ORG_USERNAME}}).
 The SE has already confirmed this deployment. Work autonomously.
 
 **Approval is PRE-GRANTED — never pause for it.** The `agentforce-generate` skill contains hard
-human-in-the-loop STOP gates — it instructs you to "STOP for user approval of Agent Spec" and defines a
-pre-publish CHECKPOINT requiring "User explicitly approves deployment." You run as a sub-agent with NO
-way to ask the SE and resume (this harness has no SendMessage). Treat every such approval gate in that
-skill as ALREADY SATISFIED: the SE granted approval upfront at the orchestrator's Phase-3 gate. Do NOT
-stop, do NOT wait, do NOT emit an approval question and end your turn — proceed straight through Spec
-approval and the pre-publish checkpoint. (A sub-agent that stops at the Agent-Spec gate dies mid-task
-with nothing created — this happened on an early customer build. The skill's other CHECKPOINT conditions
-— validate passes, preview tested — still apply; only the *user-approval* condition is pre-satisfied.)
+human-in-the-loop STOP gates ("STOP for user approval of Agent Spec"; a pre-publish "User explicitly
+approves deployment" CHECKPOINT). You run as a sub-agent with NO way to ask the SE and resume (no
+SendMessage in this harness), and a stop there dies mid-task with nothing created. Treat every such
+approval gate as ALREADY SATISFIED — the SE approved upfront at the orchestrator's Phase-3 gate — and
+proceed straight through Spec approval and the pre-publish checkpoint. The skill's *other* CHECKPOINT
+conditions (validate passes, preview tested) still apply; only the user-approval condition is
+pre-satisfied.
 Use MCP tools for metadata operations (deploy, retrieve, query). Use `sf agent` CLI for agent lifecycle commands (validate, preview, publish, activate).
 
 **Retrieve output location.** When calling `retrieve_metadata`, ALWAYS pass `directory` = `$HOME/claude-projects/sf-demo-scout` (the SFDX project root — it has `sfdx-project.json` and `force-app/`). The MCP server converts retrieved metadata into source format under that root's `force-app/main/default/`. Without an explicit `directory`, conversion lands wherever your cwd resolves — often the customer org folder — littering `orgs/<customer>/force-app/`. Pin it so every retrieve converges on the one project `force-app/`, which the orchestrator sweeps clean after deployment. Do NOT drop this argument.
