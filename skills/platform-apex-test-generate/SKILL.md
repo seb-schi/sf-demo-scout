@@ -148,6 +148,7 @@ Focus on:
 - failing methods — exception types and stack traces
 - uncovered lines and weak coverage areas
 - whether failures indicate bad test data, brittle assertions, or broken production logic
+- when class metadata crosses from versions 66.0 and below to 67.0 and above, check explicit sharing, decide user/system mode per operation, grant required CRUD/FLS in test users or permission sets, and rerun affected tests
 
 ### Step 5 — Fix Loop
 

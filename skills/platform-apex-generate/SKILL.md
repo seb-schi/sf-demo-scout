@@ -117,6 +117,7 @@ If any constraint would be violated in generated code, **stop and explain the pr
 - `SELECT *` does not exist in SOQL -- always specify the exact fields needed
 - Apply `LIMIT` clauses to bound result sets; use `ORDER BY` for deterministic results
 - When querying Custom Metadata Types (objects ending with `__mdt`), do NOT use SOQL — use the built-in methods (`{CustomMdt__mdt}.getAll().values()`, `getInstance()`, etc.)
+- Queries executed in `without sharing` keyword classes with API versions 67.0 and up will throw when the running user does not have the proper field or object-level security. If API versions are being updated, ensure queries are safeguarded properly, and that tests are updated accordingly. Only explicitly justified usages of `SYSTEM_MODE` variants within queries should be allowed by default.
 
 ### Caching
 
@@ -126,7 +127,7 @@ If any constraint would be violated in generated code, **stop and explain the pr
 ### Security
 
 - Default to `with sharing`; document justification for `without sharing` or `inherited sharing`
-- `WITH USER_MODE` in SOQL and `AccessLevel.USER_MODE` for `Database` DML for CRUD/FLS enforcement
+- `WITH USER_MODE` in SOQL and `AccessLevel.USER_MODE` for `Database` DML for CRUD/FLS enforcement — these are the defaults for _all_ Apex classes with API versions of 67.0 or higher
 - Validate dynamic field/operator names via allowlist or `Schema.describe`
 - Named Credentials for all external credentials/API keys
 - `AuraHandledException` for `@AuraEnabled` user-facing errors (no internal details)

@@ -2,6 +2,11 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-08-18
+
+- **Switching orgs now sticks across fresh windows — not just the current session.** When you switch your active demo org, Scout now sets it as the default at both the workspace and machine-wide level, so a brand-new Claude Code window (which opens at your home folder, not the workspace) resolves the same org instead of falling back to a stale previous default. Previously a switch could look successful but silently not carry over to a fresh window.
+- **Apex generation now reflects the API 67.0 "secure by default" change.** Scout's Apex authoring and testing guidance now accounts for API version 67.0+ enforcing field- and object-level security by default in queries and DML — so generated code and tests flag the CRUD/FLS checks that newer API versions require.
+
 ## 2026-08-17
 
 - **Hotfix: Salesforce Docs MCP re-wired at user scope to avoid conflicts across plugins.** It briefly stopped returning results (a plugin-manifest registration conflicted with how other plugins wire the same server). **Run `/scout-setup` once after this update** to re-wire it — nothing to authenticate.
