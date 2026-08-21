@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-08-21
+
+- **When you build a Life Sciences demo with Scout, it now offers to share what you made with the community — right where the booster pack already prompts for it, but wouldn't otherwise reach you.** If your org matches an installed knowledge cartridge (the Life Sciences Booster Pack today) *and* you worked out something genuinely reusable during the build — a fix for a product limitation, a slick component, a non-obvious agent setup — Scout now offers once, at the end of the session, to capture it with `/ls-contribute` so the next SE reuses it, credited to you. It stays silent on routine "deploy the spec" runs and on any org without a matching pack, so it never becomes noise. (The booster pack already nudges for this inside its own skills, but that prompt never surfaced inside a Scout build — this closes that gap.)
+
 ## 2026-08-18
 
 - **Switching orgs now sticks across fresh windows — not just the current session.** When you switch your active demo org, Scout now sets it as the default at both the workspace and machine-wide level, so a brand-new Claude Code window (which opens at your home folder, not the workspace) resolves the same org instead of falling back to a stale previous default. Previously a switch could look successful but silently not carry over to a fresh window.

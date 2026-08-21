@@ -270,3 +270,7 @@ After the notification fires, emit this as the FINAL message of the session — 
 > ---
 
 This closing note is deliberately command-level (the SE's last beat), separate from the handover brief's own "Want to Change Something?" section — it makes the quick-tweak door impossible to miss and is the only place the Sonnet `/model` nudge appears.
+
+## Step 8: Cartridge Contribution Nudge (conditional, silent by default)
+
+After the closing note above, read `${CLAUDE_PLUGIN_ROOT}/prompts/building/contribution-nudge.md` and follow it end-to-end. It is cartridge-conditional and silent by default: it discovers any installed knowledge cartridge, matches its declared Coverage against this build's industry (from the spec), and — only if a cartridge matches AND this build produced a genuine trap or reusable pattern — offers once to capture it via the cartridge's `/ls-contribute` command. On no matching cartridge, or a routine spec deploy, it emits nothing. It is the LAST beat of the session; it never blocks the close.
