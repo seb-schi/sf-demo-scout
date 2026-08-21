@@ -315,3 +315,5 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-maintenance.md` and execute the "Pro
 > **Open a fresh Claude Code window** before running `/scout-building` — keeps sparring context out of the deployment session. The spec file on disk is all building needs.
 >
 > Then run `/scout-building` in the new window — it will cross-check against the audit and flag conflicts."
+
+**Never offer to run `/scout-building` yourself or spawn it as a sub-agent** — it is itself an orchestrator (delegates to phase Sonnet sub-agents, writes the change log) and must run top-level in a fresh session on its own model gate. Your handoff ends at the spec. This holds even though the harness now makes sub-agent spawning cheap and default.
