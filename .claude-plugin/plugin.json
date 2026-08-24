@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "2026.08.21-no-subagent-build-handoff",
+  "version": "2026.08.24-agentforce-generate-v141-refresh",
   "author": {
     "name": "Sebastian Schickhoff"
   },

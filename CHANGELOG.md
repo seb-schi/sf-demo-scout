@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-08-24
+
+- **Scout's Agentforce agent-authoring guidance is refreshed to Salesforce's latest (sf-skills v1.41).** The reference material behind agent generation — AgentScript language, instruction resolution, architecture and determinism patterns, the "zen of AgentScript" — is now current with Salesforce's most recent guidance, which materially expanded this detail since Scout last vendored it. Your agent builds draw on the up-to-date patterns; Scout's own tuning (voice knowledge, org-side validation, audit/repair) is unchanged.
+
 ## 2026-08-21
 
 - **When you build a Life Sciences demo with Scout, it now offers to share what you made with the community — right where the booster pack already prompts for it, but wouldn't otherwise reach you.** If your org matches an installed knowledge cartridge (the Life Sciences Booster Pack today) *and* you worked out something genuinely reusable during the build — a fix for a product limitation, a slick component, a non-obvious agent setup — Scout now offers once, at the end of the session, to capture it with `/ls-contribute` so the next SE reuses it, credited to you. It stays silent on routine "deploy the spec" runs and on any org without a matching pack, so it never becomes noise. (The booster pack already nudges for this inside its own skills, but that prompt never surfaced inside a Scout build — this closes that gap.)
