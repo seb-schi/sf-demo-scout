@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-09-01
+
+- **Life Sciences knowledge now reaches more of your prep sessions.** When you have the LS Booster Pack installed, Scout's knowledge-cartridge consult now runs in Showtime sessions too (previously only New/Iteration), and no longer gets skipped on quick existing-metadata scenarios — so industry traps and framing shape the scenario even on a fast turn. If an installed pack is missing the coverage metadata Scout matches on, you'll now see one honest diagnostic line explaining why it couldn't match, instead of silence.
+
 ## 2026-08-24
 
 - **Scout's Agentforce agent-authoring guidance is refreshed to Salesforce's latest (sf-skills v1.41).** The reference material behind agent generation — AgentScript language, instruction resolution, architecture and determinism patterns, the "zen of AgentScript" — is now current with Salesforce's most recent guidance, which materially expanded this detail since Scout last vendored it. Your agent builds draw on the up-to-date patterns; Scout's own tuning (voice knowledge, org-side validation, audit/repair) is unchanged.

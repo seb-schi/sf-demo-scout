@@ -52,6 +52,10 @@ From the transcript, extract — do NOT emit yet:
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/value-story.md` Drafting Rules for the spine constraints (one sentence per slot, contrast in KP3 must be visible, no vendor language, audience drives altitude). Do NOT execute its Output Format — Showtime emits the spine inline with scenarios in S4, not as a standalone message.
 
+## Step S3.5 — Knowledge cartridge consult (silent unless matched)
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/knowledge-cartridge.md` and execute it against the fresh audit's detected industry signals (Demo Surface Notes namespaces/objects from S1). Showtime has no platform-research pass, so run the consult standalone here — its Step 4 docs cross-check is best-effort: only cross-check if a Docs MCP call is cheap, otherwise note the match is audit-signal-grounded and proceed (Showtime is time-boxed; do not open a research budget). On a match, fold the cartridge's traps/recipes/regulatory framing into the S4 Holistic Proposal and the PoC envelope reasoning. Silent on no match, exactly as in Stage 4.
+
 ## Step S4 — Holistic Proposal + PoC Envelope Choice
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/showtime-scope-envelopes.md`. Then synthesize from transcript signal + audit star items:
@@ -257,5 +261,5 @@ Return to main command (which exits cleanly since spec is on disk).
 - Does NOT run a value-spine acknowledgement gate (auto-drafted, emitted inline).
 - Does NOT run the cut gate from Stage 5 (scope is already minimal by construction).
 - Does NOT support iteration intent within Showtime (single-shot session — re-open with `/scout-sparring → Iteration` after the demo for follow-up).
-- Does NOT do Slack lookup, broad doc research, or platform pre-flight beyond what the audit already captured.
+- Does NOT do Slack lookup, broad doc research, or platform pre-flight beyond what the audit already captured. (Exception: the knowledge-cartridge consult runs proactively at S3.5 if a conforming cartridge matches — knowledge, not a build offer.)
 - Does NOT propose a weak PoC just to have something to deploy. If the transcript signal points entirely outside the envelopes, refuse cleanly and route to `/scout-sparring → New` post-demo.

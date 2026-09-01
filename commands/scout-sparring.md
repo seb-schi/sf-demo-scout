@@ -120,7 +120,7 @@ Respect SE judgment if they explicitly ask to skip a fresh audit.
 | Reuse-org | Stage 3   | skip¹        | Stage 5      | skip²                | run      |
 
 † Iteration stages are in `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/iteration.md` — read on demand.
-¹ Skip Stage 4 unless the scenario introduces new objects beyond what the audit covers OR gated categories (Flows, Apex, LWC, Agentforce).
+¹ The platform-research procedure may be skipped unless the scenario introduces new objects beyond what the audit covers OR gated categories (Flows, Apex, LWC, Agentforce). The **knowledge-cartridge consult still runs** even when platform-research is skipped — it is cheap and silent on no match, and industry knowledge shapes even an existing-metadata scenario.
 ² Skip Stage 5b unless the scenario has Apex, Flows, or Agentforce actions (objects queried or written to programmatically) OR a Data Seeding section with explicit field mappings. Data seeding triggers the describe-before-spec path inside sparring/data-shape.md.
 
 For **iteration intent**: read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/iteration.md` and execute Stage 3i, then return here for Stage 4.
@@ -215,7 +215,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/platform-research.md` and execute t
 - Executing searches against Salesforce Docs MCP
 - Surfacing findings for SE review
 
-**Knowledge cartridge consult:** After the platform-research procedure, read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/knowledge-cartridge.md` and execute it. It discovers any installed, contract-conforming knowledge cartridge whose declared Coverage matches the audit's detected industry, and — on a match — proactively consults that cartridge's knowledge skills (read-only, no gate) to ground the scenario. It is silent on orgs with no matching cartridge. This is a knowledge consult, distinct from and earlier than Stage 5's build-executor external-skills offer-gate.
+**Knowledge cartridge consult:** Whether or not the platform-research procedure ran above, read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/knowledge-cartridge.md` and execute it. It discovers any installed, contract-conforming knowledge cartridge whose declared Coverage matches the audit's detected industry, and — on a match — proactively consults that cartridge's knowledge skills (read-only, no gate) to ground the scenario. It is silent on orgs with no matching cartridge. This is a knowledge consult, distinct from and earlier than Stage 5's build-executor external-skills offer-gate.
 
 **Symptom-driven iterations (Stage 3i captured a verbatim error):** in addition to the standard procedure, issue at least one `salesforce_docs_search` keyed on the error code or error message text. Surface findings as candidate root-cause families in the Stage 5i proposal — not as asserted fix.
 
