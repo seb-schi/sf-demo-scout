@@ -5,6 +5,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 ## 2026-09-01
 
 - **Life Sciences knowledge now reaches more of your prep sessions.** When you have the LS Booster Pack installed, Scout's knowledge-cartridge consult now runs in Showtime sessions too (previously only New/Iteration), and no longer gets skipped on quick existing-metadata scenarios — so industry traps and framing shape the scenario even on a fast turn. If an installed pack is missing the coverage metadata Scout matches on, you'll now see one honest diagnostic line explaining why it couldn't match, instead of silence.
+- **Formula fields with a stray length no longer slip through to a failed deploy.** Scout's custom-field guidance now knows that a formula field must never carry a `<length>` tag — the Metadata API rejects it (even for text-result formulas). Picks up a correctness fix from Salesforce's latest field-authoring guidance (sf-skills v1.44).
 
 ## 2026-08-24
 

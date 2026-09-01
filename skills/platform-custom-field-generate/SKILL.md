@@ -340,6 +340,8 @@ ChildObjectAPIName__c.FieldAPIName__c
 A Formula is not a type itself. The `<formula>` tag is added to a field whose `<type>` is set to the **result data type**:
 - `Checkbox`, `Currency`, `Date`, `DateTime`, `Number`, `Percent`, `Text`
 
+**A formula field never carries `<length>`** — not even a Text-result formula. The API rejects it: `Can not specify a length for CustomFields that have a formula`.
+
 ### Formula XML Generation Rules
 
 - The contents of the `<formula>` tag MUST be wrapped in a `<![CDATA[ ... ]]>` section. This prevents the XML parser from interpreting formula operators (like `&`, `<`, `>`) as XML markup.
@@ -444,6 +446,7 @@ Before generating CustomField XML, verify:
 - [ ] Is `<type>` set to result type (NOT "Formula")?
 - [ ] Is `<formula>` content wrapped in `<![CDATA[ ... ]]>`?
 - [ ] Is `<returnType>` attribute ABSENT? (does not exist in Metadata API)
+- [ ] Is `<length>` ABSENT? (formula fields never carry a length, even Text-result formulas)
 - [ ] Is `<formulaTreatBlanksAs>` set to `BlankAsZero` for numeric results or `BlankAsBlank` for text/date results?
 - [ ] Do all referenced fields exist and deploy before this field?
 
