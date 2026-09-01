@@ -34,6 +34,8 @@ A **knowledge cartridge** is any installed plugin that publishes a solution-agno
 - List Views (`ListView` metadata — `platform-list-view-generate` skill)
 - Sharing Rules (record-level `sharingCriteriaRules` / `sharingOwnerRules` / `sharingGuestRules` — `platform-sharing-rules-generate` skill; autonomous for the rule metadata. ⚠️ Standard-object OWD is an SE manual prerequisite — Scout never changes org-wide defaults, because a standard-object `CustomObject` deploy redeploys the whole object and triggers sharing recalculation)
 - Lightning Reports (`Report` metadata — Tabular / Summary / Matrix / Joined; columns, groupings, filters, charts, folder + `<folderShares>` — `platform-report-generate` skill; runs on a standard report type or a deployed Custom Report Type. Dashboards stay SE Manual)
+- Custom Settings (`CustomObject` with `<customSettingsType>` — Hierarchy or List — `platform-custom-setting-generate` skill; feature flags, kill switches, trigger-bypass toggles, per-profile config a Flow or Apex reads. Definition + fields are metadata; values are data, seeded via `sf data create record`. Post-deploy `sf sobject describe` asserts `customSetting=true` — the only check that catches a missing-`customSettingsType` green-deploy-as-wrong-component)
+- Custom Metadata Types (`__mdt` type + fields + deployable `.md-meta.xml` records — `platform-custom-metadata-type-generate` skill; reference / mapping / crosswalk config that ships between orgs, read in Apex via getAll()/getInstance() with no SOQL. Records deploy as metadata, unlike custom-setting values)
 
 ### Gated (SE confirms once per category, then autonomous)
 - Record-triggered flows (before-save, after-save, before-delete; any trigger object; cross-object DML allowed)

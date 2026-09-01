@@ -152,6 +152,20 @@ Scope: a report type exposing one primary object + up to 3 related objects (4 to
   - [Related Object]: section label "[masterLabel]", fields:
     - [Field__c] → checked / unchecked
 
+### Custom Settings (if applicable)
+Scope: a Custom Setting (`platform-custom-setting-generate` skill) — a `CustomObject` with `<customSettingsType>` (`Hierarchy` for per-profile/per-user overridable config, `List` for a small keyed reference table). Use for feature flags, kill switches, trigger-bypass toggles, per-profile limits, debug flags a Flow or Apex reads. NOT for secrets (Named Credential), NOT for cross-org-deployable reference data (Custom Metadata Types below), NOT for business records (custom object).
+- Custom Setting: [ApiName]__c, Type: [Hierarchy | List], Label: [Label]
+- Fields: [FieldApiName]__c ([Checkbox | Currency | Date | DateTime | Email | Number | Percent | Phone | Text | TextArea | Url]) — [purpose]. NO Picklist / Formula / Lookup (unsupported on custom settings).
+- Values (data, not metadata — seeded via `sf data create record`, not deployed): [e.g. "org-default row: Enable_Beta__c=false" | "profile override: System Administrator → Enable_Beta__c=true"]
+- Consumed by: [the Apex class / Flow that reads it — name it so the dependency is explicit]
+
+### Custom Metadata Types (if applicable)
+Scope: a Custom Metadata Type (`platform-custom-metadata-type-generate` skill) — `__mdt` type + fields + deployable `.md-meta.xml` records. Use for reference/config data that ships between orgs, or an admin-maintained mapping / lookup / crosswalk table (one record per pair). Records ARE metadata (they deploy); custom-setting values are not.
+- Custom Metadata Type: [ApiName]__mdt, Label: [Label], Plural: [Plural Label]
+- Fields: [FieldApiName]__c ([Checkbox | Date | DateTime | Email | Number | Percent | Phone | Picklist | Text | TextArea | LongTextArea | Url | MetadataRelationship]) — [purpose]. NO Currency / Formula. For a relationship, write `MetadataRelationship` (never Lookup) with `<referenceTo>` = another `__mdt` / `EntityDefinition` / `FieldDefinition`.
+- Records: [DeveloperName] → { [FieldApiName]__c: [value], ... } — one record per row; DeveloperName derived deterministically from the key label (≤40 chars, alphanumeric + underscore).
+- Consumed by: [the Apex class / Flow that reads it via getAll() / getInstance() — name it]
+
 ### Reports (if applicable)
 Scope: a Lightning Report (`.report-meta.xml`) in a folder (the `platform-report-generate` skill). Reports run on a standard report type (e.g. `Opportunity`, `CaseList`, `LeadList`, `AccountList`) or a deployed Custom Report Type from the section above. Columns use platform report column names, NOT raw API field names.
 - Report: [Report Name (max 40 chars)], API/DeveloperName: [DeveloperName]

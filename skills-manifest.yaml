@@ -178,3 +178,16 @@ skills:
   - name: platform-report-generate
     source: afv
     path: skills/platform-report-generate
+
+  # ── NEW 2026-09-01: Custom Settings + Custom Metadata Types (afv/main, sf-skills v1.44.0, 74ea89b) ──
+  # Byte-verbatim vendor (pure cp at pinned SHA, NOT vendor-skills.sh, NOT a graft — no prior Scout copy).
+  # Both A4V-clean (no execute_metadata_action). CMDT ships references/cmdt-records.md + scripts/
+  # sanitize-developer-name.sh — the script is a SELF-CONTAINED POSIX sed helper (no external runtime dep),
+  # so unlike the held-out LWC SLDS-linter / agentforce SDK scripts it IS vendored. Custom Setting is a
+  # single SKILL.md (no refs, no scripts). See PLAN 2026-09-01/1014.
+  - name: platform-custom-setting-generate
+    source: afv
+    path: skills/platform-custom-setting-generate
+  - name: platform-custom-metadata-type-generate
+    source: afv
+    path: skills/platform-custom-metadata-type-generate
