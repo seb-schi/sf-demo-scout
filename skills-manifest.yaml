@@ -191,3 +191,16 @@ skills:
   - name: platform-custom-metadata-type-generate
     source: afv
     path: skills/platform-custom-metadata-type-generate
+
+  # ── NEW 2026-09-02: Email-to-Case (afv/main, sf-skills v1.44.0, 74ea89b) ──
+  # Byte-verbatim vendor (pure cp at pinned SHA, NOT vendor-skills.sh, NOT a graft — no prior Scout copy).
+  # A4V-clean (no execute_metadata_action). Scripts (apply-casesettings.py, validate-casesettings.py,
+  # check-agent-email-capability.sh) are stdlib-only Python/POSIX bash — reuse the sf-CLI-authenticated
+  # session (`sf org display` / `sf org auth show-access-token`), no external SDK or credential handling,
+  # same trust profile as the CMDT sanitize-developer-name.sh precedent (see PLAN 2026-09-01/1014).
+  # scripts/tests/ intentionally NOT vendored — maintainer-facing unit tests for the skill's own script
+  # logic; Scout invokes the scripts, never edits them, so there is nothing here to test against.
+  # Gated tier, not Autonomous — enabling Email-to-Case is permanent and org-wide. See PLAN 2026-09-02/1009.
+  - name: service-email-to-case-configure
+    source: afv
+    path: skills/service-email-to-case-configure

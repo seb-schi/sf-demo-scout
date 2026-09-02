@@ -181,6 +181,15 @@ Scope: a Lightning Report (`.report-meta.xml`) in a folder (the `platform-report
 - Time frame (optional): [dateColumn] over [interval — e.g. INTERVAL_CURRENT (this quarter), INTERVAL_CURY (this year), INTERVAL_LAST30]
 - Chart (optional, Summary/Matrix only): [chart type — see the skill's `references/chart-types.md`]
 
+### Email-to-Case (if applicable)
+Scope: org-wide Email-to-Case (`service-email-to-case-configure` skill) — the `CaseSettings` singleton's `emailToCase` block + routing addresses, applied via the skill's two-phase Metadata API script. Enabling it is permanent and org-wide (cannot be turned off once on) — ⚠️ SE CONFIRMATION REQUIRED if the target org is production (Gated tier; sandboxes/scratch/trials do not need it).
+- Routing address(es): [routingName], type: [EmailToCase | Outlook | GmailOAuth], caseOrigin: [value], casePriority: [value], customer-facing email: [address — elicited fresh each session, never reused]
+- Per-address Default Case Owner (optional): [type: User/Queue + value] — omit to fall to org default / assignment rules
+- Optional toggles (default on unless the SE opts out): Enable HTML email, Eliminate duplicate attachments, Show word count in composer, Notify case owners on new emails, Enable Email Drafts
+- Support Settings — Default Case Owner: [type: User/Queue + value, or "preserve existing"]; Automated Case User: [type: User (+ username) / System (+ optional system-user email), or "preserve existing"]
+- Agentforce delegation (optional): [yes/no] — if yes, agent + channel wiring land in the Agentforce section below; Phase 1 probes org entitlement first and skips delegation (base Email-to-Case still applies) if the org isn't entitled
+- Consumed by: (n/a — Case routing, not read by custom Apex/Flow)
+
 ### Data Seeding
 - Object: [name], Records: [count]
 - Key values: [field]: [value] — (reason)

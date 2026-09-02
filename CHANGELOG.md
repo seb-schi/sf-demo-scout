@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-09-02
+
+- **Scout can now set up Email-to-Case end to end — routing addresses, support settings, and optionally an Agentforce agent to answer the emails.** Configuration goes through the same two-phase Metadata API path Salesforce's own tooling uses (a single-shot deploy fails on a fresh org), and Scout checks once before touching a production org since turning Email-to-Case on is permanent. If you want an agent on the channel, Scout checks your org is entitled first and wires it in — otherwise it configures the plain routing and tells you why the agent step was skipped.
+
 ## 2026-09-01
 
 - **Life Sciences knowledge now reaches more of your prep sessions.** When you have the LS Booster Pack installed, Scout's knowledge-cartridge consult now runs in Showtime sessions too (previously only New/Iteration), and no longer gets skipped on quick existing-metadata scenarios — so industry traps and framing shape the scenario even on a fast turn. If an installed pack is missing the coverage metadata Scout matches on, you'll now see one honest diagnostic line explaining why it couldn't match, instead of silence.
