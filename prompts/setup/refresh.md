@@ -4,7 +4,38 @@ Workspace already configured. Update CLIs, sync skills, refresh `.zshrc` block, 
 
 **Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an abort (e.g. SE returning from `/mcp` Slack auth) is safe and fast — completed steps fast-no-op via their own probes (`SLACK_MCP_ALREADY_REGISTERED`, `ZSHRC_UNCHANGED`, etc.). Always run end-to-end; do NOT skip steps trying to "resume" — the no-ops are the resume mechanism. Within the same CC session you may rely on conversation memory to fast-forward; across sessions, just run the full sequence — it will land in the right place naturally.
 
+## a.0: Node toolchain probe (npm / npx presence)
+
+Some machines run a DevBar/standalone-provided Node with no `npm`/`npx` on PATH.
+That silently breaks two things: the CLI version gates below (steps a, b) probe via
+`npm` and misreport its absence as "offline"; and the Salesforce DX MCP server —
+declared in `plugin.json` as `npx -y @salesforce/mcp` — fails to launch every
+session with `ENOENT: npx not found`. Probe both up front so the messages are
+accurate.
+
+```bash
+command -v npm >/dev/null 2>&1 && echo "NPM_PRESENT" || echo "NPM_ABSENT"
+command -v npx >/dev/null 2>&1 && echo "NPX_PRESENT" || echo "NPX_ABSENT"
+```
+
+- `NPM_ABSENT` — **skip steps a and b entirely** (do not run the CLI version gates;
+  with no npm they only produce a false "offline" reading). Surface: "npm isn't on
+  your PATH — Node here looks DevBar/standalone-provided. Skipping the `sf`/`claude`
+  CLI update checks: neither is npm-managed on this machine (`sf` comes from AI
+  Suite, `claude` self-updates natively), so there's nothing for npm to update. Not
+  an error."
+- `NPX_ABSENT` — surface a warning (does NOT block setup): "⚠️ `npx` isn't on your
+  PATH, but the Salesforce DX MCP server launches via `npx -y @salesforce/mcp`. It
+  will fail to start each session (`ENOENT: npx not found`), so the DX MCP
+  metadata/SOQL/deploy tools won't be available — Scout falls back to the `sf` CLI
+  where it can. To restore the MCP: install a Node that bundles npm/npx (e.g. `brew
+  install node`) and make sure it precedes the DevBar Node on your PATH, then restart
+  Claude Code."
+- `NPM_PRESENT` / `NPX_PRESENT` — silent; proceed.
+
 ## a: Update Salesforce CLI (only if behind latest)
+
+**Skip this step if a.0 reported `NPM_ABSENT`.**
 
 Reinstall the global `sf` CLI ONLY when the installed version is behind the
 latest published version. An unconditional `npm install --global` on every
@@ -50,6 +81,8 @@ fi
 ```
 
 ## b: Update Claude Code CLI (only if behind latest)
+
+**Skip this step if a.0 reported `NPM_ABSENT`.**
 
 Same version-gate rationale as step a — reinstall only when behind latest.
 

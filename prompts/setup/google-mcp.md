@@ -32,8 +32,12 @@ On `ADAPTOR_MISSING` — surface and RETURN (do not abort setup):
 The server name is `google_workspace` (NO suffix). Do not use
 `google_workspace-rw` — `-rw` is the OAuth provider id, not the server name.
 
+The existence check matches any already-registered Google Workspace server —
+user-scope OR plugin-scoped, hyphen or underscore — so Scout never adds a duplicate
+alongside one a plugin already provides (2026-09-10).
+
 ```bash
-if claude mcp list 2>/dev/null | grep -qE '^[[:space:]]*google-workspace[[:space:]]*:'; then
+if claude mcp list 2>/dev/null | grep -qiE 'google[_-]workspace'; then
   echo "GOOGLE_MCP_ALREADY_REGISTERED"
 else
   if claude mcp add -s user google-workspace "$HOME/.devbar/bin/mcp-adaptor" -- serve --server google_workspace >/dev/null 2>&1; then

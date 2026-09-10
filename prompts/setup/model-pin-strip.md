@@ -6,9 +6,12 @@ DevBar, etc.) inject, sometimes erroneously — they collapse the picker so the 
 can't reach newer models. That residue is NOT written by Scout, so it lands on
 Scout-FRESH machines too; this runs on both the fresh and refresh paths.
 **Removal set is exactly the 3 model keys (`ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL`)
-+ `modelOverrides` + the two retired knobs `MAX_THINKING_TOKENS` and
-`CLAUDE_CODE_MAX_OUTPUT_TOKENS`. Auth, gateway, and OTEL keys are NEVER touched;
-Scout never writes a model value.** The per-knob retirement rationale lives in the
++ the two retired knobs `MAX_THINKING_TOKENS` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS`.
+`modelOverrides` is FLAG-ONLY, never deleted — on Bedrock / Vertex / Foundry it is
+the live model-alias → inference-profile routing map, which Scout does not write and
+must not remove (auto-deleting it broke live model routing on an Enterprise-account
+machine, 2026-09-10). Auth, gateway, and OTEL keys are likewise NEVER touched; Scout
+never writes a model value.** The per-knob retirement rationale lives in the
 `PIN_KEYS` comments below. Idempotent, safe-fail.
 
 The `.zshrc` surface is handled separately by the dispatching prompt's managed-block refresh (`zshrc-block.md` sweeps these keys as out-of-block stragglers). This fragment covers the two `~/.claude` JSON files, VS Code's settings, and launchctl.
@@ -18,7 +21,7 @@ The `.zshrc` surface is handled separately by the dispatching prompt's managed-b
 ```bash
 for USER_SETTINGS in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
 python3 - "$USER_SETTINGS" <<'PYEOF'
-import json, os, sys, tempfile
+import json, os, sys, tempfile, shutil
 path = sys.argv[1]
 PIN_KEYS = [
     "ANTHROPIC_DEFAULT_OPUS_MODEL",
@@ -57,12 +60,25 @@ if isinstance(env, dict):
         if k in env:
             del env[k]
             removed.append(k)
+# modelOverrides is FLAG-ONLY — never deleted (2026-09-10). On Bedrock / Vertex /
+# Foundry it is the LIVE model-alias -> inference-profile routing map; Scout does
+# not write it and must not remove it (same never-touch class as auth / gateway /
+# OTEL keys). Auto-deleting it broke live model routing on an Enterprise-account
+# machine. Detect + surface; leave untouched.
+flags = []
 if "modelOverrides" in data:
-    del data["modelOverrides"]
-    removed.append("modelOverrides")
+    flags.append("modelOverrides")
 
 if not removed:
-    print(f"PINS_NONE[{label}]"); sys.exit(0)
+    tail = (" FLAGS[" + ",".join(flags) + "]") if flags else ""
+    print(f"PINS_NONE[{label}]{tail}"); sys.exit(0)
+
+# Backup before write (distinct per-fragment name — see the aisuite fragment).
+bak = path + ".scout-bak-modelpins"
+try:
+    shutil.copy2(path, bak)
+except OSError as e:
+    print(f"PINS_BACKUP_FAILED[{label}]: {e}"); sys.exit(0)
 
 tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".settings.", suffix=".tmp")
 try:
@@ -75,7 +91,8 @@ except Exception as e:
     except OSError: pass
     print(f"PINS_WRITE_FAILED[{label}]: {e}"); sys.exit(0)
 
-print(f"PINS_REMOVED[{label}]: " + ",".join(removed))
+tail = (" FLAGS[" + ",".join(flags) + "]") if flags else ""
+print(f"PINS_REMOVED[{label}]: " + ",".join(removed) + tail)
 PYEOF
 done
 ```
@@ -188,7 +205,8 @@ done
 ```
 
 Surface inline (compose one combined note; silent only if every surface was already clean):
-- All clean (`PINS_NONE`/`PINS_ABSENT` for both JSON files + `VSCODE_PINS_NONE`/`VSCODE_ABSENT` + `LAUNCHCTL_PINS_NONE`) — silent.
+- All clean (`PINS_NONE`/`PINS_ABSENT` for both JSON files, with NO `FLAGS[...]`, + `VSCODE_PINS_NONE`/`VSCODE_ABSENT` + `LAUNCHCTL_PINS_NONE`) — silent.
+- Any `FLAGS[modelOverrides]` (on a `PINS_NONE` or `PINS_REMOVED` result) — add a line: "Spotted a `modelOverrides` block in your Claude settings — left it UNTOUCHED. On Bedrock/Vertex/Foundry that's your live model-routing map, which Scout doesn't manage; noting it only so you know it's there."
 - Any `PINS_REMOVED[...]` and/or `VSCODE_PINS_REMOVED` and/or `LAUNCHCTL_PINS_CLEARED` — "Cleared stale model pins so your `/model` picker shows the full list (including Opus 4.8): [list the surfaces that changed in plain words — e.g. 'Claude settings, VS Code settings']. Scout also removed the leftover output-length setting it used to write — Claude Code's own default applies now. **Restart Claude Code** (and if VS Code changed, fully quit it with Cmd+Q and relaunch) to pick up."
 - `VSCODE_VALIDATE_FAILED_RESTORED` / `VSCODE_PINS_SURVIVED_RESTORED` / `VSCODE_UNPARSEABLE_PREEDIT` / `VSCODE_BACKUP_FAILED` — "Couldn't safely auto-edit VS Code's settings (`~/Library/Application Support/Code/User/settings.json`) — left it untouched. Remove the three `ANTHROPIC_DEFAULT_*_MODEL` entries from the `claudeCode.environmentVariables` array by hand, then fully quit VS Code (Cmd+Q) and relaunch."
 - Any other error variant — one-line note, proceed.

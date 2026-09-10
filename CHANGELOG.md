@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-09-10
+
+- **Scout's setup self-heal no longer trips over a machine that runs AI Suite, a DevBar-provided Node, or Bedrock/Enterprise model routing.** On a machine with AI Suite still installed, `/scout-setup` used to disable working hooks (it matched the `.aisuite` path without checking the script was actually gone) — now it only removes a hook whose target script no longer exists. It also stopped deleting your `modelOverrides` block: on Bedrock/Vertex/Foundry that's your live model-routing map, which Scout doesn't manage, so it's now flagged and left untouched. And when Node comes without npm/npx, setup says so plainly (and warns the DX MCP won't launch) instead of misreporting "offline," and it no longer adds a duplicate Google Workspace MCP when one is already registered. Thanks to Fulya Arman for the detailed bug report.
+
 ## 2026-09-02
 
 - **Scout can now set up Email-to-Case end to end — routing addresses, support settings, and optionally an Agentforce agent to answer the emails.** Configuration goes through the same two-phase Metadata API path Salesforce's own tooling uses (a single-shot deploy fails on a fresh org), and Scout checks once before touching a production org since turning Email-to-Case on is permanent. If you want an agent on the channel, Scout checks your org is entitled first and wires it in — otherwise it configures the plain routing and tells you why the agent step was skipped.

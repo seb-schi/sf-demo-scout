@@ -10,10 +10,13 @@ aisuite hooks fail the same way, more quietly. This residue is NOT written by
 Scout and is NOT gated behind a Scout `config.json`, so it must be scrubbed on
 the FRESH path too, not only REFRESH.
 
-**Auto-strip scope is deliberately narrow.** Remove ONLY hook entries whose
-`command` string contains `/.aisuite/`. A hook pointing at a deleted script can
-do nothing but throw, so removing it is pure repair — the same "target the exact
-known-residue, nothing fuzzy" discipline as the d.7 model-pin strip. Two other
+**Auto-strip scope is deliberately narrow.** Remove a hook ONLY when its
+`command` points under `/.aisuite/` AND that target script no longer exists on
+disk. Path-substring alone is NOT enough: on a machine where AI Suite is still
+installed the hooks are LIVE, and stripping them breaks working functionality
+(observed 2026-09-10 — 4 live hooks disabled on an AI-Suite box). A hook whose
+script is GONE can do nothing but throw, so removing THAT is pure repair; a hook
+whose script is PRESENT is live and left untouched. Two other
 aisuite artifacts are SURFACED, never touched:
 - `env.NODE_EXTRA_CA_CERTS` pointing under `~/.aisuite/` — a corporate-proxy CA
   cert path. This is the auth/gateway class Scout NEVER edits; behind a
@@ -43,7 +46,20 @@ if not isinstance(data, dict):
 
 MARK = "/.aisuite/"
 
-# --- Auto-strip: hook entries whose command path is under ~/.aisuite/ ---
+# --- Auto-strip: aisuite hooks whose target SCRIPT no longer exists ---
+# Path-substring alone is NOT a safe removal signal: on a machine where AI Suite
+# is still INSTALLED these hooks are LIVE, and stripping them breaks working
+# functionality (observed 2026-09-10 — 4 live hooks disabled on an AI-Suite box).
+# Remove a hook ONLY when its /.aisuite/ target script is GONE: a missing script
+# can do nothing but throw (pure repair to remove), a present script is a live
+# hook we must not touch. Also handles partial-uninstall states without needing
+# to know AI Suite's overall install status.
+def _aisuite_script_missing(cmd):
+    for tok in cmd.split():
+        if MARK in tok:
+            return not os.path.isfile(os.path.expanduser(tok))
+    return False
+
 removed_hooks = []
 hooks = data.get("hooks")
 if isinstance(hooks, dict):
@@ -56,7 +72,7 @@ if isinstance(hooks, dict):
             kept = []
             for h in group["hooks"]:
                 cmd = h.get("command", "") if isinstance(h, dict) else ""
-                if isinstance(cmd, str) and MARK in cmd:
+                if isinstance(cmd, str) and MARK in cmd and _aisuite_script_missing(cmd):
                     removed_hooks.append(f"{event}:{cmd.split('/')[-1]}")
                 else:
                     kept.append(h)
@@ -88,8 +104,9 @@ if not removed_hooks:
     tail = (" FLAGS[" + ",".join(flags) + "]") if flags else ""
     print(f"AISUITE_HOOKS_NONE[{label}]{tail}"); sys.exit(0)
 
-# Backup before write
-bak = path + ".scout-bak"
+# Backup before write (distinct per-fragment name so it never clobbers the
+# model-pin fragment's backup of the same file — 2026-09-10).
+bak = path + ".scout-bak-aisuite"
 try:
     shutil.copy2(path, bak)
 except OSError as e:
@@ -115,7 +132,7 @@ done
 ```
 
 Surface inline (compose one combined note across both files; silent only if every result was `AISUITE_ABSENT` / `AISUITE_HOOKS_NONE` with no `FLAGS`):
-- Any `AISUITE_HOOKS_REMOVED[...]` — "Removed leftover AI Suite hooks that were erroring every turn (they pointed at a deleted `~/.aisuite/`): [name the events in plain words — e.g. 'Stop, PreToolUse']. Backed up your settings to `settings.json.scout-bak` first. **Restart Claude Code** to stop the errors."
+- Any `AISUITE_HOOKS_REMOVED[...]` — "Removed leftover AI Suite hooks that were erroring every turn (they pointed at a deleted `~/.aisuite/` script that no longer exists): [name the events in plain words — e.g. 'Stop, PreToolUse']. Backed up your settings to `settings.json.scout-bak-aisuite` first. **Restart Claude Code** to stop the errors."
 - Any `FLAGS[...]` (on either a REMOVED or NONE result) — add a second line: "Also spotted leftover AI Suite config I did NOT touch: [cert path in `NODE_EXTRA_CA_CERTS` / an `aisuite` plugin marketplace + `@aisuite` plugins]. If npm/TLS behaves oddly, check the cert path; manage the plugins via `/plugin`."
 - `AISUITE_PARSE_ERROR` / `AISUITE_NOT_OBJECT` / `AISUITE_BACKUP_FAILED` / `AISUITE_WRITE_FAILED` — one-line note ("couldn't safely scrub AI Suite hooks from [file] — left it untouched; if you see a `Stop hook error` about `~/.aisuite/`, remove those hook entries by hand"), proceed. Never abort.
 
