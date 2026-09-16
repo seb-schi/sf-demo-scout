@@ -53,6 +53,12 @@ Present the connected orgs clearly — alias + username per row — then:
     ```
   Wait for success, then continue to Step 3.
 
+  > **Note:** this login intentionally sets the default (`--set-default` +
+  > Step 3's `sf config set target-org`) — that is the whole point of switching.
+  > The **cross-org extract** path (`cross-org-extract.md`) authenticates a
+  > SOURCE org WITHOUT changing the default; it has its own inline login. If the
+  > `sf org login web` invocation here ever changes, review both procedures together.
+
 ## Step 3: Set the chosen org as the default — BOTH scopes
 
 ```

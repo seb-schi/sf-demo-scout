@@ -28,11 +28,34 @@ Present the connected orgs (alias + username per row) and ask:
 > "Which org do you want to pull from? Name one from the list, or type **new**
 > to connect one first."
 
-- **Existing org** → capture its alias.
-- **new** (or an org not in the list) → read `${CLAUDE_PLUGIN_ROOT}/prompts/switch-org.md`
-  and follow it ONLY through authenticating + listing the org (Steps 1–2). Do
-  NOT let it set the source org as the project default — after auth, come back
-  here and keep the active demo org as default. Capture the new source alias.
+- **Existing org** → capture its alias. (No login, no default change — extraction
+  just passes `--target-org [source-alias]` in Step 3.)
+- **new** (or an org not in the list) → authenticate the source org INLINE here.
+  Do NOT delegate to `switch-org.md`: its login commands carry `--set-default`
+  (correct for deliberate org switching — its three callers rely on it), which
+  changes the active project default, the opposite of what extraction needs.
+  Instead:
+  1. Ask for an alias, then: "Is this a **sandbox** or a **production/developer** org?"
+  2. Tell the SE: "I'll open a browser now — log in with the SOURCE org's credentials."
+  3. Run the matching command in the FOREGROUND (wait for it to return),
+     **without `--set-default`** — this authenticates the source without touching
+     the active default:
+     - **Production / Developer** (default `login.salesforce.com`):
+       ```
+       sf org login web --alias [source-alias]
+       ```
+     - **Sandbox** (authenticates against `test.salesforce.com`):
+       ```
+       sf org login web --alias [source-alias] --instance-url https://test.salesforce.com
+       ```
+  4. If the login fails or the SE cancels, **STOP** — do NOT run any retrieve /
+     SOQL-pull against any org, and do NOT claim authentication succeeded. Report
+     the failure and return. Only on a confirmed successful login, capture the new
+     source alias and continue.
+
+  (Cross-reference: `switch-org.md` is the deliberate-switch path and intentionally
+  DOES set the default via `--set-default`. These two login procedures must be
+  reviewed together if the `sf org login web` invocation ever changes.)
 
 Read the source org's identity for the documentation entry:
 ```bash

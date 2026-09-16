@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "2026.09.10-setup-selfheal-real-detection",
+  "version": "2026.09.16-astra-batch1-repairs",
   "author": {
     "name": "Sebastian Schickhoff"
   },

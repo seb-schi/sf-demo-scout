@@ -1,41 +1,53 @@
 # Setup — .zshrc Managed Block
 
-Refresh `~/.zshrc` with the Scout-managed environment block (idempotent). Adds `~/.local/bin` to PATH if missing, rewrites the managed `# BEGIN SF-DEMO-SCOUT` … `# END SF-DEMO-SCOUT` block, sweeps Scout-owned keys that escaped the block (including the retired `MAX_THINKING_TOKENS` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` — swept out and never re-added; see below), and warns about legacy `ANTHROPIC_MODEL`.
+Refresh `~/.zshrc` with the Scout-managed environment block (idempotent, transactional). Adds `~/.local/bin` to PATH if missing, rewrites the managed `# BEGIN SF-DEMO-SCOUT` … `# END SF-DEMO-SCOUT` block, sweeps Scout-owned keys that escaped the block (including the retired `MAX_THINKING_TOKENS` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS`, and the `ANTHROPIC_DEFAULT_*_MODEL` pins — swept out and never re-added), and warns about legacy `ANTHROPIC_MODEL`.
 
 As of 2026-07-27 Scout sets no shell environment variables, so the managed block
 is marker-only. The machinery is kept deliberately: it still removes the exports
 Scout used to write (that is how existing installs self-heal) and still catches a
-legacy `ANTHROPIC_MODEL`. Do not delete the block or this fragment — a machine
-that never runs it keeps a stale `CLAUDE_CODE_MAX_OUTPUT_TOKENS` export forever.
+legacy `ANTHROPIC_MODEL`. Do not delete the block or this fragment.
+
+**Transactional contract (2026-09-16, Batch 1 B2).** The refresh NEVER mutates the
+file until a validated result is ready. In order: (1) classify the path — a
+symlink is detected BEFORE a missing regular file, and a symlink whose target is
+missing (dangling) leaves the link untouched and reports it; (2) a missing file is
+an empty first-install; (3) syntax-check the ORIGINAL without sourcing it — a
+pre-existing syntax error is reported and the file left untouched (Scout did not
+cause it); (4) validate marker structure using EXACTLY the same delimiter
+recognition the rewrite passes use — zero pairs (first install) or exactly one
+correctly-ordered exact pair (refresh) are the only valid cases; anything else
+(lone/reversed/duplicate/nested, or a marker line with trailing whitespace that
+does not match the exact contract) is reported and the file left byte-for-byte
+unchanged; (5) compute the new content in memory and stage it to a temp file
+beside the real target; (6) syntax-check the STAGED result — if applying the edit
+would produce invalid zsh (e.g. a multi-line `export ...=$( … )` whose first line
+the line-oriented sweep would strip, orphaning the `)`), the edit is rejected and
+the original preserved; (7) only a validated result is committed, with a
+`.scout-bak-zshrc` backup, mode preservation, atomic replace, and symlink
+preservation (the link is kept; the resolved target is replaced beside itself). A
+staging/replace error preserves the original and reports a write failure. If no
+`zsh` validator is available, the refresh is skipped and reported rather than
+risking an unchecked write.
+
+Set `SCOUT_ZSHRC_OVERRIDE=/path/to/fixture` to point the refresh at a fixture file
+(used by the Batch-1 verification suite; unset in normal use). Set `SCOUT_ZSH_BIN`
+to override the `zsh` validator path (test seam for the validator-unavailable
+case; unset in normal use).
 
 ```bash
-ZSHRC="$HOME/.zshrc"
-touch "$ZSHRC"
-ZSHRC_BEFORE_HASH=$(shasum "$ZSHRC" | awk '{print $1}')
+ZSHRC="${SCOUT_ZSHRC_OVERRIDE:-$HOME/.zshrc}"
 
-# Ensure ~/.local/bin is on PATH — Anthropic's CC installer puts the
-# `claude` binary there. Append once, outside the managed block, so SE
-# overrides aren't clobbered. Idempotent.
-if ! grep -q 'PATH="\$HOME/.local/bin' "$ZSHRC" 2>/dev/null; then
-  echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$ZSHRC"
-fi
+ZSHRC_STATUS=$(python3 - "$ZSHRC" <<'PYEOF'
+import os, re, sys, shutil, subprocess, tempfile
 
-python3 - "$ZSHRC" <<'PYEOF'
-import re, sys
 path = sys.argv[1]
 BEGIN = "# BEGIN SF-DEMO-SCOUT"
 END = "# END SF-DEMO-SCOUT"
+# Keys Scout used to export and now sweeps as out-of-block stragglers (never
+# re-added). Retired output-length knobs + the model-profile pins.
 KEYS = [
-    # Retired 2026-07-27: Scout no longer sets an output-length knob on any
-    # surface. Kept in KEYS (not BLOCK_LINES) so prior installs self-heal —
-    # this sweeps both the in-block export, via the block rewrite below, and
-    # any out-of-block straggler.
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
     "MAX_THINKING_TOKENS",
-    # Model-profile pins: swept as out-of-block stragglers so a loose
-    # legacy export no longer collapses the terminal /model picker. NOT in
-    # BLOCK_LINES — Scout strips these, never re-adds them (Scout is out of
-    # model selection; SE picks via /model). Reverses 2026-06-02's removal.
     "ANTHROPIC_DEFAULT_OPUS_MODEL",
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL",
@@ -46,65 +58,213 @@ BLOCK_LINES = [
     "# Scout sets no shell environment variables (output-length knob retired 2026-07-27).",
     END,
 ]
+PATH_LINE = 'export PATH="$HOME/.local/bin:$PATH"'
 
-with open(path) as f:
-    lines = f.readlines()
 
+def emit(tok):
+    print(tok)
+
+
+# SINGLE delimiter recognition, used in validation AND both rewrite passes so they
+# can never disagree (R1). Exact-marker contract: the line minus its trailing
+# newline must equal the marker exactly — no whitespace tolerance.
+def is_marker(line, marker):
+    return line.rstrip("\n") == marker
+
+
+# Validator honors the SCOUT_ZSH_BIN test seam, then a real `zsh`, then /bin/zsh.
+zsh = os.environ.get("SCOUT_ZSH_BIN") or shutil.which("zsh") or ("/bin/zsh" if os.path.exists("/bin/zsh") else None)
+if not zsh:
+    emit("ZSHRC_VALIDATOR_UNAVAILABLE")
+    sys.exit(0)
+
+
+def syntax_ok(p):
+    # Parse-check only (-n), skipping rc files (-f). Never sources the file.
+    # A missing/unusable validator binary raises -> None (treated as unavailable).
+    try:
+        r = subprocess.run([zsh, "-f", "-n", p],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return r.returncode == 0
+    except Exception:
+        return None
+
+
+# (1) Classify the path: symlink BEFORE missing-file (R2). os.path.exists follows
+# links, so a dangling link would otherwise look like an absent regular file and
+# get its target created.
+if os.path.islink(path):
+    target = os.path.realpath(path)
+    if not os.path.exists(target):
+        emit("ZSHRC_SYMLINK_BROKEN")
+        sys.exit(0)
+    with open(path) as f:
+        original = f.read()
+    missing = False
+elif os.path.exists(path):
+    with open(path) as f:
+        original = f.read()
+    missing = False
+else:
+    original = ""
+    missing = True
+
+# (3) Original syntax gate — before any mutation. Empty first-install is valid.
+if not missing:
+    ok = syntax_ok(path)
+    if ok is None:
+        emit("ZSHRC_VALIDATOR_UNAVAILABLE")
+        sys.exit(0)
+    if not ok:
+        emit("ZSHRC_ORIGINAL_INVALID")
+        sys.exit(0)
+
+# (4) Marker-structure gate — SAME recognition as the passes below.
+lines = original.splitlines()
+# Reject marker-shaped lines with trailing spaces/tabs even when BOTH are
+# malformed; otherwise they look like the zero-marker first-install case.
+if any(l.rstrip(" \t") in (BEGIN, END) and l not in (BEGIN, END) for l in lines):
+    emit("ZSHRC_MARKERS_INVALID")
+    sys.exit(0)
+begins = [i for i, l in enumerate(lines) if is_marker(l, BEGIN)]
+ends = [i for i, l in enumerate(lines) if is_marker(l, END)]
+valid_markers = (
+    (len(begins) == 0 and len(ends) == 0) or
+    (len(begins) == 1 and len(ends) == 1 and begins[0] < ends[0])
+)
+if not valid_markers:
+    emit("ZSHRC_MARKERS_INVALID")
+    sys.exit(0)
+
+# (5) Compute new content in memory. Pass 1: strip out-of-block KEY stragglers +
+# legacy superseded-comment lines.
+src = original.splitlines(keepends=True)
 key_re = re.compile(r'^\s*export\s+(' + '|'.join(re.escape(k) for k in KEYS) + r')\s*=')
 legacy_re = re.compile(r'^# \[sf-demo-scout \d{4}-\d{2}-\d{2}\] superseded by managed block: ')
 
 in_block = False
 out = []
-for line in lines:
-    stripped = line.rstrip('\n')
-    if stripped == BEGIN:
+for line in src:
+    if is_marker(line, BEGIN):
         in_block = True
-        out.append(line); continue
-    if stripped == END:
+        out.append(line)
+        continue
+    if is_marker(line, END):
         in_block = False
-        out.append(line); continue
+        out.append(line)
+        continue
     if not in_block and key_re.match(line):
         continue
     if legacy_re.match(line):
         continue
     out.append(line)
 
+# Pass 2: remove the existing managed block entirely (SAME recognition).
 cleaned = []
 skip = False
 for line in out:
-    stripped = line.rstrip('\n')
-    if stripped == BEGIN:
+    if is_marker(line, BEGIN):
         skip = True
         continue
-    if stripped == END:
+    if is_marker(line, END):
         skip = False
         continue
     if not skip:
         cleaned.append(line)
 
+# Ensure the PATH line is present (outside the block). Append once if absent.
+body_text = "".join(cleaned)
+if not re.search(r'^\s*export\s+PATH="\$HOME/\.local/bin', body_text, re.M):
+    if body_text and not body_text.endswith("\n"):
+        body_text += "\n"
+    body_text += PATH_LINE + "\n"
+    cleaned = body_text.splitlines(keepends=True)
+
+# Trim trailing blank lines, then append the fresh managed block.
 while cleaned and cleaned[-1].strip() == "":
     cleaned.pop()
-
 body = "".join(cleaned)
 if body and not body.endswith("\n"):
     body += "\n"
 body += "\n" + "\n".join(BLOCK_LINES) + "\n"
 
-with open(path, "w") as f:
-    f.write(body)
-PYEOF
+if body == original:
+    emit("ZSHRC_UNCHANGED")
+    sys.exit(0)
 
-ZSHRC_AFTER_HASH=$(shasum "$ZSHRC" | awk '{print $1}')
-if [ "$ZSHRC_BEFORE_HASH" = "$ZSHRC_AFTER_HASH" ]; then
-  echo "ZSHRC_UNCHANGED"
-else
-  echo "ZSHRC_MODIFIED"
-fi
+# (6)+(7) Stage beside the real target, syntax-check, back up, atomic replace.
+# Symlink: preserve the link, replace the resolved target in place.
+write_target = os.path.realpath(path) if os.path.islink(path) else path
+target_dir = os.path.dirname(write_target) or "."
+tmp = None
+try:
+    fd, tmp = tempfile.mkstemp(prefix=".scout-zshrc.", dir=target_dir)
+    with os.fdopen(fd, "w") as f:
+        f.write(body)
+    ok = syntax_ok(tmp)
+    if ok is None:
+        os.unlink(tmp)
+        emit("ZSHRC_VALIDATOR_UNAVAILABLE")
+        sys.exit(0)
+    if not ok:
+        os.unlink(tmp)
+        emit("ZSHRC_RESULT_REJECTED")
+        sys.exit(0)
+    if os.path.exists(write_target):
+        shutil.copy2(write_target, write_target + ".scout-bak-zshrc")
+        os.chmod(tmp, os.stat(write_target).st_mode & 0o777)
+    else:
+        os.chmod(tmp, 0o644)
+    os.replace(tmp, write_target)
+    emit("ZSHRC_MODIFIED")
+except Exception as e:
+    if tmp and os.path.exists(tmp):
+        try:
+            os.unlink(tmp)
+        except Exception:
+            pass
+    emit("ZSHRC_WRITE_FAILED: %s" % e)
+    sys.exit(0)
+PYEOF
+)
+
+# Map the transactional status to (a) the orchestrator token the done step reads
+# (ZSHRC_MODIFIED / ZSHRC_UNCHANGED — every skip/reject is "nothing changed") and
+# (b) an SE-facing diagnostic. The model shows any SCOUT_ZSHRC_DIAG line to the SE.
+case "$ZSHRC_STATUS" in
+  ZSHRC_MODIFIED)
+    echo "ZSHRC_MODIFIED" ;;
+  ZSHRC_UNCHANGED)
+    echo "ZSHRC_UNCHANGED" ;;
+  ZSHRC_MARKERS_INVALID)
+    echo "ZSHRC_UNCHANGED"
+    echo "SCOUT_ZSHRC_DIAG: Scout found malformed \`# BEGIN/END SF-DEMO-SCOUT\` markers in your ~/.zshrc (missing, reversed, duplicated, nested, or not an exact match). Left the file byte-for-byte unchanged. Fix or delete both marker lines, then re-run /scout-setup." ;;
+  ZSHRC_ORIGINAL_INVALID)
+    echo "ZSHRC_UNCHANGED"
+    echo "SCOUT_ZSHRC_DIAG: pre-existing shell syntax error in your ~/.zshrc — Scout shell repair skipped (Scout did NOT cause this). Fix the syntax and re-run /scout-setup; the rest of setup continued." ;;
+  ZSHRC_RESULT_REJECTED)
+    echo "ZSHRC_UNCHANGED"
+    echo "SCOUT_ZSHRC_DIAG: the proposed Scout shell edit was rejected — applying it would have produced invalid zsh (likely a multi-line export Scout can't safely rewrite). Left your ~/.zshrc unchanged." ;;
+  ZSHRC_SYMLINK_BROKEN)
+    echo "ZSHRC_UNCHANGED"
+    echo "SCOUT_ZSHRC_DIAG: ~/.zshrc is a symlink whose target is missing — left untouched." ;;
+  ZSHRC_VALIDATOR_UNAVAILABLE)
+    echo "ZSHRC_UNCHANGED"
+    echo "SCOUT_ZSHRC_DIAG: couldn't find a \`zsh\` validator to safely syntax-check the shell file — skipped the managed-block refresh this run (no unchecked write attempted)." ;;
+  ZSHRC_WRITE_FAILED*)
+    echo "ZSHRC_UNCHANGED"
+    echo "SCOUT_ZSHRC_DIAG: ${ZSHRC_STATUS} — original preserved." ;;
+  *)
+    echo "ZSHRC_UNCHANGED"
+    echo "SCOUT_ZSHRC_DIAG: unexpected zshrc-refresh status: ${ZSHRC_STATUS}" ;;
+esac
 
 if grep -qE '^\s*export\s+ANTHROPIC_MODEL\s*=' "$ZSHRC" 2>/dev/null; then
   echo "ANTHROPIC_MODEL_PRESENT"
 fi
 ```
+
+If any `SCOUT_ZSHRC_DIAG:` line was emitted, surface it to the SE verbatim (one line) — it explains why the managed block was left unchanged.
 
 If `ANTHROPIC_MODEL_PRESENT`, surface a one-line warning:
 
@@ -112,4 +272,4 @@ If `ANTHROPIC_MODEL_PRESENT`, surface a one-line warning:
 
 ## Done
 
-Return to the dispatching prompt. Pass back `ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED` (and optional `ANTHROPIC_MODEL_PRESENT`) so `done.md` can compose the right closing note.
+Return to the dispatching prompt. Pass back `ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED` (and optional `ANTHROPIC_MODEL_PRESENT`). Every non-modify outcome (validation skip, marker/syntax rejection, symlink/validator issue, write failure) returns `ZSHRC_UNCHANGED` to the orchestrator and surfaces its `SCOUT_ZSHRC_DIAG` line to the SE inline.

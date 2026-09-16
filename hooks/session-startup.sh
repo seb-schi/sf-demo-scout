@@ -33,6 +33,28 @@ fi
 
 OUTPUT=""
 
+# --- Plugin-relative path resolution ---
+# Resolve THIS hook's own directory so we can call sibling scripts by an absolute
+# path. ${BASH_SOURCE[0]} is the hook's real path at runtime (the harness invokes
+# it as `bash "${CLAUDE_PLUGIN_ROOT}/hooks/session-startup.sh"`, expanding the
+# plugin root before bash starts). Do NOT reference ${CLAUDE_PLUGIN_ROOT} inside
+# the script (it does NOT expand in shell) and do NOT guess the newest plugin-cache
+# directory here.
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# SCOUT_SLUGIFY overrides the helper path (test seam; unset in normal use).
+SLUGIFY="${SCOUT_SLUGIFY:-$HOOK_DIR/../scripts/slugify.py}"
+
+# Canonical folder slug (reference impl: scripts/slugify.py; contract:
+# prompts/sparring/slug-rule.md). Echoes the slug, or nothing on any failure
+# (python3 missing, helper missing, or an alias with no usable slug). The alias is
+# passed as an ARGUMENT, never interpolated — so alias characters are never treated
+# as glob/regex/shell syntax.
+scout_slug() {
+  if command -v python3 >/dev/null 2>&1 && [ -f "$SLUGIFY" ]; then
+    python3 "$SLUGIFY" "$1" 2>/dev/null
+  fi
+}
+
 # --- 0. Bounded-call + same-day-cache helpers ---
 CACHE_DIR="$HOME/.cache/sf-demo-scout"
 TODAY=$(date +%Y-%m-%d)
@@ -158,13 +180,20 @@ else
       OUTPUT+="$ORG_COUNT org(s) available. To switch, say 'switch' when /scout-sparring or /scout-building asks.\n\n"
 
       # --- 5. Org Folder + Audit Check ---
-      # Find customer folders for this org alias (pattern: orgs/[alias]-[customer]/)
-      ORG_FOLDERS=$(ls -d orgs/${DEFAULT_ORG}-*/ 2>/dev/null)
-      if [ -n "$ORG_FOLDERS" ]; then
+      # Match customer folders by the CANONICAL SLUG of the alias — folders are
+      # written slugged (e.g. `CareConnect4Me_DPA` -> `careconnect4me-dpa`), while
+      # the raw alias is kept for CLI targeting + display. Matching only; this hook
+      # never WRITES a folder name. See scripts/slugify.py + slug-rule.md.
+      ORG_SLUG=$(scout_slug "$DEFAULT_ORG")
+      ORG_FOLDERS=""
+      [ -n "$ORG_SLUG" ] && ORG_FOLDERS=$(ls -d "orgs/${ORG_SLUG}-"*/ 2>/dev/null)
+      if [ -z "$ORG_SLUG" ]; then
+        OUTPUT+="## ℹ️ Customer-folder lookup unavailable for $DEFAULT_ORG — couldn't derive a folder slug (python3 or scripts/slugify.py missing, or the alias has no usable slug). Not asserting folders are absent.\n\n"
+      elif [ -n "$ORG_FOLDERS" ]; then
         FOLDER_COUNT=$(echo "$ORG_FOLDERS" | wc -l | tr -d ' ')
         OUTPUT+="## ℹ️ $FOLDER_COUNT customer folder(s) for $DEFAULT_ORG:\n"
         for FOLDER in $ORG_FOLDERS; do
-          CUSTOMER=$(basename "$FOLDER" | sed "s/^${DEFAULT_ORG}-//")
+          CUSTOMER=$(basename "$FOLDER" | sed "s/^${ORG_SLUG}-//")
           LATEST_AUDIT=$(ls -t "$FOLDER"/audit-*.md 2>/dev/null | head -1)
           if [ -n "$LATEST_AUDIT" ]; then
             AUDIT_AGE=$(( ( $(date +%s) - $(stat -f%m "$LATEST_AUDIT" 2>/dev/null || stat -c%Y "$LATEST_AUDIT" 2>/dev/null) ) / 86400 ))

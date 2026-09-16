@@ -70,12 +70,37 @@ elif [ "$SF_INSTALLED" = "$SF_RESOLVED" ]; then
   fi
 else
   echo "UPDATING_SF_CLI ($SF_INSTALLED -> $SF_RESOLVED)"
-  npm install @salesforce/cli --global 2>&1 | tail -1
-  SF_AFTER=$(sf --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-  if [ "$SF_AFTER" = "$SF_INSTALLED" ]; then
-    echo "SF_CLI_UPDATE_NOOP (install ran but version unchanged — still $SF_AFTER)"
-  else
+  # Capture the installer exit status DIRECTLY — never through a pipe. The old
+  # form (`npm install ... 2>&1 | tail -1`) made $? the exit of `tail` (always 0),
+  # so a failed install was invisible. Log to a temp file for the display line.
+  SF_LOG=$(mktemp "${TMPDIR:-/tmp}/scout-sf-install.XXXXXX")
+  npm install @salesforce/cli --global > "$SF_LOG" 2>&1; SF_RC=$?
+  tail -1 "$SF_LOG"; rm -f "$SF_LOG"
+  # Capture the version-probe OUTPUT and its EXIT CODE separately; a probe that
+  # exits non-zero must NOT be trusted even if its stdout contains a version
+  # number, and only supported `@salesforce/cli/<semver>` output is parsed (an
+  # arbitrary error string that merely contains a version cannot match).
+  SF_VER_OUT=$(sf --version 2>/dev/null); SF_VER_RC=$?
+  SF_AFTER=""
+  if [ "$SF_VER_RC" -eq 0 ]; then
+    SF_AFTER=$(printf '%s\n' "$SF_VER_OUT" | sed -nE 's|^@salesforce/cli/([0-9]+\.[0-9]+\.[0-9]+)([[:space:]].*)?$|\1|p')
+  fi
+  if [ "$SF_RC" -ne 0 ]; then
+    # Install failed — failure regardless of the probe. Do NOT promise the old
+    # install survived (an installer can partially change state before failing).
+    if [ -n "$SF_AFTER" ]; then
+      echo "SF_CLI_UPDATE_FAILED (npm exit $SF_RC; version now reports $SF_AFTER — install may be partially applied)"
+    else
+      echo "SF_CLI_UPDATE_FAILED (npm exit $SF_RC; post-install version could not be verified)"
+    fi
+  elif [ "$SF_VER_RC" -ne 0 ] || [ -z "$SF_AFTER" ]; then
+    echo "SF_CLI_UPDATE_UNVERIFIED (install exit 0 but the version probe failed or returned no supported version)"
+  elif [ "$SF_AFTER" = "$SF_RESOLVED" ]; then
     echo "SF_CLI_UPDATED ($SF_INSTALLED -> $SF_AFTER)"
+  elif [ "$SF_AFTER" = "$SF_INSTALLED" ]; then
+    echo "SF_CLI_UPDATE_NOOP (install exit 0 but version unchanged — still $SF_AFTER)"
+  else
+    echo "SF_CLI_UPDATE_MISMATCH (install exit 0; observed $SF_AFTER, expected $SF_RESOLVED)"
   fi
 fi
 ```
@@ -105,12 +130,33 @@ elif [ "$CC_INSTALLED" = "$CC_RESOLVED" ]; then
   fi
 else
   echo "UPDATING_CLAUDE_CLI ($CC_INSTALLED -> $CC_RESOLVED)"
-  npm install @anthropic-ai/claude-code --global 2>&1 | tail -1
-  CC_AFTER=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-  if [ "$CC_AFTER" = "$CC_INSTALLED" ]; then
-    echo "CLAUDE_CLI_UPDATE_NOOP (install ran but version unchanged — still $CC_AFTER)"
-  else
+  # Capture the installer exit status DIRECTLY — never through a pipe (see the
+  # Salesforce block above for why `| tail-1` masked failures).
+  CC_LOG=$(mktemp "${TMPDIR:-/tmp}/scout-cc-install.XXXXXX")
+  npm install @anthropic-ai/claude-code --global > "$CC_LOG" 2>&1; CC_RC=$?
+  tail -1 "$CC_LOG"; rm -f "$CC_LOG"
+  # Version-probe output + exit code captured separately; parse only a supported
+  # leading `<semver>` (claude --version prints e.g. `1.2.3 (Claude Code)`), and
+  # only on a successful probe.
+  CC_VER_OUT=$(claude --version 2>/dev/null); CC_VER_RC=$?
+  CC_AFTER=""
+  if [ "$CC_VER_RC" -eq 0 ]; then
+    CC_AFTER=$(printf '%s\n' "$CC_VER_OUT" | sed -nE 's/^([0-9]+\.[0-9]+\.[0-9]+)( \(Claude Code\))?$/\1/p')
+  fi
+  if [ "$CC_RC" -ne 0 ]; then
+    if [ -n "$CC_AFTER" ]; then
+      echo "CLAUDE_CLI_UPDATE_FAILED (npm exit $CC_RC; version now reports $CC_AFTER — install may be partially applied)"
+    else
+      echo "CLAUDE_CLI_UPDATE_FAILED (npm exit $CC_RC; post-install version could not be verified)"
+    fi
+  elif [ "$CC_VER_RC" -ne 0 ] || [ -z "$CC_AFTER" ]; then
+    echo "CLAUDE_CLI_UPDATE_UNVERIFIED (install exit 0 but the version probe failed or returned no supported version)"
+  elif [ "$CC_AFTER" = "$CC_RESOLVED" ]; then
     echo "CLAUDE_CLI_UPDATED ($CC_INSTALLED -> $CC_AFTER)"
+  elif [ "$CC_AFTER" = "$CC_INSTALLED" ]; then
+    echo "CLAUDE_CLI_UPDATE_NOOP (install exit 0 but version unchanged — still $CC_AFTER)"
+  else
+    echo "CLAUDE_CLI_UPDATE_MISMATCH (install exit 0; observed $CC_AFTER, expected $CC_RESOLVED)"
   fi
 fi
 ```
@@ -121,9 +167,11 @@ truth; do not infer "updated" from the fact that an install command ran):
 - `SF_CLI_CURRENT` / `CLAUDE_CLI_CURRENT` — silent (already on the newest installable version; the common case).
 - `SF_CLI_UPDATED (X -> Y)` / `CLAUDE_CLI_UPDATED (X -> Y)` — one-line note that the CLI was updated, using the observed `Y`.
 - `SF_CLI_HELD` / `CLAUDE_CLI_HELD` — one-line note: a newer version exists in the registry but the SE's npm `min-release-age` policy is intentionally holding it back; this is NOT an error — it will install on a future refresh once the release ages past the policy window. Name the installed version that was kept.
-- `SF_CLI_UPDATE_NOOP` / `CLAUDE_CLI_UPDATE_NOOP` — one-line note: the install ran but the version didn't change; kept the installed version (rare — npm cache/policy edge). Don't claim an update.
+- `SF_CLI_UPDATE_NOOP` / `CLAUDE_CLI_UPDATE_NOOP` — one-line note: the install ran (exit 0) but the version didn't change; kept the installed version (rare — npm cache/policy edge). Don't claim an update.
+- `SF_CLI_UPDATE_FAILED` / `CLAUDE_CLI_UPDATE_FAILED` — the installer exited non-zero. Surface a one-line note ("[sf|claude] CLI update didn't complete (installer error) — it'll retry on a future refresh"), proceed. Don't abort, don't claim an update, and don't assert the prior install is intact — if a version was observed, report it verbatim ("now reports [version]"); otherwise say the version couldn't be verified.
+- `SF_CLI_UPDATE_UNVERIFIED` / `CLAUDE_CLI_UPDATE_UNVERIFIED` — install exited 0 but the post-install version probe failed or returned no supported version. One-line note ("couldn't verify the [sf|claude] CLI version after the update — continuing"). Never report UPDATED off an unverified probe.
+- `SF_CLI_UPDATE_MISMATCH` / `CLAUDE_CLI_UPDATE_MISMATCH` — install exited 0 and a valid version was observed, but it is neither the prior version nor the resolved target. One-line note naming both ("[sf|claude] CLI now reports [observed], expected [target] — surfaced for you to check"). Don't imply the target was reached.
 - `SF_CLI_CHECK_FAILED` / `CLAUDE_CLI_CHECK_FAILED` — one-line note ("couldn't check [sf|claude] CLI version — kept the installed one"), proceed.
-- If an `npm install` that DID run fails (non-zero exit), surface a one-line note ("[sf|claude] CLI update failed — continuing") and proceed. Don't abort.
 
 ## c: Slack MCP
 

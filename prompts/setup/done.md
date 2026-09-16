@@ -33,6 +33,9 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract `version`.
 > - Any `*_UPDATED (X -> Y)` — "Updated [Salesforce CLI / Claude Code] to [Y]."
 > - Any `*_HELD` — "Note: a newer [Claude Code / Salesforce CLI] ([registry version]) is available, but your npm `min-release-age` policy is holding it back for now — it'll install automatically on a future refresh once it ages past your policy window. Kept [installed version]."
 > - Any `*_UPDATE_NOOP` or `*_CHECK_FAILED` — "Couldn't confirm [Salesforce CLI / Claude Code] is on the newest version — kept the installed one ([version])."
+> - Any `*_UPDATE_FAILED` — "The [Salesforce CLI / Claude Code] update didn't complete (installer error) — it'll retry on a future refresh." (If a version was observed, add "It currently reports [version]."; otherwise add "Its current version couldn't be verified." — do NOT claim the prior install is intact.)
+> - Any `*_UPDATE_UNVERIFIED` — "Couldn't verify the [Salesforce CLI / Claude Code] version after the update — continuing; it'll re-check on a future refresh."
+> - Any `*_UPDATE_MISMATCH` — "Heads-up: [Salesforce CLI / Claude Code] now reports [observed], but [target] was expected — worth a quick check."
 
 **If STATE was REFRESH and `ZSHRC_MODIFIED` is true:** also append before the close:
 
