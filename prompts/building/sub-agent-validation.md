@@ -1,138 +1,259 @@
 # Sub-Agent Output Validation
 
-Loaded on-demand by scout-building.md Step 5 between every sub-agent return and the next phase. Procedure for validating JSON output AND empirically probing the org when validation fails.
+Loaded on demand by scout-building.md Step 5. The worker report and independent
+orchestrator observations are separate inputs to the read-only completion helper.
+Neither one can change the frozen expected-work ledger.
 
 ## Procedure
 
-After EVERY sub-agent returns, validate its output before proceeding:
+1. Preserve the raw worker response. Extract its one fenced JSON block and save the
+   parsed object as the worker-result JSON. If parsing fails, do not synthesize a
+   successful envelope: treat the worker report as missing and retain the parse
+   error for the change log. Required phase detail keys remain:
+   - Phase 1: `deployed`, `skipped`, `permission_set`, `data_seeded`,
+     `script_deliverables`, `discovery_notes`, `docs_consulted`, `issues`.
+   - Phase 2: `deployed`, `skipped`, `rollback_commands`, `discovery_notes`,
+     `docs_consulted`, `issues`.
+   - Phase 3: `deployed`, `smoke_test`, `actions_unverified_in_preview`, `skipped`,
+     `rollback_commands`, `discovery_notes`, `docs_consulted`, `issues`.
+   All phases also require `schema_version`, `build_id`, `spec_sha256`, `phase`, and
+   `completion`. A missing/malformed report remains INCOMPLETE even if probes find
+   exact state. Request a corrected report; do not redeploy or republish to fix JSON.
 
-1. Extract the fenced `json` block from the sub-agent's response.
-2. Parse it. If parsing succeeds and the top-level keys match the phase schema, schema validation passes. **For Phase 1, schema validity is necessary but not sufficient when `data_seeded[]` is non-empty — also run the Data Seeding Integrity Probe (below) before declaring the phase passed.** Required top-level keys:
-   - Phase 1: `deployed`, `skipped`, `issues`
-   - Phase 2: `deployed`, `skipped`, `discovery_notes`, `issues`
-   - Phase 3: `deployed`, `smoke_test`, `actions_unverified_in_preview`, `skipped`, `discovery_notes`, `issues`
-3. **If parsing fails or required keys are missing, probe the org before declaring failure.** Sub-agent may have completed the deployment and only mangled the output envelope. Use the empirical probe queries below per phase.
-4. Only if the empirical probe shows the deployment did NOT complete: treat the phase as FAILED. Show the raw output to the SE:
-   > "Sub-agent returned unexpected output for Phase [N], and the [org probe] shows the deployment did not complete. Raw output below. Retry with a fresh sub-agent, or skip this phase?"
-5. If retry also produces invalid output AND the org probe still shows incomplete: record as FAILED in the change log and tell the SE to start a fresh session for this phase.
+2. Collect current independent observations for every non-authorized-skipped ledger
+   item. Use targeted metadata read-back, describe, SOQL, tests, or saved tool output
+   that checks the requested properties. Presence-only queries and a deployment
+   receipt alone are diagnostic, not verification. Save the actual tool result in
+   the build record and reference it from `source`/`details`.
 
-## Empirical Probe Queries
+3. Attribute state honestly:
+   - `applied` requires both a current change source (`change_source`: deployment
+     receipt or saved before/after evidence) and targeted current-state evidence.
+   - `already_satisfied` requires exact targeted current state plus
+     `baseline_source` that proves the same state before dispatch. A post-read-back
+     alone cannot establish that the build did not make the change.
+   - Failed operations remain FAILED; prerequisites/refusals/manual obligations are
+     BLOCKED; deployed items with required test/visual/runtime work outstanding are
+     AWAITING_QA. None of these are success or an authorized skip.
 
-### Phase 1 (Org Config)
+4. **Probe every non-authorized-skipped seed ledger item**, even when worker JSON is
+   absent/malformed or `data_seeded[]` is absent/empty:
+   - CREATE: query only the ledger's exact stable keys, record `matched_count`, and
+     check the requested values. Require `matched_count >= count`; paired rows may
+     make the actual count larger. Observed zero or short results are FAILED; an
+     unavailable probe is INCOMPLETE. Never accept a worker count as evidence.
+   - UPDATE: query every named stable target and requested field. Literal values
+     must equal the spec exactly. Only fields explicitly marked `⚠️ SE refines
+     prose` use a nonblank check. Ignore row count for acceptance.
+   - Record a calibration directive, its reference query result, computed value,
+     and fallback honestly. Never infer an operation/count/target/value or widen a
+     stable key. An ambiguous old/hand-edited spec leaves that seed item BLOCKED for
+     clarification.
 
-Run these SOQL queries via `run_soql_query` against the target org. Substitute `[ApiNames]` with the comma-quoted API names the spec requested.
+5. Save one evidence JSON object. First run the helper with just `--spec` and
+   `--ledger` if you need its canonical `ledger_sha256`. The evidence shape is:
 
-- **Custom objects present:**
-  ```
-  SELECT QualifiedApiName FROM EntityDefinition WHERE QualifiedApiName IN ('Custom_Object_1__c','Custom_Object_2__c')
-  ```
-- **Custom fields present:**
-  ```
-  SELECT QualifiedApiName FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName='Case' AND QualifiedApiName IN ('Field_1__c','Field_2__c')
-  ```
-- **Record types present:**
-  ```
-  SELECT DeveloperName, SobjectType FROM RecordType WHERE SobjectType='Case' AND DeveloperName IN ('RT_1','RT_2')
-  ```
-- **Custom tabs present:**
-  ```
-  SELECT DeveloperName FROM TabDefinition WHERE DeveloperName IN ('Tab_1','Tab_2')
-  ```
-- **Permission set present:**
-  ```
-  SELECT Id, Name FROM PermissionSet WHERE Name='[PermSetApiName]'
-  ```
-
-Rule: every component the spec requested must return a row. If every component exists → treat as SUCCESS with `schema_validation_failed: true`, harvest what you can from the raw sub-agent output, preserve the rest verbatim in the change log's Issues Encountered section. If components are missing → treat as partial FAILED; show raw output to the SE and ask retry-or-skip.
-
-### Phase 2 (Flows / Apex / LWC)
-
-- **Flow active:**
-  ```
-  SELECT ApiName, ActiveVersionId FROM FlowDefinitionView WHERE ApiName IN ('Flow_1','Flow_2')
-  ```
-  (`ActiveVersionId != null` means the flow is active; null means Draft only.)
-- **Apex classes present:**
-  ```
-  SELECT Name, Status FROM ApexClass WHERE Name IN ('Class_1','Class_2')
-  ```
-- **Apex triggers present:**
-  ```
-  SELECT Name, Status FROM ApexTrigger WHERE Name IN ('Trigger_1','Trigger_2')
-  ```
-- **LWC bundles present:**
-  ```
-  SELECT DeveloperName FROM LightningComponentBundle WHERE DeveloperName IN ('lwc_1','lwc_2')
-  ```
-  (If Tooling-API SOQL for `LightningComponentBundle` is unavailable in the active MCP config, fall back to `retrieve_metadata` with `LightningComponentBundle:[Name]` for each bundle — presence of the returned XML confirms deployment.)
-
-Same SUCCESS / partial-FAILED rule as Phase 1.
-
-### Phase 3 (Agentforce)
-
-- **Agent active:**
-  ```
-  SELECT DeveloperName, Status FROM BotDefinition WHERE DeveloperName='[AgentName]'
-  ```
-
-If the agent exists and `Status='Active'` → treat as SUCCESS with `schema_validation_failed: true`. Do NOT retry — re-publishing an active agent risks state corruption and bumps the version number. Preserve the raw sub-agent output verbatim in the change log's Issues Encountered section under a `⚠️ SUB-AGENT OUTPUT SCHEMA VALIDATION FAILED` heading. Flag the sub-agent output as a lessons candidate — the schema the sub-agent emitted may reveal a drift vector worth patching.
-
-## Data Seeding Integrity Probe (Phase 1 — runs unconditionally when `data_seeded[]` is non-empty)
-
-A schema-valid envelope can still report a seeding failure as success — e.g. `{"object": "EmailMessage", "records": 0, "status": "SUCCESS"}`. The probes above only fire on parse/key failure, so a well-formed contradiction slips through. This probe runs **regardless of schema validity**, whenever Phase 1's `data_seeded[]` array has one or more rows. It removes the sub-agent from the trust path: expected counts come from the SPEC, actual counts come from the ORG.
-
-**Step 1 — Cheap contradiction catch (always, before any query).** Scan every `data_seeded[]` row. Any row with `status: "SUCCESS"` AND `records: 0` is an immediate hard FAIL — a success cannot have seeded zero rows. Flag that object for re-seed.
-
-**Step 2 — Parse expected counts from the SPEC, not the sub-agent.** In the spec's Data Seeding section, each object line carries a structured token: `Object: **<Name>**, Records: <N> (<VERB> ...` where `<VERB>` is CREATE or UPDATE. Regex each object's `<N>` and `<VERB>` directly from the spec. Do NOT use any count the sub-agent reported — the sub-agent is the component that may have lied.
-
-**Step 3 — Probe the org, branching on VERB:**
-
-- **CREATE** → count rows matching the spec's stable keys for that object; FAIL if `matched_count < N`. Use `>=`, never `==` — Salesforce auto-inserts paired rows the spec never counted (e.g. an outbound `EmailMessage` auto-creates a paired `Email:`-prefixed `Task`, so Task may legitimately exceed its spec count). Match on the spec's stable identifying keys, for example:
-  ```
-  SELECT COUNT() FROM EmailMessage WHERE ParentId='[CaseId]' AND Incoming=true
-  SELECT COUNT() FROM Task WHERE WhatId='[CaseId]' AND Subject LIKE 'Pharmacovigilance%'
-  SELECT COUNT() FROM CaseComment WHERE ParentId='[CaseId]' AND IsPublished=false
-  ```
-- **UPDATE** → ignore row count (the record already existed). Probe that the named target fields on the identified record are populated as the spec requires:
-  - Fields the spec gives a **literal value** (e.g. `Regulatory_Market__c → EU`, `Market_Response_Path__c → On-label scientific exchange`, a Product Id) → exact-match: FAIL if the org value ≠ the spec value.
-  - Fields the spec marks **⚠️ SE refines prose** (freeform `Scientific_Question__c`, `MSL_Response__c`) → presence-check only: FAIL if null/blank, PASS if non-empty (freeform prose can't be equality-checked).
-  ```
-  SELECT Regulatory_Market__c, Market_Response_Path__c, Product__c, Scientific_Question__c, MSL_Response__c FROM Case WHERE Id='[CaseId]'
-  ```
-
-**Step 4 — Degrade loud, never silent.** If an object appears in `data_seeded[]` but the spec has no parseable `Records: N` token for it (hand-edited or older spec with counts buried in prose), do NOT pass it implicitly. Probe `SELECT COUNT() ... ` for presence and surface the ambiguity to the SE:
-> "Phase 1 seeded `[object]` but I couldn't parse an expected record count from the spec. The org shows [N] rows present. Confirm this is correct, or tell me the expected count."
-
-An unparseable count must never become an implicit PASS — that reintroduces the original gap one level up.
-
-**Step 5 — On FAIL.** Re-run the seed script's bulk path for the failed object(s) (or re-invoke the seeding step), then re-probe. This is a hard gate: do not report Phase 1 complete with a failed seeding probe. If re-seed fails twice, record the object as FAILED in the change log's Issues Encountered section with the probe's expected-vs-actual, and surface to the SE.
-
-## Action-Invocation Probe (Phase 3 — runs unconditionally when an Agentforce agent was deployed Active)
-
-Mirror of the Data Seeding Integrity Probe, one phase over: a sub-agent can report an agent `Active` with a coherent smoke-test transcript while the hero action never fired (the agent narrates "I'll flag it" and invokes nothing; or a hand-patched topic references an action with no resolvable I/O schema, so it can never be selected). The sub-agent's `smoke_test.action_invocation_confirmed` self-report and its CLI-preview transcript are NOT trusted here — the sub-agent is the component that may be wrong (it has cited `sf agent preview` interfaces that don't exist in the installed CLI). This probe runs **regardless of what the sub-agent reported**, whenever `deployed.agent.status == "Active"`. Expected behaviour comes from the SPEC's hero action; actual comes from the ORG.
-
-The probe runs as a LADDER in this order — structural first (deterministic, no live turn), then runtime confirmation, then corroboration. Do NOT lead with the record-write check: its negative is ambiguous and an affirmative live write mutates demo data the SE must then reset.
-
-**Step 1 — Identify the hero action + its expected effect from the SPEC.** From the spec's Agentforce section, read the primary ("hero") action and what firing it does — its API name (for the event-log check) and, if any, the object + field(s) it writes (for corroboration).
-
-**Step 2 — PRIMARY: localActions structural gate (deterministic, on-disk, no live turn).** This is the real catch — it isolates the structural defect itself, not a downstream symptom, and on a modify-existing build it has already run pre-deploy in phase3.md. Re-confirm it here against the deployed bundle on disk using the SAME `<fullName>`-based structural join phase3.md uses (parse each Topic plugin's `<fullName>` from the bundle XML; require `localActions/<fullName>/` to exist with one non-empty `input/schema.json` + `output/schema.json` per `<functionName>`; exclude the parallel `plannerActions/` subtree). A topic referenced in the planner graph with NO `localActions/<fullName>/` folder is a dead topic regardless of what the transcript said — hard FAIL. Do NOT match on topic/action names — the folders carry unknowable 18-char metadata-Id suffixes; the topic's `<fullName>` IS the folder name, and a hand-patched dead topic has no folder at all.
-
-**Step 3 — Runtime confirmation: event-log FunctionStep (post-activate).** Enabling the log is step 0, not optional — if "Keep a record of conversations with enhanced event logs" is OFF, the query returns zero rows and you'd misread "no rows" as "action didn't fire" when it's really "logging was off."
-   a. Enable enhanced event logs on the agent (Edit Agent Details → "Keep a record of conversations with enhanced event logs") if not already on.
-   b. Send ONE test turn through any working channel that should fire the hero action.
-   c. Query:
-   ```sql
-   SELECT StepType, Action, EventTarget, IsSuccessful, ConversationTurn FROM ConversationDefinitionEventLog WHERE CreatedDate = TODAY ORDER BY CreatedDate DESC
+   ```json
+   {
+     "schema_version": 1,
+     "build_id": "same build id",
+     "spec_sha256": "same spec digest",
+     "ledger_sha256": "canonical digest reported by the helper",
+     "phase": 1,
+     "orchestrator_provenance": "saved build log / tool-result index",
+     "observations": [
+       {
+         "item_id": "p1.field.case-risk",
+         "verification": "targeted_state|presence|deployment_receipt|seed_probe",
+         "result": "match|mismatch|unavailable",
+         "attribution": "applied|already_satisfied|unknown",
+         "change_source": "required for applied",
+         "baseline_source": "required for already_satisfied",
+         "source": "saved tool result reference",
+         "details": "properties checked and observed values",
+         "actual_state": {"same property keys as ledger expected_state": "typed observed value"}
+       }
+     ]
+   }
    ```
-   A `FunctionStep` row naming the hero action with `IsSuccessful = true` = confirmed invocation = PASS. Turn rows that are only `Message`/`CancelDialog`/`Transfer` with ZERO `FunctionStep` = the action never fired = FAIL. (The object is `ConversationDefinitionEventLog` — there is no `GenAiInteraction`.)
 
-**Step 4 — Corroboration only: record-write SOQL (NOT a lead signal).** If the hero action writes a record, SOQL the target for the expected change to corroborate a Step-3 PASS:
-   ```sql
-   SELECT [field(s) the action sets] FROM [Object] WHERE [stable key from the test turn] ORDER BY LastModifiedDate DESC LIMIT 1
+   A CREATE `seed_probe` contains `operation`, `object`, the exact `stable_keys` and
+   `required_values`, `matched_count`, and `values_match`. An UPDATE `seed_probe`
+   contains `operation`, `object`, and `targets[]`, each with the exact `stable_key`
+   and an `actual_values` object. When the ledger item has settled calibration, the
+   probe also carries `calibration_source` equal to the ledger's saved
+   `acceptance.calibration.reference_source`.
+
+6. Run the executable reconciler (omit `--worker-result` or `--evidence` only when
+   that input truly does not exist):
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build-completion.py" \
+     --spec "[actual approved spec path]" \
+     --ledger "[frozen phase ledger JSON path]" \
+     --worker-result "[parsed worker JSON path]" \
+     --evidence "[orchestrator evidence JSON path]"
    ```
-   A changed field is strong positive proof. An unchanged/null field proves NOTHING on its own — no turn may have attempted a write — so never use this as the discriminator; use it to confirm a FunctionStep row, not to lead.
 
-**Step 5 — On FAIL.** Do NOT report the agent "Active/working." Override the sub-agent's report: set the agent's status to **"deployed but NOT validated — hero action invocation not confirmed in org"** for the change log and handover brief, record the probe's expected-vs-actual (verbatim org result) in the change log's Issues Encountered section, and surface to the SE. This is NOT a hard stop on the deployment (the agent may still demo for routing/conversation) — it is an honesty gate: the SE must see "deployed but unvalidated" rather than a false green. If Step 2 found a missing `localActions/<fullName>/` folder, flag it as the root cause and recommend re-adding the action via the Builder wizard (which regenerates the schema with its proper Id).
+   The helper is stdlib/read-only: it makes no Salesforce calls and no deployment
+   decisions. It checks the actual spec digest and exact source anchors, all
+   build/spec/phase/ledger identities, required phase-detail key types,
+   duplicate/missing/unexpected IDs, contradictions between completion rows and
+   detailed deploy/permission/Draft/recovery outcomes, worker and evidence
+   semantics, seed report pairing, and independent seed acceptance.
 
-**Step 6 — Degrade loud, never silent.** If the spec has no parseable hero action, or the org can't be probed (event logs unavailable AND no observable write), do NOT pass implicitly. Surface to the SE:
-> "Phase 3 deployed agent `[name]` Active, but I couldn't independently confirm its hero action fired (no observable write and event logs unavailable). Reporting it deployed-but-unvalidated. Confirm in a live Messaging Session, or tell me the expected record effect so I can probe."
+7. Preserve the helper's full item array. `FULLY_VERIFIED` means every item is
+   VERIFIED. `FINISHED_WITH_EXCEPTIONS` contains only accounted-for SKIPPED and/or
+   AWAITING_QA alongside verified work; never call it blanket success. `UNRESOLVED`
+   contains FAILED, BLOCKED, or INCOMPLETE work. Every disposition has
+   `automatic_retry: false`: select the next action item by item. A malformed report
+   gets a corrected-envelope request; a positive probe prevents blind redeploy or
+   reseed; a true defect needs concrete new fix evidence before any retry; an
+   authorized skip is never auto-retried.
+
+The helper verifies anchors and reconciliation, not semantic exhaustiveness or live
+Salesforce truth. The orchestrator remains responsible for reading every populated
+spec section and for grounding each evidence assertion in saved tool output.
+
+## Agentforce Current-Test Evidence (Phase 3)
+
+Read the installed `prompts/building/agentforce-validation-gate.md` and follow it as
+the canonical policy. Compute its SHA-256 from that fixed installed path. The
+reconciler independently reads the same sibling file; do not load a worker-selected
+policy or accept a digest copied from evidence without checking the file.
+
+Run this process from every ledger item that carries `acceptance.agent_runtime`,
+even if the Phase 3 worker report is absent or malformed. The worker smoke boolean
+is summary only. It cannot pass or fail the independent check.
+
+1. Independently read back the published agent/version and save the result. Then
+   open one explicitly selected current test and save its start/identity result.
+   Do not infer either identity from a passing observation.
+2. Collect current live invocation, behavior and source-specific structural facts
+   under the canonical gate. Preserve earlier attempt references. A fixed retest
+   supersedes a failed attempt only with an explicit selection and saved fix source.
+3. Add one `agent_contexts[]` row per tested ledger obligation:
+
+   ```json
+   {
+     "item_id": "p3.agent.flag-case",
+     "agent_api_name": "Demo_Agent",
+     "deployed_version_id": "independently read-back version id",
+     "deployment_source": "saved deploy/version read-back",
+     "source_kind": "agent_script|compiled_planner|unknown",
+     "gate_sha256": "digest of installed canonical gate",
+     "test": {
+       "attempt_id": "selected attempt id",
+       "mode": "session_turn|job_case",
+       "session_id": "required with session_turn",
+       "turn_id": "required with session_turn",
+       "job_id": "required with job_case",
+       "case_id": "required with job_case",
+       "identity_source": "saved current test start/identity result",
+       "history": [{"attempt_id": "prior", "outcome": "failed|passed|unavailable", "source": "saved result"}],
+       "supersedes_attempt_id": "optional prior failed attempt",
+       "fix_source": "required when superseding"
+     }
+   }
+   ```
+
+4. Put normalized `agent_runtime` in that item's ordinary observation. It uses Scout
+   keys, not raw Salesforce field names: exact agent/version/gate/test identity;
+   evidence channel; invocation status/action/live/simulated/evidence kind/source;
+   exact mutation target+before+after or read-only output+side-effect N/A; and the
+   source-specific structural result. For event logs also save REST Describe and
+   field-map sources, verified session mapping, correlation result, and the
+   lower-inclusive/upper-exclusive UTC fence. Never fabricate behavior placeholders
+   when invocation evidence is unavailable or a complete trace proves no call.
+
+   This is a complete mutating, Agent Script, live-preview example. Replace the
+   placeholders with values and saved-source references from the independently
+   selected current test; do not copy identities from the trace itself.
+
+   <!-- agent-runtime-example:start -->
+   ```json
+   {
+     "agent_api_name": "Demo_Agent",
+     "deployed_version_id": "0Xx-version-7",
+     "gate_sha256": "<installed gate sha256>",
+     "test_identity": {
+       "attempt_id": "attempt-1",
+       "mode": "session_turn",
+       "session_id": "session-current",
+       "turn_id": "turn-current"
+     },
+     "evidence_channel": "live_preview",
+     "invocation": {
+       "status": "succeeded",
+       "action": "Flag_Case",
+       "live_actions": true,
+       "simulated": false,
+       "evidence_kind": "live_trace",
+       "source": "saved current preview trace / invocation 4"
+     },
+     "behavior": {
+       "target": {"Case.Id": "500xx"},
+       "before": {"Case.Flagged__c": false},
+       "after": {"Case.Flagged__c": true},
+       "source": "saved before and after SOQL 5"
+     },
+     "structure": {
+       "method": "agent_script_validation",
+       "result": "pass",
+       "source": "saved validate authoring bundle result 2"
+     }
+   }
+   ```
+   <!-- agent-runtime-example:end -->
+
+   The exact enums and variants are:
+
+   - `test_identity.mode`: `session_turn` with `session_id` + `turn_id`, or
+     `job_case` with `job_id` + `case_id`.
+   - `evidence_channel`: `live_preview`, `event_log`, or `test_job`.
+   - `invocation.status`: `succeeded`, `failed`, `not_invoked`, or `unavailable`.
+     `invocation.evidence_kind` is `live_trace`, `complete_trace`,
+     `expected_action_declaration`, `transcript_only`, `authoring_preview`, or
+     `test_metrics`; only a current `live_trace` or `complete_trace` is eligible.
+     `not_invoked` is FAIL only with a `complete_trace`; unavailable/incomplete
+     evidence may omit `action` and `behavior`.
+   - For read-only work, replace `behavior` with
+     `{"output": {"answer_contains": "approved dosage"},
+     "side_effect": "not_applicable", "source": "saved current output 5"}` and
+     use the exact same output assertion in ledger criteria.
+   - `structure.method` is `agent_script_validation` for Agent Script or
+     `compiled_schema_join` for realized compiled planner source. Its `result` is
+     `pass`, `fail`, or `unavailable`. Unknown source stays unavailable.
+   - For `evidence_channel: "event_log"`, also add:
+
+     ```json
+     {
+       "retrieval": {
+         "describe_source": "saved REST Describe response 6",
+         "field_map": {
+           "session": "described session field",
+           "turn": "described turn field",
+           "version": "described version field",
+           "timestamp": "described timestamp field"
+         },
+         "session_mapping_source": "saved session + turn + version mapping 7",
+         "correlation": "verified",
+         "lower_inclusive": "2026-09-17T10:00:00Z",
+         "upper_exclusive": "2026-09-17T10:00:02Z",
+         "event_timestamp": "2026-09-17T10:00:01Z"
+       }
+     }
+     ```
+
+     Merge this `retrieval` member into the runtime object. Described field labels
+     are normalized references only; they do not assert portable Salesforce API
+     field names.
+5. Run `scripts/build-completion.py`; it invokes
+   `scripts/agentforce_evidence.py` with the actual installed gate content. Preserve
+   each item's runtime assessment and its ordinary completion disposition.
+
+PASS affects only its exact ledger item. Current FAIL or BLOCKED stays explicit even
+without a worker report and cannot be hidden by an authorized non-execution row.
+UNAVAILABLE is distinct from an observed failure. Missing worker output still makes
+completion INCOMPLETE even when runtime PASS is exposed. A passing hero check never
+clears another required action, guardrail or QA obligation.

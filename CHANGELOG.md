@@ -4,6 +4,8 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-17
 
+- **Build completion follows your approved spec.** Scout checks the requested work against an independent checklist, so an empty or partial build report cannot quietly omit it. Failed work, manual follow-up, and work awaiting QA stay visible; only explicitly approved omissions count as skipped.
+- **Agent validation checks what happened in the current test.** An action that changes data must show both a successful invocation and the expected change on the right record. Read-only actions must meet their expected output checks. Old test results, missing logs, and fluent replies do not establish that the deployed agent works.
 - **Imported components survive build cleanup.** Scout preserves verified copies of assets pulled from another org and carries selected component references into the demo spec. A fresh build stages those components only for their approved spec items and through the usual deployment checks; retries can reuse the same preserved source.
 - **Agent Builder recovery keeps the complete source bundle.** When an org requires UI Commit, Scout saves the agent script, metadata, and nested files outside scratch and records the exact recovery path in the change log. If preservation cannot be verified, Scout retains the originals and stops cleanup.
 

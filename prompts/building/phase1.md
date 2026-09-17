@@ -31,19 +31,20 @@ Invoke these skills via the Skill tool when you need detailed metadata rules:
 
 ## Deployment Rules
 
-**Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix — never redeploy unchanged metadata. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill. If it matches, apply the documented fix and redeploy (that is attempt 2); a different matching error on attempt 2 earns attempt 3. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record SKIPPED (with error + any pattern id tried) when an attempt fails with no new fix, or after attempt 3. Pattern B (FlexiPage record-detail) removes a component the SE must re-add — record it in the SE Manual Checklist.
+**Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix — never redeploy unchanged metadata. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill. If it matches, apply the documented fix and redeploy (that is attempt 2); a different matching error on attempt 2 earns attempt 3. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record FAILED (with error + any pattern id tried) when an attempt fails with no new fix, or after attempt 3. Pattern B (FlexiPage record-detail) leaves the deployed item AWAITING_QA and creates a separate BLOCKED SE Manual Checklist obligation for the component the SE must re-add.
 
 **Unfamiliar errors:** if the error message is not self-evident, not already in the spec's Platform Constraints section, and not matched by a Known Deploy-Error Pattern, invoke the `demo-docs-consultation` skill before the next attempt. Record the consultation in `docs_consulted`.
 
 <!-- IF:DATA_SEEDING -->
 **Script deliverables:** if any Data Seeding item in this spec produces a reusable shell or language script (e.g., a bulk seed script the SE can re-run after a re-spin), invoke the `demo-deployment-rules` skill and read "Script Deliverable Rules" BEFORE finalizing the deliverable. The rule block covers Pattern B (idempotent default), mandatory `--pilot-only` self-test against the live org, bash 3.2 portability, and how self-test bugs split between `issues` and `discovery_notes`.
 
-**Calibration queries (before seeding):** scan the spec's Data Seeding section for lines starting `Calibration:` — these declare that a seed value depends on live org data (e.g. `Calibration: quota = 70-80% of running user's open pipeline — reference query: SELECT SUM(Amount) FROM Opportunity WHERE OwnerId = :runningUserId AND StageName NOT IN ('Closed Won','Closed Lost')`). For each calibration directive:
-1. Run the reference query via `run_soql_query`.
-2. Compute the seed value that satisfies the target ratio/range. If the target is a range, pick the midpoint.
-3. **Auto-apply** the computed value — override any literal number the spec listed for that seed field. The SE chose calibration-by-rule over calibration-by-literal.
-4. Record in `discovery_notes` verbatim: `"Calibration applied: <directive text> — reference query returned <X>, seed value computed as <Y> (spec literal was <Z>)"` so the adjustment surfaces in the change log and the SE sees it in the handover.
-5. **Degraded path:** if the reference query returns 0 rows or errors, fall back to the spec's literal value and record in `issues`: `"Calibration reference query returned no data / failed: <error> — used spec literal <Z>. Adjust manually if needed."` Do not block on calibration — seeding proceeds with the literal.
+**Calibration is already settled by the orchestrator.** For any seed ledger item with
+`acceptance.calibration`, use its resolved value exactly as injected in
+`required_values` / `literal_values`. Do not rerun the reference query or recompute a
+second value. Record the injected directive, reference result/error, resolution, and
+resolved value in `discovery_notes`. A `resolution: blocked` item is BLOCKED and must
+not seed. This single-resolution rule prevents dispatch-time and worker-time values
+from diverging.
 
 ### Salesforce Data Seeding Quirks
 Recurring data-seeding gotchas observed across deployments. Apply these before reaching for `salesforce_docs_search` — they are confirmed.
@@ -231,7 +232,7 @@ Scope: org-wide Email-to-Case configuration (`CaseSettings` singleton + `emailTo
 <!-- IF:PATHS -->
 ### Path Rules
 Scope: PathAssistant metadata — renders the stepped path component on record pages for any picklist-driven object.
-**Pre-deploy incumbent check (do this FIRST — before authoring or deploying).** Salesforce permits only ONE Path per (sObject, recordType); a second one fails `checkOnly` with `Cannot create more than 1 Path per sobjectType and recordType`, and because Phase 1 deploys with `rollbackOnError`, that single failure sinks every other component in the same deploy (e.g. a CompactLayout / ListView that would otherwise succeed). To avoid it: run `sf org list metadata --metadata-type PathAssistant --target-org [alias]` and collect fullNames whose prefix (before the first `.`) equals the spec's `<entityName>`. For each match, `retrieve_metadata` (`PathAssistant`, that member) and read its `<recordTypeName>`. If any incumbent binds to the SAME recordType the spec targets (or the spec omits `<recordTypeName>` and an incumbent binds to Master), a collision is guaranteed — do NOT attempt the deploy. SKIP this Path with reason "incumbent active Path `[incumbent masterLabel]` already occupies (entity `[entityName]`, recordType `[recordTypeName]`) — Salesforce allows only one; resolve in Setup → Path Settings", mark the Path `FAILED` in your JSON output, and add "resolve competing Path on [entity]/[recordType]" to the SE Manual Checklist. This is a hard pre-deploy SKIP — the 3-attempt rule does NOT apply (no deploy was attempted), and it protects the rest of the deploy bundle. Do NOT deactivate the incumbent (existing metadata — see the NEVER rules).
+**Pre-deploy incumbent check (do this FIRST — before authoring or deploying).** Salesforce permits only ONE Path per (sObject, recordType); a second one fails `checkOnly` with `Cannot create more than 1 Path per sobjectType and recordType`, and because Phase 1 deploys with `rollbackOnError`, that single failure sinks every other component in the same deploy (e.g. a CompactLayout / ListView that would otherwise succeed). To avoid it: run `sf org list metadata --metadata-type PathAssistant --target-org [alias]` and collect fullNames whose prefix (before the first `.`) equals the spec's `<entityName>`. For each match, `retrieve_metadata` (`PathAssistant`, that member) and read its `<recordTypeName>`. If any incumbent binds to the SAME recordType the spec targets (or the spec omits `<recordTypeName>` and an incumbent binds to Master), a collision is guaranteed — do NOT attempt the deploy. Record this Path BLOCKED with reason "incumbent active Path `[incumbent masterLabel]` already occupies (entity `[entityName]`, recordType `[recordTypeName]`) — Salesforce allows only one; resolve in Setup → Path Settings", and add "resolve competing Path on [entity]/[recordType]" to the SE Manual Checklist. The 3-attempt rule does not apply because no deploy was attempted, and the block protects the rest of the deploy bundle. Do NOT deactivate the incumbent (existing metadata — see the NEVER rules).
 1. Deploy `PathAssistant` metadata:
    ```xml
    <?xml version="1.0" encoding="UTF-8"?>
@@ -355,14 +356,14 @@ Reference XML model (from a real Service Console Case LRP — `Case_Record_Page_
 For a single-column section, the `<flexipage:fieldSection>.columns` Facet contains `<fieldInstance>` entries directly — no intermediate `<flexipage:column>` indirection. Identical insert shape, one fewer hop.
 
 1. **Retrieve the FlexiPage XML.** `retrieve_metadata` with type `FlexiPage`, member `[LRP DeveloperName from spec]`. The retrieved file lands at `force-app/main/default/flexipages/[Name].flexipage-meta.xml`. **Save a verbatim copy of the pre-edit XML as your rollback artifact** — this is the ONLY irreplaceable file produced this phase, so it must survive the end-of-deployment `force-app/` sweep. Write it to `{{ROLLBACK_DIR}}/[Name].flexipage-meta.xml.preedit` (create `{{ROLLBACK_DIR}}` with `mkdir -p` first; `{{ROLLBACK_DIR}}` is an absolute path, so it is independent of your cwd). Do NOT save it as a sibling inside `force-app/` — that tree is swept after deployment and the copy would be lost.
-2. **Pre-flight composition check.** Grep the retrieved XML for `<componentName>flexipage:fieldSection</componentName>` and `<componentName>force:detailPanel</componentName>`. The XML must contain at least one `flexipage:fieldSection`. If it contains only `force:detailPanel` (composition flipped to `record_detail` since audit), SKIP this LRP step with reason "LRP composition is `record_detail` post-audit — classic Page Layout add already covers visibility, no LRP edit needed." Audit data is at most a few hours old; flipped composition is rare but possible. Record in `discovery_notes`.
+2. **Pre-flight composition check.** Grep the retrieved XML for `<componentName>flexipage:fieldSection</componentName>` and `<componentName>force:detailPanel</componentName>`. The XML must contain at least one `flexipage:fieldSection`. If it contains only `force:detailPanel` (composition flipped to `record_detail` since audit), record this LRP ledger item BLOCKED with reason "LRP composition is `record_detail` post-audit — classic Page Layout add already covers visibility; no autonomous LRP edit is possible." Do not deploy the LRP edit. Audit data is at most a few hours old; flipped composition is rare but possible. Record it in `discovery_notes`.
 3. **Resolve the deploy-target Facet UUID** from the spec + retrieved XML:
-   a. Find the `<componentInstance>` whose `<componentName>` is `flexipage:fieldSection` AND whose `<componentInstanceProperties><name>label</name><value>[label]</value>` matches the spec's target section label exactly. The label may be wrapped in `@@@SFDC...SFDC@@@` placeholders — match the wrapped form from the FlexiPage, but compare against the spec by stripping the wrappers (e.g. `@@@SFDCCase_InformationSFDC@@@` → spec target "Case Information"). If no match: SKIP with reason "Target field section `[label]` not found in FlexiPage `[Name]` — audit-specified section may have been renamed or removed. Drop into App Builder." The attempt rule does NOT apply (no deploy was attempted — this is a pre-deploy SKIP).
+   a. Find the `<componentInstance>` whose `<componentName>` is `flexipage:fieldSection` AND whose `<componentInstanceProperties><name>label</name><value>[label]</value>` matches the spec's target section label exactly. The label may be wrapped in `@@@SFDC...SFDC@@@` placeholders — match the wrapped form from the FlexiPage, but compare against the spec by stripping the wrappers (e.g. `@@@SFDCCase_InformationSFDC@@@` → spec target "Case Information"). If no match: record the item BLOCKED with reason "Target field section `[label]` not found in FlexiPage `[Name]` — audit-specified section may have been renamed or removed. Drop into App Builder." The attempt rule does not apply because no deploy was attempted.
    b. Read the section's `columns` Facet UUID — capture it as `SECTION_FACET`.
    c. Find the sibling `<flexiPageRegions>` block where `<name>SECTION_FACET</name>` and `<type>Facet</type>`. Inspect its contents:
       - **Single-column case:** the block contains `<itemInstances><fieldInstance>...</fieldInstance></itemInstances>` siblings directly. The deploy-target Facet is `SECTION_FACET` itself. The spec's `Target column: 1` is the only valid value here; reject the deploy if the spec specifies any other column index ("Spec specified column N but section is single-column").
       - **Multi-column case:** the block contains `<itemInstances><componentInstance><componentName>flexipage:column</componentName>...</componentInstance></itemInstances>` siblings. Each column componentInstance carries `<componentInstanceProperties><name>body</name><value>Facet-XXX</value></componentInstanceProperties>`. Take the spec's `Target column` (1-indexed) and select the Nth column componentInstance in document order; capture its body Facet UUID as `COLUMN_FACET`. The deploy-target Facet is `COLUMN_FACET`. If the spec's column index exceeds the count of columns found, reject the deploy with reason "Spec specified column [N] but section has only [M] columns".
-      - **Opaque case:** any other shape (custom column components, dynamic-form regions, empty Facet) — SKIP with reason "Section column structure is opaque — route to App Builder. Audit should have flagged this; if not, file a follow-up."
+      - **Opaque case:** any other shape (custom column components, dynamic-form regions, empty Facet) — record the item BLOCKED with reason "Section column structure is opaque — route to App Builder. Audit should have flagged this; if not, file a follow-up."
 4. **Build each `<itemInstances>` block to insert.** For each field API name in the spec:
    ```xml
    <itemInstances>
@@ -380,10 +381,10 @@ For a single-column section, the `<flexipage:fieldSection>.columns` Facet contai
    - `<identifier>` follows the org's existing convention: `Record` + the API name with `__c` flattened to `_c` + `Field`. If the FlexiPage already contains an entry for the same field on a different region (rare but possible), append a numeric suffix (`Field2`, `Field3`) to keep identifiers unique. Scan the entire retrieved XML for existing `<identifier>Record[ApiName flattened]_cField</identifier>` entries; if present, increment.
    - `uiBehavior` defaults to `none`. If the spec wants the field read-only, the spec must say so (`uiBehavior: readonly`); otherwise default `none`.
 5. **Insert each block at the end of the deploy-target Facet's `<flexiPageRegions>`.** The insert position is immediately before the closing `<name>FACET_UUID</name><type>Facet</type></flexiPageRegions>` of the resolved deploy-target Facet (`SECTION_FACET` for single-column, `COLUMN_FACET` for multi-column). Do NOT modify other Facets, do NOT touch the section componentInstance itself, do NOT change order of existing items.
-6. **Idempotency.** Before inserting, scan the deploy-target Facet's `<flexiPageRegions>` block for an existing `<fieldItem>Record.[FieldApiName]</fieldItem>` — if present, skip the insertion and record in `discovery_notes`: `"Field [X] already present in section [label] column [N] — skipped insert"`. This makes a re-run safe.
-7. **Deploy.** `deploy_metadata` for the modified FlexiPage. The attempt rule applies (check Known Deploy-Error Patterns in `demo-deployment-rules` on failure — Pattern A covers duplicate componentInstance). Common failure: identifier collision (the chosen `<identifier>` is already used elsewhere in the page) — bump the numeric suffix and retry once before SKIP.
+6. **Idempotency.** Before inserting, scan the deploy-target Facet's `<flexiPageRegions>` block for an existing `<fieldItem>Record.[FieldApiName]</fieldItem>` — if present, do not insert it and report the exact targeted state as `already_satisfied`; record in `discovery_notes`: `"Field [X] already present in section [label] column [N]"`. This makes a re-run safe without claiming this run changed it.
+7. **Deploy.** `deploy_metadata` for the modified FlexiPage. The attempt rule applies (check Known Deploy-Error Patterns in `demo-deployment-rules` on failure — Pattern A covers duplicate componentInstance). Common failure: identifier collision (the chosen `<identifier>` is already used elsewhere in the page) — bump the numeric suffix and retry once before recording FAILED.
 8. **Post-deploy verification (mechanical).** Re-retrieve the FlexiPage. For each spec'd field, grep for `<fieldItem>Record.[FieldApiName]</fieldItem>` AND for it appearing inside the deploy-target Facet's `<flexiPageRegions>` block (verify by line-number proximity to the Facet's `<name>FACET_UUID</name>` closer — the new fieldItem must be inside that block, not just somewhere in the file). All targeted fields must be present in the right place. If any is missing OR present in the wrong Facet, mark the deploy as FAILED in your JSON output with the per-field result.
-9. **Out of scope — skip with reason "out of scope for autonomous LRP deploy — SE Manual Checklist":**
+9. **Out of scope for autonomous LRP deploy — record a BLOCKED SE Manual Checklist obligation:**
    - Adding a new field section
    - Reordering fields within a column
    - Moving a field between sections / columns
@@ -408,31 +409,43 @@ Assign via MCP `assign_permission_set`. If unavailable, fall back to the `sf dat
 `sf data create record` path using the alias from `sf config get target-org`.
 <!-- /IF:PERMSET -->
 
+{{COMPLETION_CONTRACT}}
+
+## Expected Completion Ledger — Phase 1
+{{EXPECTED_COMPLETION_LEDGER}}
+
 ## Your Spec
 {{SPEC_SECTIONS}}
 
 ## Output Format
-When done, return EXACTLY one fenced JSON block matching this schema. Do not include any prose outside the block.
+When done, return EXACTLY one fenced JSON block matching this schema. Do not include any prose outside the block. Every top-level key is REQUIRED even if empty.
 
 ```json
 {
+  "schema_version": 1,
+  "build_id": "string — injected build id",
+  "spec_sha256": "string — injected approved-spec sha256",
   "phase": 1,
+  "completion": [
+    {"item_id": "string — exact ledger item id", "status": "applied|already_satisfied|failed|blocked|awaiting_qa", "summary": "string"}
+  ],
   "deployed": [
-    {"type": "CustomObject|CustomField|RecordType|Layout|FlexiPage|CustomTab|CustomApplication|Queue|BusinessProcess|PathAssistant|ValidationRule|ListView|SharingRules|ReportType|ReportFolder|Report|CustomSetting|CustomMetadata|CaseSettings", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null, "lrp_section_target": "string|null — for FlexiPage type only: the field section label the deploy targeted; null otherwise"}
+    {"ledger_item_id": "string", "type": "CustomObject|CustomField|RecordType|Layout|FlexiPage|CustomTab|CustomApplication|Queue|BusinessProcess|PathAssistant|ValidationRule|ListView|SharingRules|ReportType|ReportFolder|Report|CustomSetting|CustomMetadata|CaseSettings", "api_name": "string", "status": "SUCCESS|FAILED", "attempts": 1, "error": null, "lrp_section_target": "string|null — for FlexiPage type only: the field section label the deploy targeted; null otherwise"}
   ],
   "skipped": [
-    {"type": "string", "api_name": "string", "reason": "string"}
+    {"ledger_item_id": "string", "type": "string", "api_name": "string", "reason": "string — authorized omission only; must exactly mirror the frozen ledger authorization"}
   ],
   "permission_set": {
+    "ledger_item_id": "string",
     "api_name": "string",
     "assigned_to": "string",
     "status": "SUCCESS|FAILED|NOT_APPLICABLE"
   },
   "data_seeded": [
-    {"object": "string", "records": 0, "status": "SUCCESS|FAILED"}
+    {"ledger_item_id": "string", "object": "string", "operation": "CREATE|UPDATE", "records": 0, "status": "SUCCESS|FAILED"}
   ],
   "script_deliverables": [
-    {"path": "string — e.g. orgs/[alias]-[customer]/seed-lsdo-demo.sh", "pilot_command": "string — e.g. bash orgs/.../seed-lsdo-demo.sh --pilot-only", "bulk_command": "string", "self_test_status": "PASS|FAIL|NOT_APPLICABLE"}
+    {"ledger_item_id": "string", "path": "string — e.g. orgs/[alias]-[customer]/seed-lsdo-demo.sh", "pilot_command": "string — e.g. bash orgs/.../seed-lsdo-demo.sh --pilot-only", "bulk_command": "string", "self_test_status": "PASS|FAIL|NOT_APPLICABLE"}
   ],
   "discovery_notes": [
     "string — things that worked differently than the spec assumed, OR design constraints on deliverable artifacts (script portability, runtime-environment observations, library availability). Include raw error messages verbatim. Examples: 'Subject.UsageType is a picklist, not a free text field — spec assumed string assignment, switched to picklist value check', 'target SE Mac runs Bash 3.2 — avoided declare -A, used temp-file JSON for Python↔bash state handoff'."
@@ -440,7 +453,7 @@ When done, return EXACTLY one fenced JSON block matching this schema. Do not inc
   "docs_consulted": [
     {"question": "string", "url": "string", "verdict": "string"}
   ],
-  "issues": ["string — things that broke during deployment or during script self-test and were fixed or skipped. For script deliverables, every bug caught during --pilot-only self-test goes here verbatim (error message or symptom) — do NOT hide them behind a successful final run."]
+  "issues": ["string — things that broke during deployment or during script self-test and were fixed or failed. For script deliverables, every bug caught during --pilot-only self-test goes here verbatim (error message or symptom) — do NOT hide them behind a successful final run."]
 }
 ```
 

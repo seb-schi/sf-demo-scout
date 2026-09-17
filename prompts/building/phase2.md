@@ -15,7 +15,7 @@ Invoke these skills via the Skill tool when you need detailed rules:
 - `platform-apex-generate` — Apex generation rules (fflib layered architecture, mandatory `run_code_analyzer`) (invoke only if Apex is in scope)
 - `experience-lwc-generate` — LWC scaffolding with PICKLES methodology and 165-point scoring (invoke before generating any LWC bundle — SLDS 2, accessibility, wire patterns)
 - `platform-apex-test-generate` — Apex test-class authoring (templates, @TestSetup patterns, naming) (invoke whenever Apex is in scope — author a test for every class/trigger; a failing test never blocks the deploy)
-- `platform-apex-test-run` — Apex test execution and agentic test-fix loops (invoke when Apex deployment tests fail — up to 3 automated fix iterations before skipping)
+- `platform-apex-test-run` — Apex test execution and agentic test-fix loops (invoke when Apex deployment tests fail — up to 3 automated fix iterations before recording failure)
 - `platform-apex-logs-debug` — debug-log analysis and runtime-failure forensics (invoke as the escalation when `platform-apex-test-run` exhausts its fix loop, or ad-hoc for governor-limit / stack-trace analysis)
 - `dx-code-analyzer-run` — deeper/configurable static scan via the `sf code-analyzer run` CLI (engine selection, auto-fix, diff-only). The in-pipeline scan stays the MCP `run_code_analyzer` tool — invoke this skill only when the MCP tool is unavailable or a richer scan is wanted (requires the Code Analyzer CLI plugin)
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
@@ -25,7 +25,7 @@ Invoke these skills via the Skill tool when you need detailed rules:
 
 ## Deployment Rules
 
-**Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix — never redeploy unchanged metadata. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill (Pattern D covers the misleading LWC1210 literal/apiVersion-66 error). If it matches, apply the documented fix and redeploy (attempt 2); a different matching error on attempt 2 earns attempt 3. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record SKIPPED (with error + any pattern id tried) when an attempt fails with no new fix, or after attempt 3.
+**Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix — never redeploy unchanged metadata. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill (Pattern D covers the misleading LWC1210 literal/apiVersion-66 error). If it matches, apply the documented fix and redeploy (attempt 2); a different matching error on attempt 2 earns attempt 3. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record FAILED (with error + any pattern id tried) when an attempt fails with no new fix, or after attempt 3.
 
 **Unfamiliar errors:** if the error message is not self-evident and not matched by a Known Deploy-Error Pattern, invoke the `demo-docs-consultation` skill before the next attempt. Record the consultation in `docs_consulted`.
 
@@ -33,9 +33,9 @@ Deploy in small increments. One component per deploy call.
 
 <!-- IF:FLOWS -->
 ### Flow Rules
-Autonomous-with-SE-gate scope covers the full trigger spectrum the `sf-flow` skill owns — record-triggered (before-save, after-save, before-delete; any object; cross-object DML allowed), screen flows (see the component whitelist below), autolaunched flows, subflows, scheduled flows, and platform-event-triggered flows. **Screen-flow logic complexity is IN scope** — branching, cross-screen reactivity, and formula dependencies are fine, and there is no hard screen-count cap (the SE names the screen count during sparring; more screens just mean a longer visual-QA walkthrough, which is already a named SE step). Two categories leave the pure happy-path-loop, but neither is a hard decline any more: (1) a screen using a component OUTSIDE the whitelist below (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) — no FlowTest-assertable signal, so Scout still AUTHORS + DEPLOYS the flow (deploy the custom LWC too), leaves it **Draft** (it cannot pass a happy-path FlowTest that can't be written for it), and hands it off **"deployed Draft — needs visual QA, then activate"** via the handover brief's *Built — Validate in Sonnet* surface — do NOT skip it; and (2) orchestration flows (parent-child / sequential / conditional) — attempt the metadata when the spec's disposition (docs-classified in sparring) says authorable, deploy, and hand off for QA; skip only when docs confirmed UI-only, with the citation. Neither is skipped on "complexity" grounds. (The FlowTest Draft-gate for *whitelisted* autonomous flows below is unchanged: pass → activate, fail twice → stays Draft.) **Every autonomous screen flow deploys Draft-first and is gated by the happy-path FlowTest (step 4): pass → activate; fail twice → stays Draft and is recorded for the SE — it never ships live-and-broken.**
+Autonomous-with-SE-gate scope covers the full trigger spectrum the `sf-flow` skill owns — record-triggered (before-save, after-save, before-delete; any object; cross-object DML allowed), screen flows (see the component whitelist below), autolaunched flows, subflows, scheduled flows, and platform-event-triggered flows. **Screen-flow logic complexity is IN scope** — branching, cross-screen reactivity, and formula dependencies are fine, and there is no hard screen-count cap (the SE names the screen count during sparring; more screens just mean a longer visual-QA walkthrough, which is already a named SE step). Two categories leave the pure happy-path-loop, but neither is a hard decline any more: (1) a screen using a component OUTSIDE the whitelist below (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) — no FlowTest-assertable signal, so Scout still AUTHORS + DEPLOYS the flow (deploy the custom LWC too), leaves it **Draft** (it cannot pass a happy-path FlowTest that can't be written for it), and hands it off **"deployed Draft — needs visual QA, then activate"** via the handover brief's *Built — Validate in Sonnet* surface — do NOT omit it; and (2) orchestration flows (parent-child / sequential / conditional) — attempt the metadata when the spec's disposition (docs-classified in sparring) says authorable, deploy, and hand off for QA; when docs confirm a UI-only obligation, report it BLOCKED with the citation unless the frozen ledger contains an authorized omission. Neither is omitted on "complexity" grounds. (The FlowTest Draft-gate for *whitelisted* autonomous flows below is unchanged: pass → activate, fail twice → stays Draft.) **Every autonomous screen flow deploys Draft-first and is gated by the happy-path FlowTest (step 4): pass → activate; fail twice → stays Draft and is recorded AWAITING_QA for the SE — it never ships live-and-broken.**
 
-Screen-flow component whitelist: DisplayText, Section, InputField (Text / LargeTextArea / Number / Email / Date / DateTime / Password), Picklist, RadioButtons, Checkbox, CheckboxGroup, MultiSelectPicklist. Anything else (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) → skip.
+Screen-flow component whitelist: DisplayText, Section, InputField (Text / LargeTextArea / Number / Email / Date / DateTime / Password), Picklist, RadioButtons, Checkbox, CheckboxGroup, MultiSelectPicklist. Anything else (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) follows the deployed-Draft visual-QA path above.
 
 **Template sources.** The `sf-flow` skill ships canonical XML templates under `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/assets/`:
 - `record-triggered-before-save.xml`, `record-triggered-after-save.xml`, `record-triggered-before-delete.xml`
@@ -53,7 +53,7 @@ Reference guides: skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotc
 1. Invoke `sf-flow` skill before generating Flow XML.
 2. Use the matching template from the asset list above as the starting point. Record-triggered-after-save is inlined below because it carries the `processMetadataValues` deployment-blocker rule and the Record Update pattern — both load-bearing beyond what the asset file covers.
 3. Deploy as Draft first (`<status>Draft</status>`), confirm success.
-4. **Validation — happy-path FlowTest is mandatory for every autonomous flow type.** Generate a happy-path FlowTest XML (template below — save as `[FlowApiName]_Test.flowTest-meta.xml`), deploy it alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`. Pass → activate. Fail twice → skip activation, record in `issues`. FlowTest supports every flow type via MDAPI even though Flow Builder's auto-test UI is limited to record-triggered + data-cloud-triggered (Salesforce docs, 2026-04-30). Type-specific test adaptations:
+4. **Validation — happy-path FlowTest is mandatory for every autonomous flow type.** Generate a happy-path FlowTest XML (template below — save as `[FlowApiName]_Test.flowTest-meta.xml`), deploy it alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`. Pass → activate. Fail twice → leave Draft, report AWAITING_QA, and record the failures in `issues`. FlowTest supports every flow type via MDAPI even though Flow Builder's auto-test UI is limited to record-triggered + data-cloud-triggered (Salesforce docs, 2026-04-30). Type-specific test adaptations:
    - **Record-triggered (before-save, after-save, before-delete):** Single `<testPoints>` block with `<elementApiName>Start</elementApiName>`. `<parameters>` blocks use `<type>InputTriggeringRecordInitial</type>` (no `<leftValueReference>` — the parameter `<name>` is the field API name on the trigger object, the `<value>` is the seeded value). `$Record` is built from these parameters at the Start node.
    - **Before-delete:** test asserts the pre-delete state; delete is the triggering event, assertion checks flow ran without fault.
    - **Screen flow:** one `<parameters>` block per required input variable, `<type>Input</type>`, `<leftValueReference>` set to the variable's API name.
@@ -61,8 +61,8 @@ Reference guides: skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotc
    - **Scheduled:** test exercises the flow body on-demand, ignoring the schedule trigger. Schedule itself is a config read-back (`retrieve_metadata` on the deployed flow confirms `<schedule>` fields match the spec).
    - **Platform-event-triggered:** `<parameters>` supplies a mock event payload — `<type>InputTriggeringRecordInitial</type>`, one block per event field referenced by the flow, `<name>` = event field API name.
 5. **Screen flows with QuickAction wiring** (spec requests it): deploy a `QuickAction` (actionType=Flow) pointing at the flow's API name; retrieve the target object's active Layout, add the QuickAction under `<quickActionListItems>`, redeploy the layout.
-6. **Scheduled flow pre-flight:** confirm the spec's Scheduled Flow section names `<startDate>`, `<startTime>`, and `<frequency>` (Once / Daily / Weekly / Monthly / Yearly / Hourly / Weekdays — per FlowSchedule subtype, Salesforce docs API v66.0+). If missing, skip with reason "scheduled flow missing schedule fields — SE must add to spec."
-7. **Platform-event flow pre-flight:** confirm the `<eventType>` object exists via `retrieve_metadata` (CustomObject with `__e` suffix, or standard event like `AIPredictionEvent`). If missing and not in-scope for this deploy, skip with reason "platform event object not in org — SE must create or import first."
+6. **Scheduled flow pre-flight:** confirm the spec's Scheduled Flow section names `<startDate>`, `<startTime>`, and `<frequency>` (Once / Daily / Weekly / Monthly / Yearly / Hourly / Weekdays — per FlowSchedule subtype, Salesforce docs API v66.0+). If missing, report BLOCKED with reason "scheduled flow missing schedule fields — SE must add to spec."
+7. **Platform-event flow pre-flight:** confirm the `<eventType>` object exists via `retrieve_metadata` (CustomObject with `__e` suffix, or standard event like `AIPredictionEvent`). If missing and not in-scope for this deploy, report BLOCKED with reason "platform event object not in org — SE must create or import first."
 8. Check for existing flows on the same object/trigger via `retrieve_metadata` — flag execution order conflicts in `discovery_notes`.
 9. Rollback: `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]` (plus `QuickAction:[Name]` if deployed, plus `FlowTest:[FlowApiName]_Test` if deployed).
 
@@ -228,7 +228,7 @@ is recorded in `issues` and **NEVER blocks the deploy** — the demo/build ships
 2. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`. **If the MCP tool is unavailable, or the SE wants a deeper/configurable scan (engine selection, auto-fix, diff-only), invoke the `dx-code-analyzer-run` skill instead** — it drives the `sf code-analyzer run` CLI. That CLI requires the Code Analyzer plugin; if it is absent, record the gap in `discovery_notes` and rely on the MCP scan. Do NOT replace the MCP call as the default — it is faster and returns structured findings.
 3. **Author an Apex test class for every Apex class/trigger deployed.** Invoke `platform-apex-test-generate` for templates, `@TestSetup` / `TestDataFactory` patterns, and naming. Deploy the test alongside the class, run it, and record pass/fail in `issues`. A failing or low-coverage test does NOT block the deploy — record it and continue.
 4. If the spec's Platform Constraints section flags any object with restrictions, follow the dynamic SOQL pattern below for that object.
-5. If compile or runtime tests fail on the first deploy attempt, invoke `platform-apex-test-run` before the next attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). The attempt rule still applies: one platform-apex-test-run loop counts as one attempt. **If the `platform-apex-test-run` loop exhausts its iterations without resolving the failure, invoke `platform-apex-logs-debug` for deeper runtime-log forensics before recording the phase SKIPPED.**
+5. If compile or runtime tests fail on the first deploy attempt, invoke `platform-apex-test-run` before the next attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). The attempt rule still applies: one platform-apex-test-run loop counts as one attempt. **If the `platform-apex-test-run` loop exhausts its iterations without resolving the failure, invoke `platform-apex-logs-debug` for deeper runtime-log forensics before recording the affected item FAILED.**
 6. Rollback: `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]` (plus `ApexClass:[TestClassName]` if a test class was deployed).
 
 **InvocableMethod pattern (for Agentforce backing actions).** Use this template:
@@ -332,20 +332,31 @@ Key rules:
 ## What Phase 1 Already Deployed
 {{PHASE1_SUMMARY}}
 
+{{COMPLETION_CONTRACT}}
+
+## Expected Completion Ledger — Phase 2
+{{EXPECTED_COMPLETION_LEDGER}}
+
 ## Your Spec
 {{SPEC_SECTIONS}}
 
 ## Output Format
-Return EXACTLY one fenced JSON block matching this schema. Do not include any prose outside the block.
+Return EXACTLY one fenced JSON block matching this schema. Do not include any prose outside the block. Every top-level key is REQUIRED even if empty.
 
 ```json
 {
+  "schema_version": 1,
+  "build_id": "string — injected build id",
+  "spec_sha256": "string — injected approved-spec sha256",
   "phase": 2,
+  "completion": [
+    {"item_id": "string — exact ledger item id", "status": "applied|already_satisfied|failed|blocked|awaiting_qa", "summary": "string"}
+  ],
   "deployed": [
-    {"type": "Flow|ApexClass|ApexTrigger|LightningComponentBundle", "api_name": "string", "status": "SUCCESS|FAILED", "flow_status": "Active|Draft|null"}
+    {"ledger_item_id": "string", "type": "Flow|ApexClass|ApexTrigger|LightningComponentBundle", "api_name": "string", "status": "SUCCESS|FAILED", "flow_status": "Active|Draft|null", "validation_status": "VERIFIED|AWAITING_QA|FAILED"}
   ],
   "skipped": [
-    {"type": "string", "api_name": "string", "reason": "string"}
+    {"ledger_item_id": "string", "type": "string", "api_name": "string", "reason": "string — authorized omission only; must exactly mirror the frozen ledger authorization"}
   ],
   "rollback_commands": ["string"],
   "discovery_notes": [

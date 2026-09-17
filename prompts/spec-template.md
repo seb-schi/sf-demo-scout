@@ -191,13 +191,20 @@ Scope: org-wide Email-to-Case (`service-email-to-case-configure` skill) — the 
 - Consumed by: (n/a — Case routing, not read by custom Apex/Flow)
 
 ### Data Seeding
-- Object: [name], Records: [count]
-- Key values: [field]: [value] — (reason)
+- Operation: [CREATE | UPDATE] — REQUIRED; never infer a default
+- Object: [name]
+- CREATE only — Records: [positive integer]
+- CREATE stable keys: [field]: [literal value] — all fields used by the independent count probe
+- CREATE required values: [field]: [literal value] — values every matched row must satisfy
+- UPDATE targets (one bullet per existing record): stable key [field]: [literal value]
+  - Literal fields: [field]: [exact requested value]
+  - ⚠️ SE refines prose fields: [field names whose only acceptance rule is nonblank]
 - ⚠️ Review and customize seed data for customer-specific values (names, product SKUs, dates) before demo
-- **Record counts must be single integers, not ranges.** `Records: 5` — not `Records: 3-5`. Building needs a deterministic count; if genuinely unsure, pick the upper bound of what the demo story needs.
+- **CREATE record counts must be positive single integers, not ranges.** `Records: 5` — not `Records: 0`, `Records: 3-5`, or prose. UPDATE omits `Records`; acceptance checks every named target and requested field instead. Building fails the affected item closed when operation, count, target, stable key, or requested value is ambiguous.
+- Stable keys identify only the approved target set. Do not use mutable display prose as a key and do not let building widen the keys. A platform-created paired row may make the observed CREATE count exceed the approved count; acceptance is `matched_count >= Records` with the requested values still checked.
 - **Cross-object seeding (junctions, FK chains):** if this seed touches 2+ objects with lookup population, building will produce an idempotent reusable script per `demo-deployment-rules` §Script Deliverable Rules. Spec lists target objects and key field mappings; the script path + `--pilot-only` + bulk commands land in the change log and handover brief.
 - **Field names are describe-confirmed.** Sparring Stage 5b runs `sf sobject describe` on every Data Seeding target object before writing this spec. Field names, RecordType DeveloperNames, and picklist-vs-string distinctions in this section are empirically verified, not inferred.
-- **Calibration directives (when seed values depend on live org data):** if a seed value must be computed against live aggregates (e.g. "quota set to 70-80% of running user's open pipeline" so the "at risk" narrative reads), write it as a `Calibration:` line under the relevant seed bullet. Format: `Calibration: <target ratio/range in plain English> — reference query: <one-line SOQL>`. Phase 1 runs the query, computes the seed value, and auto-applies — overriding any literal number in this section. The calibration and the computed value land in the change log. If the reference query errors or returns no data, Phase 1 falls back to the literal and records the fallback in `issues`.
+- **Calibration directives (when seed values depend on live org data):** if a seed value must be computed against live aggregates (e.g. "quota set to 70-80% of running user's open pipeline" so the "at risk" narrative reads), write it as a `Calibration:` line under the relevant seed bullet. Format: `Calibration: <target ratio/range in plain English> — reference query: <one-line SOQL>`. Before freezing the expected-work ledger or dispatching Phase 1, the orchestrator runs the approved query once, computes the existing midpoint rule, saves the directive/result/source/resolved literal in ledger acceptance, and injects that literal into the Phase 1 criteria. Phase 1 uses the supplied value and does not recompute it. If the query errors or returns no usable data, the orchestrator uses the approved literal only when one exists and records the fallback; without a literal the item remains BLOCKED.
 
 ### Page Layouts (Classic — field additions only)
 Scope: adding fields to a classic Page Layout. **Use this section ONLY when the audit's active LRP for the object is `composition_class: record_detail`** (the LRP uses `force:detailPanel`, so classic Page Layout adds pass through automatically). For `field_section` / `mixed` / `custom` / `unretrievable` LRPs, use one of the LRP sections below — touching just the classic layout will not change what the demo audience sees.

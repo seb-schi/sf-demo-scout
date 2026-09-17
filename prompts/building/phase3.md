@@ -29,7 +29,7 @@ Invoke these skills via the Skill tool:
 
 ## Deployment Rules
 
-**Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix — never redeploy unchanged metadata. On a deploy failure, check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill before retrying. (Agentforce deploys none of the covered component types, so in practice no pattern matches here and this stays a two-attempt path via the Unfamiliar-errors route — the wording is shared for consistency.) STOP and record SKIPPED (with error + any pattern id tried) when an attempt fails with no new fix, or after attempt 3.
+**Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix — never redeploy unchanged metadata. On a deploy failure, check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill before retrying. (Agentforce deploys none of the covered component types, so in practice no pattern matches here and this stays a two-attempt path via the Unfamiliar-errors route — the wording is shared for consistency.) STOP and record FAILED (with error + any pattern id tried) when an attempt fails with no new fix, or after attempt 3.
 
 **Unfamiliar errors:** if the error message is not self-evident and not matched by a Known Deploy-Error Pattern, invoke the `demo-docs-consultation` skill before the next attempt. Record the consultation in `docs_consulted`.
 
@@ -100,7 +100,7 @@ For agents already in the org. Every publish creates a new version; rollback via
 2. Invoke `agentforce-generate` skill — follow its "Modify an Existing Agent" workflow.
 3. Note the current active version number before changes (rollback target).
 4. Comprehend existing agent structure, update Agent Spec.
-5. **Pre-deploy localActions gate (MUST — for any change that touches topics/actions).** After building the edited bundle on disk but BEFORE deploy, run a STRUCTURAL JOIN between the planner XML and the `localActions/` tree. **Do NOT try to match on the new topic/action names** — the on-disk folders carry 18-char Salesforce-assigned metadata-Id suffixes you cannot know pre-deploy (topic dirs = `<fullName>` which already includes the planner-Id suffix, e.g. `Order_Management_16jKB000000oUsk`; action dirs carry their OWN per-action Id suffix, distinct from the suffix used in the XML reference). A hand-patched dead topic has NO `localActions` folder at all — that absence IS the catch. The gate:
+5. **Pre-deploy source-specific validation (MUST).** For Agent Script / AiAuthoringBundle source, run the Agent Script authoring validation; absence of a compiled `localActions` tree is not a failure. Only when the source is an already realized compiled `GenAiPlannerBundle` and the in-place change touches existing topic actions, run the STRUCTURAL JOIN below between planner XML and `localActions/`. **Do NOT try to match on topic/action display names** — compiled folders carry Salesforce-assigned metadata-Id suffixes. A hand-patched dead compiled topic has no matching `localActions` folder. The compiled-only gate:
    ```
    For each topic in the bundle XML — each <genAiPluginName>/<genAiPlugin> of pluginType=Topic
      that has one or more child <functionName> entries (i.e. the topic has actions):
@@ -122,23 +122,23 @@ For agents already in the org. Every publish creates a new version; rollback via
 
 **Service Agent prerequisite (ordering).** If the deployed agent is an `AgentforceServiceAgent`,
 complete BOTH the "Standard Agentforce Runtime Permset" AND the "Running-User Backing-Action Access"
-sections below BEFORE trusting any smoke-test or Action-Invocation-Probe result — a Service Agent runs
+sections below BEFORE trusting any smoke-test or independent current-test result — a Service Agent runs
 as a dedicated running user with NO access to your backing actions until those grants land, so a
 validation run first is a guaranteed false red (`NO_USER_ACCESS`, no side-effect). Employee Agents
 (logged-in user) need neither grant and this ordering does not apply.
 
-**Primary validation is the orchestrator-side Action-Invocation Probe, not this CLI smoke test.** The orchestrator runs an event-log probe after Phase 3 (see sub-agent-validation.md) that is version-stable and removes you from the trust path for "did the hero action fire." CLI-preview smoke testing below is a SECONDARY conversational check — useful for routing/coherence, but it is NOT acceptance and its exact `sf agent preview` interface changes monthly (do not over-trust the flag spelling). If a `sf agent preview` subcommand errors as unrecognized, record the verbatim error in `discovery_notes` and proceed — the event-log probe is what gates the agent's validated status.
+**Primary validation is the orchestrator's independent current-test assessment, not this CLI smoke test.** After Phase 3, the orchestrator applies the canonical validation gate from expected ledger obligations (see sub-agent-validation.md), binds evidence to the independently read-back deployed version and selected session+turn or job+case, and checks exact behavior. It may use a saved live preview trace, exact job/case trace, or described and correlated event logs. CLI-preview smoke testing below is a SECONDARY conversational check — useful for routing/coherence, but it is NOT acceptance and its exact `sf agent preview` interface changes monthly (do not over-trust the flag spelling). If a preview subcommand errors as unrecognized, record the verbatim error in `discovery_notes`; never replace the independent assessment with the worker boolean.
 
 1. **Build the official test suite from the spec.** Read the spec's "Agent test cases" table and write a `test-spec.yaml` in the official `sf agent test` format — delegate the exact schema to the `agentforce-test` skill (its `basic-test-spec.yaml` + `guardrail-test-spec.yaml` assets are authoritative; do NOT hand-invent field names). Map each row: `utterance` / `expectedTopic` / `expectedActions` (Level-2 invocation names, flat list, superset match) / `expectedOutcome`. If the spec has no table (older spec) or no rows, derive 3 cases from subagent descriptions and treat them as happy-path. **Metric landmines — do NOT ignore:** never attach `instruction_following` (crashes Testing Center UI), `conciseness` (returns score 0), or `completeness` (penalizes routing/deflection agents); rely on `expectedOutcome` (LLM-as-judge) for correctness and guardrail rows.
 2. **Run the suite (Mode B — Testing Center).** `sf agent test create --json --spec test-spec.yaml --api-name [Suite] -o [alias]`, then `sf agent test run --json --api-name [Suite] --wait 10 --result-format json -o [alias]`, then fetch results with `sf agent test results --json --job-id [runId] -o [alias]` (use `--job-id` from the run output, NEVER `--use-most-recent`). Consult `agentforce-test` for the current flag spelling — the CLI surface changes monthly. If `sf agent test` is unavailable or errors, record the verbatim error in `discovery_notes`, fall back to a Mode A `sf agent preview` conversational check, and note the fallback.
 3. **Judge against the official assertions, not an inferred outcome.** A case PASSES when its `expectedTopic`/`expectedActions`/`expectedOutcome` assertions pass in the run results. For guardrail/off-topic rows (empty `expectedTopic`), pass = the `expectedOutcome` LLM-judge confirms the agent declined/deflected; a confident off-domain answer is a FAILURE. Filter the known false-negative: a `topic_assertion` FAILURE on a guardrail row with empty `expectedTopic` is spurious (empty assertion XML) — do not count it.
-4. Record per-case results in `smoke_test.utterances` (carry `expectedTopic`/`expectedActions`/`expectedOutcome`/`passed`/`mode`). A green suite is NOT full acceptance on its own — the event-log Action-Invocation Probe below remains the deterministic gate for "did the hero action fire," and Mode B runs alongside it, never replacing it.
+4. Record per-case results in `smoke_test.utterances` (carry `expectedTopic`/`expectedActions`/`expectedOutcome`/`passed`/`mode`). A green suite is NOT full acceptance on its own. The orchestrator's independently correlated current-test assessment decides each action-bearing ledger item; Mode B runs alongside it and never replaces it.
 **Minimum coverage (if preview is drivable):** send at least 3 utterances (or all, if fewer than 3 in the spec). If utterance #1 fails, send at least 2 more to determine whether the failure is routing-specific or universal. Different utterances test different routing paths — only skip remaining utterances if 3+ consecutive failures produce the identical error message.
 
 **Validation gate — follow this verbatim:**
 {{VALIDATION_GATE}}
 
-A failed smoke test does NOT block the deployment from completing — but it DOES change how the agent is reported. Record conversational failures in `issues`; record the gate outcome in `smoke_test.action_invocation_confirmed` per the gate above. If no action invocation was confirmed, the agent is reported deployed-but-NOT-validated, never "Active/working."
+A failed smoke test does not block deployment from completing. Record conversational failures in `issues` and set `smoke_test.action_invocation_confirmed` honestly as worker summary. Final validated/deployed-but-unvalidated reporting comes only from the orchestrator's per-item reconciled current-test assessment under the gate above.
 
 ### Standard Agentforce Runtime Permset (after activate)
 After the agent is active, assign the correct standard Agentforce runtime permset to the running user (not the Einstein Agent User — that one is auto-provisioned by the `sf agent` CLI).
@@ -203,14 +203,23 @@ retries on a license-rejected grant, and do NOT report the agent validated if th
 blocked by a wall — report deployed-but-NOT-validated with the wall named.
 
 ### Advanced capabilities — author metadata, hand off UI wiring
-For multi-agent orchestration, Enhanced Chat v2, and Lightning types (forms) in chat, Scout AUTHORS + DEPLOYS the build-time-knowable metadata (per `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-advanced-capabilities.md`) and then hands the UI wiring + live verification to the SE — these have no build-time success signal (they render/route only in a live Enhanced Web Chat session), so do NOT report them "working," report the metadata as authored + the UI-wiring steps as SE handoff (record the handoff in `skipped` with reason "advanced capability — UI wiring is SE-manual, see agentforce-advanced-capabilities.md"). Note the connection wiring for multi-agent orchestration is Beta + UI-only (no Metadata API path).
+For multi-agent orchestration, Enhanced Chat v2, and Lightning types (forms) in chat, Scout AUTHORS + DEPLOYS the build-time-knowable metadata (per `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-advanced-capabilities.md`) and then hands the UI wiring + live verification to the SE — these have no build-time success signal (they render/route only in a live Enhanced Web Chat session), so do NOT report them "working." Report deployed metadata as `awaiting_qa`; report the separate outstanding UI-only obligation as `blocked` until the SE completes it. Do not put either in `skipped`. Note the connection wiring for multi-agent orchestration is Beta + UI-only (no Metadata API path).
 
-### Always Out of Scope (skip with reason "SE Manual Checklist")
+### Always Out of Scope for Worker Automation
 - Custom model/LLM config
 - Production-scale test suites (Testing Center batch regression — Mode B)
 
+Report these as BLOCKED manual obligations unless the injected ledger already has an
+independently authorized explicit spec exclusion or SE non-execution decision. The
+worker never puts them in `skipped` on its own.
+
 ## What Earlier Phases Deployed
 {{PRIOR_PHASES_SUMMARY}}
+
+{{COMPLETION_CONTRACT}}
+
+## Expected Completion Ledger — Phase 3
+{{EXPECTED_COMPLETION_LEDGER}}
 
 ## Your Spec
 {{SPEC_SECTIONS}}
@@ -220,17 +229,24 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
 
 ```json
 {
+  "schema_version": 1,
+  "build_id": "string — injected build id",
+  "spec_sha256": "string — injected approved-spec sha256",
   "phase": 3,
+  "completion": [
+    {"item_id": "string — exact ledger item id", "status": "applied|already_satisfied|failed|blocked|awaiting_qa", "summary": "string"}
+  ],
   "deployed": {
     "agent": {
-      "api_name": "string", "version": 0, "status": "Active|Inactive|NeedsUICommit",
+      "ledger_item_id": "string", "api_name": "string", "version": 0, "status": "Active|Inactive|NeedsUICommit",
       "recovery": {"status": "not_needed|verified|failed", "artifact": "string|null", "bundle_path": "string|null", "original_path": "string|null", "error": "string|null"}
     },
-    "backing_actions": [{"type": "ApexClass|Flow|StandardAction", "api_name": "string", "status": "SUCCESS|FAILED"}],
-    "agent_user": {"username": "string", "created_by_cli": true},
-    "standard_permset_assignment": {"name": "string|null", "assigned_to": "string|null", "status": "SUCCESS|FAILED|NOT_FOUND"}
+    "backing_actions": [{"ledger_item_id": "string", "type": "ApexClass|Flow|StandardAction", "api_name": "string", "status": "SUCCESS|FAILED"}],
+    "agent_user": {"ledger_item_id": "string", "username": "string", "created_by_cli": true},
+    "standard_permset_assignment": {"ledger_item_id": "string", "name": "string|null", "assigned_to": "string|null", "status": "SUCCESS|FAILED|NOT_FOUND"}
   },
   "smoke_test": {
+    "ledger_item_id": "string",
     "ran": true,
     "action_invocation_confirmed": false,
     "utterances": [
@@ -238,10 +254,10 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
     ]
   },
   "actions_unverified_in_preview": [
-    {"action": "string", "reason": "string — see Schema notes below for full definition and required wording for Knowledge grounding"}
+    {"ledger_item_id": "string", "action": "string", "reason": "string — see Schema notes below for full definition and required wording for Knowledge grounding"}
   ],
   "skipped": [
-    {"component": "string", "reason": "string"}
+    {"ledger_item_id": "string", "component": "string", "reason": "string — authorized omission only; must exactly mirror the frozen ledger authorization"}
   ],
   "rollback_commands": ["string"],
   "discovery_notes": [
@@ -255,6 +271,11 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
 ```
 
 **Schema notes:**
+- `smoke_test` is worker summary only. Its boolean never proves the deployed version
+  worked and never overrides the orchestrator's independent current-test runtime
+  assessment. Keep separate `ledger_item_id` values for the hero action, every
+  other required action, and every guardrail/test obligation; one passing action
+  must not clear another obligation's QA.
 - `deployed.agent.recovery` — required. Use `not_needed` with all path/error fields null when step 6b did not fire. For `NeedsUICommit`, use `verified` only after the helper succeeds, otherwise `failed` with the original scratch path and error. All non-null paths must be actual absolute paths, never placeholders. A `verified` record certifies durable source, not a live agent.
 - `deployed.agent.status = NeedsUICommit` — set ONLY by step 6b (SFAP publish-route 404 on this instance). Means the agent was authored + validated but could NOT be published headless; it is NOT live. `version` will typically be `0` (no published version). The orchestrator surfaces this to the SE as "authored + validated, NOT live — requires UI Commit" and routes to the go-live runbook. Do NOT report a `NeedsUICommit` agent as Active/working.
 - `deployed.agent_user` — record the Einstein Agent User the `sf agent` CLI auto-creates during publish. The orchestrator surfaces this to the SE post-deploy.

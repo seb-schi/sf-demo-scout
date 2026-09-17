@@ -171,9 +171,127 @@ Tell the SE which phases you identified:
 If only Phase 1 applies:
 > "Only safe operations in this spec — no Flows, Apex, LWC, or Agentforce. No further SE confirmation needed. Deploying now."
 
+### Settle Calibration and Freeze the Expected-Work Ledgers
+
+Workspace Prep must finish first because its authorized Imported Assets annotation
+may persist raw-material provenance into the approved spec. Complete that allowed
+annotation before hashing; after this point do not write the spec again during this
+build. This ordering preserves the F1 import behavior while ensuring the digest
+identifies the final worker input.
+
+Before ledger creation or worker dispatch, resolve every approved `Calibration:`
+directive once in the orchestrator:
+
+1. Execute its approved reference query and save the directive, exact result, and
+   tool-result reference. Compute the literal with the existing midpoint rule.
+2. If the query errors or has no usable data, use the spec's approved literal only
+   when one exists; save the error and mark the resolution `literal_fallback`.
+3. If neither a query result nor an approved literal exists, mark the affected seed
+   item calibration `blocked`. Do not dispatch or invent a value.
+4. Put the resolved literal into the seed acceptance `required_values` (CREATE) or
+   named target `literal_values` (UPDATE). Phase 1 receives and uses this resolved
+   criterion; it must not run the calibration query or recompute a second value.
+
+Calibration metadata is optional and deliberately small:
+
+```json
+{
+  "directive": "exact Calibration: line from the spec",
+  "resolution": "computed|literal_fallback|blocked",
+  "reference_result": 100,
+  "reference_source": "saved query result/error reference",
+  "resolved_field": "Quota__c",
+  "resolved_value": 75,
+  "spec_literal": 50,
+  "error": null
+}
+```
+
+`blocked` omits `resolved_value`; `literal_fallback` sets `resolved_value` equal to
+`spec_literal` and records a nonempty error. The independent seed probe checks the
+resolved literal and carries the same `reference_source` as calibration provenance.
+
+Now read `${CLAUDE_PLUGIN_ROOT}/prompts/building/completion-contract.md`, set one
+immutable `BUILD_ID`, hash the final selected spec, and create one JSON ledger per
+applicable phase under the customer folder. Build ledgers from the spec, never from
+a worker result:
+
+```json
+{
+  "schema_version": 1,
+  "build_id": "customer-YYYYMMDD-HHmmss",
+  "spec_sha256": "64 lowercase hex characters",
+  "phase": 1,
+  "items": [{
+    "id": "p1.field.case-risk",
+    "kind": "artifact|change|seed|permission|assignment|manual",
+    "phase": 1,
+    "source": {"location": "section / bullet", "quote": "exact spec text"},
+    "acceptance": {
+      "description": "human explanation of requested state",
+      "expected_state": {"requested property": "literal typed value"}
+    }
+  }],
+  "authorized_skips": [{
+    "item_id": "stable item id",
+    "authorization_type": "explicit_se_non_execution|explicit_spec_exclusion",
+    "decision_source": "approved spec location or recorded SE decision",
+    "reason": "specific reason",
+    "source": {"location": "required for spec exclusion", "quote": "exact exclusion quote"},
+    "decision_source_type": "se_decision — required for an SE decision"
+  }]
+}
+```
+
+Inventory every requested artifact/change, seed group, permission/assignment, and
+explicit manual obligation. Cross-check every populated spec section and manual
+checklist; unsupported or unrouted work stays BLOCKED. This is semantic review, not
+a universal Markdown parser. The helper checks exact quotes against the hashed spec
+but cannot prove the inventory is exhaustive.
+
+Non-seed items use a nonempty literal `expected_state`; evidence reports the same
+keys in `actual_state`. Seed acceptance uses explicit CREATE/UPDATE shapes from the
+spec template, plus settled calibration metadata when applicable. Never infer
+operations, counts, targets, values, or wider stable keys.
+
+For Phase 3, read the installed
+`${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` now and record
+its SHA-256 as `gate_sha256`. Create a distinct ledger item for every required
+action/runtime obligation. Action-bearing items add this narrow acceptance shape:
+
+```json
+"agent_runtime": {
+  "agent_api_name": "exact API name",
+  "hero_action": "exact action identity",
+  "behavior": "mutating|read_only",
+  "source_kind": "agent_script|compiled_planner|unknown",
+  "criteria": {
+    "target": {"stable typed key": "value"},
+    "before": {"sentinel field": "typed pre-state"},
+    "after": {"requested field": "typed post-state"}
+  }
+}
+```
+
+Read-only criteria instead contain exact typed `output` assertions and
+`"side_effect": "not_applicable"`. A mutating before-state must discriminate the
+turn from a pre-existing desired value. Keep no-action guardrails and other
+non-action assertions as separate ordinary ledger/test items without
+`agent_runtime`; a hero-action pass cannot clear them.
+
+If the SE declines a phase before worker creation, append authorized omissions only
+for items covered by that explicit decision. A manual handoff remains BLOCKED unless
+the SE declines it or the approved spec explicitly excludes it. Preserve the ledger
+even when no worker is spawned.
+
 ### Sub-Agent Output Validation
 
-After EVERY sub-agent returns, load `${CLAUDE_PLUGIN_ROOT}/prompts/building/sub-agent-validation.md` and run the validation procedure before proceeding. The procedure covers JSON parse checks, per-phase required-keys lists, empirical org-probe queries for schema-drift-with-successful-deployment, an unconditional Data Seeding Integrity Probe (runs whenever Phase 1's `data_seeded[]` is non-empty — verifies seeded counts and field values against the org using spec-parsed expectations, catching a schema-valid envelope that reports zero or short seeds as SUCCESS), and the retry-or-skip gate when the org confirms an incomplete deployment.
+After EVERY sub-agent returns (and for an explicitly authorized omitted phase with no worker),
+load `${CLAUDE_PLUGIN_ROOT}/prompts/building/sub-agent-validation.md` and run it.
+Reconciliation is ledger-driven and seed probes run for every non-authorized-skipped
+seed item even when worker JSON is absent, empty, or malformed.
+Use the read-only `${CLAUDE_PLUGIN_ROOT}/scripts/build-completion.py` reconciler as
+shown there; preserve its complete item array for change-log and handover reporting.
 
 ### Phase Prep Procedure
 
@@ -194,6 +312,10 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
      block described below for THIS phase, or the **empty string** when none apply
      (including older specs with no Imported Assets section). Do not add
      `{{ROLLBACK_DIR}}` to Phase 2; its consumer uses staged project source.
+   - **`{{COMPLETION_CONTRACT}}` (all three phases).** Read and substitute the full
+     contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/completion-contract.md`.
+   - **`{{EXPECTED_COMPLETION_LEDGER}}` (all three phases).** Substitute the exact
+     frozen JSON ledger for this phase. Do not summarize or regenerate it.
 4. **Immediately before dispatch**, after preceding phases and this phase's SE
    gate, stage only this phase's selected components. Re-verify each named artifact
    and run (repeat `--path` for the component's complete source paths):
@@ -228,13 +350,19 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
 
 | Phase | Template | IF markers | Placeholders | Agent description |
 |-------|----------|------------|--------------|-------------------|
-| 1 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` | `QUEUES`, `LAYOUTS`, `LRP`, `PERMSET`, `STRUCTURAL`, `PICKLISTS`, `DATA_SEEDING`, `BUSINESS_PROCESS`, `PATHS`, `VALIDATION_RULES`, `LIST_VIEWS`, `SHARING_RULES`, `CUSTOM_REPORT_TYPE`, `REPORTS`, `CUSTOM_SETTING`, `CUSTOM_METADATA_TYPE`, `EMAIL_TO_CASE` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`), `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning Record Page — Field Section additions, Lightning App / Tabs, Queues, Business Processes, Paths, Validation Rules, List Views, Sharing Rules, Custom Report Type, Reports, Custom Settings, Custom Metadata Types, Email-to-Case), `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 1: Org Config deployment` |
-| 2 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` | `FLOWS`, `APEX`, `LWC` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PHASE1_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Flows, Apex, LWC sections), `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 2: Flows/Apex/LWC deployment` |
-| 3 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` | *(none)* | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PRIOR_PHASES_SUMMARY}}`, `{{ASSET_HELPER}}` (= absolute resolved path to `${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py`), `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`; same value injected into Phase 1), `{{SPEC_SECTIONS}}` (Agentforce section), `{{VALIDATION_GATE}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` — read the file and substitute; sub-agents cannot resolve `${CLAUDE_PLUGIN_ROOT}`, so inject the content the same way `{{AUDIT_SHARED_RULES}}` is injected), `{{REAUTHOR_FROM_PLANNER}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-reauthor.md`, read-and-substitute like `{{VALIDATION_GATE}}`; PREFIX the substituted block with a line reading `RE-AUTHOR MODE: ON` when the editability pre-flight routed this agent to re-author mode, otherwise substitute the single inert line `RE-AUTHOR MODE: OFF — (not a re-author build — skip this section)`), `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 3: Agentforce deployment` |
+| 1 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` | `QUEUES`, `LAYOUTS`, `LRP`, `PERMSET`, `STRUCTURAL`, `PICKLISTS`, `DATA_SEEDING`, `BUSINESS_PROCESS`, `PATHS`, `VALIDATION_RULES`, `LIST_VIEWS`, `SHARING_RULES`, `CUSTOM_REPORT_TYPE`, `REPORTS`, `CUSTOM_SETTING`, `CUSTOM_METADATA_TYPE`, `EMAIL_TO_CASE` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`), `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning Record Page — Field Section additions, Lightning App / Tabs, Queues, Business Processes, Paths, Validation Rules, List Views, Sharing Rules, Custom Report Type, Reports, Custom Settings, Custom Metadata Types, Email-to-Case), `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 1: Org Config deployment` |
+| 2 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` | `FLOWS`, `APEX`, `LWC` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PHASE1_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Flows, Apex, LWC sections), `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 2: Flows/Apex/LWC deployment` |
+| 3 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` | *(none)* | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PRIOR_PHASES_SUMMARY}}`, `{{ASSET_HELPER}}` (= absolute resolved path to `${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py`), `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`; same value injected into Phase 1), `{{SPEC_SECTIONS}}` (Agentforce section), `{{VALIDATION_GATE}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` — read the file and substitute; sub-agents cannot resolve `${CLAUDE_PLUGIN_ROOT}`, so inject the content the same way `{{AUDIT_SHARED_RULES}}` is injected), `{{REAUTHOR_FROM_PLANNER}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-reauthor.md`, read-and-substitute like `{{VALIDATION_GATE}}`; PREFIX the substituted block with a line reading `RE-AUTHOR MODE: ON` when the editability pre-flight routed this agent to re-author mode, otherwise substitute the single inert line `RE-AUTHOR MODE: OFF — (not a re-author build — skip this section)`), `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 3: Agentforce deployment` |
 
 ### Phase 1: Org Config
 
-Run the Phase Prep Procedure for Phase 1. After it returns, if critical items failed (objects that Phase 2/3 depend on), warn the SE before continuing.
+Run the Phase Prep Procedure for Phase 1. Use reconciled item dispositions, including
+FAILED, BLOCKED, and INCOMPLETE, when preparing `{{PHASE1_SUMMARY}}` and deciding
+whether later work can start. A dependent item must wait until each needed prerequisite
+is independently VERIFIED or explicitly accounted for by an authorized
+omission that makes the dependency unnecessary. Unrelated AWAITING_QA work does not
+stop independent ledger items from proceeding; preserve it in the summary and
+handover instead.
 
 ### Phase 2: Flows / Apex / LWC — if applicable
 
@@ -243,7 +371,10 @@ Run the Phase Prep Procedure for Phase 1. After it returns, if critical items fa
 
 **Runtime heads-up (add when Phase 2 includes ANY Apex OR ANY flow — omit only for LWC-only Phase 2 builds).** Every Apex class and every flow type iterates against a build-time signal — Scout writes and self-fixes an Apex test (up to 3 loop iterations), or deploys the flow as Draft and runs a happy-path FlowTest before activating — so the run can take several minutes per such artifact. Append one line to the gate so the SE opts in knowingly: *"Heads-up: this build iterates against tests (Apex test-fix loop / Draft-first FlowTest), so this phase may take a few minutes per Apex class and flow. Anything the loop can't confirm ships honestly (Apex flagged test-unvalidated, flow left Draft) and lands in your handover brief's 'Built — Validate in Sonnet' list."* Omit the line only when Phase 2 is LWC-only — there's no build-time loop to warn about.
 
-If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 2.
+If no, this is an explicit SE non-execution decision: add an
+`explicit_se_non_execution` authorized-skip row for each affected Phase 2 ledger
+item, run reconciliation without a worker result, and preserve the result. If yes,
+run the Phase Prep Procedure for Phase 2.
 
 **Phase 2→3 Risk Review (if Phase 3 applies):** Before the Phase 3 SE gate, scan Phase 2's `discovery_notes`. For each discovery involving an object also used in Phase 3's Agentforce actions:
 - Cross-check against the loaded `orgs/lessons/` topics (`managed-packages.md`, `metadata-deploy.md`) — known restriction or new one?
@@ -251,6 +382,12 @@ If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 2.
 - Fold discovery notes into `{{PRIOR_PHASES_SUMMARY}}` as explicit risk callouts, not just deployment facts. Example: "⚠️ Phase 2 discovered MedicalInsight is a managed object requiring dynamic SOQL — Agentforce execution context may also restrict it."
 
 If `discovery_notes` is empty or contains no Phase 3-relevant entries, proceed normally.
+
+Build `{{PRIOR_PHASES_SUMMARY}}` from the completion reconciler, not from raw
+`deployed.status` values. Before dispatching Phase 3, require every Phase 1/2 item
+that its ledger work depends on to be VERIFIED. Hold only the dependent work when a
+needed prerequisite is FAILED, BLOCKED, INCOMPLETE, or still AWAITING_QA; unrelated
+items may continue under their existing gates.
 
 ### Phase 3: Agentforce — if applicable
 
@@ -273,9 +410,21 @@ Why gated: the pre-flight only applies when editing an existing agent, and it gu
 If the spec carries an explicit "no Apex" directive, add one extra line:
 > "⚠️ Spec forbids Apex backing actions. If the sub-agent hits a standard-action failure during validate/preview, it will fall back to Apex and record the triggering error in `issues`. You'll see the deviation in the change log."
 
-If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 3. After it returns:
-1. Check `smoke_test` in the output for pass/fail. **Check `smoke_test.action_invocation_confirmed`** — if `false` (or absent), the agent's hero action was NEVER confirmed to fire; report the agent to the SE as **"deployed but NOT validated — no action invocation confirmed"**, NOT as "Active/working," and carry that status into the change log and handover brief. A coherent conversation is not validation.
-2. Surface `actions_unverified_in_preview` to the SE explicitly — these are the actions the sub-agent deployed but could not exercise in stateless preview. They are NOT smoke-test failures; they are verification gaps the SE must close manually in a live Messaging Session. If the list is non-empty, include it in the change log's Issues Encountered section and in the handover brief's SE checklist.
+If no, this is an explicit SE non-execution decision: add an
+`explicit_se_non_execution` authorized-skip row for each affected Phase 3 ledger
+item, run reconciliation without a worker result, and preserve the result. If yes,
+run the Phase Prep Procedure for Phase 3. After it returns:
+1. Treat `smoke_test` and `actions_unverified_in_preview` as worker summaries only.
+   Run the installed canonical validation gate independently for every expected
+   action-bearing ledger item, even when the report is missing or malformed. Record
+   independent deployed-version/current-test context in `agent_contexts[]` and the
+   normalized runtime facts in the matching observation exactly as
+   `sub-agent-validation.md` specifies. Then rerun `scripts/build-completion.py` and
+   use its per-item runtime assessment. Do not infer context identities from a
+   passing trace, and do not let an older pass replace the selected current result.
+2. Surface every remaining AWAITING_QA action or no-action test obligation to the
+   SE. A current runtime PASS clears only its exact ledger item; preserve other
+   actions, guardrails, visual checks and `actions_unverified_in_preview` entries.
 3. Cross-check `deployed.backing_actions` types against the spec. If the spec said "no Apex" and `backing_actions` contains any `type: ApexClass`, the sub-agent invoked the fallback path — verify `discovery_notes` or `issues` carries the triggering standard-action error. If it doesn't, flag as a deviation in the change log (the sub-agent skipped the evidence rule).
 4. **If `deployed.agent.status` is `NeedsUICommit`**, the SFAP publish route 404'd on this org instance (a per-instance platform provisioning gap — not a Scout, CLI, or bundle-validity fault). Report the agent to the SE as **"authored + validated, NOT live — requires UI Commit"**, NOT as Active/working. Carry into the change log's Issues Encountered section and the handover brief's SE checklist, and point the SE to the go-live runbook at `${CLAUDE_PLUGIN_ROOT}/prompts/building/agent-ui-commit-runbook.md` (Builder UI go-live) plus the escalation note (Salesforce Support case citing the org instance ID; the verbatim endpoint/404/instance evidence is in the sub-agent's `discovery_notes`). Verify `deployed.agent.recovery`: require `status: verified`, run `python3 "$ASSET_HELPER" verify --artifact "[reported artifact]"`, require kind `agent-recovery` beneath this customer's rollback directory, and check the reported `bundle_path` is the complete `source/aiAuthoringBundles/[AgentName]` directory within it. Include BOTH actual absolute paths in the change log and SE handover. Missing/failed recovery fields or a failed check means preservation BLOCKED: retain original scratch, record the error, and withhold final cleanup. Do not call a scratch path a preserved blueprint.
 
@@ -296,6 +445,9 @@ Use the template in `${CLAUDE_PLUGIN_ROOT}/prompts/building/change-log-template.
 
 The change log must include:
 - Everything from all sub-agent reports (deployed, skipped, permission set, data, issues)
+- Every completion-reconciler item and disposition, separated into VERIFIED applied,
+  VERIFIED already-satisfied, SKIPPED with independent decision source, AWAITING_QA,
+  FAILED, BLOCKED, and INCOMPLETE. Preserve validation errors and probe references.
 - Rollback commands from Phase 2 and Phase 3
 - Which phases ran and which were skipped
 - Any phases that FAILED validation (raw output preserved)

@@ -19,7 +19,11 @@ Format (output as plain text, not a blockquote):
 Use "Show the customer..." framing. 3-5 steps.)
 
 **Already Done (Scout handled this)**
-Synthesise from the change log — reassure the SE about what they do NOT own. Each bullet is a plain statement of a completed fact, not a checkbox. Include whichever of the following are present in the change log:
+Synthesise only reconciler VERIFIED items from the change log. Each bullet is a
+plain completed fact, not a checkbox. Say "already matched before this build" for
+`already_satisfied`; never imply this run changed it. Do not include SKIPPED,
+AWAITING_QA, FAILED, BLOCKED, or INCOMPLETE items here. Include whichever of the
+following are VERIFIED in the change log:
 - Companion permset deployed and assigned to the running user: [name]
 - Standard Agentforce runtime permset assigned: [name] (only if `deployed.standard_permset_assignment.status = "SUCCESS"`)
 - Deployed metadata summary in one line: [N objects, N fields, N flows, N Apex classes, N LWC, N Agentforce agents — pull from change log counts]
@@ -29,6 +33,12 @@ Synthesise from the change log — reassure the SE about what they do NOT own. E
 
 **Built — Validate in Sonnet (Scout attempted these; finish them in this session)**
 Scout attempts every metadata-authorable artifact — including ones with NO build-time signal. That covers complex Apex and screen flows (looped against an Apex test / happy-path FlowTest) AND no-signal *visual* surfaces (a deployed FlexiPage / Lightning page, a classic Page Layout arrangement, a screen flow using a non-whitelist component, a complex LWC's rendered UI, a dashboard). Where a signal existed but did NOT go green, or where there is no signal at all, the artifact was still DEPLOYED — but honestly reported unconfirmed, never "working." These are NOT platform limits; finish them right here by telling Claude what to adjust (it reaches for `sf-flow`, `platform-apex-test-run`, `platform-flexipage-generate`, and friends against your org). Include only what applies:
+- [ ] **Every reconciler AWAITING_QA item:** [ledger item id] — [remaining test,
+  visual, or live-runtime confirmation].
+- [ ] **Every remaining Agentforce action, guardrail, or test obligation:** [ledger
+  item id] — [runtime assessment and exact next live test]. A current hero-action
+  PASS clears only its own ledger item. Do not carry worker smoke booleans forward
+  as proof, and do not erase other required checks.
 - [ ] **Test-unvalidated Apex:** for each Apex class in the change log's "Issues Encountered" whose generated test failed or is low-coverage — review the logic and the test, then iterate in this session until it passes (or confirm the demo path works without it). The class IS deployed.
 - [ ] **Draft screen flows:** for each screen flow the change log lists as `Draft` (its happy-path FlowTest did not pass twice) — walk the logic, fix, re-run the test, and activate. A Draft flow will NOT fire on the org until activated.
 - [ ] **Screen-flow visual QA:** walk through each activated screen flow once in the Lightning UI (labels, button order, help text) — this has no metadata signal and is always a human-eyes step.
@@ -36,9 +46,11 @@ Scout attempts every metadata-authorable artifact — including ones with NO bui
 
 **Your Setup (Salesforce UI — no API path)**
 These are Salesforce platform limits, not Scout gaps — the Metadata API does not expose these surfaces, so no tool can automate them. Populate from the spec's SE Manual Checklist + the change log's "SE Must Do Next":
+- [ ] **Every reconciler BLOCKED manual item:** [ledger item id] — [specific SE
+  action]. Keep it visible until completed; a manual handoff is not a skip.
 - [ ] [SE Manual Checklist items from spec + change log "SE Must Do Next", rephrased with Setup navigation paths where applicable]
 
-**For each `actions_unverified_in_preview` entry in the change log, append a checklist item under Your Setup.** The canonical definition of this field lives in `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md`. Formatting rules:
+**For each `actions_unverified_in_preview` entry in the change log, append a checklist item under Your Setup only when its reconciled ledger item remains AWAITING_QA, BLOCKED, FAILED, or INCOMPLETE.** Do not resurrect an entry whose exact action obligation has a current independent PASS; keep unrelated outstanding entries. The canonical definition of this field lives in `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md`. Formatting rules:
 - **Knowledge grounding entry:** append verbatim:
   - [ ] After creating the Data Library, run one grounded utterance in Builder (e.g. an utterance that should pull from a specific Knowledge article) and confirm a citation or source reference appears in the response. If the response is plausible prose without a source, the Data Library is not linked — fix before demo.
 - **Any other entry** (MessagingSession-dependent actions, etc.): append one line per entry in the form `- [ ] [action name]: [reason from the entry]`.

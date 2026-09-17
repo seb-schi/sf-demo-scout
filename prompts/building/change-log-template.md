@@ -15,7 +15,30 @@ Audit used: audit-[YYYY-MM-DD]-[HHmm].md
 [Every component, grouped by type — include API names]
 
 ## What Was Skipped
-[Items not deployed and why]
+[Only reconciler SKIPPED items: item id, explicit authorization type, independent
+decision source, and reason. Do not put failures, blocked/manual work, or QA here.]
+
+## Completion Reconciliation
+Overall: [FULLY_VERIFIED | FINISHED_WITH_EXCEPTIONS | UNRESOLVED]
+Spec SHA-256: [digest]
+Build ID: [id]
+
+### Verified — Applied This Build
+- [ledger item id] — [targeted current-state evidence] — change source: [current
+  receipt or saved before/after evidence]
+
+### Verified — Already Satisfied Before This Build
+- [ledger item id] — [exact targeted state] — baseline source: [saved pre-dispatch
+  observation]. Never describe these as deployed by this run.
+
+### Accounted-for Exceptions
+- [SKIPPED item + decision source, or AWAITING_QA item + remaining confirmation]
+
+### Unresolved Work
+- [FAILED | BLOCKED | INCOMPLETE] [ledger item id] — [cause] — [specific next action]
+
+Preserve the reconciler's validation errors and independent evidence/probe references.
+Presence and deployment receipts alone never belong in either Verified subsection.
 
 ## Companion Permission Set
 [Name, coverage, assignment status]
@@ -46,8 +69,15 @@ Rollback: sf project delete source --metadata LightningComponentBundle:[Name] --
 Rollback: sf project delete source --metadata AiAuthoringBundle:[AgentName] --target-org [alias]
 (plus `ApexClass:[ClassName]` for each backing action. For existing-agent modifications, rollback is `sf agent activate --version-number [N]` — see phase 3 sub-agent output.)
 
-## Agentforce Smoke Test Results (if any)
-[Utterances sent, pass/fail per utterance, issues observed]
+## Agentforce Current-Test Evidence (if any)
+[For every action-bearing ledger item: item id; runtime assessment
+PASS|FAIL|BLOCKED|UNAVAILABLE|INVALID and reason; independently recorded deployed version
++ deployment source; selected current session+turn or exact job+case +
+identity source; canonical gate digest; invocation evidence channel/kind/source;
+mutating target/before/after delta or read-only output assertions; structural method
+and source. Preserve prior failed attempt references and any explicitly selected
+fixed retest. Worker smoke booleans are summary only. A PASS resolves only that item;
+list every remaining Agentforce action, guardrail and QA obligation separately.]
 
 ## Actions Unverified in Preview (if any)
 Aggregated from the Phase 3 sub-agent's `actions_unverified_in_preview` array (see `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` for the canonical definition). The SE must verify each entry manually — in a live Messaging Session for session-context-dependent actions, or in Builder after creating dependent resources (e.g. Data Libraries for Knowledge grounding).

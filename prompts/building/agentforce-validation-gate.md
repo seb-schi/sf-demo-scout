@@ -1,46 +1,60 @@
-## Validation Gate — REQUIRED before reporting the agent working
+## Validation Gate — REQUIRED before reporting an agent working
 
-A coherent conversation is NOT proof an agent works. An agent may be reported `Active` (it deployed
-and published) but it must NOT be reported `validated` / `working` unless at least one of its actions
-has been **confirmed to fire with a real side-effect**. "Confirmed to fire" requires an
-**org-verified side-effect delta against a pre-state you set yourself** — the strongest, and the only
-fully reliable, proof:
-- SET a known pre-state (create the target record with a sentinel field value, or note "0 Cases for
-  this contact"), drive the hero utterance, then RE-QUERY and confirm the delta (row-count increased,
-  or the field mutated from your sentinel to the expected value). A record that merely *exists* is
-  NOT proof — it may predate the turn.
-- An event-log `FunctionStep` row in `ConversationDefinitionEventLog` proves the action was *invoked*,
-  but NOT that it *succeeded* — a backing action can fire and then fail downstream on a RecordType, a
-  dependency read, or a license wall (layers 3/4/5 in phase3's Running-User Backing-Action Access
-  section) and still leave a row. Treat the event-log row as necessary-but-not-sufficient whenever the
-  action has a side effect: pair it with the delta check. (An event-log row alone is acceptance ONLY
-  for a read-only / answer action that has no side effect.)
+This file is the single Agentforce acceptance policy. The orchestrator hashes the
+installed file and records that digest in the independent current-test context.
+Worker `smoke_test` fields and transcripts are summary only. They never decide
+acceptance.
 
-A green conversation where the agent SAYS it will act, with no verified delta, is explicitly NOT
-acceptance. This is the exact failure that shipped here twice: first the agent narrated "I'll flag it"
-on every channel and never invoked the action; later it invoked the action but silently failed
-downstream and still replied fluently.
+Create one expected ledger item per required action, guardrail, answer assertion,
+or other test obligation. An action-bearing item names the exact agent, action,
+behavior type, source kind, and typed criteria and carries `agent_runtime`. A
+no-action guardrail or non-action assertion remains a separate ordinary ledger/test
+obligation; it does not require a hero invocation to prove an intended decline. A
+passing hero-action item resolves only that item and never clears another required
+action or guardrail.
 
-### Fallback ladder (try in order; stop at the first that yields a confirmed invocation)
-1. **CLI preview + traces** — `sf agent preview start --use-live-actions` then send an utterance that
-   should fire the hero action; inspect the session trace for the action invocation.
-2. **Enhanced event logs** — if preview is blocked (e.g. "Invalid user ID provided on start session"
-   — see agent-type note below; this is common in SDO/IDO orgs), enable
-   "Keep a record of conversations with enhanced event logs" on the agent (Edit Agent Details),
-   send ONE test turn through any working channel, then query:
-   ```sql
-   SELECT StepType, Action, EventTarget, IsSuccessful, ConversationTurn, EventDetails
-   FROM ConversationDefinitionEventLog WHERE CreatedDate = TODAY ORDER BY CreatedDate DESC
-   ```
-   A `FunctionStep` row for the hero action = confirmed invocation. (Note: the object is
-   `ConversationDefinitionEventLog` — there is no `GenAiInteraction`.)
-3. **Agent API headless** — drive a turn from an external app via the Agent API. Employee Agents
-   run as the logged-in/Run-As user; use `bypassUser: false` on the `/sessions` call (NOT `true` —
-   public docs say `true` for client-credentials, but that assumes a Service Agent with an assigned
-   agent-user; an Employee Agent has `BotUserId=null` and `true` throws "Invalid user ID").
+Keep three facts separate:
+
+1. the independently read-back deployed agent and published version;
+2. the explicitly selected current test identity; and
+3. the invocation and behavior proven for that exact current test.
+
+A coherent response, an expected-action declaration, test metrics, a prose
+transcript, simulated actions, or an authoring preview before publication cannot
+prove the deployed version worked. An older successful turn cannot replace a
+current failure. A later fixed retest may supersede a failed attempt only when the
+orchestrator selects it explicitly, preserves the failed attempt reference, and
+records the concrete fix source.
+
+### Current-test evidence ladder
+
+Use the first channel that yields a saved, current, live trace:
+
+1. **Live CLI preview trace.** Start preview with live actions, record the CLI
+   session ID, send the selected turn, and save the trace. Do not assume the CLI
+   session ID is an event-log parent.
+2. **Enhanced event logs.** Enable logging before the turn. Call read-only REST Describe
+   for `ConversationDefinitionEventLog`, save the response, and construct
+   projections only from fields actually exposed there. Field labels in docs do not
+   establish API names. Establish and save a verified session + turn + deployed version
+   mapping before treating any row as current-test evidence.
+3. **Exact test job/case or direct live trace.** A saved result for the selected job
+   and case can prove invocation when it exposes actual live action execution. Its
+   expected-action declaration and aggregate metrics cannot prove a write.
+4. **Agent API headless.** Drive one selected live turn and retain its exact
+   session/turn/version identities. Employee Agents run as the logged-in/Run-As
+   user; use `bypassUser: false`. A Service Agent may use its assigned agent user.
+
+For event-log retrieval, capture a UTC lower bound rounded down to the second before
+the turn and an upper bound after the completed turn and bounded polling interval.
+Use unquoted ISO-8601 literals with `>=` lower-inclusive and `<` upper-exclusive.
+Never use an Apex-style `:sentAt` bind. A timestamp window narrows candidates; it
+does not correlate them. Missing, delayed, denied, or uncorrelatable logs are
+UNAVAILABLE. Only a matching complete current trace can prove the expected
+invocation did not occur and therefore FAIL.
 
 ### Why a Service-Agent action didn't fire — read the trace, don't infer
-When an `AgentforceServiceAgent` (dedicated running user) replies coherently but the delta check above
+When an `AgentforceServiceAgent` (dedicated running user) replies coherently but the behavior assessment
 shows NO side-effect, the cause is almost always the running-user access stack, and the preview trace
 tells you which layer — read it before re-authoring anything:
 - **`EnabledToolsStep.runtime_withheld_actions`** — if the hero action appears here with
@@ -59,21 +73,34 @@ dependency read, or license wall).
 Before treating a runtime/preview error as an access problem, check the deployed agent TYPE.
 For `AgentforceEmployeeAgent`: `BotUserId=null` is BY DESIGN (it runs as the logged-in user) and it
 needs NO agent-user runtime permset — do not block or await one. The CLI-preview "Invalid user ID"
-error is the `bypassUser` interaction (ladder step 3), NOT a license/permset problem. Route
+error is the `bypassUser` interaction (ladder step 4), NOT a license/permset problem. Route
 validation to the event-log path (step 2) rather than chasing a permset.
 
-### Schema presence check (cheap — do it PRE-DEPLOY, do not rely on a post-deploy re-retrieve)
-The load-bearing structural check is the **on-disk `localActions` folder presence gate** in phase3.md's
-Modify path: for every Topic plugin in the bundle XML that has actions, a `localActions/<topic-fullName>/`
-directory must exist with one non-empty `input/schema.json` + `output/schema.json` per action,
-verified BEFORE deploy via the topic's `<fullName>` (the folder name verbatim — do not guess at the
-Salesforce-assigned Id suffixes). Do this on disk — do NOT defer it to a post-deploy `retrieve_metadata`
-GenAiPlannerBundle re-retrieve, which can fail with UNKNOWN_EXCEPTION and silently skip the one check
-that catches a missing schema. An action with no input schema gives the LLM no slots to fill, so it can
-never be invoked. If a schema folder is absent, block the deploy and record it in `issues`; re-adding the
-action via the Builder wizard regenerates the schema. Independent of this, the orchestrator runs an
-Action-Invocation Probe after Phase 3 (sub-agent-validation.md) that confirms the hero action actually
-fired in the org — that probe, not this sub-agent's self-report, decides validated status.
+### Source-specific structural evidence
+
+- **Agent Script / AiAuthoringBundle:** run the authoring validation appropriate to
+  the `.agent` source and preserve its result. Agent Script source does not require `localActions`;
+  absence of a compiled tree is not a structural failure.
+- **Realized compiled GenAiPlannerBundle:** when changing existing topic actions,
+  join each topic `<fullName>` to `localActions/<fullName>/`, require one action
+  directory per `<functionName>`, and require nonempty `input/schema.json` and
+  `output/schema.json`. Exclude `plannerActions`. Missing schemas are BLOCKED.
+- **Unknown source kind:** report structural evidence UNAVAILABLE and do not infer
+  which validation applies.
+
+Never hand-patch a compiled planner to add or move topics/actions. Re-author from
+Agent Script or use Builder so Salesforce creates the matching schemas.
+
+### Behavior acceptance
+
+- **Mutating action:** require a successful current live invocation and the exact
+  approved target, discriminating pre-state sentinel, and requested post-state. A
+  no-op is FAILED. If the desired value already existed before the turn and there
+  is no discriminating pre-state, proof is UNAVAILABLE.
+- **Read-only action:** require a successful current live invocation and exact typed
+  answer/output assertions from the spec. Record `side_effect: not_applicable`.
+- A current failed invocation, wrong target, wrong output, or complete trace proving
+  no invocation is FAILED. Missing or uncorrelatable evidence is UNAVAILABLE.
 
 ### Required identity fields (confirm before reporting done)
 Confirm the deployed agent has a NON-EMPTY **Role** and **Company** (description) field — both are
@@ -83,11 +110,15 @@ record it in `issues` and surface it in the change log's SE checklist — do not
 agent complete.
 
 ### Reporting
-Set `smoke_test.action_invocation_confirmed = true` ONLY when the ladder yielded a confirmed
-side-effect delta per the acceptance definition above (an invocation with no verified delta is NOT
-enough for an action that has a side effect; an event-log row alone suffices only for a read-only
-action). If no rung confirmed the required proof, set it `false`,
-record which rungs were tried (with the verbatim error) in `discovery_notes`, and report the agent
-as NOT validated — NOT "Active/working." A `false` value does not block the deployment from
-completing; it ensures the SE sees an honest "deployed but unvalidated — hero action never confirmed
-to fire" status instead of a false green.
+The worker records `smoke_test.action_invocation_confirmed` honestly, but it is
+summary only. The orchestrator independently records the deployed version, current
+test identity and sources, canonical gate digest, normalized invocation, behavior,
+and structural evidence. It passes those facts to `scripts/build-completion.py`,
+which uses the narrow `scripts/agentforce_evidence.py` evaluator.
+
+Report PASS only for the exact ledger obligation assessed. FAIL and BLOCKED remain
+explicit. UNAVAILABLE is deployed but unvalidated and remains AWAITING_QA when the
+deployment/read-back is otherwise proven. A missing or malformed worker report
+still leaves completion INCOMPLETE even when the independent runtime assessment
+passes. Preserve prior attempt references and every remaining Agentforce test
+obligation in the change log and handover.
