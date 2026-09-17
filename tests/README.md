@@ -15,10 +15,33 @@ provide isolated `npm`, `sf`, and `claude` stubs so missing stubs cannot fall
 through to a user's installation. Parent and child Python processes disable
 bytecode writes.
 
-Prerequisites are Python 3, `/bin/bash`, standard POSIX/macOS shell utilities,
-and a real `/bin/zsh`. The shell-repair tests execute `zsh -f -n` against both
-original and staged temporary files. A missing zsh prerequisite fails clearly;
-it is never reported as a skipped pass.
+Prerequisites are Python 3, PyYAML, Git, `/bin/bash`, standard POSIX/macOS shell
+utilities, and a real `/bin/zsh`. The shell-repair tests execute `zsh -f -n`
+against both original and staged temporary files. Missing Git, zsh, or PyYAML
+fails clearly; no prerequisite is reported as a skipped pass.
+
+## Vendoring verification and recovery limits
+
+`tests/test_vendor.py` runs the shipped `scripts/vendor-skills.sh` entrypoint in
+temporary plugin fixtures. Its Git executable copies a local synthetic upstream,
+so the suite never fetches the real repository or changes the working tree's
+skills. Failure injectors act outside the production script and exercise clone,
+staged-copy, publication, rollback, post-publication backup cleanup, symlink,
+and lock failures. One offline test uses real Git with isolated config to prove a
+full pinned SHA wins after the local upstream branch advances. Tests also require
+hidden/nested-file copying, obsolete-file removal, the full policy roster, and
+truthful partial-result counts.
+
+The vendoring command handles SIGINT, SIGTERM, and SIGHUP during ordinary
+operation and restores the previous tree when publication fails. If restoration
+also fails, it leaves the old backup in place and prints its exact recovery path.
+If cleanup fails after a replacement is installed, `BACKUP_PATH` identifies any
+remaining old-backup material; cleanup may already have removed part of it, so
+that path is diagnostic and is not claimed as a complete recovery tree.
+SIGKILL, process-host failure, and power loss cannot be trapped; they may leave a
+private stage, backup, or `.vendor-skills.lock`. The command never guesses that a
+lock is stale or deletes it automatically. A maintainer must inspect those paths
+and recover or remove them manually before rerunning.
 
 ## Historical assertion map
 
@@ -40,9 +63,10 @@ the sandbox endpoint and failed/cancelled stop rule remain, and the reciprocal
 cross-reference stays present. These checks validate shipped instructions; they
 do not claim runtime model compliance.
 
-The baseline contained 128 unittest methods. Batch 6 adds 23 focused methods for
-151 total while preserving those 128; the 119 historical assertions above are
-executed inside the new methods and subcases.
+The baseline contained 128 unittest methods. Batch 6 added 23 focused methods,
+and Batch 7 adds 14 vendoring methods, for 165 total while preserving all 151
+pre-Batch-7 methods. The 119 historical assertions above remain executed inside
+the maintained methods and subcases.
 
 ## Release-only validation
 

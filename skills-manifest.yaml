@@ -3,11 +3,9 @@
 # vendoring time, NOT read at runtime. Vendored skills ship inside the
 # plugin under ${CLAUDE_PLUGIN_ROOT}/skills/.
 #
-# As of 2026-06-18: 6 upstream skills are actively vendored from the
-# `afv` source (main); 8 sf-* skills are FROZEN (jaganpro source disabled
-# below — see the note there); 2 skills (sf-flex-estimator, sf-permissions)
-# were CUT. The 3 Scout-owned demo-* skills are NOT vendored and not listed
-# here.
+# Current policy (2026-09-17): 26 declared skills split evenly between 13
+# replace entries and 13 protected entries (11 adapted, 2 frozen). The
+# Scout-owned demo-* skills are NOT vendored and are not listed here.
 #
 # 2026-06-29: all 18 actively-vendored skills RENAMED to upstream's domain-first
 # convention (sf-skills v1.21.0 -> v1.26.0, the 2026-06-26 batch): e.g.
@@ -18,12 +16,16 @@
 # map. The history comments BELOW describe the 06-18 re-point under the OLD names and are
 # kept verbatim — do not rewrite them to the new names.
 #
-# To re-vendor (e.g. pull latest upstream): run
+# To re-vendor the replace-policy entries at the reviewed revision: run
 #   bash scripts/vendor-skills.sh
 # from the plugin root, review the resulting git diff under skills/,
-# and commit. With jaganpro disabled, the script touches ONLY the 6 afv
-# skills — the frozen sf-* dirs are left untouched on disk. Edit `branch:`
-# below to pin a different upstream branch (or change `repo:` to repoint).
+# and commit. Adapted and frozen entries are visibly skipped with their
+# reasons. Advancing `revision:` requires a separate upstream review and
+# manifest edit; `branch:` is descriptive and never controls checkout.
+# The pinned SHA is the reviewed v1.52 refresh input; it does not claim that
+# every current local skill was copied byte-for-byte from that revision.
+# The dated comments below are historical provenance and do not override
+# each entry's enforced current policy.
 
 sources:
   # FROZEN 2026-06-18 — the `jaganpro` source is intentionally disabled.
@@ -55,8 +57,15 @@ sources:
     repo: https://github.com/forcedotcom/sf-skills
     type: clone
     branch: main
+    revision: 8febf3f2bfb537a7586f36ee42dcf5e5d69c02a5
 
 skills:
+  - name: sf-flow
+    policy: frozen
+    reason: >-
+      The upstream automation-flow-generate successor requires hosted-only
+      execute_metadata_action; preserve Scout's templates and phase-2 references.
+
   # ── FROZEN (NOT vendored — vendored dir stays on disk, hand-managed) ────
   #   sf-flow — A4V-blocked. Upstream generating-flow calls execute_metadata_action
   #     (absent from @salesforce/mcp — re-verified live 2026-06-18). Ships 0 assets;
@@ -86,12 +95,18 @@ skills:
   - name: platform-custom-field-generate
     source: afv
     path: skills/platform-custom-field-generate
+    policy: replace
   - name: platform-custom-object-generate
     source: afv
     path: skills/platform-custom-object-generate
+    policy: adapted
+    reason: >-
+      Preserves Scout's stripped human confirmation gate and current
+      orchestrator-compatible behavior.
   - name: platform-permission-set-generate
     source: afv
     path: skills/platform-permission-set-generate
+    policy: replace
   # 2026-08-17 (PLAN 2026-08-17/1000): agentforce-generate PARTIAL adopt of the
   # v1.38.0 (697c208) Audit/Repair capability. Content-only: 13 new references/
   # audit + control-flow files vendored byte-verbatim; the Audit/Repair task
@@ -104,54 +119,94 @@ skills:
   - name: agentforce-generate
     source: afv
     path: skills/agentforce-generate
+    policy: adapted
+    reason: >-
+      Preserves compiler-neutralized Audit/Repair content, prior SFAP action
+      interface edits, and intentional omission of the external SDK scripts.
   - name: agentforce-test
     source: afv
     path: skills/agentforce-test
+    policy: replace
   - name: agentforce-observe
     source: afv
     path: skills/agentforce-observe
+    policy: replace
 
   # ── RE-POINTED renames (afv/main) ──────────────────────────────────────
   - name: experience-lwc-generate
     source: afv
     path: skills/experience-lwc-generate
+    policy: adapted
+    reason: >-
+      Preserves hooks/scripts validator wiring instead of upstream's top-level
+      migration, plus references to the frozen sf-flow skill.
   - name: platform-soql-query
     source: afv
     path: skills/platform-soql-query
+    policy: replace
   - name: platform-data-manage
     source: afv
     path: skills/platform-data-manage
+    policy: adapted
+    reason: >-
+      Preserves the held cross-reference to the frozen sf-flow skill.
   - name: platform-apex-logs-debug
     source: afv
     path: skills/platform-apex-logs-debug
+    policy: replace
   - name: platform-metadata-deploy
     source: afv
     path: skills/platform-metadata-deploy
+    policy: adapted
+    reason: >-
+      Preserves the held cross-reference to the frozen sf-flow skill.
   - name: platform-apex-test-run
     source: afv
     path: skills/platform-apex-test-run
+    policy: adapted
+    reason: >-
+      Preserves the hooks/scripts/parse-test-results.py layout required by the
+      current hook wiring.
 
   # ── SWAP: Apex methodology (afv/main) ──────────────────────────────────
   - name: platform-apex-generate
     source: afv
     path: skills/platform-apex-generate
+    policy: adapted
+    reason: >-
+      Preserves intentionally held frontmatter/version while retaining the
+      reviewed API 67 body-only graft.
   - name: platform-apex-test-generate
     source: afv
     path: skills/platform-apex-test-generate
+    policy: adapted
+    reason: >-
+      Preserves intentionally held frontmatter/version while retaining the
+      reviewed API 67 body-only graft.
   - name: dx-code-analyzer-run
     source: afv
     path: skills/dx-code-analyzer-run
+    policy: adapted
+    reason: >-
+      Preserves delegation to held configuring-code-analyzer because its
+      upstream successor is not vendored.
 
   # ── NEW declarative skills (afv/main) ──────────────────────────────────
   - name: platform-validation-rule-generate
     source: afv
     path: skills/platform-validation-rule-generate
+    policy: replace
   - name: platform-list-view-generate
     source: afv
     path: skills/platform-list-view-generate
+    policy: replace
   - name: platform-flexipage-generate
     source: afv
     path: skills/platform-flexipage-generate
+    policy: frozen
+    reason: >-
+      Preserve the clean v1.29 copy because newer upstream requires hosted-only
+      execute_metadata_action, a permanent Scout compatibility boundary.
 
   # ── NEW 2026-06-29: record-level sharing (afv/main, sf-skills v1.26.0) ──
   # RE-VENDORED 2026-07-27 to v1.1 (sf-skills v1.32.0) WITH the Phase 4 human-in-the-loop
@@ -163,21 +218,28 @@ skills:
   - name: platform-sharing-rules-generate
     source: afv
     path: skills/platform-sharing-rules-generate
+    policy: adapted
+    reason: >-
+      Preserves the stripped confirmation gate and intentionally omitted
+      upstream test cases while retaining Scout's composed-rule example.
 
   # ── NEW 2026-07-08: reusable value sets (afv/main, sf-skills v1.29.0) ──
   - name: platform-value-set-generate
     source: afv
     path: skills/platform-value-set-generate
+    policy: replace
 
   # ── NEW 2026-07-20: custom report types (afv/main, sf-skills v1.31.0) ──
   - name: platform-custom-report-type-generate
     source: afv
     path: skills/platform-custom-report-type-generate
+    policy: replace
 
   # ── NEW 2026-08-04: Lightning Reports (afv/main, sf-skills v1.33.0) ──
   - name: platform-report-generate
     source: afv
     path: skills/platform-report-generate
+    policy: replace
 
   # ── NEW 2026-09-01: Custom Settings + Custom Metadata Types (afv/main, sf-skills v1.44.0, 74ea89b) ──
   # Byte-verbatim vendor (pure cp at pinned SHA, NOT vendor-skills.sh, NOT a graft — no prior Scout copy).
@@ -188,9 +250,11 @@ skills:
   - name: platform-custom-setting-generate
     source: afv
     path: skills/platform-custom-setting-generate
+    policy: replace
   - name: platform-custom-metadata-type-generate
     source: afv
     path: skills/platform-custom-metadata-type-generate
+    policy: replace
 
   # ── NEW 2026-09-02: Email-to-Case (afv/main, sf-skills v1.44.0, 74ea89b) ──
   # Byte-verbatim vendor (pure cp at pinned SHA, NOT vendor-skills.sh, NOT a graft — no prior Scout copy).
@@ -207,3 +271,8 @@ skills:
   - name: service-email-to-case-configure
     source: afv
     path: skills/service-email-to-case-configure
+    policy: adapted
+    reason: >-
+      Preserves Scout's base Email-to-Case scope while the orchestrator owns
+      entitlement/channel handoff; scripts remain unchanged and upstream
+      scripts/tests remains intentionally omitted.
