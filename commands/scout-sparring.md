@@ -249,7 +249,15 @@ Evaluate: genuine Salesforce strength? Achievable within build boundaries (see C
 
 ### External skills (surface + gated offer)
 
-Scout's bundled skills all sit in six name families: `platform-*`, `demo-*`, `agentforce-*`, `experience-*`, `dx-*`, and the single frozen `sf-flow`. SEs often have OTHER Salesforce skills installed — an ARM/RLM specialist may carry `rlm-*` skills, for instance. The harness lists every installed skill in your menu; anything OUTSIDE those six families is an external skill the SE installed. Judge by family, not by a memorised count — the bundled set grows with every re-vendor.
+Classify Scout-bundled skills by exact local membership, never by name prefix or a
+memorized family/count. Use Glob/Read to enumerate the installed Scout files at
+`${CLAUDE_PLUGIN_ROOT}/skills/*/SKILL.md`; their parent directory basenames are the
+bundled names. Compare each skill offered by the harness against that exact set and,
+where the menu exposes it, its provider/path provenance. A same basename supplied
+by another plugin is not proof of Scout ownership. If the local inventory is
+missing or unreadable, bundled status is unknown: do not call the candidate bundled
+or offer it as external until provenance is resolved. This is local file inspection,
+not a new runtime helper or cached policy list.
 
 **When the scenario's domain matches an installed external skill, surface it and offer — do not assume use.** If a build category in your proposal (Flow, Apex, LWC, Agentforce, data, config) sits in a domain a non-bundled skill clearly covers, name the skill and offer it as a standalone message:
 

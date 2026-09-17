@@ -127,6 +127,8 @@ Mark the spec header with `Sparring mode: Showtime` so /scout-building knows the
   ```markdown
   ## Showtime PoC
   Envelope: [E1 / E2 / E3 / E4 / E5 / stack code]
+  Applicable envelope limits/prerequisites: [concise counts, single-object limits, permitted stack, and required pre-stage]
+  Hard exclusions: [verbatim applicable Forbidden items + cross-envelope rules]
   Proves from spine: KP[n] (+ optionally KP[n])
 
   ### In PoC (deploys today via /scout-building)
@@ -140,7 +142,7 @@ Mark the spec header with `Sparring mode: Showtime` so /scout-building knows the
   To realize the full Holistic Scenario, re-open this spec with `/scout-sparring → Iteration` after the demo.
   ```
 
-- **`## Claude Code Instructions` carries the PoC slice ONLY.** /scout-building deploys this section. The Holistic Scenario items not in the PoC must NOT appear in Claude Code Instructions — they live in the Showtime PoC → Deferred list above and nowhere else.
+- **`## Claude Code Instructions` carries the PoC slice ONLY.** /scout-building deploys this section. The Holistic Scenario items not in the PoC must NOT appear in Claude Code Instructions — they live in the Showtime PoC → Deferred list above and nowhere else. Copy the selected Showtime envelope's applicable limits/prerequisites and hard exclusions into the fields above so the build handoff is self-contained. In `Build Scope Decisions`, write `Ordinary-build Apex fallback authorization: not applicable`; Showtime never uses the ordinary fallback policy. For E4, state explicit no-Apex. For E3, name only its approved Apex.
 
 Skip the "Propose Lessons" step in main command Stage 6 — Showtime is too compressed for reliable lesson extraction. Lessons accumulate from regular sparring sessions.
 

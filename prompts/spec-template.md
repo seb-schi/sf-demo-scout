@@ -10,6 +10,7 @@ Generated: [Date] [HHmm]
 Salesforce Release: [cite or mark CONFIDENT]
 Target Org: [alias] ([username])
 Org Audit Used: audit-[YYYY-MM-DD]-[HHmm].md
+Sparring mode: Ordinary | Showtime
 
 ## Customer Context
 - **Company:**
@@ -57,6 +58,11 @@ Context only. A customer's stated requirements (e.g. RfP questions, capability r
 > /scout-building executes this section autonomously after the pre-deployment conflict check.
 > Flows, Apex, LWC, and Agentforce require a single SE confirmation before that category deploys.
 > Review all ⚠️ flags before running /scout-building.
+
+### Build Scope Decisions
+- Hard exclusions: [exact binding exclusions, including explicit no-Apex; "none" when absent]
+- Ordinary-build Apex fallback authorization: [none, or exact pre-approved fallback class/action + target semantics; Showtime always writes "not applicable"]
+  - A fallback must also appear below as named Apex/artifact and action obligations with acceptance; generic permission cannot add work after the ledger freezes.
 
 ### Objects & Fields
 - [Existing object API name, label] — extending existing
@@ -182,12 +188,12 @@ Scope: a Lightning Report (`.report-meta.xml`) in a folder (the `platform-report
 - Chart (optional, Summary/Matrix only): [chart type — see the skill's `references/chart-types.md`]
 
 ### Email-to-Case (if applicable)
-Scope: org-wide Email-to-Case (`service-email-to-case-configure` skill) — the `CaseSettings` singleton's `emailToCase` block + routing addresses, applied via the skill's two-phase Metadata API script. Enabling it is permanent and org-wide (cannot be turned off once on) — ⚠️ SE CONFIRMATION REQUIRED if the target org is production (Gated tier; sandboxes/scratch/trials do not need it).
+Scope: Base Email-to-Case only (`service-email-to-case-configure` skill) — the `CaseSettings` singleton's `emailToCase` block + routing addresses, applied via the skill's two-phase Metadata API script. Enabling it is permanent and org-wide (cannot be turned off once on) — ⚠️ SE CONFIRMATION REQUIRED if the target org is production (Gated tier; sandboxes/scratch/trials do not need it).
 - Routing address(es): [routingName], type: [EmailToCase | Outlook | GmailOAuth], caseOrigin: [value], casePriority: [value], customer-facing email: [address — elicited fresh each session, never reused]
 - Per-address Default Case Owner (optional): [type: User/Queue + value] — omit to fall to org default / assignment rules
 - Optional toggles (default on unless the SE opts out): Enable HTML email, Eliminate duplicate attachments, Show word count in composer, Notify case owners on new emails, Enable Email Drafts
 - Support Settings — Default Case Owner: [type: User/Queue + value, or "preserve existing"]; Automated Case User: [type: User (+ username) / System (+ optional system-user email), or "preserve existing"]
-- Agentforce delegation (optional): [yes/no] — if yes, agent + channel wiring land in the Agentforce section below; Phase 1 probes org entitlement first and skips delegation (base Email-to-Case still applies) if the org isn't entitled
+- Agentforce email requirement (optional): [yes/no] — if yes, name each exact `routingName` → exact Agent API name below. Phase 3 owns the entitlement probe and agent work; channel assignment is a separate manual/BLOCKED obligation unless an installed external skill is explicitly approved for it. Missing/ambiguous links block only this obligation; base Email-to-Case remains independently accountable.
 - Consumed by: (n/a — Case routing, not read by custom Apex/Flow)
 
 ### Data Seeding
@@ -315,7 +321,11 @@ these named components immediately before their phase, including on retry.
 - Company: [one line — the customer org description; REQUIRED identity field]
 - Agent Script file: [developer_name].agent
 - Subagents: [name] — [description] — backing action: [apex://ClassName or flow://FlowName]
-- Backing Apex classes: [name] — [InvocableMethod description]
+- Backing actions: [exact standard / Flow / Apex action identities; state explicit no-Apex when applicable]
+- Backing Apex classes: [none, or name] — [InvocableMethod description + target semantics]
+- Ordinary fallback acceptance (only when explicitly authorized above): [same hero-action identity and literal expected state the named fallback must preserve]
+- Email-to-Case link (if applicable): exact `routingName` [value] → exact Agent API name [value]
+- Email channel disposition (if applicable): [manual/BLOCKED, or exact installed External Skill approved above]
 - Existing agents in org: (from audit — note conflicts)
 - If modifying existing: current version v[N], rollback: `sf agent activate --version-number [N]`
 - Agent test cases: table below — 4-8 rows that become the official `sf agent test` spec (Testing Center). Columns map 1:1 to the `agentforce-test` skill's YAML fields. **MUST include at least one guardrail/off-topic row** (leave `expectedTopic` empty, describe the decline in `expectedOutcome`) — mirror the skill's `guardrail-test-spec.yaml`.
@@ -341,7 +351,7 @@ these named components immediately before their phase, including on retry.
   disable the *specific* handler via the managed Admin Console → Trigger Handler Administration (pin
   the exact handler, disable ONE not all). The paid Agentforce-for-Life-Sciences add-on is the only
   license-level fix, not demo-viable.
-- ⚠️ Channel assignment: SE Manual Checklist
+- ⚠️ Channel assignment: separate SE Manual Checklist obligation unless an explicitly approved installed External Skill owns it; agent creation alone is not channel integration
 - **Advanced capabilities (if any — flag here so Phase 3 authors the metadata + hands off UI wiring):**
   - Multi-agent orchestration: [sub-agent api_name(s) the parent delegates to] — Beta, connection wiring is UI-only
   - Enhanced Chat v2: [yes/no] — REQUIRED if any Lightning types/forms in chat; SE republishes Embedded Service Deployment + creates the chat channel

@@ -7,6 +7,15 @@ Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is avail
 
 **Target-org integrity.** The orchestrator has already confirmed the target org is authenticated and `connectedStatus: Connected` — that is authoritative. Ignore MCP `get_username` / auth-status probes and do NOT bail out before any deploy/query tool call based on them; MCP DX tools can hold a stale target-org binding while `sf` CLI is fine. If any MCP call errors with target-org ambiguity or returns the wrong alias, fall back to `sf` CLI with `--target-org {{ORG_ALIAS}}` for that call and record the fallback in `discovery_notes`. Otherwise keep using MCP — it is faster and richer when it works.
 
+## Binding Build Scope
+
+{{BUILD_SCOPE}}
+
+This block is binding during authoring, deployment, retries, and return reporting.
+Explicit no-Apex remains binding everywhere. Work outside the approved executable
+slice or inside a hard exclusion is BLOCKED, never an invitation to substitute a
+different Flow, Apex class, or LWC.
+
 **Platform Constraints:** if the spec includes a `### Platform Constraints` section, read it BEFORE generating any Apex or data-related code. Objects flagged with restrictions (IsEverCreatable=false, managed namespace, not queueable) require specific patterns — see the Dynamic SOQL template below. Do not generate static type references for restricted objects. Note: Platform Constraints are initial assessments from sparring's EntityDefinition queries — they may be incomplete. If a deployment fails in a way that contradicts these constraints, trust the deploy-time error over the spec's assessment. Record the contradiction in `discovery_notes`.
 
 ## Skills Available

@@ -1,13 +1,10 @@
 ---
 name: service-email-to-case-configure
-description: "Use to configure Salesforce Email-to-Case in a headless flow via the Metadata API. Reads the current CaseSettings, applies the desired emailToCase configuration with the updateMetadata CRUD call, and verifies by re-reading. Also the entry point when the user wants an Agentforce service agent on Email-to-Case: this skill configures the E2C base, then delegates agent creation and channel wiring. Start here even when no agent exists yet. TRIGGER when the user says set up Email-to-Case, configure email to case, enable Email-to-Case routing addresses, add an email routing address, Email-to-Case Metadata API, or set up Email-to-Case with an Agentforce service agent (attach an agent to an email routing address). DO NOT TRIGGER when the user needs the interactive Service Easy Setup wizard for E2cEasy addresses, when configuring On-Demand Email-to-Case only, for general Case object or web-to-case setup, or when only creating an Agentforce agent with no Email-to-Case involved."
+description: "Use to configure the base Salesforce Email-to-Case settings and routing addresses in a headless flow via the Metadata API. Reads the current CaseSettings, applies the desired emailToCase configuration with the updateMetadata CRUD call, and verifies by re-reading. This skill never creates or modifies Agentforce agents and never assigns channels. TRIGGER when the user says set up Email-to-Case, configure email to case, enable Email-to-Case routing addresses, add an email routing address, or Email-to-Case Metadata API. DO NOT TRIGGER when the user needs the interactive Service Easy Setup wizard for E2cEasy addresses, when configuring On-Demand Email-to-Case only, for general Case object or web-to-case setup, or when only creating an Agentforce agent with no Email-to-Case involved."
 metadata:
   version: "1.1"
-  domains: ["Service", "Agentforce"]
+  domains: ["Service"]
   minApiVersion: "67.0"
-  relatedSkills:
-    - "agentforce-generate"
-    - "service-agentforce-channel-configure"
   cliTools:
     - tool: ["python3"]
       semver: ">=3.9"
@@ -34,20 +31,14 @@ Configure Salesforce Email-to-Case entirely through the Metadata API (no Setup U
 
 ---
 
-## Attaching an Agentforce service agent (delegation)
+## Agentforce requests
 
-When the user wants an Agentforce Service Agent to answer these emails, configure the Email-to-Case base (the Workflow below), then delegate — this skill never creates or modifies agents.
-
-**Gate on org capability first.** Attaching an agent needs the org entitled for Agentforce Email-to-Case; that entitlement surfaces as the `BotEmailDefinition` metadata type, so probe read-only **before delegating**:
-
-```bash
-scripts/check-agent-email-capability.sh <target-org-alias>   # pins describe to the org's API version
-```
-
-Exit **3** → not entitled: **stop, tell the user, and configure the plain Email-to-Case base only — make no Agentforce agent or channel-wiring changes.** Any other non-zero is an unreachable org, not "not entitled" — fix auth and re-run. On exit **0**, delegate:
-
-1. **Agent creation → `agentforce-generate`,** omitting the **Service Customer Verification topic** (unsupported on the email channel) and including an **Escalation subagent** so the agent can hand off to a human — on email, escalation transfers the case to a service rep, and without the subagent the agent can't escalate.
-2. **Wiring → `service-agentforce-channel-configure` Branch C.**
+This skill stops after the base settings and routing addresses are verified. Return
+each exact `routingName` and generated `emailServicesAddress` to the caller. In a
+Scout build, Phase 3 separately owns any approved agent creation, entitlement probe,
+and channel handoff. Scout has no bundled channel-assignment executor, so channel
+assignment remains an explicit manual/BLOCKED obligation unless an installed
+external skill is explicitly approved for that exact work.
 
 ---
 
@@ -184,7 +175,7 @@ Deliverables:
 | `references/troubleshooting.md` | When the apply or verify step reports an error, or a configured setting doesn't behave — full symptom → resolution table |
 | `references/routing_address_reference.md` | Steps 5–6 — routing-address field semantics and the `addressType` surface-selection rule |
 | `examples/CaseSettings-two-addresses.settings-meta.xml` | Step 6 — to verify the source-file structure for multiple routing addresses |
-| `scripts/check-agent-email-capability.sh` | Attaching an Agentforce service agent — the pre-delegation capability gate (probes for `BotEmailDefinition`) |
+| `scripts/check-agent-email-capability.sh` | Orchestrator-owned pre-Phase-3 capability probe for a separately approved email-agent requirement; not part of this base configuration workflow |
 | `scripts/validate-casesettings.py` | Step 8 — deterministic structural validation before applying |
 | `scripts/apply-casesettings.py` | Step 9 — applies the settings via two-phase `updateMetadata` and verifies |
 | `scripts/tests/test_get_session.py` | Run when changing session-token acquisition (`get_session` / `_usable_access_token`) — the unit suite guarding token extraction and API-version resolution |

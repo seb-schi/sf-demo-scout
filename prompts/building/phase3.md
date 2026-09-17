@@ -18,6 +18,16 @@ Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is avail
 
 **Target-org integrity.** The orchestrator has already confirmed the target org is authenticated and `connectedStatus: Connected` — that is authoritative. Ignore MCP `get_username` / auth-status probes and do NOT bail out before any deploy/query/agent-CLI call based on them; MCP DX tools can hold a stale target-org binding while `sf` CLI is fine. If any MCP call errors with target-org ambiguity or returns the wrong alias, fall back to `sf` CLI with `--target-org {{ORG_ALIAS}}` for that call and record the fallback in `discovery_notes`. Otherwise keep using MCP — it is faster and richer when it works.
 
+## Binding Build Scope
+
+{{BUILD_SCOPE}}
+
+This block is binding during authoring, deployment, retries, and return reporting.
+Explicit no-Apex is binding in every mode. Showtime E4 permits standard actions only
+and never permits backing Apex fallback. Showtime E3 permits its named Apex only in
+Phase 2; E3 never selects Phase 3 or authorizes an agent backing action. Out-of-scope
+or excluded work remains BLOCKED.
+
 ## Skills Available
 Invoke these skills via the Skill tool:
 - `agentforce-generate` — agent spec, validation, preview, publish, activate
@@ -33,10 +43,35 @@ Invoke these skills via the Skill tool:
 
 **Unfamiliar errors:** if the error message is not self-evident and not matched by a Known Deploy-Error Pattern, invoke the `demo-docs-consultation` skill before the next attempt. Record the consultation in `docs_consulted`.
 
-**Standard action before Apex fallback:** if the spec lists backing actions as standard (Get Records, Update Record, Create Record, Knowledge grounding, @utils.*), attempt the standard action first — configure it in the Agent Spec, validate, and run preview against an utterance that would exercise it. Only fall back to an Apex invocable if the standard action fails during `sf agent validate` or `sf agent preview`. Record the failure evidence in `issues` with the exact error or observed behaviour ("Update Record rejected Hardware_Status__c picklist write: [error]"). Pre-emptive Apex fallback without standard-action evidence is a schema-level violation — if the spec says "no Apex" and you deploy Apex, `issues` must carry the triggering error verbatim.
+**Standard action and bounded fallback:** attempt every spec-named standard action
+first, then validate and preview an exercising utterance. Explicit no-Apex and
+Showtime E4 forbid backing Apex even after failure. Showtime E3 never selects this
+phase and cannot authorize an agent backing action. For an Ordinary build, fallback
+is allowed only when BUILD_SCOPE
+names it, the approved spec names the exact Apex class/action and target semantics,
+and the frozen expected-work ledger already contains matching artifact/action
+obligations and acceptance. Generic permission is insufficient. Record exact
+failure evidence from `sf agent validate` or `sf agent preview`; do not change the
+hero-action identity or expected state. If these conditions are absent, report the
+attempted standard action FAILED with exact failure evidence, and any unattempted
+forbidden/prerequisite fallback work BLOCKED for spec revision. Do not author Apex
+or change the frozen expected-work ledger.
+
+**Email-to-Case agent handoff:** consume the probe evidence and prerequisite status
+in the **What Earlier Phases Deployed** section below; do not presume conversation context. The orchestrator
+has already run the absolute `check-agent-email-capability.sh` probe for each
+approved email-agent requirement. Act only on an exit-0 requirement with an exact
+`routingName` → Agent API name link and VERIFIED base Email-to-Case prerequisite.
+Exit 3 (not entitled), other nonzero probe errors, and missing/ambiguous links are
+BLOCKED for this obligation; they never block independently verified base
+Email-to-Case settings. For an email agent, omit the Service Customer Verification
+topic and include an Escalation subagent so a case can reach a human. Agent creation
+does not complete channel integration. Report manual channel assignment as BLOCKED
+unless the injected External Skills block contains the exact installed and
+explicitly approved channel skill for this obligation; never install or infer one.
 
 ### New Agent (Agent Script path)
-Scope: single agent, subagent-based routing with Apex or Flow backing actions.
+Scope: single agent, subagent-based routing with approved standard, Apex, or Flow backing actions.
 **Required identity fields — non-negotiable.** Before publish, the agent's config MUST set a non-empty
 **Role** and **Company** (description), in addition to Name and top-level Description. These are
 mandatory agent-identity fields; an agent can deploy and activate WITHOUT them and still appear in

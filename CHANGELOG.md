@@ -4,6 +4,9 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-17
 
+- **Standalone configuration requests reach the right build phase.** Reports, sharing rules, validation rules, list views, settings, metadata types, and Email-to-Case use the same supported-input list for selection and deployment. Scout also identifies its bundled skills from the installed files, so skill names alone no longer decide what is external.
+- **Email-to-Case has a clear agent handoff.** Base email configuration stays in Phase 1; agent creation stays behind the Phase 3 gate. Email entitlement and channel wiring are separate prerequisites, and missing channel tooling or manual work stays visible.
+- **Showtime keeps its approved boundaries during the build.** Workers receive the selected envelope and hard exclusions. A failed standard action cannot introduce backing Apex in Showtime E4; ordinary builds need an explicitly approved, accounted-for alternative, and “no Apex” remains binding.
 - **Build completion follows your approved spec.** Scout checks the requested work against an independent checklist, so an empty or partial build report cannot quietly omit it. Failed work, manual follow-up, and work awaiting QA stay visible; only explicitly approved omissions count as skipped.
 - **Agent validation checks what happened in the current test.** An action that changes data must show both a successful invocation and the expected change on the right record. Read-only actions must meet their expected output checks. Old test results, missing logs, and fluent replies do not establish that the deployed agent works.
 - **Imported components survive build cleanup.** Scout preserves verified copies of assets pulled from another org and carries selected component references into the demo spec. A fresh build stages those components only for their approved spec items and through the usual deployment checks; retries can reuse the same preserved source.

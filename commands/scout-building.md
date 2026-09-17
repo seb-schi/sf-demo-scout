@@ -159,17 +159,43 @@ Use `find … -delete`, **never `rm -rf`** — the workspace `.claude/settings.j
 
 ### Phase Analysis
 
-Read the spec and determine which phases are needed:
+Read the approved spec's `## Claude Code Instructions`. Select a phase only for
+concrete approved work in a section named or semantically grouped in the
+authoritative phase-input table under Phase Prep Procedure below. Empty template
+headings, the holistic Scenario,
+Showtime Deferred items, Future Build material, and general discussion do not select
+a phase. The table is the only phase-category inventory: do not maintain or infer a
+second partial list here. This includes every Phase 1 input in the table, such as
+Queues, Lightning Record Page field additions, Reports, Sharing Rules, Validation
+Rules, List Views, Custom Settings, Custom Metadata Types, and Email-to-Case.
 
-- **Phase 1 (Org Config):** Always runs if spec has Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning App/Tabs, Business Processes, or Paths sections.
-- **Phase 2 (Flows/Apex/LWC):** Runs only if spec has Flows, Apex, or LWC sections.
-- **Phase 3 (Agentforce):** Runs only if spec has Agentforce section.
+Before selecting work, derive this concise block from the approved spec and keep it
+unchanged for the whole build:
+
+```text
+BUILD_SCOPE
+Mode: Ordinary | Showtime
+Showtime envelope(s): none | exact approved envelope code(s)
+Applicable envelope limits/prerequisites: none | concise counts, object limits, permitted stack, and required pre-stage from the named envelope(s)
+Approved executable slice: exact Claude Code Instructions / Showtime In PoC items
+Hard exclusions: exact no-Apex and other spec/envelope exclusions
+Ordinary-build Apex fallback authorization: none | exact approved fallback scope
+```
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/showtime-scope-envelopes.md`, including
+its stacking rules, whenever there is any Showtime marker or Showtime PoC evidence.
+Such a spec is not ordinary. A missing or ambiguous envelope, an invalid stack, or
+contradictory scope blocks affected execution instead of defaulting to ordinary.
+An older spec with no Showtime marker or PoC evidence remains Ordinary. Treat the
+approved executable slice and hard exclusions as authoritative during phase
+selection, ledger creation, import staging, worker dispatch, retries, and return
+review. Holistic/deferred work stays out of every one of those stages.
 
 Tell the SE which phases you identified:
 > "Deployment plan: Phase 1 (Org Config) [+ Phase 2 (Flows/Apex/LWC)] [+ Phase 3 (Agentforce)]."
 
 If only Phase 1 applies:
-> "Only safe operations in this spec — no Flows, Apex, LWC, or Agentforce. No further SE confirmation needed. Deploying now."
+> "This spec selects Phase 1 only. Existing category gates still apply; deploying the approved Phase 1 slice now."
 
 ### Settle Calibration and Freeze the Expected-Work Ledgers
 
@@ -244,10 +270,15 @@ a worker result:
 ```
 
 Inventory every requested artifact/change, seed group, permission/assignment, and
-explicit manual obligation. Cross-check every populated spec section and manual
-checklist; unsupported or unrouted work stays BLOCKED. This is semantic review, not
-a universal Markdown parser. The helper checks exact quotes against the hashed spec
-but cannot prove the inventory is exhaustive.
+explicit manual obligation inside BUILD_SCOPE's approved executable slice. Cross-check
+every selected populated section and its relevant manual checklist; do not inventory
+the holistic Scenario, Showtime Deferred list, Future Build material, or other work
+outside BUILD_SCOPE. An approved obligation inside the executable slice remains in
+the ledger when independently covered by an existing authorized omission; preserve
+and reconcile it through `authorized_skips` exactly as the completion contract
+requires. Unsupported or unrouted selected work stays BLOCKED. This
+is semantic review, not a universal Markdown parser. The helper checks exact quotes
+against the hashed spec but cannot prove the inventory is exhaustive.
 
 Non-seed items use a nonempty literal `expected_state`; evidence reports the same
 keys in `actual_state`. Seed acceptance uses explicit CREATE/UPDATE shapes from the
@@ -316,8 +347,11 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
      contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/completion-contract.md`.
    - **`{{EXPECTED_COMPLETION_LEDGER}}` (all three phases).** Substitute the exact
      frozen JSON ledger for this phase. Do not summarize or regenerate it.
+   - **`{{BUILD_SCOPE}}` (all three phases).** Substitute the exact BUILD_SCOPE block
+     derived during Phase Analysis, verbatim. Never let a phase widen or reinterpret it.
 4. **Immediately before dispatch**, after preceding phases and this phase's SE
-   gate, stage only this phase's selected components. Re-verify each named artifact
+   gate, stage only this phase's selected components that are inside BUILD_SCOPE.
+   Re-verify each named artifact
    and run (repeat `--path` for the component's complete source paths):
    ```bash
    python3 "$ASSET_HELPER" stage --artifact "[absolute artifact path]" \
@@ -347,12 +381,15 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
 5. Confirm no unresolved `{{PLACEHOLDER}}` remains, then spawn:
    `Agent(description="[row's description]", model="sonnet", prompt=[constructed prompt])`.
 6. Validate output (see Sub-Agent Output Validation above) before moving on.
+   During return review, reject work outside BUILD_SCOPE, preserve it as a deviation,
+   and never count it as completion. A retry uses the same frozen BUILD_SCOPE and
+   ledger; it cannot add excluded or previously unselected work.
 
 | Phase | Template | IF markers | Placeholders | Agent description |
 |-------|----------|------------|--------------|-------------------|
-| 1 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` | `QUEUES`, `LAYOUTS`, `LRP`, `PERMSET`, `STRUCTURAL`, `PICKLISTS`, `DATA_SEEDING`, `BUSINESS_PROCESS`, `PATHS`, `VALIDATION_RULES`, `LIST_VIEWS`, `SHARING_RULES`, `CUSTOM_REPORT_TYPE`, `REPORTS`, `CUSTOM_SETTING`, `CUSTOM_METADATA_TYPE`, `EMAIL_TO_CASE` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`), `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning Record Page — Field Section additions, Lightning App / Tabs, Queues, Business Processes, Paths, Validation Rules, List Views, Sharing Rules, Custom Report Type, Reports, Custom Settings, Custom Metadata Types, Email-to-Case), `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 1: Org Config deployment` |
-| 2 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` | `FLOWS`, `APEX`, `LWC` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PHASE1_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Flows, Apex, LWC sections), `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 2: Flows/Apex/LWC deployment` |
-| 3 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` | *(none)* | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PRIOR_PHASES_SUMMARY}}`, `{{ASSET_HELPER}}` (= absolute resolved path to `${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py`), `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`; same value injected into Phase 1), `{{SPEC_SECTIONS}}` (Agentforce section), `{{VALIDATION_GATE}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` — read the file and substitute; sub-agents cannot resolve `${CLAUDE_PLUGIN_ROOT}`, so inject the content the same way `{{AUDIT_SHARED_RULES}}` is injected), `{{REAUTHOR_FROM_PLANNER}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-reauthor.md`, read-and-substitute like `{{VALIDATION_GATE}}`; PREFIX the substituted block with a line reading `RE-AUTHOR MODE: ON` when the editability pre-flight routed this agent to re-author mode, otherwise substitute the single inert line `RE-AUTHOR MODE: OFF — (not a re-author build — skip this section)`), `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 3: Agentforce deployment` |
+| 1 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` | `QUEUES`, `LAYOUTS`, `LRP`, `PERMSET`, `STRUCTURAL`, `PICKLISTS`, `DATA_SEEDING`, `BUSINESS_PROCESS`, `PATHS`, `VALIDATION_RULES`, `LIST_VIEWS`, `SHARING_RULES`, `CUSTOM_REPORT_TYPE`, `REPORTS`, `CUSTOM_SETTING`, `CUSTOM_METADATA_TYPE`, `EMAIL_TO_CASE` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`), `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning Record Page — Field Section additions, Lightning App / Tabs, Queues, Business Processes, Paths, Validation Rules, List Views, Sharing Rules, Custom Report Type, Reports, Custom Settings, Custom Metadata Types, Email-to-Case), `{{BUILD_SCOPE}}`, `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 1: Org Config deployment` |
+| 2 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` | `FLOWS` = Flows (including record-triggered) + Screen Flows, `APEX` = Apex, `LWC` = LWC Components | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PHASE1_SUMMARY}}`, `{{SPEC_SECTIONS}}` (all selected Flow, Apex, and LWC Components work), `{{BUILD_SCOPE}}`, `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 2: Flows/Apex/LWC deployment` |
+| 3 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` | *(none)* | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PRIOR_PHASES_SUMMARY}}` (= reconciled prior-phase dispositions and risks plus, for email-agent work, the probe command/result, exact `routingName` → Agent API name link, and base Email-to-Case prerequisite status), `{{ASSET_HELPER}}` (= absolute resolved path to `${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py`), `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`; same value injected into Phase 1), `{{SPEC_SECTIONS}}` (Agentforce section), `{{BUILD_SCOPE}}`, `{{VALIDATION_GATE}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` — read the file and substitute; sub-agents cannot resolve `${CLAUDE_PLUGIN_ROOT}`, so inject the content the same way `{{AUDIT_SHARED_RULES}}` is injected), `{{REAUTHOR_FROM_PLANNER}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-reauthor.md`, read-and-substitute like `{{VALIDATION_GATE}}`; PREFIX the substituted block with a line reading `RE-AUTHOR MODE: ON` when the editability pre-flight routed this agent to re-author mode, otherwise substitute the single inert line `RE-AUTHOR MODE: OFF — (not a re-author build — skip this section)`), `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 3: Agentforce deployment` |
 
 ### Phase 1: Org Config
 
@@ -391,6 +428,28 @@ items may continue under their existing gates.
 
 ### Phase 3: Agentforce — if applicable
 
+**Email-agent capability pre-flight (MUST when approved Email-to-Case work requests
+an agent).** Require an unambiguous link from each routing address's exact
+`routingName` to one exact Agent API name in the Agentforce section. A missing or
+ambiguous link blocks only that email-agent/channel obligation; Phase 1's base
+Email-to-Case settings and routing addresses remain independently accountable.
+Before the Phase 3 SE gate, resolve the absolute installed path to
+`${CLAUDE_PLUGIN_ROOT}/skills/service-email-to-case-configure/scripts/check-agent-email-capability.sh`
+and run it with the target alias. Exit 0 permits the scoped agent work to reach the
+normal Phase 3 gate. Exit 3 means entitlement unavailable; any other nonzero means
+the probe is unavailable or errored. In either nonzero case, make no agent/email
+wiring change and keep the affected obligations BLOCKED with the exact result.
+Carry the skill's email-channel constraints into Phase 3: omit Service Customer
+Verification and require an Escalation subagent. Channel assignment remains a
+separate manual channel assignment obligation because Scout bundles no executor.
+Use an external channel skill only when that exact skill is installed and explicitly
+approved in the spec's External Skills section for this obligation; otherwise keep
+it manual/BLOCKED. Agent creation alone never completes email-channel integration.
+Put the absolute probe command and exit/result, exact `routingName` → Agent API name
+link, and reconciled base Email-to-Case prerequisite status into the existing
+`{{PRIOR_PHASES_SUMMARY}}` before preparing the Phase 3 prompt. Do not rely on
+conversation context that the worker will not receive.
+
 **Editability pre-flight (MUST — run before the SE gate, before any sub-agent spawn).** Read the spec's Agentforce section and classify the change: **net-new agent** (no existing agent named) vs **modify-existing** (spec targets an agent already in the org), and — for modify-existing — whether it **adds or moves a topic/action** (structural) vs **tweaks existing node text/values only** (in-place).
 
 - **Net-new agent** → Agent Script path (sub-agent builds the `.agent` bundle from scratch). No pre-flight needed — proceed to the SE gate below.
@@ -407,8 +466,23 @@ Why gated: the pre-flight only applies when editing an existing agent, and it gu
 >
 > Proceed? (yes/no)"
 
-If the spec carries an explicit "no Apex" directive, add one extra line:
-> "⚠️ Spec forbids Apex backing actions. If the sub-agent hits a standard-action failure during validate/preview, it will fall back to Apex and record the triggering error in `issues`. You'll see the deviation in the change log."
+State the applicable action boundary in the gate. **Explicit no-Apex is binding in
+every mode**: no failure or later approval can authorize backing Apex for that
+build. Showtime E4 likewise never permits fallback; its standard-actions-only
+envelope cannot be opted around. Showtime E3 permits its named Apex only in Phase 2;
+E3 never selects Phase 3 or authorizes an agent backing action.
+
+For an Ordinary build without a no-Apex directive, standard-action-to-Apex fallback
+is allowed only when BUILD_SCOPE records explicit approved-spec authorization and
+the standard action first fails validate/preview with exact failure evidence. The
+approved spec must already name the fallback Apex class/action and target semantics,
+and the frozen expected-work ledger must already contain matching artifact/action
+obligations and acceptance. Generic fallback permission is insufficient. Never
+change the hero-action identity or expected state. If fallback would add unaccounted
+work or contradict frozen criteria, keep the affected item BLOCKED for spec revision
+and a new build; do not mutate the ledger. If the standard action was attempted and
+failed, its attempted obligation remains FAILED with exact failure evidence; only
+the unattempted forbidden or unmet-prerequisite alternate work is BLOCKED.
 
 If no, this is an explicit SE non-execution decision: add an
 `explicit_se_non_execution` authorized-skip row for each affected Phase 3 ledger
@@ -425,7 +499,14 @@ run the Phase Prep Procedure for Phase 3. After it returns:
 2. Surface every remaining AWAITING_QA action or no-action test obligation to the
    SE. A current runtime PASS clears only its exact ledger item; preserve other
    actions, guardrails, visual checks and `actions_unverified_in_preview` entries.
-3. Cross-check `deployed.backing_actions` types against the spec. If the spec said "no Apex" and `backing_actions` contains any `type: ApexClass`, the sub-agent invoked the fallback path — verify `discovery_notes` or `issues` carries the triggering standard-action error. If it doesn't, flag as a deviation in the change log (the sub-agent skipped the evidence rule).
+3. Cross-check `deployed.backing_actions` against BUILD_SCOPE, the approved spec,
+   and the frozen expected-work ledger. Any Apex under Explicit no-Apex or Showtime
+   E4 is a forbidden deviation even when failure evidence exists. Showtime E3's
+   named Apex is Phase 2 work and never authorizes an agent backing action. An
+   Ordinary fallback requires
+   its pre-authorized ledger obligations plus exact failure evidence; otherwise the
+   affected item is not complete and remains BLOCKED. Never rewrite the ledger or
+   hero-action identity to fit returned work.
 4. **If `deployed.agent.status` is `NeedsUICommit`**, the SFAP publish route 404'd on this org instance (a per-instance platform provisioning gap — not a Scout, CLI, or bundle-validity fault). Report the agent to the SE as **"authored + validated, NOT live — requires UI Commit"**, NOT as Active/working. Carry into the change log's Issues Encountered section and the handover brief's SE checklist, and point the SE to the go-live runbook at `${CLAUDE_PLUGIN_ROOT}/prompts/building/agent-ui-commit-runbook.md` (Builder UI go-live) plus the escalation note (Salesforce Support case citing the org instance ID; the verbatim endpoint/404/instance evidence is in the sub-agent's `discovery_notes`). Verify `deployed.agent.recovery`: require `status: verified`, run `python3 "$ASSET_HELPER" verify --artifact "[reported artifact]"`, require kind `agent-recovery` beneath this customer's rollback directory, and check the reported `bundle_path` is the complete `source/aiAuthoringBundles/[AgentName]` directory within it. Include BOTH actual absolute paths in the change log and SE handover. Missing/failed recovery fields or a failed check means preservation BLOCKED: retain original scratch, record the error, and withhold final cleanup. Do not call a scratch path a preserved blueprint.
 
 ---
