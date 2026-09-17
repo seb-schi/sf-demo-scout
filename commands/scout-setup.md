@@ -36,8 +36,8 @@ Branch on STATE:
 
 Both `fresh-install.md` and `refresh.md` end by emitting one of `ZSHRC_UNCHANGED` / `ZSHRC_MODIFIED` (and optionally `ANTHROPIC_MODEL_PRESENT`). Capture that result — Step 3 needs it.
 
-If the dispatched prompt aborts (e.g. brew missing, pyyaml missing, Slack MCP just-registered, Slack auth needed), STOP. Do NOT proceed to Step 3. The abort messages already tell the SE what to do next.
+If the dispatched prompt aborts (e.g. brew missing or pyyaml missing), STOP. Do NOT proceed to Step 3. The abort messages already tell the SE what to do next. Optional MCP checks return with their observed status; an unavailable check or pending connection does not abort setup.
 
 ## Step 3: Done
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/done.md` and execute it. Pass the captured `STATE` and the boolean `ZSHRC_MODIFIED` (true if step j / step d emitted `ZSHRC_MODIFIED`) so it can compose the right closing message.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/done.md` and execute it. Pass the captured `STATE`, the boolean `ZSHRC_MODIFIED` (true if step j / step d emitted `ZSHRC_MODIFIED`), all CLI outcome tokens and optional MCP status notes so the closing message preserves unresolved checks and connections.

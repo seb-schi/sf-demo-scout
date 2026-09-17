@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import json
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -305,6 +306,10 @@ class CliRefreshScriptTests(unittest.TestCase):
             """#!/bin/bash
 printf 'npm %s\n' "$*" >> "$CALLS"
 case "$*" in
+  "root -g")
+    [ -n "$NPM_ROOT_DELAY" ] && sleep "$NPM_ROOT_DELAY"
+    if [ "$NPM_ROOT_INVALID_UTF8" = 1 ]; then printf '\377\n'; else printf '%s\n' "$NPM_ROOT"; fi
+    exit "${NPM_ROOT_RC:-0}" ;;
   *--dry-run*) printf '%s\n' "$NPM_RESOLVE_LINE"; exit 0 ;;
   *view*) printf '%s\n' "$NPM_VIEW"; exit 0 ;;
   *) echo "npm install log"; exit "${NPM_INSTALL_RC:-0}" ;;
@@ -326,6 +331,18 @@ exit 0
 """
         )
         tool.chmod(0o700)
+        package = self.CONFIG[cli]["package"]
+        package_dir = case_dir / "npm-root" / package
+        package_dir.mkdir(parents=True)
+        package_bin = package_dir / "bin" / cli
+        package_bin.parent.mkdir()
+        package_bin.write_text(tool.read_text())
+        package_bin.chmod(0o700)
+        tool.unlink()
+        tool.symlink_to(package_bin)
+        (package_dir / "package.json").write_text(
+            json.dumps({"name": package, "bin": {cli: f"bin/{cli}"}})
+        )
         return bin_dir, calls
 
     def run_case(
@@ -334,6 +351,12 @@ exit 0
         case_dir = self.base / f"{cli}_{name}"
         bin_dir, calls = self.make_stubs(case_dir, cli)
         config = self.CONFIG[cli]
+        package_name = overrides.pop("PACKAGE_NAME", None)
+        if package_name is not None:
+            metadata_path = case_dir / "npm-root" / config["package"] / "package.json"
+            metadata = json.loads(metadata_path.read_text())
+            metadata["name"] = package_name
+            metadata_path.write_text(json.dumps(metadata))
         env = dict(os.environ)
         env.pop("PYTHONPATH", None)
         env.update(
@@ -345,6 +368,10 @@ exit 0
             POST_RC="0",
             NPM_VIEW="2.0.0",
             NPM_INSTALL_RC="0",
+            NPM_ROOT=str(case_dir / "npm-root"),
+            NPM_ROOT_RC="0",
+            NPM_ROOT_DELAY="",
+            NPM_ROOT_INVALID_UTF8="0",
             NPM_RESOLVE_LINE=f"add {config['package']} 1.0.0 => 2.0.0",
             TMPDIR=str(case_dir),
             PYTHONDONTWRITEBYTECODE="1",
@@ -409,6 +436,150 @@ exit 0
                     check=False,
                 )
                 self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(calls.exists())
+
+    def test_non_npm_and_unavailable_ownership_skip_before_registry_calls(self) -> None:
+        for cli, overrides in (
+            ("sf", {"PACKAGE_NAME": "not-salesforce"}),
+            ("claude", {"NPM_ROOT_RC": "7"}),
+        ):
+            with self.subTest(cli=cli):
+                name = f"ownership_skip_{cli}"
+                result = self.run_case(cli, name, dict(overrides))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(
+                    self.outcome(result),
+                    self.CONFIG[cli]["prefix"] + "_OWNERSHIP_UNVERIFIED",
+                )
+                calls = self.base / f"{cli}_{name}" / "calls.log"
+                npm_calls = [
+                    line for line in (calls.read_text() if calls.exists() else "").splitlines()
+                    if line.startswith("npm ")
+                ]
+                self.assertEqual(npm_calls, ["npm root -g"])
+
+    def test_shadowed_executable_skips_before_registry_calls(self) -> None:
+        for cli in self.CONFIG:
+            with self.subTest(cli=cli):
+                case_dir = self.base / f"shadowed_{cli}"
+                bin_dir, calls = self.make_stubs(case_dir, cli)
+                shadow = case_dir / "shadow"
+                shadow.mkdir()
+                (shadow / cli).write_text("#!/bin/bash\necho native\n")
+                (shadow / cli).chmod(0o700)
+                config = self.CONFIG[cli]
+                result = subprocess.run(
+                    ["/bin/bash", str(CLI_SCRIPT), cli],
+                    env={
+                        **os.environ,
+                        "PATH": f"{shadow}:{bin_dir}:/usr/bin:/bin",
+                        "CALLS": str(calls),
+                        "COUNTER": str(case_dir / "counter"),
+                        "PRE_OUT": config["pre"],
+                        "POST_OUT": "",
+                        "NPM_VIEW": "2.0.0",
+                        "NPM_INSTALL_RC": "0",
+                        "NPM_RESOLVE_LINE": f"add {config['package']} 1.0.0 => 2.0.0",
+                        "NPM_ROOT": str(case_dir / "npm-root"),
+                        "TMPDIR": str(case_dir),
+                        "PYTHONDONTWRITEBYTECODE": "1",
+                    },
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(
+                    self.outcome(result), config["prefix"] + "_NOT_NPM_OWNED"
+                )
+                self.assertEqual(calls.read_text().splitlines(), ["npm root -g"])
+
+    def test_malformed_ambiguous_and_bounded_ownership_probes_skip(self) -> None:
+        cases = (
+            ("relative_root", {"NPM_ROOT": "relative/root"}),
+            ("ambiguous_root", {"NPM_ROOT": "/one\n/two"}),
+            ("invalid_utf8", {"NPM_ROOT_INVALID_UTF8": "1"}),
+            ("timeout", {"NPM_ROOT_DELAY": "3"}),
+        )
+        for name, overrides in cases:
+            with self.subTest(name=name):
+                result = self.run_case("sf", name, dict(overrides))
+                self.assertEqual(self.outcome(result), "SF_CLI_OWNERSHIP_UNVERIFIED")
+                calls = self.base / f"sf_{name}" / "calls.log"
+                self.assertEqual(calls.read_text().splitlines(), ["npm root -g"])
+
+    def test_malformed_package_and_bin_metadata_skip(self) -> None:
+        for name, metadata, executable in (
+            ("bad_json", "{", True),
+            ("wrong_name", json.dumps({"name": "other", "bin": {"sf": "bin/sf"}}), True),
+            ("bad_bin", json.dumps({"name": "@salesforce/cli", "bin": []}), True),
+            ("traversal", json.dumps({"name": "@salesforce/cli", "bin": {"sf": "../sf"}}), True),
+            ("string_shorthand", json.dumps({"name": "@salesforce/cli", "bin": "bin/sf"}), True),
+            ("non_executable", json.dumps({"name": "@salesforce/cli", "bin": {"sf": "bin/sf"}}), False),
+        ):
+            with self.subTest(name=name):
+                case_dir = self.base / f"malformed_{name}"
+                bin_dir, calls = self.make_stubs(case_dir, "sf")
+                package = case_dir / "npm-root" / "@salesforce" / "cli"
+                (package / "package.json").write_text(metadata)
+                if not executable:
+                    (package / "bin" / "sf").chmod(0o600)
+                result = subprocess.run(
+                    ["/bin/bash", str(CLI_SCRIPT), "sf"],
+                    env={
+                        **os.environ,
+                        "PATH": f"{bin_dir}:/usr/bin:/bin",
+                        "CALLS": str(calls),
+                        "NPM_ROOT": str(case_dir / "npm-root"),
+                        "NPM_ROOT_RC": "0",
+                        "NPM_ROOT_DELAY": "",
+                        "NPM_ROOT_INVALID_UTF8": "0",
+                        "PYTHONDONTWRITEBYTECODE": "1",
+                    },
+                    text=True, capture_output=True, check=False,
+                )
+                self.assertEqual(self.outcome(result), "SF_CLI_OWNERSHIP_UNVERIFIED")
+                self.assertEqual(calls.read_text().splitlines(), ["npm root -g"])
+
+    def test_shell_functions_cannot_replace_verified_executables(self) -> None:
+        result = self.run_case(
+            "sf",
+            "shell_functions",
+            {
+                "BASH_FUNC_npm%%": "() { echo poisoned; }",
+                "BASH_FUNC_sf%%": "() { echo poisoned; }",
+                "PRE_OUT": self.CONFIG["sf"]["current"],
+                "NPM_RESOLVE_LINE": "add @salesforce/cli 2.0.0 => 2.0.0",
+            },
+        )
+        self.assertEqual(self.outcome(result), "SF_CLI_CURRENT")
+
+    def test_missing_npm_or_python_skips_without_running_npm(self) -> None:
+        for missing in ("npm", "python3"):
+            with self.subTest(missing=missing):
+                case_dir = self.base / f"missing_{missing}"
+                bin_dir = case_dir / "bin"
+                bin_dir.mkdir(parents=True)
+                calls = case_dir / "calls.log"
+                if missing != "npm":
+                    npm = bin_dir / "npm"
+                    npm.write_text("#!/bin/bash\necho called >> \"$CALLS\"\n")
+                    npm.chmod(0o700)
+                if missing != "python3":
+                    (bin_dir / "python3").symlink_to(sys.executable)
+                sf = bin_dir / "sf"
+                sf.write_text("#!/bin/bash\necho native\n")
+                sf.chmod(0o700)
+                result = subprocess.run(
+                    ["/bin/bash", str(CLI_SCRIPT), "sf"],
+                    env={
+                        **os.environ,
+                        "PATH": f"{bin_dir}:/bin",
+                        "CALLS": str(calls),
+                        "PYTHONDONTWRITEBYTECODE": "1",
+                    },
+                    text=True, capture_output=True, check=False,
+                )
+                self.assertEqual(self.outcome(result), "SF_CLI_OWNERSHIP_UNVERIFIED")
                 self.assertFalse(calls.exists())
 
 

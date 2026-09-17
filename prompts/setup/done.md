@@ -36,6 +36,13 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract `version`.
 > - Any `*_UPDATE_FAILED` — "The [Salesforce CLI / Claude Code] update didn't complete (installer error) — it'll retry on a future refresh." (If a version was observed, add "It currently reports [version]."; otherwise add "Its current version couldn't be verified." — do NOT claim the prior install is intact.)
 > - Any `*_UPDATE_UNVERIFIED` — "Couldn't verify the [Salesforce CLI / Claude Code] version after the update — continuing; it'll re-check on a future refresh."
 > - Any `*_UPDATE_MISMATCH` — "Heads-up: [Salesforce CLI / Claude Code] now reports [observed], but [target] was expected — worth a quick check."
+> - Any `*_NOT_NPM_OWNED` — "Scout left [Salesforce CLI / Claude Code] unchanged because the active executable belongs to another installation; use that installation's updater."
+> - Any `*_OWNERSHIP_UNVERIFIED` — "Scout couldn't prove that npm owns the active [Salesforce CLI / Claude Code], so it safely skipped the update."
+
+If an MCP status was not `registration=registered transport=connected`, append
+one concise readiness note using the provider fragment's guidance. Even a
+connected status describes transport only: never call it authenticated or claim
+its required tools work before discovery and the first real use.
 
 **If STATE was REFRESH and `ZSHRC_MODIFIED` is true:** also append before the close:
 

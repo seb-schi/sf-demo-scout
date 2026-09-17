@@ -1,55 +1,43 @@
-# Setup — Slack MCP (registration + auth probe)
+# Setup — Slack MCP readiness
 
-This prompt takes no parameters. Any failure surfaces a loud note and returns (never aborts setup). Slack powers canvas/channel lookups during sparring and the post-deployment handover canvas — valuable, but the runtime already degrades gracefully when Slack is absent, so setup should not hard-block on it either.
+Slack is optional. It supports canvas and channel lookups, and Scout degrades
+when its tools are unavailable. This check is read-only: it never registers,
+removes, repairs, authenticates, or reads credentials.
 
-Slack MCP is user-scope (lives in `~/.claude.json`, not `plugin.json`) because it requires per-SE OAuth. The OAuth `client-id` and `callback-port` are required for the auth flow to work — bare URL is not enough. Lifted from pre-plugin `install.sh` §7.
-
-## Step 1: Registration (idempotent)
+Resolve the active Scout plugin root from the current plugin context. Use only
+that concrete absolute path; do not search cached plugin versions or pass a
+literal `${CLAUDE_PLUGIN_ROOT}` to the shell. Then run:
 
 ```bash
-if claude mcp list 2>/dev/null | grep -qE '^[[:space:]]*slack[[:space:]]*:'; then
-  echo "SLACK_MCP_ALREADY_REGISTERED"
+SCOUT_MCP_STATUS="/absolute/path/of/active/sf-demo-scout/scripts/setup-mcp-status.py"
+if [ -f "$SCOUT_MCP_STATUS" ] && command -v python3 >/dev/null 2>&1; then
+  python3 "$SCOUT_MCP_STATUS" slack
 else
-  if claude mcp add -s user -t http \
-      --client-id 188160004832.9210129962818 \
-      --callback-port 3118 \
-      slack https://mcp.slack.com/mcp >/dev/null 2>&1; then
-    echo "SLACK_MCP_REGISTERED"
-  else
-    echo "SLACK_MCP_REGISTRATION_FAILED"
-  fi
+  echo "MCP_STATUS provider=slack registration=unknown transport=unknown"
 fi
 ```
 
-Surface inline:
+The helper emits fixed vocabulary only. Registration and transport are not
+proof of authentication or tool capability.
 
-- `SLACK_MCP_ALREADY_REGISTERED` — silent. Proceed to Step 2.
-- `SLACK_MCP_REGISTERED` — Slack was just registered mid-session. The `/mcp` TUI uses an in-memory snapshot taken at session start and won't show the new server until plugins reload. **EXIT to reload** (not a failure — the TUI snapshot blocks the auth flow until `/reload-plugins`, so setup pauses here and resumes on re-run):
-  > "Registered Slack MCP. Run `/reload-plugins` now, then run `/mcp`, select 'slack', and select 'Authenticate'. Choose 'Salesforce Internal' from the Workspace dropdown menu, then select 'Allow'.
-  >
-  > Once finished, return here and re-run `/scout-setup` to finish up."
+- `registration=registered transport=connected` — say Slack is registered and
+  its transport reports connected. At the first Slack-dependent operation,
+  discover the required tools; only a successful real call establishes usability.
+- `transport=authentication_required` — ask the SE to run `/mcp`, select the
+  existing Slack entry, and authenticate. Do not start auth yourself.
+- `transport=failed|disabled|pending|unknown` — preserve the existing entry.
+  Report its state and suggest inspecting it in `/mcp`; never remove or recreate
+  an unfamiliar or unhealthy connection.
+- `registration=ambiguous` — say more than one entry may match Slack and ask the
+  SE to inspect `/mcp`. Do not choose or modify one.
+- `registration=not_observed|unknown` — explain that `claude mcp list` can omit
+  entries, so this does not prove absence. Offer this last-known default only as
+  an explicit SE choice; never run it automatically:
 
-  Skip Step 2 on this branch — the TUI doesn't have the row yet, so probing is pointless.
-- `SLACK_MCP_REGISTRATION_FAILED` — surface and CONTINUE to Step 2:
-  > "⚠️ Slack MCP registration failed — canvas lookups during sparring and the handover canvas will be skipped until it's connected. Run manually, then re-run `/scout-setup` anytime:
-  >
-  > ```
-  > claude mcp add -s user -t http --client-id 188160004832.9210129962818 --callback-port 3118 slack https://mcp.slack.com/mcp
-  > ```
-  > Setup continues."
+  ```text
+  claude mcp add -s user -t http --client-id 188160004832.9210129962818 --callback-port 3118 slack https://mcp.slack.com/mcp
+  ```
 
-## Step 2: Auth probe
-
-```bash
-security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null | \
-  python3 -c "import json,sys; d=json.loads(sys.stdin.read()); oauth=d.get('mcpOAuth',{}); slack=[k for k in oauth if k.startswith('slack')]; tok=oauth[slack[0]].get('accessToken') if slack else None; print('authenticated' if tok else 'needs_auth')" 2>/dev/null || echo "needs_auth"
-```
-
-On `authenticated` — silent. Done.
-
-On `needs_auth` — surface and CONTINUE:
-  > "ℹ️ Slack MCP isn't authenticated — canvas lookups during sparring and the post-deployment handover canvas will be skipped until it is. To connect it: run `/mcp`, select 'slack', select 'Authenticate', choose 'Salesforce Internal' from the Workspace dropdown, then 'Allow'. Re-run `/scout-setup` anytime. Setup is otherwise complete."
-
-## Done
-
-Return to the dispatching prompt.
+The client id and callback port are reviewed Scout defaults, not universal
+compatibility claims. After any SE-chosen registration, they can reload plugins
+and use `/mcp` to authenticate. Return to the dispatching prompt.

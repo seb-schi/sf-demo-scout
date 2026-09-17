@@ -15,6 +15,17 @@ provide isolated `npm`, `sf`, and `claude` stubs so missing stubs cannot fall
 through to a user's installation. Parent and child Python processes disable
 bytecode writes.
 
+Batch 8a ownership fixtures create complete temporary npm package metadata,
+declared executable bins, and active symlinks. Negative cases cover native or
+shadowed executables, missing tools, failed/timed-out/ambiguous roots, malformed
+metadata, unsafe bin paths, non-executable targets, invalid text, and shell
+function shadowing. MCP fixtures execute the shipped status helper against a
+local `claude mcp list` stub and cover aliases, exact known signatures, list
+failure/timeout, malformed or nonmatching output, ambiguity, documented
+transport states, spoof resistance, invalid text, and secret-free output. They
+do not read configuration or credentials, contact providers, authenticate, or
+create/remove connections.
+
 Prerequisites are Python 3, PyYAML, Git, `/bin/bash`, standard POSIX/macOS shell
 utilities, and a real `/bin/zsh`. The shell-repair tests execute `zsh -f -n`
 against both original and staged temporary files. Missing Git, zsh, or PyYAML
@@ -64,9 +75,10 @@ cross-reference stays present. These checks validate shipped instructions; they
 do not claim runtime model compliance.
 
 The baseline contained 128 unittest methods. Batch 6 added 23 focused methods,
-and Batch 7 adds 14 vendoring methods, for 165 total while preserving all 151
-pre-Batch-7 methods. The 119 historical assertions above remain executed inside
-the maintained methods and subcases.
+Batch 7 added 14 vendoring methods, and Batch 8a adds 12 setup ownership/status
+methods, for 177 total while preserving all 165 pre-Batch-8a methods. The 119
+historical assertions above remain executed inside the maintained methods and
+subcases, including all 24 CLI outcome meanings.
 
 ## Release-only validation
 

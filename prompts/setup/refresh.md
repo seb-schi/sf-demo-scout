@@ -2,7 +2,7 @@
 
 Workspace already configured. Update CLIs, sync skills, refresh `.zshrc` block, bump config version.
 
-**Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an abort (e.g. SE returning from `/mcp` Slack auth) is safe and fast — completed steps fast-no-op via their own probes (`SLACK_MCP_ALREADY_REGISTERED`, `ZSHRC_UNCHANGED`, etc.). Always run end-to-end; do NOT skip steps trying to "resume" — the no-ops are the resume mechanism. Within the same CC session you may rely on conversation memory to fast-forward; across sessions, just run the full sequence — it will land in the right place naturally.
+**Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an SE-chosen `/mcp` action is safe — setup re-observes MCP status without modifying connections, and completed repair steps retain their existing no-op probes (`ZSHRC_UNCHANGED`, etc.). Always run end-to-end; do NOT skip steps trying to "resume". Within the same CC session you may rely on conversation memory to fast-forward; across sessions, run the full sequence.
 
 ## a.0: Node toolchain probe (npm / npx presence)
 
@@ -18,12 +18,10 @@ command -v npm >/dev/null 2>&1 && echo "NPM_PRESENT" || echo "NPM_ABSENT"
 command -v npx >/dev/null 2>&1 && echo "NPX_PRESENT" || echo "NPX_ABSENT"
 ```
 
-- `NPM_ABSENT` — **skip steps a and b entirely** (do not run the CLI version gates;
-  with no npm they only produce a false "offline" reading). Surface: "npm isn't on
-  your PATH — Node here looks DevBar/standalone-provided. Skipping the `sf`/`claude`
-  CLI update checks: neither is npm-managed on this machine (`sf` comes from AI
-  Suite, `claude` self-updates natively), so there's nothing for npm to update. Not
-  an error."
+- `NPM_ABSENT` — **skip steps a and b entirely**. Surface: "npm isn't on your
+  PATH, so Scout cannot prove npm owns either active CLI and will not run npm
+  update checks. This does not identify how either CLI was installed; use each
+  installation's own updater. Not an error."
 - `NPX_ABSENT` — surface a warning (does NOT block setup): "⚠️ `npx` isn't on your
   PATH, but the Salesforce DX MCP server launches via `npx -y @salesforce/mcp`. It
   will fail to start each session (`ENOENT: npx not found`), so the DX MCP
@@ -37,8 +35,9 @@ command -v npx >/dev/null 2>&1 && echo "NPX_PRESENT" || echo "NPX_ABSENT"
 
 **Skip this step if a.0 reported `NPM_ABSENT`.**
 
-Reinstall the global `sf` CLI ONLY when the installed version is behind the
-latest published version. An unconditional `npm install --global` on every
+Reinstall the global `sf` CLI ONLY when the active executable is proven to be
+owned by this npm and the installed version is behind the latest installable
+version. An unconditional `npm install --global` on every
 refresh churns the global binary needlessly and can orphan the keychain-backed
 org-auth token across a node rebuild — the SE then sees an empty/stale org list
 and assumes their connections were lost (the auth files in `~/.sfdx` are never
@@ -65,7 +64,9 @@ fi
 
 **Skip this step if a.0 reported `NPM_ABSENT`.**
 
-Same version-gate rationale as step a — reinstall only when behind latest.
+Same ownership and version-gate rationale as step a. Native, standalone,
+shadowed, malformed, or unverifiable installations are left to their own
+updater and are never migrated automatically.
 
 ```bash
 SCOUT_CLI_REFRESH_SCRIPT="/absolute/path/of/active/sf-demo-scout/scripts/setup-cli-refresh.sh"
@@ -87,18 +88,20 @@ truth; do not infer "updated" from the fact that an install command ran):
 - `SF_CLI_UPDATE_UNVERIFIED` / `CLAUDE_CLI_UPDATE_UNVERIFIED` — install exited 0 but the post-install version probe failed or returned no supported version. One-line note ("couldn't verify the [sf|claude] CLI version after the update — continuing"). Never report UPDATED off an unverified probe.
 - `SF_CLI_UPDATE_MISMATCH` / `CLAUDE_CLI_UPDATE_MISMATCH` — install exited 0 and a valid version was observed, but it is neither the prior version nor the resolved target. One-line note naming both ("[sf|claude] CLI now reports [observed], expected [target] — surfaced for you to check"). Don't imply the target was reached.
 - `SF_CLI_CHECK_FAILED` / `CLAUDE_CLI_CHECK_FAILED` — one-line note ("couldn't check [sf|claude] CLI version — kept the installed one"), proceed.
+- `SF_CLI_NOT_NPM_OWNED` / `CLAUDE_CLI_NOT_NPM_OWNED` — one-line note that the active executable belongs to another installation, so Scout left it to that installation's updater. Do not call this an error.
+- `SF_CLI_OWNERSHIP_UNVERIFIED` / `CLAUDE_CLI_OWNERSHIP_UNVERIFIED` — one-line note that npm ownership could not be proved, so Scout safely skipped the update. Do not imply which installer owns it.
 
 ## c: Slack MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it. The prompt handles registration heal + auth probe; failures surface notes and continue (heal-when-broken semantics). The `SLACK_MCP_REGISTERED` branch still returns (TUI snapshot needs `/reload-plugins`).
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute its read-only readiness check. It preserves every existing or possibly omitted registration and never auto-registers or authenticates.
 
 ## c.5: Google Workspace MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it. Heals the registration if the binary is present; surfaces a note and returns if the `mcp-adaptor` binary is absent or auth is pending. Never aborts.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute its read-only readiness check. The adaptor prerequisite is checked only when offering the historical default for an explicit SE choice.
 
 ## c.6: Salesforce Docs MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute it. Heals the user-scope registration (idempotent — no-ops if already present); surfaces the manual command and returns on failure. Never aborts. This is the migration vehicle for existing installs whose Docs server was the old broken plugin-manifest one — the manifest declaration is gone on update, and this re-registers it at user scope.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute its read-only readiness check. Never infer absence from list output or auto-register a replacement.
 
 ## d: Refresh .zshrc managed block
 
@@ -123,4 +126,4 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its proc
 
 ## Done
 
-Refresh procedure complete. Return to the orchestrator. Pass the result of step d (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note. Also pass the CLI outcome tokens from steps a and b (`*_CURRENT` / `*_UPDATED (X->Y)` / `*_HELD` / `*_UPDATE_NOOP` / `*_CHECK_FAILED`) so the done message reflects actual CLI status rather than asserting "current" unconditionally. If d.7 emitted any `PINS_REMOVED[...]`, `VSCODE_PINS_REMOVED`, `LAUNCHCTL_PINS_CLEARED`, or a VS-Code-restore/warn variant, the SE has a restart (and possibly a manual VS Code edit) pending — make sure that note survived into the done summary.
+Refresh procedure complete. Return to the orchestrator. Pass the result of step d (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note. Also pass every CLI outcome token from steps a and b, including `*_NOT_NPM_OWNED` and `*_OWNERSHIP_UNVERIFIED`, so the done message reflects the actual status. Pass the three MCP status lines as registration/transport observations only; they never prove authentication or tool capability. If d.7 emitted any `PINS_REMOVED[...]`, `VSCODE_PINS_REMOVED`, `LAUNCHCTL_PINS_CLEARED`, or a VS-Code-restore/warn variant, the SE has a restart (and possibly a manual VS Code edit) pending — make sure that note survived into the done summary.

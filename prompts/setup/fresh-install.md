@@ -2,7 +2,7 @@
 
 End-to-end install procedure. Run on `STATE=FRESH`.
 
-**Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an abort (e.g. SE returning from `/mcp` Slack auth) is safe and fast — completed steps fast-no-op via their own probes (`BREW_OK`, `NODE_PRESENT`, `SETTINGS_PRESENT`, `USER_SETTINGS_NO_CHANGES`, `AUTOUPDATE_ALREADY_ON`, `SLACK_MCP_ALREADY_REGISTERED`, etc.). Always run end-to-end; do NOT skip steps trying to "resume" — the no-ops are the resume mechanism. Within the same CC session you may rely on conversation memory to fast-forward; across sessions, just run the full sequence — it will land in the right place naturally.
+**Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an abort (e.g. SE returning from `/mcp` Slack auth) is safe and fast — completed steps fast-no-op via their own probes (`BREW_OK`, `NODE_PRESENT`, `SETTINGS_PRESENT`, `USER_SETTINGS_NO_CHANGES`, `AUTOUPDATE_ALREADY_ON`, etc.). Always run end-to-end; do NOT skip steps trying to "resume" — the no-ops are the resume mechanism. Within the same CC session you may rely on conversation memory to fast-forward; across sessions, just run the full sequence — it will land in the right place naturally.
 
 ## a: Brew Check (hard abort if missing)
 
@@ -314,15 +314,15 @@ Surface inline:
 
 ## h: Slack MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it. The prompt handles registration + auth probe; it never aborts setup — any failure surfaces a loud "Slack not connected — X will be skipped, re-run anytime" notice and returns. (The `SLACK_MCP_REGISTERED` branch still returns so the SE can `/reload-plugins`.)
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it. Report the observed registration/transport state without inferring authentication or tool availability. Existing connections are preserved; an optional new registration is an explicit SE choice. Return and continue setup.
 
 ## h.5: Google Workspace MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it. Optional discovery enhancement (read Docs/Sheets during sparring); gated behind the DevBar `mcp-adaptor` binary. Never aborts — if the binary is absent or auth is pending, it surfaces a note and returns.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it. Optional discovery enhancement for Docs/Sheets during sparring. Preserve existing connections even when their launcher differs from Scout's known default; check the DevBar adaptor only when offering that default. Return with observed status and continue setup.
 
 ## h.7: Salesforce Docs MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute it. Registers the bare-HTTP Salesforce Docs server at user scope (no auth). Never aborts — a failure surfaces the manual command and continues. (The `SFDOCS_MCP_REGISTERED` branch returns so the SE can `/reload-plugins`.)
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute it. Preserve existing registrations and report observed status; the historical default is offered only for an explicit new connection. Required Docs tools are checked when needed. Return and continue setup.
 
 ## i: Write config.json
 

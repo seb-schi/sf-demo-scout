@@ -1,59 +1,40 @@
-# Setup — Salesforce Docs MCP (registration)
+# Setup — Salesforce Docs MCP readiness
 
-This prompt takes no parameters. Any failure surfaces a note and returns
-(never aborts setup). The Salesforce Docs MCP powers `salesforce_docs_search`
-/ `salesforce_docs_fetch` — release-gated feature checks and unfamiliar deploy
-error recovery during sparring and building. The runtime already degrades
-gracefully when it's absent, so setup does not hard-block on it.
+Salesforce Docs is optional and supports release checks and deploy-error
+research. This check is read-only: it never registers, removes, repairs, or
+attempts authentication.
 
-**Why user scope, not `plugin.json`.** The server is a bare HTTP endpoint with
-NO OAuth. Claude Code now runs an OAuth Dynamic Client Registration probe
-(POST `/register`) by default for **plugin-manifest-declared** `type: http`
-servers — the bare server has no `/register` route, so the probe 404s, the
-server shows "needs authentication", and its tools never publish (transport
-"Connected" ≠ tools available). Registering at **user scope**
-(`claude mcp add -s user`) does NOT trigger that probe — same URL, clean
-connect. So Docs lives in `~/.claude.json` alongside Slack and Google, not in
-the plugin manifest. The server name is `salesforce-docs` — the
-vendor-canonical name from Salesforce's official Claude Code install command
-(matching it lets Scout and the LS Booster Pack co-register on ONE server
-instead of colliding).
-
-## Step 1: Registration (idempotent)
+Resolve the active Scout plugin root from the current plugin context. Use only
+that concrete absolute path; do not search cached plugin versions or pass a
+literal `${CLAUDE_PLUGIN_ROOT}` to the shell. Then run:
 
 ```bash
-if claude mcp list 2>/dev/null | grep -qE '^[[:space:]]*salesforce-docs[[:space:]]*:'; then
-  echo "SFDOCS_MCP_ALREADY_REGISTERED"
+SCOUT_MCP_STATUS="/absolute/path/of/active/sf-demo-scout/scripts/setup-mcp-status.py"
+if [ -f "$SCOUT_MCP_STATUS" ] && command -v python3 >/dev/null 2>&1; then
+  python3 "$SCOUT_MCP_STATUS" salesforce-docs
 else
-  if claude mcp add -s user --transport http \
-      salesforce-docs https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp >/dev/null 2>&1; then
-    echo "SFDOCS_MCP_REGISTERED"
-  else
-    echo "SFDOCS_MCP_REGISTRATION_FAILED"
-  fi
+  echo "MCP_STATUS provider=salesforce-docs registration=unknown transport=unknown"
 fi
 ```
 
-Surface inline:
+Registration and transport do not prove that required tools are published.
 
-- `SFDOCS_MCP_ALREADY_REGISTERED` — silent. Done.
-- `SFDOCS_MCP_REGISTERED` — Salesforce Docs was just registered mid-session.
-  The `/mcp` TUI uses an in-memory snapshot from session start and won't show
-  the new server until plugins reload. Surface and return:
-  > "Registered the Salesforce Docs MCP (user scope) — this is what lets Scout
-  > verify release-gated features and diagnose deploy errors against the real
-  > docs. Run `/reload-plugins` now to make it live (no auth needed — it's a
-  > bare HTTP server). Then re-run `/scout-setup` anytime to finish up."
-- `SFDOCS_MCP_REGISTRATION_FAILED` — surface and CONTINUE:
-  > "⚠️ Salesforce Docs MCP registration failed — release-gated feature checks
-  > and deploy-error doc lookups will be skipped until it's connected (Scout
-  > degrades gracefully). Run manually, then re-run `/scout-setup` anytime:
-  >
-  > ```
-  > claude mcp add -s user --transport http salesforce-docs https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp
-  > ```
-  > Setup continues."
+- `registration=registered transport=connected` — say the server is registered
+  and its transport reports connected. Discover the required Docs tools at the
+  first Docs-dependent operation; only a successful real call establishes
+  usability.
+- `transport=authentication_required|failed|disabled|pending|unknown` — preserve
+  the existing entry, report the state, and suggest inspecting it in `/mcp`.
+  Do not remove or recreate it, even if its name or launcher is unfamiliar.
+- `registration=ambiguous` — ask the SE to inspect `/mcp`; do not choose or
+  modify an entry.
+- `registration=not_observed|unknown` — explain that list output can omit
+  entries, so this does not prove absence. Offer this last-known default only as
+  an explicit SE choice; never run it automatically:
 
-## Done
+  ```text
+  claude mcp add -s user --transport http salesforce-docs https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp
+  ```
 
-Return to the dispatching prompt.
+The endpoint is a reviewed Scout deployment default, not a universal
+compatibility claim. Return to the dispatching prompt.

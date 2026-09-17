@@ -4,6 +4,8 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-17
 
+- **Setup respects how your tools are installed.** CLI refresh updates through npm only when it owns the active executable. Optional connection checks preserve existing registrations and distinguish an unavailable check, a connection problem, and tools that still need to be used successfully. When no connection is observed, Scout offers setup instructions instead of automatically adding a possible duplicate; stored credentials no longer count as proof of authentication.
+
 - **Skill refreshes preserve Scout's deliberate adaptations.** Maintainer refreshes use a recorded upstream revision, leave adapted and frozen skills for targeted review, and check replacement files before retiring an existing copy. Failed copies no longer count as successful refreshes or erase the skill already shipped.
 - **Setup's safety checks now travel with Scout.** Shell-configuration repair and CLI refresh use shipped scripts covered by a repeatable offline regression suite. The existing checks for preserved shell settings, truthful update results, and correct customer-folder lookup can now be rerun from a clean checkout, alongside Scout's newer build and startup checks.
 - **Startup tells you what Scout actually knows.** A failed CLI check no longer means “no default org” or “authentication expired.” Cached results show when they were collected, distinct org aliases keep distinct identities, and a failed refresh cannot quietly reuse an older success. The cache retains only the fields needed for the banner, in private files.

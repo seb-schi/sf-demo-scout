@@ -7,6 +7,32 @@ case "${1:-}" in
     exit 64 ;;
 esac
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+OWNER_HELPER="$SCRIPT_DIR/setup-cli-owner.py"
+NPM_EXE=$(type -P npm 2>/dev/null || true)
+PYTHON_EXE=$(type -P python3 2>/dev/null || true)
+CLI_EXE=$(type -P "$1" 2>/dev/null || true)
+if [ -z "$NPM_EXE" ] || [ -z "$PYTHON_EXE" ] || [ -z "$CLI_EXE" ] \
+    || [ ! -f "$OWNER_HELPER" ]; then
+  OWNER_RESULT=unavailable
+else
+  OWNER_RESULT=$("$PYTHON_EXE" "$OWNER_HELPER" "$1" "$NPM_EXE" "$CLI_EXE" 2>/dev/null) \
+    || OWNER_RESULT=unavailable
+fi
+
+if [ "$OWNER_RESULT" != "owned" ]; then
+  if [ "$1" = "sf" ] && [ "$OWNER_RESULT" = "different" ]; then
+    echo "SF_CLI_NOT_NPM_OWNED (active executable belongs to another installation; skipped update)"
+  elif [ "$1" = "sf" ]; then
+    echo "SF_CLI_OWNERSHIP_UNVERIFIED (npm ownership could not be proved; skipped update)"
+  elif [ "$OWNER_RESULT" = "different" ]; then
+    echo "CLAUDE_CLI_NOT_NPM_OWNED (active executable belongs to another installation; skipped update)"
+  else
+    echo "CLAUDE_CLI_OWNERSHIP_UNVERIFIED (npm ownership could not be proved; skipped update)"
+  fi
+  exit 0
+fi
+
 if [ "$1" = "sf" ]; then
   echo "CHECKING_SF_CLI"
   # Gate on what npm would ACTUALLY install here, not on `npm view` latest.
@@ -17,12 +43,12 @@ if [ "$1" = "sf" ]; then
   # only policy-aware signal. Skipping the reinstall when already on the newest
   # INSTALLABLE version is what protects the keychain-backed org-auth token from
   # a needless node rebuild (the empty-org-list footgun).
-  SF_INSTALLED=$(sf --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-  SF_RESOLVED=$(npm install @salesforce/cli --global --dry-run 2>/dev/null \
+  SF_INSTALLED=$("$CLI_EXE" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  SF_RESOLVED=$("$NPM_EXE" install @salesforce/cli --global --dry-run 2>/dev/null \
     | grep -E '(^| )@salesforce/cli[[:space:]]' \
     | grep -oE '[0-9]+\.[0-9]+\.[0-9]+ *=> *[0-9]+\.[0-9]+\.[0-9]+' \
     | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-  SF_REGISTRY=$(npm view @salesforce/cli version 2>/dev/null)
+  SF_REGISTRY=$("$NPM_EXE" view @salesforce/cli version 2>/dev/null)
   if [ -z "$SF_INSTALLED" ] || [ -z "$SF_RESOLVED" ]; then
     echo "SF_CLI_CHECK_FAILED (offline or npm probe failed) — kept installed: ${SF_INSTALLED:-unknown}"
   elif [ "$SF_INSTALLED" = "$SF_RESOLVED" ]; then
@@ -37,13 +63,13 @@ if [ "$1" = "sf" ]; then
     # form (`npm install ... 2>&1 | tail -1`) made $? the exit of `tail` (always 0),
     # so a failed install was invisible. Log to a temp file for the display line.
     SF_LOG=$(mktemp "${TMPDIR:-/tmp}/scout-sf-install.XXXXXX")
-    npm install @salesforce/cli --global > "$SF_LOG" 2>&1; SF_RC=$?
+    "$NPM_EXE" install @salesforce/cli --global > "$SF_LOG" 2>&1; SF_RC=$?
     tail -1 "$SF_LOG"; rm -f "$SF_LOG"
     # Capture the version-probe OUTPUT and its EXIT CODE separately; a probe that
     # exits non-zero must NOT be trusted even if its stdout contains a version
     # number, and only supported `@salesforce/cli/<semver>` output is parsed (an
     # arbitrary error string that merely contains a version cannot match).
-    SF_VER_OUT=$(sf --version 2>/dev/null); SF_VER_RC=$?
+    SF_VER_OUT=$("$CLI_EXE" --version 2>/dev/null); SF_VER_RC=$?
     SF_AFTER=""
     if [ "$SF_VER_RC" -eq 0 ]; then
       SF_AFTER=$(printf '%s\n' "$SF_VER_OUT" | sed -nE 's|^@salesforce/cli/([0-9]+\.[0-9]+\.[0-9]+)([[:space:]].*)?$|\1|p')
@@ -69,12 +95,12 @@ if [ "$1" = "sf" ]; then
 else
   echo "CHECKING_CLAUDE_CLI"
   # Policy-aware gate — see step a's comment for why dry-run resolve, not `npm view`.
-  CC_INSTALLED=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-  CC_RESOLVED=$(npm install @anthropic-ai/claude-code --global --dry-run 2>/dev/null \
+  CC_INSTALLED=$("$CLI_EXE" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  CC_RESOLVED=$("$NPM_EXE" install @anthropic-ai/claude-code --global --dry-run 2>/dev/null \
     | grep -E '(^| )@anthropic-ai/claude-code[[:space:]]' \
     | grep -oE '[0-9]+\.[0-9]+\.[0-9]+ *=> *[0-9]+\.[0-9]+\.[0-9]+' \
     | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-  CC_REGISTRY=$(npm view @anthropic-ai/claude-code version 2>/dev/null)
+  CC_REGISTRY=$("$NPM_EXE" view @anthropic-ai/claude-code version 2>/dev/null)
   if [ -z "$CC_INSTALLED" ] || [ -z "$CC_RESOLVED" ]; then
     echo "CLAUDE_CLI_CHECK_FAILED (offline or npm probe failed) — kept installed: ${CC_INSTALLED:-unknown}"
   elif [ "$CC_INSTALLED" = "$CC_RESOLVED" ]; then
@@ -88,12 +114,12 @@ else
     # Capture the installer exit status DIRECTLY — never through a pipe (see the
     # Salesforce block above for why `| tail-1` masked failures).
     CC_LOG=$(mktemp "${TMPDIR:-/tmp}/scout-cc-install.XXXXXX")
-    npm install @anthropic-ai/claude-code --global > "$CC_LOG" 2>&1; CC_RC=$?
+    "$NPM_EXE" install @anthropic-ai/claude-code --global > "$CC_LOG" 2>&1; CC_RC=$?
     tail -1 "$CC_LOG"; rm -f "$CC_LOG"
     # Version-probe output + exit code captured separately; parse only a supported
     # leading `<semver>` (claude --version prints e.g. `1.2.3 (Claude Code)`), and
     # only on a successful probe.
-    CC_VER_OUT=$(claude --version 2>/dev/null); CC_VER_RC=$?
+    CC_VER_OUT=$("$CLI_EXE" --version 2>/dev/null); CC_VER_RC=$?
     CC_AFTER=""
     if [ "$CC_VER_RC" -eq 0 ]; then
       CC_AFTER=$(printf '%s\n' "$CC_VER_OUT" | sed -nE 's/^([0-9]+\.[0-9]+\.[0-9]+)( \(Claude Code\))?$/\1/p')
