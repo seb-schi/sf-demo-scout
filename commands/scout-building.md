@@ -536,6 +536,12 @@ The change log must include:
 - For every `NeedsUICommit` agent: verified absolute recovery artifact and full bundle path, or the preservation failure + original scratch path and cleanup-withheld status. Never describe an unverified path as a preserved blueprint.
 - **Docs Consulted** section — aggregate `docs_consulted` arrays from every sub-agent's JSON output, plus any orchestrator-level error-recovery consultations. If nothing was consulted, write "None — no unfamiliar errors encountered."
 
+If the SE already requested a local build-outcome summary, read
+`${CLAUDE_PLUGIN_ROOT}/docs/build-outcomes.md` and append it to this same change
+log and its terminal copy from the existing evidence. Otherwise skip silently:
+do not add a default question, step, artifact, probe, network call, telemetry,
+or service.
+
 **Workspace cleanup (after the change log is written).** Re-run Step 5's applicable
 artifact checks, plus `verify` for every recovery artifact. A `NeedsUICommit`
 agent must have `recovery.status = verified`, an existing full bundle directory

@@ -114,16 +114,23 @@ metadata, or anything destructive, without your say-so.
 | Scout builds and verifies | Scout builds it — you stay in the loop |
 |---|---|
 | Custom objects, fields, record types | Complex / multi-component LWC (deployed; visual QA) |
-| Permission sets (incl. companion sets) | Lightning pages, page-layout arrangement, dashboards (deployed; visual QA) |
+| Permission sets (incl. companion sets) | Existing Lightning-page field-section edits, page-layout arrangements, dashboards (deployed; visual QA) |
 | Lightning apps, tabs, queues, reports | Screen flows using non-whitelisted components (deployed Draft; QA, then activate) |
 | Flows — record-triggered, screen (branching, cross-screen), scheduled | Orchestration flows (deployed; you validate the lifecycle) |
 | Apex — multi-class, cross-object (bounded test-fix loop) | Multi-agent wiring, channel assignment, OmniStudio (UI-only — Scout builds the metadata around them) |
 | Agentforce agents (deploy, activate, smoke-test) | Anything destructive or on existing metadata — never without confirmation |
 
+For Lightning Record Pages, additions to existing Dynamic Forms field sections
+remain supported, and Scout still deploys underlying artifacts such as LWCs,
+Paths, CompactLayouts, and ListViews. A full new `RecordPage` is composed
+manually by the SE in App Builder, where the complete page can be arranged and
+previewed safely.
+
 **Showtime** mode collapses the loop for live discovery: it turns a
-conversation happening in front of the customer into a scoped, deployed
-proof-of-concept before the meeting ends — five hard scenario envelopes,
-so the live deploy is a guarantee, not a hope.
+conversation happening in front of the customer into one of five tightly scoped
+scenario envelopes. It aims to deploy the approved slice during the meeting;
+the actual result is whatever the scoped completion evidence supports, with
+remaining QA, blocked work, and failures kept visible.
 
 ## Install
 

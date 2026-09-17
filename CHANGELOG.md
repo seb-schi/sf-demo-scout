@@ -4,6 +4,8 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-17
 
+- **Build summaries keep the evidence in view.** On request, Scout adds a local outcome summary to the existing change log, keeping verified work, remaining QA, manual follow-ups, and recorded retries separate. Missing measurements stay unknown. The capability guide now makes full new Lightning Record Pages an App Builder task and describes Showtime's bounded goal without promising a guaranteed deployment.
+
 - **First-time tool installation verifies the result.** Scout checks both the installer outcome and the executable selected afterward before reporting Node, Python, or Salesforce CLI installed. Failed or unverified installs stop setup with a clear follow-up. An existing broken or unsupported tool is left for deliberate repair, rather than silently installing a competing copy.
 
 - **Setup respects how your tools are installed.** CLI refresh updates through npm only when it owns the active executable. Optional connection checks preserve existing registrations and distinguish an unavailable check, a connection problem, and tools that still need to be used successfully. When no connection is observed, Scout offers setup instructions instead of automatically adding a possible duplicate; stored credentials no longer count as proof of authentication.
