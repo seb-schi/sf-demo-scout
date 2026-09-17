@@ -131,6 +131,62 @@ class BuildAssetsContractTests(unittest.TestCase):
         """Catches a release that omits the executable safety boundary entirely."""
         self.assertTrue(HELPER.is_file(), "scripts/build-assets.py must be shipped")
 
+    def test_agent_preedit_preserves_exact_complete_bundles_and_retry_is_immutable(self):
+        """Existing-agent backups must not silently nest/replace a prior snapshot."""
+        self.write("genAiPlannerBundles/OrderAgent_v7/planner.xml", "<planner>old</planner>")
+        self.write("genAiPlannerBundles/OrderAgent_v7/localActions/topic/action/input/schema.json", "{}")
+        paths = ("genAiPlannerBundles/OrderAgent_v7", "aiAuthoringBundles/OrderAgent")
+        first = self.preserve(*paths, kind="agent-preedit")
+        old = self.artifact_files(Path(first["artifact"]))
+        self.write("genAiPlannerBundles/OrderAgent_v7/planner.xml", "<planner>new</planner>")
+        second = self.preserve(*paths, kind="agent-preedit")
+        self.assertNotEqual(first["artifact"], second["artifact"])
+        self.assertEqual(self.artifact_files(Path(first["artifact"])), old)
+        shutil.rmtree(self.source_root)
+        self.assertEqual(self.success("verify", "--artifact", first["artifact"])["paths"], list(paths))
+        self.rejected("stage", "--artifact", first["artifact"], "--project-root", self.project_root,
+                      "--path", paths[0])
+
+    def test_agent_preedit_requires_only_the_selected_available_family(self):
+        """A planner is not required when an exact editable authoring bundle is selected."""
+        result = self.preserve("aiAuthoringBundles/OrderAgent", kind="agent-preedit")
+        self.assertEqual(result["paths"], ["aiAuthoringBundles/OrderAgent"])
+        self.assertEqual(result["kind"], "agent-preedit")
+
+    def test_agent_preedit_rejects_missing_family_wide_and_partial_selections(self):
+        """A missing required source must never become a verified backup."""
+        for selected in ("genAiPlannerBundles/Missing", "aiAuthoringBundles",
+                         "aiAuthoringBundles/OrderAgent/schemas", "flows/OrderFlow.flow-meta.xml"):
+            with self.subTest(selected=selected):
+                self.rejected("preserve", "--source-root", self.source_root,
+                              "--rollback-dir", self.rollback, "--kind", "agent-preedit",
+                              "--path", selected)
+        self.assertEqual(list(self.rollback.rglob("receipt.json")), [])
+
+    def test_agent_preedit_copy_failure_preserves_original_and_has_no_valid_receipt(self):
+        module = self.loaded_helper()
+        original = self.artifact_files(self.source_root)
+        with mock.patch.object(module, "copy_file", side_effect=OSError("copy unavailable")):
+            with self.assertRaises(module.AssetError):
+                module.preserve(str(self.source_root), str(self.rollback), "agent-preedit",
+                                ["aiAuthoringBundles/OrderAgent"])
+        self.assertEqual(self.artifact_files(self.source_root), original)
+        self.assertEqual(list(self.rollback.rglob("receipt.json")), [])
+
+    def test_static_existing_agent_snapshot_precedes_edit_and_blocks_cleanup(self):
+        """Prompt wiring only: behavioral file protection is exercised above."""
+        phase = (REPOSITORY / "prompts/building/phase3.md").read_text()
+        modify = phase[phase.index("### Modify Existing Agent"):phase.index("### Smoke Test")]
+        self.assertNotIn("2>/dev/null || true", modify)
+        invoke = modify.index("Invoke `agentforce-generate`")
+        self.assertLess(modify.index("--kind agent-preedit"), invoke)
+        self.assertLess(modify.index("Record the current active version number"), invoke)
+        self.assertIn("preedit_snapshot", modify)
+        caller = (REPOSITORY / "commands/scout-building.md").read_text()
+        cleanup = caller[caller.index("Workspace cleanup (after the change log is written).") :]
+        self.assertIn("preedit_snapshot", cleanup)
+        self.assertIn("agent-preedit", cleanup)
+
     def test_preserve_retains_all_flat_and_nested_content(self):
         """Catches a shallow copy that drops companion files or nested schema data."""
         imports = self.preserve("classes")

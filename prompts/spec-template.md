@@ -327,7 +327,7 @@ these named components immediately before their phase, including on retry.
 - Email-to-Case link (if applicable): exact `routingName` [value] → exact Agent API name [value]
 - Email channel disposition (if applicable): [manual/BLOCKED, or exact installed External Skill approved above]
 - Existing agents in org: (from audit — note conflicts)
-- If modifying existing: current version v[N], rollback: `sf agent activate --version-number [N]`
+- If modifying existing: current version v[N], rollback: `sf agent activate --api-name [AgentName] --version [N] --target-org [alias]`
 - Agent test cases: table below — 4-8 rows that become the official `sf agent test` spec (Testing Center). Columns map 1:1 to the `agentforce-test` skill's YAML fields. **MUST include at least one guardrail/off-topic row** (leave `expectedTopic` empty, describe the decline in `expectedOutcome`) — mirror the skill's `guardrail-test-spec.yaml`.
 
   | # | Utterance | expectedTopic | expectedActions | expectedOutcome |

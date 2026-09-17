@@ -310,7 +310,7 @@ case "$*" in
     [ -n "$NPM_ROOT_DELAY" ] && sleep "$NPM_ROOT_DELAY"
     if [ "$NPM_ROOT_INVALID_UTF8" = 1 ]; then printf '\377\n'; else printf '%s\n' "$NPM_ROOT"; fi
     exit "${NPM_ROOT_RC:-0}" ;;
-  *--dry-run*) printf '%s\n' "$NPM_RESOLVE_LINE"; exit 0 ;;
+  *--dry-run*) printf '%s\n' "$NPM_RESOLVE_LINE"; exit "${NPM_DRY_RUN_RC:-0}" ;;
   *view*) printf '%s\n' "$NPM_VIEW"; exit 0 ;;
   *) echo "npm install log"; exit "${NPM_INSTALL_RC:-0}" ;;
 esac
@@ -324,7 +324,7 @@ printf '%s %s\n' "$0" "$*" >> "$CALLS"
 if [ "$1" = "--version" ]; then
   n=$(cat "$COUNTER" 2>/dev/null || echo 0)
   n=$((n+1)); echo "$n" > "$COUNTER"
-  if [ "$n" -eq 1 ]; then printf '%s\n' "$PRE_OUT"; exit 0; fi
+  if [ "$n" -eq 1 ]; then printf '%s\n' "$PRE_OUT"; exit "${PRE_RC:-0}"; fi
   printf '%s\n' "$POST_OUT"; exit "${POST_RC:-0}"
 fi
 exit 0
@@ -364,10 +364,12 @@ exit 0
             CALLS=str(calls),
             COUNTER=str(case_dir / "counter"),
             PRE_OUT=config["pre"],
+            PRE_RC="0",
             POST_OUT="",
             POST_RC="0",
             NPM_VIEW="2.0.0",
             NPM_INSTALL_RC="0",
+            NPM_DRY_RUN_RC="0",
             NPM_ROOT=str(case_dir / "npm-root"),
             NPM_ROOT_RC="0",
             NPM_ROOT_DELAY="",
@@ -415,6 +417,77 @@ exit 0
                     result = self.run_case(cli, name, overrides)
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(self.outcome(result), expected)
+
+    def test_preupdate_probes_fail_closed_without_installing(self) -> None:
+        """A failed, malformed, or ambiguous probe must never authorize update."""
+        for cli, config in self.CONFIG.items():
+            prefix = config["prefix"]
+            update = f"add {config['package']} 1.0.0 => 2.0.0"
+            cases = (
+                (
+                    "pre_nonzero_plausible",
+                    {"PRE_OUT": config["pre"], "PRE_RC": "17"},
+                ),
+                (
+                    "pre_zero_malformed",
+                    {"PRE_OUT": "ERROR probe 1.0.0"},
+                ),
+                (
+                    "pre_zero_ambiguous",
+                    {"PRE_OUT": config["pre"] + "\n" + config["current"]},
+                ),
+                (
+                    "dry_nonzero_plausible",
+                    {"NPM_RESOLVE_LINE": update, "NPM_DRY_RUN_RC": "23"},
+                ),
+                (
+                    "dry_zero_malformed",
+                    {"NPM_RESOLVE_LINE": f"ERROR {config['package']} 1.0.0 => 2.0.0"},
+                ),
+                (
+                    "dry_zero_ambiguous",
+                    {"NPM_RESOLVE_LINE": update + "\n" + update.replace("2.0.0", "2.1.0")},
+                ),
+                (
+                    "dry_wrong_installed_version",
+                    {"NPM_RESOLVE_LINE": f"add {config['package']} 9.9.9 => 2.0.0"},
+                ),
+            )
+            for name, overrides in cases:
+                with self.subTest(cli=cli, case=name):
+                    result = self.run_case(
+                        cli,
+                        name,
+                        {
+                            "POST_OUT": config["post"].format(version="2.0.0"),
+                            **overrides,
+                        },
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(self.outcome(result), prefix + "_CHECK_FAILED")
+                    call_lines = (
+                        self.base / f"{cli}_{name}" / "calls.log"
+                    ).read_text().splitlines()
+                    self.assertNotIn(
+                        f"npm install {config['package']} --global", call_lines
+                    )
+
+    def test_real_npm_change_transition_can_authorize_update(self) -> None:
+        """npm reports an existing global package update with the `change` verb."""
+        for cli, config in self.CONFIG.items():
+            with self.subTest(cli=cli):
+                result = self.run_case(
+                    cli,
+                    "real_change_transition",
+                    {
+                        "NPM_RESOLVE_LINE": (
+                            f"change {config['package']} 1.0.0 => 2.0.0"
+                        ),
+                        "POST_OUT": config["post"].format(version="2.0.0"),
+                    },
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.outcome(result), config["prefix"] + "_UPDATED")
 
     def test_invalid_selector_fails_before_any_cli_or_npm_call(self) -> None:
         for selector in (None, "invalid"):

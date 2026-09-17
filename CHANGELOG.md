@@ -4,6 +4,10 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-17
 
+- **Setup verifies the workspace before calling it ready.** Missing project files, settings, or configuration now stop setup with a clear error. Rerunning repairs supported partial installs while preserving existing demo source and user settings.
+- **Failed update checks cannot trigger an installation.** CLI refresh requires successful, unambiguous version and npm probes before updating Salesforce CLI or Claude Code; failed checks leave the installation alone.
+- **Existing-agent edits retain a verified before-state.** Scout preserves complete selected agent bundles before editing, keeps retries from replacing the original snapshot, and records exact recovery paths. Missing or failed preservation stays unresolved and blocks cleanup, even when the agent's runtime test passes.
+
 - **Build summaries keep the evidence in view.** On request, Scout adds a local outcome summary to the existing change log, keeping verified work, remaining QA, manual follow-ups, and recorded retries separate. Missing measurements stay unknown. The capability guide now makes full new Lightning Record Pages an App Builder task and describes Showtime's bounded goal without promising a guaranteed deployment.
 
 - **First-time tool installation verifies the result.** Scout checks both the installer outcome and the executable selected afterward before reporting Node, Python, or Salesforce CLI installed. Failed or unverified installs stop setup with a clear follow-up. An existing broken or unsupported tool is left for deliberate repair, rather than silently installing a competing copy.

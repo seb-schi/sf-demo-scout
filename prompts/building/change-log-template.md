@@ -67,7 +67,7 @@ Rollback: sf project delete source --metadata LightningComponentBundle:[Name] --
 ## Agentforce Deployed (if any)
 [Names, description]
 Rollback: sf project delete source --metadata AiAuthoringBundle:[AgentName] --target-org [alias]
-(plus `ApexClass:[ClassName]` for each backing action. For existing-agent modifications, rollback is `sf agent activate --version-number [N]` — see phase 3 sub-agent output.)
+(plus `ApexClass:[ClassName]` for each newly created backing action. For existing-agent modifications, rollback is `sf agent activate --api-name [AgentName] --version [N] --target-org [alias]` — use the original active version and verified before-state paths from the phase 3 output.)
 
 ## Agentforce Current-Test Evidence (if any)
 [For every action-bearing ledger item: item id; runtime assessment
@@ -94,6 +94,15 @@ on failure leave the durable-path fields unavailable and record the original pat
 
 ## Imported Assets Used (if any)
 - [component identity] — [existing spec item + phase]; preserved at [absolute artifact path]; [used/adapted/skipped/blocked + reason]. List selected imports only; preservation does not prove deployment.
+
+## Existing Agent Before-State (only for modified incumbent agents)
+- **Agent / original active version:** [actual API name and version before editing]
+- **Pre-edit artifact / source:** [actual absolute independently verified `agent-preedit` artifact and source paths]
+- **Exact bundle members:** [relative receipt paths, including actual suffixes]
+- **Preservation:** [verified / BLOCKED with error and original scratch location; cleanup withheld]
+- **Rollback:** [recorded version reactivation; if source restore is needed, verify the artifact and copy/redeploy these exact members from its immutable source into a disposable restore project]
+Never use a later retrieve as the original before-state or imply a redeploy deletes
+a published version. Keep this evidence separate from a new-agent UI-commit blueprint.
 
 ## Execution Order Check
 [Per-object list of active flows after deployment. Flag objects with multiple after-save record-triggered flows and note execution order risks.]

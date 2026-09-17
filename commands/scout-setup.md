@@ -13,19 +13,37 @@ You are the setup orchestrator. This command is idempotent and state-driven: det
 
 ## Step 1: Detect State
 
-Run this Bash:
+Resolve `${CLAUDE_PLUGIN_ROOT}` to the absolute active Scout plugin directory,
+then run this Bash with those literal paths substituted. A failed workspace
+directory change or missing verifier is an abort, never a setup state.
 
 ```bash
-mkdir -p "$HOME/claude-projects/sf-demo-scout"
-cd "$HOME/claude-projects/sf-demo-scout"
-if [ ! -f "$HOME/.config/sf-demo-scout/config.json" ]; then
+WORKSPACE="$HOME/claude-projects/sf-demo-scout"
+CONFIG="$HOME/.config/sf-demo-scout/config.json"
+WORKSPACE_HELPER="[PLUGIN_ROOT]/scripts/setup-workspace.py"
+if ! mkdir -p "$WORKSPACE" || ! cd "$WORKSPACE"; then
+  echo "SETUP_ABORTED (workspace unavailable)"
+  exit 1
+fi
+if [ ! -f "$WORKSPACE_HELPER" ]; then
+  echo "SETUP_ABORTED (shipped workspace helper missing)"
+  exit 1
+fi
+PYTHON_EXE=$(type -P python3 2>/dev/null || true)
+if [ -z "$PYTHON_EXE" ]; then
   echo "STATE=FRESH"
-else
+elif "$PYTHON_EXE" -B "$WORKSPACE_HELPER" verify \
+    --workspace "$WORKSPACE" --config "$CONFIG" >/dev/null 2>&1; then
   echo "STATE=REFRESH"
+else
+  echo "STATE=FRESH"
 fi
 ```
 
-Capture the STATE value — Step 3 (Done) needs it.
+Capture the STATE value — Step 3 (Done) needs it. `STATE=FRESH` includes an
+interrupted or partial install even when `config.json` exists; the fresh path
+is idempotent and repairs missing mandatory artifacts without replacing valid
+incumbent workspace files or config.
 
 ## Step 2: Dispatch
 

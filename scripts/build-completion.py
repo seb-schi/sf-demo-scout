@@ -507,6 +507,35 @@ def _worker_rows(
                     errors.append(f"worker deployed.agent {item_id}.recovery is malformed")
                 elif recovery["status"] == "failed":
                     add_outcome(item_id, "BLOCKED", "agent recovery preservation failed")
+                # Legacy/new-agent reports may omit this additive detail. The
+                # orchestrator determines from approved intent whether it is required.
+                if "preedit_snapshot" in row:
+                    preedit = row["preedit_snapshot"]
+                    if not isinstance(preedit, dict) or not _is_one_of(
+                        preedit.get("status") if isinstance(preedit, dict) else None,
+                        {"not_needed", "verified", "failed"},
+                    ):
+                        errors.append(f"worker deployed.agent {item_id}.preedit_snapshot is malformed")
+                    elif preedit["status"] == "failed":
+                        add_outcome(item_id, "BLOCKED", "agent pre-edit preservation failed")
+                    elif preedit["status"] == "not_needed" and not (
+                        preedit.get("artifact") is None
+                        and preedit.get("source") is None
+                        and preedit.get("error") is None
+                        and preedit.get("paths") == []
+                    ):
+                        errors.append(f"worker deployed.agent {item_id}.preedit_snapshot is malformed")
+                    elif preedit["status"] == "verified" and not (
+                        _nonempty(preedit.get("artifact"))
+                        and Path(preedit["artifact"]).is_absolute()
+                        and _nonempty(preedit.get("source"))
+                        and Path(preedit["source"]).is_absolute()
+                        and isinstance(preedit.get("paths"), list)
+                        and preedit["paths"]
+                        and all(_nonempty(path) for path in preedit["paths"])
+                        and preedit.get("error") is None
+                    ):
+                        errors.append(f"worker deployed.agent {item_id}.preedit_snapshot is malformed")
                 if _is_one_of(status, {"Inactive", "NeedsUICommit"}):
                     add_outcome(item_id, "BLOCKED", f"agent status is {status}")
         actions = deployed.get("backing_actions")

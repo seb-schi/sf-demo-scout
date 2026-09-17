@@ -811,6 +811,40 @@ class CompletionReconciliationTests(unittest.TestCase):
         self.assertFalse(malformed["valid"])
         self.assertNotEqual("FULLY_VERIFIED", malformed["outcome"])
 
+    def test_failed_preedit_snapshot_cannot_be_cleared_by_current_runtime_pass(self):
+        item, ledger, worker, evidence = self.agent_phase_context()
+        worker["deployed"]["agent"]["preedit_snapshot"] = {
+            "status": "failed", "artifact": None, "source": None,
+            "paths": ["aiAuthoringBundles/Demo_Agent"], "error": "copy failed",
+        }
+        result = self.module.reconcile(ledger, worker, evidence, self.spec_bytes)
+        row = self.result_for(result, item["id"])
+        self.assertEqual("PASS", row["runtime_assessment"]["assessment"])
+        self.assertEqual("BLOCKED", row["disposition"])
+        self.assertEqual("UNRESOLVED", result["outcome"])
+
+    def test_malformed_preedit_snapshot_is_not_verified(self):
+        item, ledger, worker, evidence = self.agent_phase_context()
+        for value in (None, {}, {"status": "verified"},
+                      {"status": "not_needed", "artifact": "/tmp/stale", "source": None,
+                       "paths": ["../stale"], "error": "old failure"}):
+            with self.subTest(value=value):
+                worker["deployed"]["agent"]["preedit_snapshot"] = value
+                result = self.module.reconcile(ledger, worker, evidence, self.spec_bytes)
+                self.assertFalse(result["valid"])
+                self.assertNotEqual("VERIFIED", self.result_for(result, item["id"])["disposition"])
+
+    def test_missing_preedit_parent_unavailable_observation_keeps_runtime_truth(self):
+        """Models the parent gate; it does not prove a model performs the check."""
+        item, ledger, worker, evidence = self.agent_phase_context()
+        evidence["observations"][0]["result"] = "unavailable"
+        evidence["observations"][0]["details"] = "Required pre-edit receipt absent from worker result."
+        result = self.module.reconcile(ledger, worker, evidence, self.spec_bytes)
+        row = self.result_for(result, item["id"])
+        self.assertEqual("PASS", row["runtime_assessment"]["assessment"])
+        self.assertEqual("INCOMPLETE", row["disposition"])
+        self.assertEqual("UNRESOLVED", result["outcome"])
+
     def test_independent_runtime_pass_overrides_only_same_item_worker_smoke_summary(self):
         item, ledger, worker, evidence = self.agent_phase_context()
 

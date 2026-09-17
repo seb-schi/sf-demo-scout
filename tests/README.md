@@ -86,9 +86,23 @@ do not claim runtime model compliance.
 The baseline contained 128 unittest methods. Batch 6 added 23 focused methods,
 Batch 7 added 14 vendoring methods, Batch 8a added 12 setup ownership/status
 methods, and Batch 8b adds 9 bootstrap methods, for 186 total while preserving
-all 177 pre-Batch-8b methods. The 119
+all 177 pre-Batch-8b methods. Batch 9 adds 30 methods (20 workspace, 2 CLI
+probe, 5 preservation, and 3 completion methods), for 216 total while retaining
+all 186 baseline methods. The 119
 historical assertions above remain executed inside the maintained methods and
 subcases, including all 24 CLI outcome meanings.
+
+Batch 9 runs the workspace helper against explicit temporary paths and a local
+`sf` stub. It covers failed/malformed scaffold results, missing artifacts,
+partial reruns, incumbent-file preservation, live/dangling symlink blockers,
+staged-link rejection, genuine copy failure and
+atomic config-write failure. CLI fixtures cover failed, ambiguous and malformed
+pre-update probes and mismatched npm transitions without allowing installation.
+Recovery fixtures exercise complete selected pre-edit bundles, failed copies,
+immutable retries and cleanup verification. Completion checks reject supplied
+failed or malformed snapshot evidence. Static caller checks verify prompt wiring;
+the parent still determines whether an edit requires a snapshot and independently
+verifies its receipt. These fixtures do not prove model compliance or live recovery.
 
 ## Release-only validation
 

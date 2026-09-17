@@ -64,6 +64,12 @@ preservation is blocked, say so, include the original scratch path and cleanup-
 withheld warning, and direct the SE to resolve preservation before proceeding.
 Never describe an unverified or scratch-only file as a preserved blueprint.
 
+For an **Existing Agent Before-State** section, carry the original active version,
+verified pre-edit artifact and exact source/member paths into the handover's
+rollback notes. On preservation failure, carry the BLOCKED status and retained
+scratch location; do not promise file-level rollback. Runtime validation never
+substitutes for the missing before-state.
+
 **Want to Change Something? Two Ways.**
 This demo isn't locked. Pick the door that fits:
 

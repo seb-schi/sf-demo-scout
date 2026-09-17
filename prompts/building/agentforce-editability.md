@@ -35,3 +35,11 @@ Retrieve **succeeds** (a `.agent`/AiAuthoringBundle lands on disk) → **editabl
 Record the editability verdict in `discovery_notes` verbatim (e.g. `"Agentforce_Service_Agent: AiAuthoringBundle retrieve failed (AABNotFound) — UI-built, structural wiring routed to SE Manual."`).
 
 Then return to `scout-building.md` Phase 3 for the SE gate.
+
+For a modify-existing route, record the exact retrieved bundle member paths that
+will be edited (relative to `force-app/main/default`, including actual version/Id
+suffixes). Carry this selection into Phase 3's mandatory pre-edit preservation and
+the orchestrator's independent receipt check. Preserve only relevant complete
+members; an unused absent family is not an error. A required source missing from
+disk blocks the edit. Re-authoring under a new side-by-side name does not modify
+the incumbent and follows the new-agent recovery contract instead.

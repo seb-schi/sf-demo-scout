@@ -43,12 +43,35 @@ if [ "$1" = "sf" ]; then
   # only policy-aware signal. Skipping the reinstall when already on the newest
   # INSTALLABLE version is what protects the keychain-backed org-auth token from
   # a needless node rebuild (the empty-org-list footgun).
-  SF_INSTALLED=$("$CLI_EXE" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-  SF_RESOLVED=$("$NPM_EXE" install @salesforce/cli --global --dry-run 2>/dev/null \
-    | grep -E '(^| )@salesforce/cli[[:space:]]' \
-    | grep -oE '[0-9]+\.[0-9]+\.[0-9]+ *=> *[0-9]+\.[0-9]+\.[0-9]+' \
-    | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-  SF_REGISTRY=$("$NPM_EXE" view @salesforce/cli version 2>/dev/null)
+  SF_VER_OUT=$("$CLI_EXE" --version 2>/dev/null); SF_VER_RC=$?
+  SF_VER_MATCHES=$(printf '%s\n' "$SF_VER_OUT" \
+    | sed -nE 's|^@salesforce/cli/([0-9]+\.[0-9]+\.[0-9]+)([[:space:]].*)?$|\1|p')
+  SF_VER_COUNT=$(printf '%s\n' "$SF_VER_MATCHES" | awk 'NF { count++ } END { print count + 0 }')
+  SF_INSTALLED=""
+  if [ "$SF_VER_RC" -eq 0 ] && [ "$SF_VER_COUNT" -eq 1 ]; then
+    SF_INSTALLED=$(printf '%s\n' "$SF_VER_MATCHES" | awk 'NF { print; exit }')
+  fi
+
+  SF_DRY_OUT=""; SF_DRY_RC=125
+  if [ -n "$SF_INSTALLED" ]; then
+    SF_DRY_OUT=$("$NPM_EXE" install @salesforce/cli --global --dry-run 2>/dev/null); SF_DRY_RC=$?
+  fi
+  SF_RESOLVE_MATCHES=$(printf '%s\n' "$SF_DRY_OUT" \
+    | sed -nE 's#^(add|change)[[:space:]]+@salesforce/cli[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*=>[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$#\2 \3#p')
+  SF_RESOLVE_COUNT=$(printf '%s\n' "$SF_RESOLVE_MATCHES" | awk 'NF { count++ } END { print count + 0 }')
+  SF_RESOLVED_FROM=""; SF_RESOLVED=""
+  if [ "$SF_DRY_RC" -eq 0 ] && [ "$SF_RESOLVE_COUNT" -eq 1 ]; then
+    SF_RESOLVED_FROM=$(printf '%s\n' "$SF_RESOLVE_MATCHES" | awk 'NF { print $1; exit }')
+    SF_RESOLVED=$(printf '%s\n' "$SF_RESOLVE_MATCHES" | awk 'NF { print $2; exit }')
+  fi
+  if [ "$SF_RESOLVED_FROM" != "$SF_INSTALLED" ]; then
+    SF_RESOLVED=""
+  fi
+
+  SF_REGISTRY=""
+  if [ -n "$SF_INSTALLED" ] && [ -n "$SF_RESOLVED" ]; then
+    SF_REGISTRY=$("$NPM_EXE" view @salesforce/cli version 2>/dev/null)
+  fi
   if [ -z "$SF_INSTALLED" ] || [ -z "$SF_RESOLVED" ]; then
     echo "SF_CLI_CHECK_FAILED (offline or npm probe failed) — kept installed: ${SF_INSTALLED:-unknown}"
   elif [ "$SF_INSTALLED" = "$SF_RESOLVED" ]; then
@@ -95,12 +118,35 @@ if [ "$1" = "sf" ]; then
 else
   echo "CHECKING_CLAUDE_CLI"
   # Policy-aware gate — see step a's comment for why dry-run resolve, not `npm view`.
-  CC_INSTALLED=$("$CLI_EXE" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-  CC_RESOLVED=$("$NPM_EXE" install @anthropic-ai/claude-code --global --dry-run 2>/dev/null \
-    | grep -E '(^| )@anthropic-ai/claude-code[[:space:]]' \
-    | grep -oE '[0-9]+\.[0-9]+\.[0-9]+ *=> *[0-9]+\.[0-9]+\.[0-9]+' \
-    | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-  CC_REGISTRY=$("$NPM_EXE" view @anthropic-ai/claude-code version 2>/dev/null)
+  CC_VER_OUT=$("$CLI_EXE" --version 2>/dev/null); CC_VER_RC=$?
+  CC_VER_MATCHES=$(printf '%s\n' "$CC_VER_OUT" \
+    | sed -nE 's/^([0-9]+\.[0-9]+\.[0-9]+)( \(Claude Code\))?$/\1/p')
+  CC_VER_COUNT=$(printf '%s\n' "$CC_VER_MATCHES" | awk 'NF { count++ } END { print count + 0 }')
+  CC_INSTALLED=""
+  if [ "$CC_VER_RC" -eq 0 ] && [ "$CC_VER_COUNT" -eq 1 ]; then
+    CC_INSTALLED=$(printf '%s\n' "$CC_VER_MATCHES" | awk 'NF { print; exit }')
+  fi
+
+  CC_DRY_OUT=""; CC_DRY_RC=125
+  if [ -n "$CC_INSTALLED" ]; then
+    CC_DRY_OUT=$("$NPM_EXE" install @anthropic-ai/claude-code --global --dry-run 2>/dev/null); CC_DRY_RC=$?
+  fi
+  CC_RESOLVE_MATCHES=$(printf '%s\n' "$CC_DRY_OUT" \
+    | sed -nE 's#^(add|change)[[:space:]]+@anthropic-ai/claude-code[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*=>[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$#\2 \3#p')
+  CC_RESOLVE_COUNT=$(printf '%s\n' "$CC_RESOLVE_MATCHES" | awk 'NF { count++ } END { print count + 0 }')
+  CC_RESOLVED_FROM=""; CC_RESOLVED=""
+  if [ "$CC_DRY_RC" -eq 0 ] && [ "$CC_RESOLVE_COUNT" -eq 1 ]; then
+    CC_RESOLVED_FROM=$(printf '%s\n' "$CC_RESOLVE_MATCHES" | awk 'NF { print $1; exit }')
+    CC_RESOLVED=$(printf '%s\n' "$CC_RESOLVE_MATCHES" | awk 'NF { print $2; exit }')
+  fi
+  if [ "$CC_RESOLVED_FROM" != "$CC_INSTALLED" ]; then
+    CC_RESOLVED=""
+  fi
+
+  CC_REGISTRY=""
+  if [ -n "$CC_INSTALLED" ] && [ -n "$CC_RESOLVED" ]; then
+    CC_REGISTRY=$("$NPM_EXE" view @anthropic-ai/claude-code version 2>/dev/null)
+  fi
   if [ -z "$CC_INSTALLED" ] || [ -z "$CC_RESOLVED" ]; then
     echo "CLAUDE_CLI_CHECK_FAILED (offline or npm probe failed) — kept installed: ${CC_INSTALLED:-unknown}"
   elif [ "$CC_INSTALLED" = "$CC_RESOLVED" ]; then

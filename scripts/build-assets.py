@@ -14,7 +14,7 @@ from typing import Dict, Iterable, List, Mapping, Sequence, Set, Tuple
 
 
 RECEIPT_VERSION = 1
-VALID_KINDS = {"imports", "agent-recovery"}
+VALID_KINDS = {"imports", "agent-recovery", "agent-preedit"}
 BUNDLE_TYPES = {"lwc", "aura", "aiAuthoringBundles", "genAiPlannerBundles"}
 COMPANION_TYPES = {"classes": ".cls", "triggers": ".trigger"}
 
@@ -280,6 +280,8 @@ def _copy_manifest(
 
 
 def _validate_preserve_selections(kind: str, values: Sequence[str]) -> List[PurePosixPath]:
+    if kind not in VALID_KINDS:
+        raise AssetError("unsupported snapshot kind")
     if len(values) == 0:
         raise AssetError("at least one --path is required")
     selections = [_safe_relative(value, "selection") for value in values]
@@ -291,6 +293,13 @@ def _validate_preserve_selections(kind: str, values: Sequence[str]) -> List[Pure
         ):
             raise AssetError(
                 "agent recovery requires aiAuthoringBundles/<agent-name> directories"
+            )
+        if kind == "agent-preedit" and (
+            len(selection.parts) != 2
+            or selection.parts[0] not in {"aiAuthoringBundles", "genAiPlannerBundles"}
+        ):
+            raise AssetError(
+                "agent pre-edit snapshots require exact authoring/planner bundle directories"
             )
     return selections
 

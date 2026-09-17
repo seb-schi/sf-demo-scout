@@ -121,19 +121,22 @@ independently verify before cleanup.
    - Plus: `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]`
 
 ### Modify Existing Agent (version-safe path)
-For agents already in the org. Every publish creates a new version; rollback via `sf agent activate --version-number N`.
+For agents already in the org. Every publish creates a new version; rollback via `sf agent activate --version N`. Use `--version` with an explicit API name and target org in this Scout path, even if a loaded reference uses the legacy `--version-number` spelling. The [current CLI contract](https://developer.salesforce.com/docs/platform/salesforce-cli-reference/guide/cli_reference_agent_activate.html) requires explicit version selection for a deterministic rollback.
 
 **Editability is already decided by the orchestrator.** The orchestrator ran an editability pre-flight and routed you here only if EITHER (a) the agent has editable AiAuthoringBundle source, OR (b) the change is an IN-PLACE tweak to existing planner nodes (text/value edits, no new topic/action). **You must NOT add or move a topic or action by hand-patching a compiled `GenAiPlannerBundle`.** If you find yourself about to add a new topic/action graph reference to planner XML, STOP and record the phase **BLOCKED** in `issues` with reason "structural planner hand-patch attempted on UI-built agent — orchestrator should have routed to SE Manual; escalate." Adding graph references without the matching `localActions/<topic>/<action>/{input,output}/schema.json` folders ships a dead topic that deploys SUCCESS but never fires — this is the exact failure that shipped twice.
 
-1. **Pre-edit snapshot (ordered step 1 — MANDATORY).** Before touching anything, copy the retrieved bundle to the sweep-exempt rollback dir so a durable pristine pre-edit artifact survives the post-deploy `force-app/` sweep:
+1. **Pre-edit snapshot (ordered step 1 — MANDATORY).** Before invoking the modify workflow or editing any source, preserve the exact retrieved bundle directories selected by the orchestrator's pre-flight. Use the actual retrieved names, including version/Id suffixes; never select the whole type folder or guess a missing bundle. For editable source preserve its `aiAuthoringBundles/<member>`; for an in-place planner edit preserve its `genAiPlannerBundles/<member>`. If both families will be edited, include both exact members in the same command with repeated `--path` arguments. An unused absent family needs no invented placeholder, but a missing required source BLOCKS the edit.
    ```bash
-   mkdir -p "{{ROLLBACK_DIR}}"
-   cp -R "$HOME/claude-projects/sf-demo-scout/force-app/main/default/genAiPlannerBundles" "{{ROLLBACK_DIR}}/genAiPlannerBundles.preedit" 2>/dev/null || true
-   cp -R "$HOME/claude-projects/sf-demo-scout/force-app/main/default/aiAuthoringBundles" "{{ROLLBACK_DIR}}/aiAuthoringBundles.preedit" 2>/dev/null || true
+   python3 "{{ASSET_HELPER}}" preserve \
+     --source-root "$HOME/claude-projects/sf-demo-scout/force-app/main/default" \
+     --rollback-dir "{{ROLLBACK_DIR}}" --kind agent-preedit \
+     --path "[exact retrieved bundle-type/member selected for this edit]"
    ```
-   Do NOT emit a `git checkout` / `git restore` rollback command — the SE workspace is NOT a git repo and the command would silently no-op. Rollback for this path is the version-number reactivation below plus, if needed, redeploying the `.preedit` copy.
-2. Invoke `agentforce-generate` skill — follow its "Modify an Existing Agent" workflow.
-3. Note the current active version number before changes (rollback target).
+   Require exit 0, then run `python3 "{{ASSET_HELPER}}" verify --artifact "[returned artifact]"` and require exit 0. The helper creates a unique immutable snapshot with a verified path/hash manifest. Record `deployed.agent.preedit_snapshot` with `status: verified` and the actual returned `artifact`, `source`, and `paths`; `error: null`. Keep the first verified pre-edit snapshot for this build: a deployment retry must reuse and reverify it, never replace it with already-edited source. On missing source, copy or verification failure, STOP before mutation; record `status: failed`, the exact selectors/error and **BLOCKED — pre-edit preservation; DO NOT CLEAN SCRATCH**. Never suppress a failed copy or report a snapshot based on directory existence.
+
+   Do NOT emit `git checkout` / `git restore` — the SE workspace is not a git repo. The primary org rollback remains the recorded active-version reactivation below. Any file-level restore must first verify the recorded artifact, copy its exact member to a disposable restore project without changing the snapshot, and redeploy that member only. Record the actual source/member path, never a `*.preedit` wildcard.
+2. Record the current active version number before invoking any modify workflow (rollback target). If it cannot be established, stop and report the missing rollback target before mutation.
+3. Invoke `agentforce-generate` skill — follow its "Modify an Existing Agent" workflow using the already verified snapshot and recorded rollback target.
 4. Comprehend existing agent structure, update Agent Spec.
 5. **Pre-deploy source-specific validation (MUST).** For Agent Script / AiAuthoringBundle source, run the Agent Script authoring validation; absence of a compiled `localActions` tree is not a failure. Only when the source is an already realized compiled `GenAiPlannerBundle` and the in-place change touches existing topic actions, run the STRUCTURAL JOIN below between planner XML and `localActions/`. **Do NOT try to match on topic/action display names** — compiled folders carry Salesforce-assigned metadata-Id suffixes. A hand-patched dead compiled topic has no matching `localActions` folder. The compiled-only gate:
    ```
@@ -150,8 +153,8 @@ For agents already in the org. Every publish creates a new version; rollback via
 7. Publish with `sf agent publish authoring-bundle --api-name [AgentName] --target-org [alias] --skip-retrieve` (creates a new version), then activate. **`--skip-retrieve` is mandatory** — it avoids the retrieve-back CLI crash that orphans a version (a committed `GenAiPlannerDefinition` with no AiAuthoringBundle member; see New-Agent step 6 for the detection probe and why Tooling-API cleanup does not work). Run the before/after orphan probe from step 6 here too.
 8. Rollback:
    - `sf agent deactivate --json --api-name [AgentName] --target-org [alias]`
-   - `sf agent activate --json --api-name [AgentName] --version-number [N] --target-org [alias]`
-   - If the new version must be discarded entirely, redeploy the pre-edit snapshot from `{{ROLLBACK_DIR}}/*.preedit`.
+   - `sf agent activate --json --api-name [AgentName] --version [N] --target-org [alias]`
+   - If a source restore is needed, verify `preedit_snapshot.artifact`, then restore/redeploy the exact recorded `preedit_snapshot.source` + member path. Redeployment is not proof that the new published version was deleted; report version disposition separately.
 
 ### Smoke Test + Validation Gate (after activate — both paths)
 
@@ -274,7 +277,8 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
   "deployed": {
     "agent": {
       "ledger_item_id": "string", "api_name": "string", "version": 0, "status": "Active|Inactive|NeedsUICommit",
-      "recovery": {"status": "not_needed|verified|failed", "artifact": "string|null", "bundle_path": "string|null", "original_path": "string|null", "error": "string|null"}
+      "recovery": {"status": "not_needed|verified|failed", "artifact": "string|null", "bundle_path": "string|null", "original_path": "string|null", "error": "string|null"},
+      "preedit_snapshot": {"status": "not_needed|verified|failed", "artifact": "string|null", "source": "string|null", "paths": ["string — exact relative bundle member"], "error": "string|null"}
     },
     "backing_actions": [{"ledger_item_id": "string", "type": "ApexClass|Flow|StandardAction", "api_name": "string", "status": "SUCCESS|FAILED"}],
     "agent_user": {"ledger_item_id": "string", "username": "string", "created_by_cli": true},
@@ -306,6 +310,7 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
 ```
 
 **Schema notes:**
+- `deployed.agent.preedit_snapshot` — required. For net-new/re-author-side-by-side agents use `not_needed`, null path/error fields and empty `paths`. For any modified incumbent, `verified` requires the before-edit helper receipt and exact selected members; a failed/missing snapshot blocks mutation and cleanup. This is separate from new-agent `recovery` and never certifies runtime behavior.
 - `smoke_test` is worker summary only. Its boolean never proves the deployed version
   worked and never overrides the orchestrator's independent current-test runtime
   assessment. Keep separate `ledger_item_id` values for the hero action, every

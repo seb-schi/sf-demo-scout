@@ -138,69 +138,42 @@ fi
 - `MCP_CACHED` — means only that this pre-cache command succeeded; it is not a
   provider compatibility or runtime capability claim.
 
-## d: Workspace Directory + SFDX Scaffold
+## d–f: Verified Workspace, SFDX Scaffold, Lessons, Settings, and Config
+
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract its
+`version` field as a string for `[PLUGIN_VERSION]`. Resolve
+`${CLAUDE_PLUGIN_ROOT}` to its absolute active plugin directory for
+`[PLUGIN_ROOT]`; neither placeholder is a shell expression.
+
+Run the shipped helper once with explicit paths:
 
 ```bash
-mkdir -p "$HOME/claude-projects/sf-demo-scout/orgs"
-cd "$HOME/claude-projects/sf-demo-scout"
-if [ ! -f sfdx-project.json ]; then
-  sf project generate --name sf-demo-scout --template empty >/dev/null 2>&1 || true
-  if [ -f sf-demo-scout/sfdx-project.json ]; then
-    mv sf-demo-scout/sfdx-project.json ./
-    mv sf-demo-scout/force-app ./ 2>/dev/null || true
-    rm -rf sf-demo-scout
-  fi
-  echo "SFDX_INITIALISED"
-else
-  echo "SFDX_PRESENT"
+WORKSPACE="$HOME/claude-projects/sf-demo-scout"
+CONFIG="$HOME/.config/sf-demo-scout/config.json"
+WORKSPACE_HELPER="[PLUGIN_ROOT]/scripts/setup-workspace.py"
+SETTINGS_TEMPLATE="[PLUGIN_ROOT]/assets/workspace-settings.template.json"
+PYTHON_EXE=$(type -P python3 2>/dev/null || true)
+if [ -z "$PYTHON_EXE" ] || [ ! -f "$WORKSPACE_HELPER" ]; then
+  echo "WORKSPACE_SETUP_FAILED (verified Python or shipped helper missing)"
+  exit 1
 fi
+"$PYTHON_EXE" -B "$WORKSPACE_HELPER" setup \
+  --workspace "$WORKSPACE" \
+  --config "$CONFIG" \
+  --template "$SETTINGS_TEMPLATE" \
+  --plugin-version "[PLUGIN_VERSION]"
 ```
 
-## e: Starter Lessons Files
+The helper stages `sf project generate --json` in a unique temporary
+directory and accepts it only when the process exits zero, the JSON reports
+integer status `0`, and the generated SFDX artifacts validate. It preserves
+incumbent `force-app`, lessons, settings, and valid config files. New JSON and
+text files use same-directory atomic replacement; config is created only after
+the SFDX project, `force-app`, lessons, and workspace settings all validate.
 
-```bash
-cd "$HOME/claude-projects/sf-demo-scout"
-mkdir -p orgs/lessons
-if [ ! -f orgs/lessons/INDEX.md ]; then
-  cat > orgs/lessons/INDEX.md <<'EOF'
-# Lessons Index
-
-Topic-clustered lessons from scout-sparring + scout-building sessions.
-This INDEX is loaded at the start of every session; topic files are
-loaded on demand based on the descriptive lines below.
-
-Each lesson is whole — it may carry both a sparring rule and a building
-backstop. Lessons are not split by phase. Add new lessons to the topic
-file that best fits; create a new topic + INDEX line if none fit.
-
-## Topics
-
-- **agentforce.md** — Agentforce agent build + iteration: action-invocation-as-proof, GenAiPlannerBundle safety, enhanced-event-log diagnostics, pre-Agent-Script (Atlas/UI-built) agent handling, headless/Agent API recipes, agent action schema.
-- **managed-packages.md** — Managed-package write/read restrictions and schema quirks (lsc4ce / LSC, Health Cloud, FSC, industry clouds): namespaced retrieve names, trigger/validation DML gates, stage-gated field locks, territory/sharing blast radius.
-- **flow.md** — Flow + FlowTest: generated-flow defect patterns, FlowTest XML schema, CLI flow-run breakage, record-triggered vs screen flow gotchas.
-- **data-seeding.md** — Data seeding: CLI `sf data` envelope/Bash quirks, pilot-self-test limits, pricebook/SKU gating, paired-record cleanup, idempotency.
-- **metadata-deploy.md** — Org-SPECIFIC metadata deploy/parse gotchas (distinct from the org-agnostic Known Deploy-Error Patterns catalog): roll-up-summary relationship traps, permset description limits, field/picklist verification, RT-specific values.
-- **discovery-and-scoping.md** — Sparring heuristics: customer-evidence gate, reuse-orgs-aggressively, booth-vs-WorldTour scoping, existing-first object/field probing, marketed-vs-shorthand product names, data-quality-before-reuse.
-- **lwc-slds.md** — LWC + SLDS: internal-token hard-fails, SLDS2 utility/global-hook fixes, Code Analyzer deprecation warnings.
-EOF
-fi
-```
-
-## f: Workspace `.claude/settings.json`
-
-Resolve `${CLAUDE_PLUGIN_ROOT}` to its absolute filesystem path (the directory `plugin.json` lives in, minus `/.claude-plugin`) and substitute as `[PLUGIN_ROOT]` below — `${CLAUDE_PLUGIN_ROOT}` does NOT expand inside Bash shell context, only inside Read-tool path arguments, so the bash invocation must receive the literal absolute path.
-
-```bash
-SETTINGS="$HOME/claude-projects/sf-demo-scout/.claude/settings.json"
-TEMPLATE="[PLUGIN_ROOT]/assets/workspace-settings.template.json"
-mkdir -p "$(dirname "$SETTINGS")"
-if [ ! -f "$SETTINGS" ]; then
-  cp "$TEMPLATE" "$SETTINGS"
-  echo "SETTINGS_WRITTEN"
-else
-  echo "SETTINGS_PRESENT"
-fi
-```
+On any nonzero helper exit, surface its outcome token and ABORT. Do not run
+user-scope merges, optional MCP setup, shell changes, or Done. `WORKSPACE_READY`
+is the only success token.
 
 ## g: User-scope permissions merge
 
@@ -351,28 +324,11 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it. Optiona
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute it. Preserve existing registrations and report observed status; the historical default is offered only for an explicit new connection. Required Docs tools are checked when needed. Return and continue setup.
 
-## i: Write config.json
+## i: Config Postcondition
 
-Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Extract the `version` field as a string for `[PLUGIN_VERSION]`.
-
-Pre-compute the dynamic values via Bash so they land as literals (not unevaluated `$()` strings) regardless of how the heredoc gets executed:
-
-```bash
-NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-WORKSPACE="$HOME/claude-projects/sf-demo-scout"
-mkdir -p "$HOME/.config/sf-demo-scout"
-cat > "$HOME/.config/sf-demo-scout/config.json" <<EOF
-{
-  "workspace_path": "$WORKSPACE",
-  "install_method": "plugin",
-  "plugin_version": "[PLUGIN_VERSION]",
-  "setup_completed_at": "$NOW"
-}
-EOF
-echo "CONFIG_WRITTEN"
-```
-
-The heredoc is unquoted on purpose — `$WORKSPACE` and `$NOW` must expand. Only `[PLUGIN_VERSION]` is a literal-text substitution you do before running this block.
+Config creation and validation completed in step d–f after every mandatory
+workspace artifact validated. Do not rewrite it here. If step d–f did not emit
+`WORKSPACE_READY`, this procedure already aborted and must not reach this step.
 
 ## j: .zshrc Scout-managed block
 

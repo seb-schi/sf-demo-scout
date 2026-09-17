@@ -144,6 +144,12 @@ converted-retrieve scratch. Resolve `ASSET_HELPER` to the absolute plugin path
    an older snapshot as sufficient; on differences preserve the current bundle
    anew. These recovery checks do not select anything for deployment or scan the
    rollback archive for imports.
+5. **Unresolved existing-agent pre-edit preservation also blocks startup cleanup.**
+   For a prior modify-existing result, verify its recorded `agent-preedit` artifact
+   and exact member paths before discarding retained source. A missing/failed
+   `preedit_snapshot` stays unresolved: preserve scratch and report it. A fresh
+   retrieve or a snapshot of already-edited source cannot reconstruct the original
+   before-state and must never be relabeled as the missing pre-edit backup.
 
 With no selected imports, the new phase input is empty and an older spec follows
 the existing build path. Existing unresolved preservation failures still block
@@ -508,6 +514,25 @@ run the Phase Prep Procedure for Phase 3. After it returns:
    affected item is not complete and remains BLOCKED. Never rewrite the ledger or
    hero-action identity to fit returned work.
 4. **If `deployed.agent.status` is `NeedsUICommit`**, the SFAP publish route 404'd on this org instance (a per-instance platform provisioning gap — not a Scout, CLI, or bundle-validity fault). Report the agent to the SE as **"authored + validated, NOT live — requires UI Commit"**, NOT as Active/working. Carry into the change log's Issues Encountered section and the handover brief's SE checklist, and point the SE to the go-live runbook at `${CLAUDE_PLUGIN_ROOT}/prompts/building/agent-ui-commit-runbook.md` (Builder UI go-live) plus the escalation note (Salesforce Support case citing the org instance ID; the verbatim endpoint/404/instance evidence is in the sub-agent's `discovery_notes`). Verify `deployed.agent.recovery`: require `status: verified`, run `python3 "$ASSET_HELPER" verify --artifact "[reported artifact]"`, require kind `agent-recovery` beneath this customer's rollback directory, and check the reported `bundle_path` is the complete `source/aiAuthoringBundles/[AgentName]` directory within it. Include BOTH actual absolute paths in the change log and SE handover. Missing/failed recovery fields or a failed check means preservation BLOCKED: retain original scratch, record the error, and withhold final cleanup. Do not call a scratch path a preserved blueprint.
+5. **For every modify-existing agent selected by the spec/pre-flight**, independently
+   verify `deployed.agent.preedit_snapshot` even if the worker omitted it or returned
+   malformed JSON. Require `status: verified`, run `python3 "$ASSET_HELPER" verify
+   --artifact "[reported artifact]"`, and require exit 0, kind `agent-preedit`, an
+   artifact beneath this customer's rollback directory, the exact returned `source`
+   path, and receipt `paths` matching the actual member selection recorded before
+   the edit. Preserve the first before-edit receipt and the original active version
+   in the change log and handover; a later post-edit snapshot cannot replace it.
+   Missing/mismatched/failed evidence means **BLOCKED — pre-edit preservation**,
+   retain scratch and withhold cleanup even when runtime checks passed. Do not
+   regenerate an apparent before-state after mutation. Net-new and side-by-side
+   re-author agents use `not_needed` and retain their existing recovery checks.
+   For missing or unverifiable required preservation, set the affected agent
+   metadata observation's `result` to `unavailable`, naming the failed receipt check
+   in `details`/saved evidence, and rerun the reconciler. Keep actual state and
+   current runtime facts separately; do not invent an org mismatch or a runtime
+   failure. This prevents an omitted snapshot field from becoming FULLY_VERIFIED:
+   the helper checks supplied pre-edit details, while the orchestrator determines
+   from the approved modification whether those details are required at all.
 
 ---
 
@@ -534,6 +559,7 @@ The change log must include:
 - Any phases that FAILED validation (raw output preserved)
 - Selected import identities, their preserved paths, supplied spec items, and actual outcomes
 - For every `NeedsUICommit` agent: verified absolute recovery artifact and full bundle path, or the preservation failure + original scratch path and cleanup-withheld status. Never describe an unverified path as a preserved blueprint.
+- For every modified incumbent agent: the original active version and independently verified `preedit_snapshot` artifact/source/member paths, or the exact preservation failure and cleanup-withheld status. File restore instructions must name those exact members; no wildcard or workspace git rollback.
 - **Docs Consulted** section — aggregate `docs_consulted` arrays from every sub-agent's JSON output, plus any orchestrator-level error-recovery consultations. If nothing was consulted, write "None — no unfamiliar errors encountered."
 
 If the SE already requested a local build-outcome summary, read
@@ -543,7 +569,10 @@ do not add a default question, step, artifact, probe, network call, telemetry,
 or service.
 
 **Workspace cleanup (after the change log is written).** Re-run Step 5's applicable
-artifact checks, plus `verify` for every recovery artifact. A `NeedsUICommit`
+artifact checks, plus `verify` for every recovery artifact. Every modified incumbent
+must also have its independently verified `preedit_snapshot` of kind `agent-preedit`,
+with the before-edit member selection and actual artifact/source paths already in
+the change log; missing or failed pre-edit preservation BLOCKS this sweep. A `NeedsUICommit`
 agent must have `recovery.status = verified`, an existing full bundle directory
 beneath the verified artifact's `source/`, and both actual absolute paths already
 written in the change log. A missing/malformed Phase 3 result, failed/unverified
