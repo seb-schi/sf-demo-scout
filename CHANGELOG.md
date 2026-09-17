@@ -4,6 +4,9 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-17
 
+- **Flow validation follows the version Scout actually built.** Activation requires a supported test, completed results for the intended Flow version, and a matching activation read-back. A pass for an older active version cannot validate a new draft; unsupported or unproven validation stays visible as QA work.
+- **Fresh audits finish before Scout uses their results.** New, iteration, and Showtime sessions share one audit-ready check while independent discovery continues in parallel. Failed or partial audits stay explicit; skipped audits cannot quietly reuse stale findings.
+- **Plans and handovers distinguish evidence from assumptions.** Failed agent retrievals no longer imply missing source, Flow complexity alone no longer makes authorable work manual-only, and Showtime cites only sources actually checked. Build notifications and handovers retain unresolved work instead of announcing blanket success.
 - **Settings cleanup preserves unrelated configuration and working hooks.** Model-pin cleanup edits only the intended VS Code property, while AI Suite cleanup removes only hooks with a provably missing script. Ambiguous input stays untouched; supported changes require an exact backup and validated replacement.
 - **Setup verifies the workspace before calling it ready.** Missing project files, settings, or configuration now stop setup with a clear error. Rerunning repairs supported partial installs while preserving existing demo source and user settings.
 - **Failed update checks cannot trigger an installation.** CLI refresh requires successful, unambiguous version and npm probes before updating Salesforce CLI or Claude Code; failed checks leave the installation alone.

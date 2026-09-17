@@ -80,7 +80,7 @@ Wait for the SE's reply. **If the SE says "switch" (or asks to change/connect an
 
 The SE selected one of three paths in Stage 1. Confirm and branch.
 
-**If the SE selected "Showtime":** read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/showtime.md` and execute its procedure end-to-end. It handles audit confirmation, transcript intake, scenario proposal, and spec generation. Do not proceed to Stage 3+ in this command — Showtime returns to the main command only after spec is on disk, then exits cleanly.
+**If the SE selected "Showtime":** read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/showtime.md` and execute its procedure end-to-end. It handles audit confirmation, transcript intake, scenario proposal, and spec generation. Do not proceed to Stage 3+ in this command. If Showtime returns after writing the spec, report its saved path and exit cleanly. If Showtime returns because its fresh audit was explicitly skipped or remained `not-ready`, report that no current audit-grounded PoC spec was written and exit cleanly without claiming a saved spec.
 
 **If the SE selected "A new demo scenario":** intent = new. Continue to Audit Routing below.
 
@@ -94,15 +94,25 @@ The SE selected one of three paths in Stage 1. Confirm and branch.
 
 Check `[ORG_FOLDER]` for existing audits and change logs.
 
-**Reuse branch (audit exists, <=7 days old, SE confirms no manual changes):** read the audit markdown file directly. Extract the star-flagged items from it.
+#### Audit route states
+
+| Branch | `AUDIT_MODE` | Fresh work | Current audit usable |
+|---|---|---|---|
+| Reuse | `reused` | none | yes — selected file |
+| Fresh | `background-fresh` | Phase A, then barrier | after ready outcome |
+| SE skip | `skipped` | none | no |
+
+Set exactly one state; do not infer reuse from “not background-fresh.”
+
+**Reuse branch (audit exists, <=7 days old, SE confirms no manual changes):** set `AUDIT_MODE = reused`, read that selected audit markdown file directly, and extract the star-flagged items from it.
 
 **Fresh audit branch (stale >7 days or absent):** Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit-orchestration.md` and execute **Phase A only** — sync setup through launching the prelude sub-agent in the background. Phase A returns control here so the SE answers discovery while the audit runs in the background; the audit delegates bulk metadata retrieval to 3 parallel Sonnet sub-agents (launched in Phase B on the prelude's background completion), runs spot-checks, and consolidates in Phase C. Opus never reads raw metadata payloads. **Do NOT surface the star summary now — the fresh audit is still running.** Mark this session as `AUDIT_MODE = background-fresh` and proceed directly to the route table / Stage 3; the star summary and the anchor-app question surface at the Stage 3 join (see "Discovery ‖ background audit join" below), after the SE answers the audit-independent questions and you invoke audit-orchestration Phase C.
 
 **Reuse-org intent always takes the fresh audit branch** — the SE is reusing an org from a prior customer, so the audit must rediscover what's there regardless of age.
 
-Respect SE judgment if they explicitly ask to skip a fresh audit.
+Respect SE judgment if they explicitly ask to skip a fresh audit. Set `AUDIT_MODE = skipped`. Do not read or present an older audit as current, and carry the missing-current-audit limitation into research and proposal decisions.
 
-**Reuse branch only** (`AUDIT_MODE` ≠ `background-fresh` — the audit was read from a ≤7-day-old file, so stars are available immediately): surface the star-flagged items now, then proceed to the route table.
+**Reuse branch only** (`AUDIT_MODE = reused` — the selected ≤7-day-old audit was read, so stars are available immediately): surface the star-flagged items now, then proceed to the route table.
 > "Primary build surface for this org:
 > ★ Default app: [app name]
 > ★ Active layouts: [object -> layout name, per record type]
@@ -184,25 +194,32 @@ On failure (file missing, key absent, empty output), fall back to reading the fr
 
 Both lookups' findings feed scenario proposal as **context only** — attributed, never asserted. Canvas content may shape demo storylines directly (its intended use); SE knowledge and Salesforce docs remain authoritative.
 
-### Discovery ‖ background audit join (`AUDIT_MODE = background-fresh` only)
+### Discovery ‖ AUDIT-READY barrier (`AUDIT_MODE = background-fresh` only)
 
 The SE has now answered the audit-independent discovery questions (Q1–Q4, Q6) while the audit ran in the background. Before Stage 4 (which needs the audit's `demo_surface_notes` for its capability pre-flight), pull the audit to completion:
 
-1. **Invoke audit-orchestration Phase C** (read the fragment again only if needed; you are mid-procedure). Ensure all 3 parallel sub-agents have completed — await any whose background completion has not yet arrived. If the background audit is somehow still mid-prelude (SE answered very fast), await the prelude completion, let Phase B fire, then await the parallel agents. Run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup to produce the consolidated summary + the written audit file.
-2. **Emit the star summary + the deferred Q5 as a single message:**
+1. Resolve `prompts/sparring/audit-orchestration.md#phase-c-audit-ready-barrier` and invoke **Phase C — AUDIT-READY barrier**. It owns pending-prelude/Phase B completion, worker joins, bounded structural retries, consolidation/write, and star validation.
+2. Handle its outcome before any audit consumer:
+   - `ready-complete` → continue.
+   - `ready-partial` → continue with every returned degradation/failure named in the message below; do not describe it as a full audit.
+   - `not-ready` → stop for the barrier's retry-or-explicit-skip decision. A skip sets `AUDIT_MODE = skipped`; do not emit stale stars or Q5 as audit-grounded, and proceed only through the explicit no-current-audit degraded path.
+3. **For a ready outcome, emit the star summary + the deferred Q5 as a single message:**
    > "Audit complete — primary build surface for this org:
    > ★ Default app: [app name]
    > ★ Active layouts: [object -> layout name, per record type]
    > ★ Relevant custom objects: [if any]
+   > [If `ready-partial`: **Audit limits:** [every named degradation/failed section].]
    >
    > **Q5 — which existing app and objects should anchor the demo?** Confirm these, or redirect.
    >
    > 💡 Heavy audit just loaded — if context feels tight, run `/compact` before we continue. Conversation history is preserved."
-3. If the standard-objects sub-agent's `demo_surface_notes` flagged non-universal standard objects with data (an industry-cloud signal), and the SE's Q2 answer did not already name that cloud, add one line to the message above: "*The audit found [objects] — this looks like [cloud]. Confirm?*"
+4. If the standard-objects sub-agent's `demo_surface_notes` flagged non-universal standard objects with data (an industry-cloud signal), and the SE's Q2 answer did not already name that cloud, add one line to the message above: "*The audit found [objects] — this looks like [cloud]. Confirm?*"
 
 **Wait for the SE's Q5 answer.** Then proceed to Stage 4 (Platform & Data Model Research).
 
 For **reuse mode** (stars surfaced in Stage 2, all of Q1–Q6 asked together): no join step — proceed to Stage 4 once discovery is answered.
+
+For **skipped mode**: no join and no current audit are available. Do not use stale audit stars or `demo_surface_notes`; ask any necessary app/object grounding question as an explicit SE choice and label audit-dependent research as unavailable.
 
 ---
 

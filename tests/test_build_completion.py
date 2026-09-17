@@ -731,6 +731,394 @@ class CompletionReconciliationTests(unittest.TestCase):
         }
         return item, ledger, worker, evidence
 
+    def flow_phase_context(self, mode="flow_test_required"):
+        item = {
+            **self.item,
+            "id": "p2.flow.demo",
+            "kind": "artifact",
+            "phase": 2,
+            "acceptance": {
+                "description": "Demo_Flow is deployed at the requested state",
+                "expected_state": {"status": "Active"},
+                "flow_validation": {
+                    "flow_api_name": "Demo_Flow",
+                    "flow_test_api_name": (
+                        "Demo_Flow_Test" if mode == "flow_test_required" else None
+                    ),
+                    "mode": mode,
+                    **(
+                        {}
+                        if mode == "flow_test_required"
+                        else {"unsupported_reason": "screen flows require visual QA"}
+                    ),
+                },
+            },
+        }
+        identity = {**self.identity, "phase": 2}
+        ledger = {**identity, "items": [item], "authorized_skips": []}
+        worker_row = {
+            "ledger_item_id": item["id"],
+            "type": "Flow",
+            "api_name": "Demo_Flow",
+            "status": "SUCCESS",
+            "flow_status": "Active",
+            "validation_status": "VERIFIED",
+            "flow_version_id": "301000000000013AAA",
+            "flow_version_number": 13,
+            "flow_test_api_name": "Demo_Flow_Test",
+            "flow_test_run_id": "707000000000007AAA",
+            "flow_test_queue_item_id": "709000000000008AAA",
+            "flow_test_outcome": "PASS",
+            "tested_flow_version_number": 13,
+            "active_flow_id": "301000000000013AAA",
+            "active_flow_version_number": 13,
+        }
+        worker = {
+            **identity,
+            "completion": [
+                {
+                    "item_id": item["id"],
+                    "status": "applied",
+                    "summary": "Exact deployed Flow version passed and was activated.",
+                }
+            ],
+            "deployed": [worker_row],
+            "skipped": [],
+            "rollback_commands": [],
+            "discovery_notes": [],
+            "docs_consulted": [],
+            "issues": [],
+        }
+        if mode == "flow_test_required":
+            flow_validation = {
+                "mode": mode,
+                "deployment": {
+                    "flow_api_name": "Demo_Flow",
+                    "flow_id": "301000000000013AAA",
+                    "version": 13,
+                    "status": "Draft",
+                    "receipt_source": "saved deployment receipt 11",
+                    "file_source": "saved deployed file identity 12",
+                },
+                "test": {
+                    "flow_api_name": "Demo_Flow",
+                    "test_api_name": "Demo_Flow_Test",
+                    "run_id": "707000000000007AAA",
+                    "queue_item_id": "709000000000008AAA",
+                    "status": "terminal",
+                    "outcome": "Pass",
+                    "tested_version": 13,
+                    "launch_source": "saved run launch 13",
+                    "terminal_source": "saved terminal result 14",
+                    "version_source": "saved FlowTestResult query 15",
+                },
+                "activation": {
+                    "attempted": True,
+                    "status": "Active",
+                    "active_flow_id": "301000000000013AAA",
+                    "active_version": 13,
+                    "source": "saved active FlowDefinition read-back 16",
+                },
+            }
+        else:
+            worker_row.update(
+                flow_status="Draft",
+                validation_status="AWAITING_QA",
+                flow_test_api_name=None,
+                flow_test_run_id=None,
+                flow_test_queue_item_id=None,
+                flow_test_outcome="NOT_SUPPORTED",
+                tested_flow_version_number=None,
+                active_flow_id="301000000000012AAA",
+                active_flow_version_number=12,
+            )
+            worker["completion"][0].update(
+                status="awaiting_qa",
+                summary="Flow deployed Draft; screen flow requires visual QA.",
+            )
+            flow_validation = {
+                "mode": mode,
+                "deployment": {
+                    "flow_api_name": "Demo_Flow",
+                    "flow_id": "301000000000013AAA",
+                    "version": 13,
+                    "status": "Draft",
+                    "receipt_source": "saved deployment receipt 11",
+                    "file_source": "saved deployed file identity 12",
+                },
+                "test": {
+                    "status": "unsupported",
+                    "reason": "screen flows require visual QA",
+                },
+                "activation": {
+                    "attempted": False,
+                    "status": "not_attempted",
+                    "active_flow_id": "301000000000012AAA",
+                    "active_version": 12,
+                    "source": "saved incumbent active-version read-back 16",
+                },
+            }
+        evidence = {
+            **identity,
+            "ledger_sha256": self.module.ledger_sha256(ledger),
+            "orchestrator_provenance": "saved phase-2 Flow evidence index",
+            "observations": [
+                {
+                    "item_id": item["id"],
+                    "verification": "targeted_state",
+                    "result": "match",
+                    "attribution": "applied",
+                    "change_source": "saved deployment receipt 11",
+                    "source": "saved exact Flow read-back 17",
+                    "details": "Requested Flow state was read back.",
+                    "actual_state": {"status": "Active"},
+                    "flow_validation": flow_validation,
+                }
+            ],
+        }
+        return item, ledger, worker, evidence
+
+    def test_flow_wrong_active_version_pass_cannot_verify_new_draft(self):
+        item, ledger, worker, evidence = self.flow_phase_context()
+        evidence["observations"][0]["flow_validation"]["test"]["tested_version"] = 12
+
+        result = self.module.reconcile(ledger, worker, evidence, self.spec_bytes)
+
+        self.assertNotEqual("VERIFIED", self.result_for(result, item["id"])["disposition"])
+        self.assertNotEqual("FULLY_VERIFIED", result["outcome"])
+
+    def test_flow_exact_terminal_version_and_activation_identity_verify(self):
+        item, ledger, worker, evidence = self.flow_phase_context()
+
+        result = self.module.reconcile(ledger, worker, evidence, self.spec_bytes)
+
+        self.assertTrue(result["valid"])
+        self.assertEqual("VERIFIED", self.result_for(result, item["id"])["disposition"])
+
+    def test_flow_missing_or_renamed_worker_row_cannot_bypass_validation(self):
+        item, ledger, worker, evidence = self.flow_phase_context()
+        for deployed in (
+            [],
+            [{**worker["deployed"][0], "api_name": "Other_Flow"}],
+        ):
+            with self.subTest(deployed=deployed):
+                candidate = copy.deepcopy(worker)
+                candidate["deployed"] = deployed
+                result = self.module.reconcile(ledger, candidate, evidence, self.spec_bytes)
+                self.assertFalse(result["valid"])
+                self.assertEqual(
+                    "INCOMPLETE", self.result_for(result, item["id"])["disposition"]
+                )
+
+    def test_flow_missing_independent_evidence_is_incomplete(self):
+        item, ledger, worker, evidence = self.flow_phase_context()
+        evidence["observations"][0].pop("flow_validation")
+
+        result = self.module.reconcile(ledger, worker, evidence, self.spec_bytes)
+
+        self.assertTrue(result["valid"])
+        self.assertEqual("INCOMPLETE", self.result_for(result, item["id"])["disposition"])
+
+    def test_flow_ledger_shape_rejects_malformed_identity_and_mode(self):
+        item, ledger, worker, evidence = self.flow_phase_context()
+        cases = (
+            {"flow_api_name": "bad flow"},
+            {"flow_test_api_name": None},
+            {"mode": "worker_decides"},
+        )
+        for update in cases:
+            with self.subTest(update=update):
+                candidate = copy.deepcopy(ledger)
+                candidate["items"][0]["acceptance"]["flow_validation"].update(update)
+                result = self.module.reconcile(candidate, worker, evidence, self.spec_bytes)
+                self.assertFalse(result["valid"])
+                self.assertEqual("INVALID_INPUT", result["outcome"])
+
+        candidate = copy.deepcopy(ledger)
+        candidate["items"][0]["acceptance"]["flow_validation"] = None
+        result = self.module.reconcile(candidate, worker, evidence, self.spec_bytes)
+        self.assertFalse(result["valid"])
+        self.assertEqual("INVALID_INPUT", result["outcome"])
+
+    def test_flow_authorized_omission_does_not_require_a_deployed_row(self):
+        item, ledger, worker, evidence = self.flow_phase_context()
+        reason = "SE excluded this Flow before dispatch."
+        ledger["authorized_skips"] = [
+            {
+                "item_id": item["id"],
+                "authorization_type": "explicit_se_non_execution",
+                "decision_source_type": "se_decision",
+                "decision_source": "saved SE decision 4",
+                "reason": reason,
+            }
+        ]
+        worker["completion"] = []
+        worker["deployed"] = []
+        worker["skipped"] = [
+            {
+                "ledger_item_id": item["id"],
+                "type": "Flow",
+                "api_name": "Demo_Flow",
+                "reason": reason,
+            }
+        ]
+        evidence["ledger_sha256"] = self.module.ledger_sha256(ledger)
+        evidence["observations"] = []
+
+        result = self.module.reconcile(ledger, worker, evidence, self.spec_bytes)
+
+        self.assertTrue(result["valid"])
+        self.assertEqual("SKIPPED", self.result_for(result, item["id"])["disposition"])
+
+    def test_flow_malformed_nested_values_fail_closed_without_exception(self):
+        item, ledger, worker, evidence = self.flow_phase_context()
+        cases = (
+            ("deployment", "status", []),
+            ("test", "status", {}),
+            ("activation", "status", []),
+        )
+        for section, field, value in cases:
+            with self.subTest(section=section, field=field):
+                candidate = copy.deepcopy(evidence)
+                candidate["observations"][0]["flow_validation"][section][field] = value
+                result = self.module.reconcile(ledger, worker, candidate, self.spec_bytes)
+                self.assertFalse(result["valid"])
+                self.assertEqual(
+                    "INCOMPLETE", self.result_for(result, item["id"])["disposition"]
+                )
+
+    def test_flow_pending_failed_and_wrong_identity_results_do_not_verify(self):
+        item, ledger, worker, evidence = self.flow_phase_context()
+        cases = (
+            ("pending", None, 13),
+            ("unavailable", None, None),
+            ("terminal", "Fail", 13),
+            ("terminal", "Pass", 12),
+        )
+        for status, outcome, version in cases:
+            with self.subTest(status=status, outcome=outcome, version=version):
+                candidate_worker = copy.deepcopy(worker)
+                candidate_evidence = copy.deepcopy(evidence)
+                test = candidate_evidence["observations"][0]["flow_validation"]["test"]
+                test.update(status=status, outcome=outcome, tested_version=version)
+                if status != "terminal":
+                    test.update(
+                        tested_version=None,
+                        terminal_source=None,
+                        version_source=None,
+                    )
+                    if status == "unavailable":
+                        test.update(run_id=None, queue_item_id=None)
+                    elif status == "pending":
+                        test.update(queue_item_id=None)
+                    candidate_worker["deployed"][0].update(
+                        flow_status="Draft",
+                        validation_status="AWAITING_QA",
+                        flow_test_outcome=status.upper(),
+                        flow_test_run_id=test.get("run_id"),
+                        flow_test_queue_item_id=test.get("queue_item_id"),
+                        tested_flow_version_number=None,
+                        active_flow_id="301000000000012AAA",
+                        active_flow_version_number=12,
+                    )
+                    candidate_worker["completion"][0].update(
+                        status="awaiting_qa", summary="Flow test is pending."
+                    )
+                elif outcome != "Pass" or version != 13:
+                    candidate_worker["deployed"][0].update(
+                        flow_status="Draft",
+                        validation_status="AWAITING_QA",
+                        flow_test_outcome=outcome.upper(),
+                        tested_flow_version_number=version,
+                        active_flow_id="301000000000012AAA",
+                        active_flow_version_number=12,
+                    )
+                    candidate_worker["completion"][0].update(
+                        status="awaiting_qa", summary="Exact draft validation did not pass."
+                    )
+                activation = candidate_evidence["observations"][0]["flow_validation"][
+                    "activation"
+                ]
+                activation.update(
+                    attempted=False,
+                    status="not_attempted",
+                    active_flow_id="301000000000012AAA",
+                    active_version=12,
+                    source="saved incumbent active-version read-back 16",
+                )
+                result = self.module.reconcile(
+                    ledger, candidate_worker, candidate_evidence, self.spec_bytes
+                )
+                self.assertEqual(
+                    "AWAITING_QA", self.result_for(result, item["id"])["disposition"]
+                )
+
+    def test_flow_unsupported_mode_is_awaiting_qa_not_verified(self):
+        item, ledger, worker, evidence = self.flow_phase_context("unsupported")
+
+        result = self.module.reconcile(ledger, worker, evidence, self.spec_bytes)
+
+        self.assertTrue(result["valid"])
+        self.assertEqual("AWAITING_QA", self.result_for(result, item["id"])["disposition"])
+
+    def test_flow_worker_claims_must_match_independent_version_evidence(self):
+        item, ledger, worker, evidence = self.flow_phase_context()
+        worker["deployed"][0]["active_flow_id"] = "301000000000099AAA"
+
+        result = self.module.reconcile(ledger, worker, evidence, self.spec_bytes)
+
+        self.assertFalse(result["valid"])
+        self.assertEqual("INCOMPLETE", self.result_for(result, item["id"])["disposition"])
+
+    def test_flow_unknown_state_after_activation_attempt_is_incomplete(self):
+        item, ledger, worker, evidence = self.flow_phase_context()
+        worker["deployed"][0].update(
+            flow_status="Unknown",
+            validation_status="AWAITING_QA",
+            active_flow_id=None,
+            active_flow_version_number=None,
+        )
+        worker["completion"][0].update(
+            status="awaiting_qa", summary="Activation read-back was unavailable."
+        )
+        evidence["observations"][0]["flow_validation"]["activation"].update(
+            status="unknown", active_flow_id=None, active_version=None, source="read-back error 16"
+        )
+
+        result = self.module.reconcile(ledger, worker, evidence, self.spec_bytes)
+
+        self.assertEqual("INCOMPLETE", self.result_for(result, item["id"])["disposition"])
+
+    def test_flow_already_satisfied_uses_baseline_identity_without_new_deploy(self):
+        item, ledger, worker, evidence = self.flow_phase_context()
+        worker["completion"][0].update(
+            status="already_satisfied", summary="Exact active Flow already satisfied the spec."
+        )
+        worker["deployed"][0].update(flow_status="Active")
+        observation = evidence["observations"][0]
+        observation.update(
+            attribution="already_satisfied",
+            change_source=None,
+            baseline_source="saved pre-dispatch active Flow identity 9",
+        )
+        deployment = observation["flow_validation"]["deployment"]
+        deployment.update(
+            status="Active",
+            receipt_source=None,
+            file_source=None,
+            baseline_source="saved pre-dispatch active Flow identity 9",
+            current_source="saved current exact Flow identity 17",
+        )
+        observation["flow_validation"]["activation"].update(attempted=False)
+
+        result = self.module.reconcile(ledger, worker, evidence, self.spec_bytes)
+
+        self.assertTrue(result["valid"])
+        self.assertEqual("VERIFIED", self.result_for(result, item["id"])["disposition"])
+        self.assertEqual(
+            "already_satisfied", self.result_for(result, item["id"])["execution"]
+        )
+
     def test_phase2_draft_or_unvalidated_detail_is_awaiting_qa(self):
         item, identity, ledger, completion, evidence = self.phase_context(2)
         worker = {
@@ -1424,6 +1812,29 @@ class StaticPromptWiringTests(unittest.TestCase):
         )
         self.assertIn("Observed zero or short results are FAILED", text)
         self.assertIn("unavailable probe is INCOMPLETE", text)
+
+    def test_phase2_flow_test_selector_and_version_gate_are_exact(self):
+        text = (ROOT / "prompts" / "building" / "phase2.md").read_text(encoding="utf-8")
+        self.assertIn("--tests [FlowApiName].[FlowTestApiName]", text)
+        self.assertNotIn("--class-names [FlowApiName]_Test", text)
+        self.assertIn("<flowTestFlowVersions>", text)
+        self.assertIn("<flowVersionNumber>", text)
+        self.assertIn("<testType>WithAssertion</testType>", text)
+        self.assertIn("FlowTestResult", text)
+        self.assertIn("active_flow_id", text)
+
+    def test_flow_evidence_contract_names_unknown_activation_and_supported_limits(self):
+        validation = (ROOT / "prompts" / "building" / "sub-agent-validation.md").read_text(
+            encoding="utf-8"
+        )
+        completion = (ROOT / "prompts" / "building" / "completion-contract.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("acceptance.flow_validation", validation)
+        self.assertIn("activation attempt", validation)
+        self.assertIn("unknown", validation)
+        self.assertIn("flow_test_required", completion)
+        self.assertIn("unsupported", completion)
 
     def test_later_phases_use_reconciled_prerequisite_dispositions(self):
         text = (ROOT / "commands" / "scout-building.md").read_text(encoding="utf-8")

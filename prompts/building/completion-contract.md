@@ -56,6 +56,26 @@ more conservative status and name the contradiction in `summary`/`issues`. Never
 redeploy or reseed merely to repair a missing or malformed report; return a
 corrected envelope describing what happened.
 
+For every phase-2 Flow item, the frozen ledger also contains
+`acceptance.flow_validation`. Its `flow_api_name` and optional
+`flow_test_api_name` are authoritative identities. Its mode is immutable:
+
+- `flow_test_required` requires a terminal current test for that exact Flow/test,
+  independent `FlowTestResult` proof of the tested positive version, and active
+  read-back of the same Flow ID and version before VERIFIED. Pending, failed,
+  unavailable, missing, old-version, or ambiguous evidence remains AWAITING_QA or
+  INCOMPLETE. A worker's VERIFIED claim is never evidence.
+- `unsupported` has a null test name and a concrete frozen reason. Report the
+  deployed Flow Draft and AWAITING_QA with `flow_test_outcome=NOT_SUPPORTED`.
+  Do not switch a required item to unsupported because an org query or association
+  is unavailable.
+
+An already-satisfied Flow does not require a new version. It needs pre-dispatch and
+current exact active identity plus a current targeted test/version result for that
+same identity. After an activation attempt, failed or unavailable active read-back
+is unresolved and the state is failed/unknown; do not report Draft unless a current
+read-back proves Draft.
+
 The required common top-level fields are:
 
 ```json

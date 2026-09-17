@@ -291,6 +291,33 @@ keys in `actual_state`. Seed acceptance uses explicit CREATE/UPDATE shapes from 
 spec template, plus settled calibration metadata when applicable. Never infer
 operations, counts, targets, values, or wider stable keys.
 
+For every Phase 2 Flow obligation (including Screen Flows and subflows), freeze
+`acceptance.flow_validation` from the approved Flow identity and current documented
+test support before dispatch. This tag is mandatory even if a worker later omits
+its deployed row. Use:
+
+```json
+"flow_validation": {
+  "flow_api_name": "exact Flow API name",
+  "flow_test_api_name": "exact generated test API name, normally FlowApiName_Test",
+  "mode": "flow_test_required"
+}
+```
+
+For a type with no supported automated FlowTest route, instead use
+`mode: "unsupported"`, `flow_test_api_name: null`, and a nonempty
+`unsupported_reason` with the specific type/limitation and consulted source.
+This does not exclude metadata authoring: deploy supported source as Draft and
+report AWAITING_QA. Current support is limited to eligible record-triggered,
+autolaunched and Data Cloud-triggered flows; use Phase 2's Flow rules for the
+exclusions. Do not treat a subflow as eligible merely because it is called by
+another flow. Validate both API identifiers before freezing them; the generated
+test name must fit the supported identifier limits, and the worker uses that
+exact frozen name rather than independently appending a suffix. Keep the frozen identity/mode through retries; a missing API feature
+or unreadable result at runtime becomes unavailable validation, not an invented
+pass or a rewritten ledger. Parent validation follows the Flow section in
+`prompts/building/sub-agent-validation.md` and the existing reconciler.
+
 For Phase 3, read the installed
 `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` now and record
 its SHA-256 as `gate_sha256`. Create a distinct ledger item for every required
@@ -412,7 +439,7 @@ handover instead.
 **SE gate before spawning.** List what will be deployed and ask:
 > "About to deploy: [plain English list]. Proceed? (yes/no)"
 
-**Runtime heads-up (add when Phase 2 includes ANY Apex OR ANY flow — omit only for LWC-only Phase 2 builds).** Every Apex class and every flow type iterates against a build-time signal — Scout writes and self-fixes an Apex test (up to 3 loop iterations), or deploys the flow as Draft and runs a happy-path FlowTest before activating — so the run can take several minutes per such artifact. Append one line to the gate so the SE opts in knowingly: *"Heads-up: this build iterates against tests (Apex test-fix loop / Draft-first FlowTest), so this phase may take a few minutes per Apex class and flow. Anything the loop can't confirm ships honestly (Apex flagged test-unvalidated, flow left Draft) and lands in your handover brief's 'Built — Validate in Sonnet' list."* Omit the line only when Phase 2 is LWC-only — there's no build-time loop to warn about.
+**Runtime heads-up (add when Phase 2 includes ANY Apex OR ANY flow — omit only for LWC-only Phase 2 builds).** Scout writes and self-fixes Apex tests (up to 3 loop iterations). Flows deploy as Draft; activation requires supported testing attributable to the intended version, not a passing test of an older active version. Append: *"Heads-up: test and verification time varies by artifact. Apex uses a bounded test-fix loop. Flow test support depends on type and version; a flow we cannot validate stays Draft/AWAITING_QA with the next QA step in the handover. Deployment failures are reported separately."*
 
 If no, this is an explicit SE non-execution decision: add an
 `explicit_se_non_execution` authorized-skip row for each affected Phase 2 ledger
@@ -459,7 +486,7 @@ conversation context that the worker will not receive.
 **Editability pre-flight (MUST — run before the SE gate, before any sub-agent spawn).** Read the spec's Agentforce section and classify the change: **net-new agent** (no existing agent named) vs **modify-existing** (spec targets an agent already in the org), and — for modify-existing — whether it **adds or moves a topic/action** (structural) vs **tweaks existing node text/values only** (in-place).
 
 - **Net-new agent** → Agent Script path (sub-agent builds the `.agent` bundle from scratch). No pre-flight needed — proceed to the SE gate below.
-- **Modify-existing** → read `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-editability.md` and execute it now (orchestrator context, not a sub-agent), passing the structural-vs-in-place classification. It determines editability (SOQL risk-flag → retrieve-boolean), makes the routing decision, runs the re-author gate if needed, and sets `{{REAUTHOR_FROM_PLANNER}}`. Return here for the SE gate once it completes.
+- **Modify-existing** → read `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-editability.md` and execute it now (orchestrator context, not a sub-agent), passing the structural-vs-in-place classification. It distinguishes confirmed source, positively confirmed absence, and unavailable evidence; makes the routing decision; runs the re-author gate only when justified; and sets `{{REAUTHOR_FROM_PLANNER}}`. Unavailable evidence blocks the affected agent without implying it is UI-built. Return here for eligible work's SE gate once the pre-flight completes.
 
 Why gated: the pre-flight only applies when editing an existing agent, and it guards a decaying legacy path (UI-built, pre-Agent-Script agents). Net-new and Agentforce-free builds never load it.
 
@@ -614,10 +641,20 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/building/handover-brief.md` for the format, 
    ```
 5. On any canvas-create error, surface one line: *"Canvas write failed: [reason]. Brief is still above."* Do not retry.
 
-Then fire the notification:
+Then select one fixed notification from the final reconciled item array. Do not
+derive success from a worker's summary or interpolate names/errors into AppleScript.
+If the result is missing/malformed, or any item is FAILED, BLOCKED, INCOMPLETE or
+AWAITING_QA, use:
 
 ```bash
-osascript -e 'display notification "Deployment complete — check the handover brief." with title "SF Demo Scout — Done"'
+osascript -e 'display notification "Build review ready — outstanding work is in the handover brief." with title "SF Demo Scout — Follow-up needed"'
+```
+
+Only if a nonempty, valid final reconciliation contains exclusively VERIFIED
+items and explicitly authorized SKIPPED items, use:
+
+```bash
+osascript -e 'display notification "Build reconciled — review verified work and any approved omissions in the handover brief." with title "SF Demo Scout — Results ready"'
 ```
 
 ## Step 7: Closing Note — The Demo Is Yours to Tinker With

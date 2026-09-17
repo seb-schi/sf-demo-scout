@@ -6,13 +6,16 @@ Loaded on demand by `scout-sparring.md` when the SE selects the Showtime path at
 
 The SE is in a live customer conversation. Showtime is fired up when the customer sits down — the audit runs in parallel with the SE's opening discovery (~5–10min, the discovery should take at least as long). The SE has a transcript ready to paste shortly after the audit completes. Time budget from transcript paste to spec: ≤5 minutes of Scout work; the customer-facing Slack canvas write that follows takes another ~1–2 minutes during which the SE narrates the Headless 360 / Docs MCP angle to the customer.
 
+These are planning targets, not measured guarantees for this org or client. Audit,
+provider and validation delays remain visible; do not promise completion on a timer.
+
 The format is a continuous engaged experience: audit runs while SE does opening discovery → transcript paste → one-pass proposal → SE/customer feedback → spec finalised → customer-facing Slack canvas written → /scout-building deploys the PoC slice while SE walks the customer through the broader canvas → working slice reviewed together when build completes.
 
 ## Premise
 
 - The transcript replaces the 6-question discovery round.
 - The spec captures the customer's **full** ask as a holistic build plan in the Scenario section. The PoC slice that /scout-building actually deploys is bounded by `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/showtime-scope-envelopes.md`. Out-of-envelope items are logged in the spec's Showtime PoC → Deferred list, not deployed.
-- The customer takeaway: "Salesforce + Agentforce can do all of this — and here's a working slice to prove it." Scout does not narrow the customer's ambition; it only narrows what gets deployed today.
+- The customer takeaway is a proposed Salesforce solution and a bounded slice to attempt next. Distinguish confirmed capabilities from assumptions, provisioning, UI work and follow-up research. Call the slice working only after building returns the corresponding verified results.
 - The value spine survives, but is auto-drafted silently and emitted inline with the proposal. No SE-acknowledgement round, no gaps-as-questions.
 - One iteration round only. After SE confirms or sharpens, Scout writes the spec — no further loops.
 
@@ -30,7 +33,7 @@ Proceed to S2.
 
 Emit this right after S1 returns from Phase A — the audit is running in the background; do not wait for it. Emit:
 
-> "Audit running in the background — live status → [.audit-progress.log]([ORG_FOLDER]/.audit-progress.log). Do your opening discovery with the customer; it'll finish while you talk.
+> "Audit running in the background — live status → [.audit-progress.log]([ORG_FOLDER]/.audit-progress.log). Do your opening discovery with the customer; Scout will join and validate the audit before using it.
 >
 > When you're done with discovery, paste the customer transcript here. Multiple chunks fine — say `go` when done.
 >
@@ -38,7 +41,16 @@ Emit this right after S1 returns from Phase A — the audit is running in the ba
 
 Wait. Concatenate chunks until SE says `go` (or equivalent: "done", "that's it", "ready"). Do not start extraction until the SE signals end.
 
-**On `go` — the audit join.** Before extraction, invoke audit-orchestration **Phase C**: ensure all 3 parallel sub-agents have completed (await any still in flight; if the SE said `go` very fast and the audit is still mid-prelude, await the prelude, let Phase B fire, then await the parallel agents), then run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup to produce the consolidated summary + audit file. Extract star-flagged items (default app, active layouts, relevant custom objects). If the audit completed long before `go`, Phase C collection is instant. Then proceed to S3.
+**On `go` — the audit join.** Invoke **Phase C — AUDIT-READY barrier** in
+`${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit-orchestration.md#phase-c-audit-ready-barrier`.
+It finishes pending prelude/Phase B work, joins and validates workers, and writes
+the consolidated audit before returning. On `ready-complete` or `ready-partial`,
+extract only validated current star items; surface all partial/degraded sections
+and constrain the proposal to the evidence available, then proceed to S3. On
+`not-ready`, stop for the barrier's retry-or-explicit-skip decision. An explicit
+skip sets `AUDIT_MODE = skipped` and ends Showtime before extraction/proposal:
+explain that no current audit-grounded PoC can be selected, return to the main
+command, and do not write or claim a saved PoC spec. Never use stale stars.
 
 ## Step S3 — Auto-Extract (silent)
 
@@ -86,7 +98,7 @@ Emit a single message:
 > Proves: KP[n] (and optionally KP[n] if a stack)
 > Build: [one-line — exactly what /scout-building deploys today]
 > Audit fit: [which star-flagged items it builds onto]
-> Est. deploy time: [4–18min depending on envelope]
+> Planning estimate: [envelope estimate; unverified for this org, excludes unresolved prerequisites and QA]
 > [If stacking E1+E2 or E1+E5: name the scope reduction applied to keep combined scope down — e.g. "1–2 fields instead of 5; 1 flow with 2 actions instead of 1 flow + QuickAction"]
 >
 > **Deferred to follow-up sparring** (logged in spec, not deployed today):
@@ -165,7 +177,7 @@ Call `mcp__slack__slack_create_canvas`:
 - `title`: `Showtime Build Plan — [Customer] — [YYYY-MM-DD]`
 - `content`: Canvas-flavored Markdown structured as below. The canvas is the customer's takeaway document — write it for the customer to read, not for the SE to refine.
 
-Canvas content template (clean + confident, light emojis on section headers, capability summary table up top, compact Powered-by lines, ✅ checklist for the PoC):
+Canvas content template (light emojis on section headers, capability summary table up top, compact Powered-by lines, unchecked planned items for the PoC):
 
 ```markdown
 # 🎯 [Customer] — Showtime Build Plan
@@ -193,8 +205,8 @@ Canvas content template (clean + confident, light emojis on section headers, cap
 
 **How Salesforce delivers it:** [Salesforce + Agentforce + Headless 360 + Data Cloud + Flows + Apex + LWC components, named where each is the right answer — single paragraph, not bullets]
 
-**Docs:** [link 1] · [link 2] · [link 3]
-*(use full Help URLs from Stage 4 Platform Research; separate with middle-dot, keep on one line per capability)*
+**Sources checked:** [actual source URLs consulted for this capability, if any]
+*(Showtime skips Stage 4 Platform Research. Cite only sources actually consulted in this run, including any S3.5 cross-check, and only for claims they support. If none, write "Documentation not checked in this Showtime pass — confirm capability and provisioning in follow-up." Do not invent links or a three-source minimum.)*
 
 ### [emoji] [Capability area 2]
 
@@ -206,23 +218,26 @@ Canvas content template (clean + confident, light emojis on section headers, cap
 
 ## ⚡ What we're proving today (Showtime PoC)
 
-Scout will deploy this slice to your demo org in the next 5–15 minutes:
+This is the approved slice for Scout to attempt in your demo org. Deployment and
+validation results will be reported by `/scout-building`; timing is an estimate:
 
-- ✅ [item from PoC envelope, in customer language — bold the noun the room remembers]
-- ✅ [...]
+- [ ] [planned item from PoC envelope, in customer language — bold the noun the room remembers]
+- [ ] [...]
 
 > **Why this slice:** [one or two sentences on why this is the right proof — usually because it lands the spine's residual message in a contained build. Punchy.]
 
 ## 🚀 What's next
 
-Everything above that's not in today's slice is captured for follow-up — Scout can deploy any of it in a follow-up session against this same org:
+Everything above outside today's slice is captured for follow-up assessment.
+For each item, distinguish supported metadata work from required provisioning,
+docs-confirmed UI steps and capabilities still needing research:
 
 - **[Item name in customer language]** — [one-line follow-up framing: separate Iteration / separate engagement / specialist handoff, with the human-readable reason]
 - **[...]** — [...]
 
 ---
 
-*Generated by Headless 360 — Salesforce's CLI-and-MCP-native AI surface — reasoning over the live Salesforce documentation library and your demo org's current configuration. Today's deploy proves the round-trip: **discover → plan → deploy**, in one session.*
+*Prepared from this conversation and the current audit, with any evidence gaps and consulted sources noted above. This is a build plan; deployment and runtime verification are pending.*
 ```
 
 Authoring guidance for Opus when filling this template:
@@ -246,7 +261,7 @@ Emit (substitute `[CANVAS_URL]` with the URL captured in S7.5; if canvas write w
 >
 > **Now: open a fresh Claude Code window** and run `/scout-building` to deploy the PoC slice. Hand over the spec at `[ORG_FOLDER]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`.
 >
-> While /scout-building deploys (~5–15min depending on envelope), walk the customer through the full Slack canvas — they're seeing the architecture for everything they asked for, not just what's about to land in the org. When the build completes, review the working slice together. The continuous experience is the format."
+> While /scout-building attempts the approved slice, walk the customer through the proposal and its assumptions. Review the verified results and remaining QA in the handover before presenting any part as working."
 
 **Canvas-unavailable variant** (if S7.5 skipped or errored):
 

@@ -114,6 +114,19 @@ backup-collision refusal, copy/stage/replace failures, and distinct reporting
 after a completed replacement fails verification. The suite does not modify
 real user settings or exercise live client loading; launchctl behavior is unchanged.
 
+Batch 11 adds 14 Flow/completion and 5 audit-route methods for 259 total, preserving
+all 240 baseline methods. It exercises Flow validation through the existing read-only completion
+reconciler. Fixtures distinguish the deployed draft from an older active version,
+require the exact selected test and terminal run/queue result, check activation
+identity, and retain unsupported, failed or unavailable evidence as unresolved
+work. The fixture payloads are normalized assertions with saved-source references;
+the helper does not contact Salesforce or authenticate those assertions. Static
+audit checks resolve the shared Markdown barrier and check consumer order across
+new, iteration and Showtime routes, including mutations that remove or move the
+barrier. They do not simulate worker scheduling or prove model compliance.
+Live FlowTest/version-association, activation, retrieval and background-audit
+acceptance remain separate checks in an appropriate org/client environment.
+
 ## Release-only validation
 
 Run installed `claude plugin validate` separately against the release candidate.

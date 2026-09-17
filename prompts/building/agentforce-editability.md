@@ -8,33 +8,49 @@ The caller has already classified whether the change **adds or moves a topic/act
 
 ## Step 1 — Determine editability
 
-Determine editability with a cheap SOQL query FIRST, then confirm with a single retrieve used as a boolean (do NOT parse error strings — `agentDSLEnabled` is NOT SOQL-reachable; it lives only in `.bot-meta.xml`, so don't query it):
+Determine editability with a cheap SOQL query FIRST, then obtain current retrieval evidence. `agentDSLEnabled` is NOT SOQL-reachable; it lives only in `.bot-meta.xml`, so don't query it. Validate the agent API identifier before substituting it in commands or SOQL, and require the exact intended org and one matching agent identity:
 ```sql
 SELECT DeveloperName, Type, AgentType FROM BotDefinition WHERE DeveloperName = '[AgentName]'
 ```
-**Risk-class flag:** `AgentType = 'EinsteinServiceAgent'` (or a legacy `Type = 'Bot'` / `Type = 'ExternalCopilot'`) is the UI-built, planner-only, hand-patch-risk class (the WSA/Qiagen class). `AgentType` values like `AgentforceEmployeeAgent` / `Employee` / `ServicePlanner` are the other classes. **The enum is an empirical SDO/IDO mapping, not a guarantee** — a newer Agent-Script-authored service agent could also report `EinsteinServiceAgent` yet have editable source. So treat the SOQL result as the risk flag, then confirm with ONE retrieve used purely as a boolean:
+**Risk-class flag:** `AgentType = 'EinsteinServiceAgent'` (or a legacy `Type = 'Bot'` / `Type = 'ExternalCopilot'`) has indicated UI-built, planner-only agents in observed SDO/IDO examples. The enum is empirical, not proof: an Agent-Script-authored service agent may have the same value. A failed or ambiguous identity query leaves editability unavailable.
+
+Create a unique empty retrieve directory beneath the runtime project's `force-app/main/default/` (for example with `mktemp -d` and a `.scout-agent-retrieve.XXXXXX` template), and substitute its actual absolute path for `[fresh retrieve directory]`. Do not reuse a previous directory. Capture the complete stdout JSON, separate stderr, and actual exit code; do not pipe through `head` or replace a failed command with a successful pipeline exit.
+
 ```bash
-sf project retrieve start --json --metadata "AiAuthoringBundle:[AgentName]" --target-org {{ORG_ALIAS}} 2>&1 | head -40
+sf project retrieve start --json --metadata "AiAuthoringBundle:[AgentName]" --output-dir "[fresh retrieve directory]" --target-org {{ORG_ALIAS}}
 ```
-Retrieve **succeeds** (a `.agent`/AiAuthoringBundle lands on disk) → **editable source exists** (safe edit). Retrieve **fails** → **confirmed sourceless / UI-built** (route structural edits to Builder). Use success-vs-failure as the boolean — do NOT pattern-match the exact error code (the surface evolves monthly).
+
+**Positive retrieval proof:** require exit 0, top-level CLI `status = 0`, and a completed `result` with `done = true`, `success = true`, `status = "Succeeded"`. Require current-response `fileProperties` for the exact metadata type and fullName plus matching non-failed `files[]` rows (`type`, `fullName`, `filePath`, `state`). Resolve every selected path beneath that fresh directory and verify the expected regular files and complete bundle are present. A stale workspace file, empty result, partial retrieve, enqueue receipt, or success for another member is not proof. If the installed CLI returns a different/insufficient shape, report unavailable evidence rather than guessing.
+
+Classify exactly one outcome:
+
+- **Source confirmed:** the positive proof includes this agent's AiAuthoringBundle and editable `.agent` source. Record the raw result and exact source paths.
+- **Source absence positively confirmed:** independent current evidence explicitly establishes that this exact agent has no editable Agent Script source (for example, an SE's current Builder inspection, or successful complete metadata discovery that establishes absence with access and identity confirmed). Save the evidence and its limitations. The risk enum, a retrieve error code/message, or an empty retrieve alone cannot establish this state.
+- **Unavailable / unknown:** authentication, permission, network, timeout, malformed/incomplete result, missing member evidence, or otherwise ambiguous failure. Record the exact diagnostic and keep the affected agent BLOCKED pending a corrected probe or positive source evidence. Do not infer UI-built/sourceless status, prescribe an upgrade, or authorize planner editing from this outcome. Independent eligible work may proceed.
 
 ## Step 2 — Routing decision
 
 - **Modify-existing WITH editable source** → version-safe Modify path. Proceed normally.
-- **Modify-existing, UI-built (no source), IN-PLACE tweak only** → planner XML edit is the legitimate path. Proceed to the Modify path.
-- **Modify-existing, UI-built (no source), STRUCTURAL add/move of topic or action** → **DO NOT hand-patch the planner.** This is the re-author path. The painful "remediate the legacy agent in place" route is retired — instead, make the agent editable by re-authoring it from scratch, side-by-side. Present the SE this gate and STOP for the answer:
+- **Modify-existing, source absence positively confirmed, IN-PLACE tweak only** → retrieve the exact GenAiPlannerBundle using the same fresh-directory and positive-proof rules before permitting the existing planner-text Modify path. Unavailable required planner source keeps the agent BLOCKED.
+- **Modify-existing, source absence positively confirmed, STRUCTURAL add/move of topic or action** → **DO NOT hand-patch the planner.** This is the existing side-by-side re-author path. Present the SE this gate and STOP for the answer:
   > "**[AgentName]** is a UI-built agent — its planner can't be safely edited as metadata, so I can't add a topic/action to it directly. The low-friction path: **flip the in-place upgrade in Agent Builder** (Setup → Agentforce Studio → open the agent → upgrade to the new Builder). It's **reversible** — the old version stays Active until you activate the new one, so nothing breaks. Once upgraded, the agent's definition becomes machine-readable and I'll **re-author it as clean, editable Agent Script under a new side-by-side name (`[AgentName]_Scout`)**, then add your new [topic/action] on top. The original [AgentName] stays untouched so you can compare them. **On a managed, packaged, or template-derived agent, confirm the upgrade is reversible (or test in a sandbox) first.** Have you completed the upgrade? (yes / no — or 'manual' to wire it yourself in Builder instead)"
 
-    - **SE answers yes (upgraded)** → confirm the planner now retrieves with ONE boolean probe:
+    - **SE answers yes (upgraded)** → retrieve the planner into another unique empty directory and apply the same complete positive-proof rules for `GenAiPlannerBundle`:
       ```bash
-      sf project retrieve start --json --metadata "GenAiPlannerBundle:[AgentName]" --target-org {{ORG_ALIAS}} 2>&1 | head -40
+      sf project retrieve start --json --metadata "GenAiPlannerBundle:[AgentName]" --output-dir "[fresh retrieve directory]" --target-org {{ORG_ALIAS}}
       ```
-      Retrieve **succeeds** → route to Phase 3 in **re-author mode**: set `{{REAUTHOR_FROM_PLANNER}}` to the live directive (see the substitution note on the Phase 3 table row). Record in `discovery_notes`: `"[AgentName]: UI-built, SE upgraded in Builder, planner now retrievable — re-authoring as [AgentName]_Scout side-by-side."` Retrieve **still fails** → the upgrade did not take; do NOT spawn Phase 3 for this agent. Tell the SE the upgrade isn't visible to the Metadata API yet (it can lag a few minutes, or the upgrade didn't complete), record the agent as skipped with that reason, and offer to retry or route to the manual path.
-    - **SE answers no / manual** → fall back to the SE Manual Checklist: Scout deploys the backing flows/Apex only (the parts with real source); the topic + action **wiring** is routed to the SE Manual Checklist ("Add topic '[X]' + action '[Y]' in Agent Builder — the agent is UI-built, so structural wiring must be done in the Builder wizard, which regenerates the action I/O schemas"). Record this split in `skipped` with reason "SE Manual Checklist — UI-built agent, SE declined upgrade, structural wiring not source-editable." Surface it in the SE gate below.
+      Positive proof → route to Phase 3 in **re-author mode**: set `{{REAUTHOR_FROM_PLANNER}}` to the live directive (see the substitution note on the Phase 3 table row). Record the SE's upgrade confirmation, retrieve result and actual planner path in `discovery_notes`. Otherwise do NOT spawn Phase 3 for this agent: report BLOCKED because current planner source could not be verified. A failed retrieve does not prove that the upgrade failed. Name the actual diagnostic and next probe/manual option.
+    - **SE answers no / manual** → deploy only approved, independently eligible backing flows/Apex; hand off the structural topic/action wiring with the positive source-absence evidence. An outstanding manual obligation remains BLOCKED. Use `skipped[]` only if the SE explicitly declines that ledger obligation and the orchestrator records the authorized omission; declining the upgrade alone is not declining the requested work. Surface the split in the SE gate.
 
-Record the editability verdict in `discovery_notes` verbatim (e.g. `"Agentforce_Service_Agent: AiAuthoringBundle retrieve failed (AABNotFound) — UI-built, structural wiring routed to SE Manual."`).
+Record the editability verdict and evidence reference in `discovery_notes` (for example, `"Agentforce_Service_Agent: source unavailable — retrieve authentication failed; structural edit BLOCKED pending a successful probe"`). Do not include credentials in the diagnostic.
 
 Then return to `scout-building.md` Phase 3 for the SE gate.
+
+For an eligible route, stage only the positively retrieved complete members from
+the fresh directory into their canonical project source paths; record the source
+and destination mapping. Retain the fresh retrieval and raw evidence until the
+existing preservation/cleanup guards pass. Do not deploy from the retrieval
+scratch directory or treat staging as permission to change the agent.
 
 For a modify-existing route, record the exact retrieved bundle member paths that
 will be edited (relative to `force-app/main/default`, including actual version/Id

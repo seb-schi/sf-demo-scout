@@ -1,6 +1,10 @@
 You are deploying Flows, Apex, and/or LWC to org {{ORG_ALIAS}} ({{ORG_USERNAME}}).
 The SE has already confirmed this deployment. Work autonomously — do not ask for further confirmation.
 Use MCP tools (deploy_metadata, retrieve_metadata, run_soql_query, run_code_analyzer) for all operations.
+The Flow rules below are narrow exceptions when MCP cannot express their exact
+identity/result contract: the named `sf flow run test`, Tooling describe/query, and
+exact-version `FlowDefinition` activation/read-back commands may use `sf` CLI, always
+with `--target-org {{ORG_ALIAS}}`. Keep using MCP for other operations.
 
 **Retrieve output location.** When calling `retrieve_metadata`, ALWAYS pass `directory` = `$HOME/claude-projects/sf-demo-scout` (the SFDX project root — it has `sfdx-project.json` and `force-app/`). The MCP server converts retrieved metadata into source format under that root's `force-app/main/default/`. Without an explicit `directory`, conversion lands wherever your cwd resolves — often the customer org folder — littering `orgs/<customer>/force-app/`. Pin it so every retrieve converges on the one project `force-app/`, which the orchestrator sweeps clean after deployment. Do NOT drop this argument.
 Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is available for unfamiliar-error recovery — not for pre-flight checks.
@@ -42,13 +46,15 @@ Deploy in small increments. One component per deploy call.
 
 <!-- IF:FLOWS -->
 ### Flow Rules
-Autonomous-with-SE-gate scope covers the full trigger spectrum the `sf-flow` skill owns — record-triggered (before-save, after-save, before-delete; any object; cross-object DML allowed), screen flows (see the component whitelist below), autolaunched flows, subflows, scheduled flows, and platform-event-triggered flows. **Screen-flow logic complexity is IN scope** — branching, cross-screen reactivity, and formula dependencies are fine, and there is no hard screen-count cap (the SE names the screen count during sparring; more screens just mean a longer visual-QA walkthrough, which is already a named SE step). Two categories leave the pure happy-path-loop, but neither is a hard decline any more: (1) a screen using a component OUTSIDE the whitelist below (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) — no FlowTest-assertable signal, so Scout still AUTHORS + DEPLOYS the flow (deploy the custom LWC too), leaves it **Draft** (it cannot pass a happy-path FlowTest that can't be written for it), and hands it off **"deployed Draft — needs visual QA, then activate"** via the handover brief's *Built — Validate in Sonnet* surface — do NOT omit it; and (2) orchestration flows (parent-child / sequential / conditional) — attempt the metadata when the spec's disposition (docs-classified in sparring) says authorable, deploy, and hand off for QA; when docs confirm a UI-only obligation, report it BLOCKED with the citation unless the frozen ledger contains an authorized omission. Neither is omitted on "complexity" grounds. (The FlowTest Draft-gate for *whitelisted* autonomous flows below is unchanged: pass → activate, fail twice → stays Draft.) **Every autonomous screen flow deploys Draft-first and is gated by the happy-path FlowTest (step 4): pass → activate; fail twice → stays Draft and is recorded AWAITING_QA for the SE — it never ships live-and-broken.**
+Metadata authorability and automated FlowTest support are separate decisions. Scout may author and deploy record-triggered, screen, autolaunched, subflow, scheduled, platform-event-triggered, and docs-confirmed orchestration metadata. The frozen ledger's `acceptance.flow_validation.mode` decides the validation path and is immutable after dispatch. `flow_test_required` applies only where current Salesforce support and the specific Flow shape permit a FlowTest: eligible create/update record-triggered flows, autolaunched flows without callouts or waits, and Data Cloud-triggered flows. Before-delete and record-triggered asynchronous paths, screen, scheduled, platform-event-triggered, and any other docs-confirmed unsupported shape use `unsupported` with the frozen reason. Unsupported metadata still deploys Draft and remains AWAITING_QA; it is not omitted or relabeled because the worker cannot test it. If a required test becomes unavailable in the org, preserve `flow_test_required` and report AWAITING_QA.
 
-Screen-flow component whitelist: DisplayText, Section, InputField (Text / LargeTextArea / Number / Email / Date / DateTime / Password), Picklist, RadioButtons, Checkbox, CheckboxGroup, MultiSelectPicklist. Anything else (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) follows the deployed-Draft visual-QA path above.
+Screen-flow logic complexity remains in scope. A screen using Repeater, Data Table, Kanban Board, File Upload/Preview, or a custom LWC screen component follows the same Draft visual-QA path. Orchestration metadata follows the docs-classified authorability decision; a confirmed UI-only obligation is BLOCKED unless the frozen ledger contains an authorized omission.
+
+Common screen components include DisplayText, Section, InputField (Text / LargeTextArea / Number / Email / Date / DateTime / Password), Picklist, RadioButtons, Checkbox, CheckboxGroup, and MultiSelectPicklist. For other components, follow the docs-classified authorability decision and the frozen validation mode; a visual-QA requirement is not an authoring prohibition.
 
 **Template sources.** The `sf-flow` skill ships canonical XML templates under `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/assets/`:
 - `record-triggered-before-save.xml`, `record-triggered-after-save.xml`, `record-triggered-before-delete.xml`
-- `screen-flow-template.xml`, `screen-flow-with-lwc.xml` (LWC variant out of autonomous scope)
+- `screen-flow-template.xml`, `screen-flow-with-lwc.xml` (custom-component example; follow docs-classified authorability and QA mode)
 - `autolaunched-flow-template.xml`
 - `scheduled-flow-template.xml`
 - `platform-event-flow-template.xml`
@@ -61,19 +67,20 @@ Reference guides: skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotc
 
 1. Invoke `sf-flow` skill before generating Flow XML.
 2. Use the matching template from the asset list above as the starting point. Record-triggered-after-save is inlined below because it carries the `processMetadataValues` deployment-blocker rule and the Record Update pattern — both load-bearing beyond what the asset file covers.
-3. Deploy as Draft first (`<status>Draft</status>`), confirm success.
-4. **Validation — happy-path FlowTest is mandatory for every autonomous flow type.** Generate a happy-path FlowTest XML (template below — save as `[FlowApiName]_Test.flowTest-meta.xml`), deploy it alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`. Pass → activate. Fail twice → leave Draft, report AWAITING_QA, and record the failures in `issues`. FlowTest supports every flow type via MDAPI even though Flow Builder's auto-test UI is limited to record-triggered + data-cloud-triggered (Salesforce docs, 2026-04-30). Type-specific test adaptations:
-   - **Record-triggered (before-save, after-save, before-delete):** Single `<testPoints>` block with `<elementApiName>Start</elementApiName>`. `<parameters>` blocks use `<type>InputTriggeringRecordInitial</type>` (no `<leftValueReference>` — the parameter `<name>` is the field API name on the trigger object, the `<value>` is the seeded value). `$Record` is built from these parameters at the Start node.
-   - **Before-delete:** test asserts the pre-delete state; delete is the triggering event, assertion checks flow ran without fault.
-   - **Screen flow:** one `<parameters>` block per required input variable, `<type>Input</type>`, `<leftValueReference>` set to the variable's API name.
-   - **Autolaunched / subflow:** `<parameters>` supplies invocation inputs via flow variables — `<type>Input</type>`, `<leftValueReference>` is the variable API name.
-   - **Scheduled:** test exercises the flow body on-demand, ignoring the schedule trigger. Schedule itself is a config read-back (`retrieve_metadata` on the deployed flow confirms `<schedule>` fields match the spec).
-   - **Platform-event-triggered:** `<parameters>` supplies a mock event payload — `<type>InputTriggeringRecordInitial</type>`, one block per event field referenced by the flow, `<name>` = event field API name.
+3. First check `already_satisfied`: require a saved pre-dispatch active Flow ID/version whose source matches the approved spec, then current read-back of that same identity. Bypass authoring and deployment. Run the current targeted test/version checks in step 4 against that exact active version; if they cannot prove it, report AWAITING_QA. Otherwise, deploy as Draft (`<status>Draft</status>`). Before deploy, save a Tooling query of the existing Flow IDs and versions for the exact DeveloperName. Deploy only this Flow file and save the successful receipt plus its exact returned file identity. Query the versions again. Attribute the deployment only when exactly one new row exists and it has the expected DeveloperName and `Status=Draft`; that row's `Id` and positive `VersionNumber` are the deployed identity. A latest-row query by itself is race-prone. Zero or multiple new rows leave attribution unavailable and the item INCOMPLETE; do not test or activate an inferred version.
+4. Follow the frozen validation mode:
+   - **`unsupported`:** do not generate a pretend test. Preserve the exact frozen reason, leave the new Flow Draft, and report AWAITING_QA.
+   - **`flow_test_required`:**
+     1. Use the frozen ledger's exact `[FlowTestApiName]`; the usual generated default is `[FlowApiName]_Test`, but the worker must not rename a custom or already-existing frozen test identity. Confirm the effective Metadata API for this deployment supports API v66 `flowTestFlowVersions`. Do not silently change the user's project version. If v66 association cannot be used, leave the Flow Draft and report AWAITING_QA with the unavailable evidence. Otherwise generate `[FlowTestApiName].flowTest-meta.xml` from the template below, insert the exact target Flow version, and deploy that FlowTest separately.
+     2. Run exactly `sf flow run test --tests [FlowApiName].[FlowTestApiName] --test-level RunSpecifiedTests --synchronous --target-org [alias] --json`. Accept a completed result only when CLI `status` is 0; `result.summary.outcome` is `Passed`; `testsRan=1`, `passing=1`, `failing=0`, and `skipped=0`; `result.tests` has exactly one row; that row names the exact frozen Flow and test, has `Outcome=Pass`, and supplies nonempty `result.summary.testRunId` and `QueueItemId`. Empty, enqueue-only, skipped, extra, pending, wrong-name, or failed results do not pass.
+     3. The CLI reporter does not expose the tested Flow version. Its installed source establishes Tooling `FlowTestResult`, `ApexTestQueueItemId`, and the Flow/FlowTest developer-name relationships, but does not establish `FlowVersionNumber`; treat that projection as version-sensitive. First save a Tooling describe that positively exposes `ApexTestQueueItemId`, `Result`, `FlowVersionNumber`, `FlowDefinitionId`, and `FlowTestId`. Only then query `FlowTestResult` by the returned queue item ID and require exactly one row whose Result is Pass, Flow and FlowTest DeveloperNames are exact, and `FlowVersionNumber` equals the target Flow version. If describe/query cannot prove those exact fields and relationships, leave the Flow Draft/AWAITING_QA; do not guess another field or infer version from the name. Save the describe, launch result, terminal result, and Tooling query separately.
+     4. On failure, make at most one concrete fix and create/attribute the resulting fresh draft version, regenerate its version association, and test that new version. Never rerun an unchanged Flow/test merely to obtain a different result. After two failed attempts, leave the current version Draft and report AWAITING_QA.
+     5. Activate only the exact tested version through a temporary `FlowDefinition` containing its `activeVersionNumber`. Read back the FlowDefinition active Flow ID and version; both must equal the deployed/tested Flow row. If activation is attempted but read-back fails, report the active state as `Unknown` and the item INCOMPLETE/BLOCKED. Never claim it remains Draft without a successful read-back.
 5. **Screen flows with QuickAction wiring** (spec requests it): deploy a `QuickAction` (actionType=Flow) pointing at the flow's API name; retrieve the target object's active Layout, add the QuickAction under `<quickActionListItems>`, redeploy the layout.
 6. **Scheduled flow pre-flight:** confirm the spec's Scheduled Flow section names `<startDate>`, `<startTime>`, and `<frequency>` (Once / Daily / Weekly / Monthly / Yearly / Hourly / Weekdays — per FlowSchedule subtype, Salesforce docs API v66.0+). If missing, report BLOCKED with reason "scheduled flow missing schedule fields — SE must add to spec."
 7. **Platform-event flow pre-flight:** confirm the `<eventType>` object exists via `retrieve_metadata` (CustomObject with `__e` suffix, or standard event like `AIPredictionEvent`). If missing and not in-scope for this deploy, report BLOCKED with reason "platform event object not in org — SE must create or import first."
 8. Check for existing flows on the same object/trigger via `retrieve_metadata` — flag execution order conflicts in `discovery_notes`.
-9. Rollback: `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]` (plus `QuickAction:[Name]` if deployed, plus `FlowTest:[FlowApiName]_Test` if deployed).
+9. Rollback: `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]` (plus `QuickAction:[Name]` if deployed, plus `FlowTest:[FlowTestApiName]` if deployed).
 
 **CRITICAL — Flow XML must not use `processMetadataValues`.** Use this record-triggered after-save template:
 ```xml
@@ -190,7 +197,7 @@ Key rules for updating the triggering record:
 
 Screen flow template lives at `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/assets/screen-flow-template.xml` (vendored — present in every plugin install). Before authoring a screen flow, skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotchas.md` — it carries the root-level alphabetical ordering rule and the `storeOutputAutomatically` data-leak rule among other traps. (Already referenced at the top of Flow Rules, restated here because screen flows are where these two specifically bite.)
 
-**FlowTest template** (applies to every autonomous flow type — type-specific parameter shape in step 4 above). Save as `[FlowApiName]_Test.flowTest-meta.xml`, deploy alongside the flow, then run `sf flow run test --class-names [FlowApiName]_Test --target-org [alias] --json`. The example below is **record-triggered**; switch the `<parameters>` block per step 4 for other flow types.
+**FlowTest template** (only for a frozen `flow_test_required` item whose exact shape is supported). Save as `[FlowTestApiName].flowTest-meta.xml` and replace the version placeholder with the positively attributed target Flow version before the separate FlowTest deploy. The example below is record-triggered; eligible autolaunched and Data Cloud-triggered flows need their documented parameter shape.
 
 **CRITICAL — FlowTest does NOT accept `<apiVersion>` (unlike Flow). Do not add it.** The Start node is the mandatory entry test point for record-triggered flows — `<elementApiName>Start</elementApiName>`, not the name of an assignment / create / update element. Additional assertions on downstream elements go in **additional** `<testPoints>` blocks; the Start block must exist regardless.
 
@@ -199,6 +206,9 @@ Screen flow template lives at `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/assets/scree
 <FlowTest xmlns="http://soap.sforce.com/2006/04/metadata">
     <description>Happy-path smoke test for [FlowApiName]</description>
     <flowApiName>[FlowApiName]</flowApiName>
+    <flowTestFlowVersions>
+        <flowVersionNumber>[deployed positive VersionNumber]</flowVersionNumber>
+    </flowTestFlowVersions>
     <label>[FlowApiName] Happy Path</label>
     <testPoints>
         <elementApiName>Start</elementApiName>
@@ -222,9 +232,10 @@ Screen flow template lives at `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/assets/scree
             <errorMessage>Flow produced a fault on the happy path</errorMessage>
         </assertions>
     </testPoints>
+    <testType>WithAssertion</testType>
 </FlowTest>
 ```
-Adapt: `flowApiName` is the flow under test. For record-triggered flows, one `<parameters>` block per field on the trigger object that the flow reads or asserts on; `<name>` is the field API name (no `<leftValueReference>` — the parameter seeds `$Record` directly). For screen / autolaunched / subflow / platform-event flows, use the parameter shape from step 4. Assertion checks `$Flow.FaultMessage IS NULL` — passes if the flow runs to completion without a fault. For recordCreates/recordUpdates, add a second `<testPoints>` block with `<elementApiName>` set to the create/update element name and an assertion on the resulting record's key field.
+Adapt: `flowApiName` is the flow under test. For eligible record-triggered flows, one `<parameters>` block per field on the trigger object that the flow reads or asserts on; `<name>` is the field API name (no `<leftValueReference>` — the parameter seeds `$Record` directly). Assertion checks `$Flow.FaultMessage IS NULL`. For record creates/updates, add a second `<testPoints>` block with `<elementApiName>` set to the create/update element name and an assertion on the resulting record's key field.
 <!-- /IF:FLOWS -->
 
 <!-- IF:APEX -->
@@ -362,7 +373,23 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
     {"item_id": "string — exact ledger item id", "status": "applied|already_satisfied|failed|blocked|awaiting_qa", "summary": "string"}
   ],
   "deployed": [
-    {"ledger_item_id": "string", "type": "Flow|ApexClass|ApexTrigger|LightningComponentBundle", "api_name": "string", "status": "SUCCESS|FAILED", "flow_status": "Active|Draft|null", "validation_status": "VERIFIED|AWAITING_QA|FAILED"}
+    {
+      "ledger_item_id": "string",
+      "type": "Flow|ApexClass|ApexTrigger|LightningComponentBundle",
+      "api_name": "string",
+      "status": "SUCCESS|FAILED",
+      "flow_status": "Active|Draft|Unknown|null",
+      "validation_status": "VERIFIED|AWAITING_QA|FAILED",
+      "flow_version_id": "exact Flow row id|null",
+      "flow_version_number": "positive integer|null",
+      "flow_test_api_name": "exact test name|null",
+      "flow_test_run_id": "terminal run id|null",
+      "flow_test_queue_item_id": "exact queue item id|null",
+      "flow_test_outcome": "PASS|FAIL|ERROR|SKIP|PENDING|UNAVAILABLE|NOT_RUN|NOT_SUPPORTED|null",
+      "tested_flow_version_number": "positive integer|null",
+      "active_flow_id": "exact read-back active Flow id|null",
+      "active_flow_version_number": "positive integer|null"
+    }
   ],
   "skipped": [
     {"ledger_item_id": "string", "type": "string", "api_name": "string", "reason": "string — authorized omission only; must exactly mirror the frozen ledger authorization"}

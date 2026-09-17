@@ -245,12 +245,14 @@ Scope: anything beyond appending into an existing field section. Use when audit 
 - Plain English: [description]
 - Flow name: [ApiName]
 - Flow type: one of **record-triggered** (before-save / after-save / before-delete) | **autolaunched** | **subflow** | **scheduled** | **platform-event-triggered**
-  - Orchestration and complex screen flows route to the SE Manual Checklist — do not list them here.
+  - Put screen flows in the Screen Flows section below. For orchestration or another type, first verify the current metadata authoring path in platform research; include supported work here with its exact type and configuration. Only a docs-confirmed UI-only step belongs in the SE Manual Checklist. Complexity and unavailable automated tests do not establish an API limitation.
+- Validation plan: [supported mechanism, intended version/type, required assertions, or "automation unavailable — Draft/AWAITING_QA"]. A test of an older active version cannot validate a new draft. Activate only after Phase 2's exact-version validation gate passes; otherwise record the next QA step and retain Draft status.
 - Type-specific fields:
   - **Record-triggered:** Trigger object: [API name], Trigger type: [before-save | after-save | before-delete], Entry conditions: [filter formula or "none"], Logic: [steps, including any cross-object DML]
   - **Autolaunched:** Invoked from: [Apex class / parent flow / REST / process], Input variables: [name + type per var], Logic: [steps]
   - **Subflow:** Parent flow: [ApiName of caller — must also be in this spec or already in org], Input variables: [name + type per var], Output variables (if any): [name + type per var], Logic: [steps]
   - **Scheduled:** Start date: [YYYY-MM-DD], Start time: [HH:MM:SS], Frequency: [Once | Daily | Weekly | Monthly | Yearly | Hourly | Weekdays], Object filter (optional): [SObject + filter conditions for batch runs], Logic: [steps]
+    - QA: verify the schedule and next run in Scheduled Jobs after validated activation; an on-demand body test alone does not prove scheduler execution.
   - **Platform-event-triggered:** Event object: [API name — e.g. `OrderCreated__e` or standard like `AIPredictionEvent`], Event fields referenced: [list], Logic: [steps]
 
 ### Screen Flows (if applicable)
@@ -271,8 +273,8 @@ Scope: anything beyond appending into an existing field section. Use when audit 
   - If Create/Update: target object field assignments: [field: source]
   - If Get: queriedFields: [explicit list — never storeOutputAutomatically]
 - QuickAction wiring: [yes (label: [button label], layout: [active layout name from audit]) | no — SE will wire manually]
-- Smoke test: Scout auto-generates happy-path FlowTest; SE does a one-time visual walkthrough in the Lightning UI
-- Components outside the autonomous whitelist (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) → move to SE Manual Checklist. This is a *no-build-time-signal* gate, not a complexity gate: these components have nothing a happy-path FlowTest can assert. Branching, cross-screen reactivity, and formula dependencies are NOT in this list — they are in scope (gated by the FlowTest; the flow stays Draft if it fails).
+- Validation: identify a currently supported test mechanism for this flow type and the exact intended version. If unavailable, author/deploy the supported metadata as Draft/AWAITING_QA and name the next validation step; do not promise universal FlowTest support. SE does a one-time Lightning UI walkthrough for rendering, labels, button order and help text even when automated logic checks pass.
+- Components beyond the examples above (Repeater, Data Table, File Upload, custom LWC screen components, etc.) follow the same docs-gated authorability rule: attempt supported metadata and record missing visual/runtime QA. Only docs-confirmed UI-only configuration moves to the SE Manual Checklist. Branching, cross-screen reactivity and formula dependencies remain in scope. A missing or failed test leaves the flow Draft; it does not make authorable work manual-only.
 
 ### Apex (if applicable)
 - ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
@@ -362,8 +364,8 @@ these named components immediately before their phase, including on retry.
 
 > Only **docs-confirmed UI-only** items belong here (disposition 3 — no Metadata API path; cite the doc). Do NOT list an artifact as manual on "complexity" or "visual" grounds: if it is metadata-authorable, Scout ATTEMPTS + deploys it (see CLAUDE.md §Build Boundaries → Docs-Gated). Artifacts Scout deployed but that carry no build-time signal (a rendered page, a layout arrangement, a UX) are **attempt-with-QA** — they surface in the handover brief's *Built — Validate in Sonnet* section, NOT in this checklist.
 
-### Complex Flows
-- Name, Type, Trigger, Conflicts, Steps, Activate when
+### Docs-confirmed UI-only Flow Steps
+- [Exact unsupported metadata operation, current source URL, affected flow, and SE action. Omit when none; keep authorable work and its QA in the Flow sections above.]
 
 ### Agentforce Manual Steps
 - [ ] **Layer-5 license bypass (Service Agent + restricted-license running user only):** if specced,
@@ -375,9 +377,7 @@ these named components immediately before their phase, including on retry.
 - [ ] Multi-agent orchestration (if applicable)
 
 ### Must Do Before Demo
-- [ ] Build orchestration flows (multi-day lifecycles) and any screen flow using a non-whitelisted component (Repeater, Data Table, Kanban Board, File Upload/Preview, custom LWC screen component) — these have no build-time signal. (Branching / cross-screen reactivity / formula-dep screen flows and multi-class/cross-object Apex are now built autonomously and appear under "Built — validate in Sonnet" in the handover brief, NOT here.)
-- [ ] Screen-flow visual QA: walk through each autonomous screen flow once in the Lightning UI (labels, button order, help text read sensibly)
-- [ ] For scheduled flows: verify the Scheduled Jobs page (Setup → Scheduled Jobs) shows the next run time matching the spec
+- [ ] Complete any docs-confirmed UI-only Flow steps listed above. Authorable Flow work and outstanding runtime/visual QA stay in the Flow sections and the build handover; no blanket orchestration or screen-component exclusion applies.
 - [ ] Complete Agentforce manual steps (channel assignment, production testing)
 - [ ] Arrange field positions and sections in App Builder
 - [ ] Place LWC on Lightning pages

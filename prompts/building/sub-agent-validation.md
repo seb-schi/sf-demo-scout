@@ -115,6 +115,81 @@ The helper verifies anchors and reconciliation, not semantic exhaustiveness or l
 Salesforce truth. The orchestrator remains responsible for reading every populated
 spec section and for grounding each evidence assertion in saved tool output.
 
+## Phase-2 Flow Evidence
+
+Every Flow ledger item carries authoritative `acceptance.flow_validation` with an
+exact Flow API name, an immutable `flow_test_required|unsupported` mode, and either
+an exact test API name or a concrete unsupported reason. Collect this evidence even
+when the worker omits or renames its deployed Flow row. Missing independent Flow
+evidence leaves only that item INCOMPLETE; malformed identities or contradictions
+invalidate the report.
+
+For an applied Flow, positively attribute the new draft before testing it: save the
+pre-deploy Flow version set, the one-Flow deployment receipt and returned file
+identity, and the post-deploy set. Accept only one new matching Draft row, then
+preserve its exact Flow ID and positive version. A latest-row query alone is not
+attribution. For `already_satisfied`, save the exact pre-dispatch active Flow ID and
+version plus a current read-back; do not create a new version merely to fill the
+evidence shape.
+
+Add `flow_validation` to that item's ordinary observation. A supported applied
+example is:
+
+```json
+{
+  "mode": "flow_test_required",
+  "deployment": {
+    "flow_api_name": "Demo_Flow",
+    "flow_id": "exact deployed Flow row id",
+    "version": 13,
+    "status": "Draft",
+    "receipt_source": "saved one-Flow deployment receipt",
+    "file_source": "saved returned file identity"
+  },
+  "test": {
+    "flow_api_name": "Demo_Flow",
+    "test_api_name": "Demo_Flow_Test",
+    "run_id": "nonempty terminal run id",
+    "queue_item_id": "nonempty exact result queue id",
+    "status": "terminal",
+    "outcome": "Pass",
+    "tested_version": 13,
+    "launch_source": "saved synchronous launch result",
+    "terminal_source": "saved completed result",
+    "version_source": "saved FlowTestResult Tooling query"
+  },
+  "activation": {
+    "attempted": true,
+    "status": "Active",
+    "active_flow_id": "same exact deployed Flow row id",
+    "active_version": 13,
+    "source": "saved FlowDefinition active-version read-back"
+  }
+}
+```
+
+VERIFIED requires a terminal Pass for the frozen Flow/test names, a Tooling result
+for that queue item whose tested version equals the deployed version, and active
+read-back whose ID and version equal that same deployment. Pending, failed,
+unavailable, empty, skipped, wrong-name, old-version, or ambiguous results never
+verify. If an activation attempt was made but its read-back is unavailable, record
+`attempted: true`, `status: "unknown"`, null active identity, and the saved error
+source; the item is unresolved, and neither worker nor orchestrator may call it
+Draft. A known activation failure uses `status: "failed"` and remains BLOCKED.
+
+`FlowTestResult.FlowVersionNumber` is a version-sensitive Tooling projection, not a
+portable public API guarantee. Save a runtime Tooling describe that exposes the
+queue, result, version, Flow, and FlowTest identity fields before querying it. The
+installed CLI source establishes the queue-item and developer-name correlation but
+does not query the version field. If describe or query cannot prove the exact
+projection, record version evidence unavailable and leave the Flow AWAITING_QA;
+never fall through to a guessed field or name-only match.
+
+For `unsupported`, use `test.status: "unsupported"` with the exact frozen reason,
+`activation.attempted: false`, and the current incumbent read-back. Leave an applied
+Flow Draft/AWAITING_QA. Never change a required ledger mode to unsupported because
+the API-v66 association, test run, or Tooling query was unavailable.
+
 ## Agentforce Current-Test Evidence (Phase 3)
 
 Read the installed `prompts/building/agentforce-validation-gate.md` and follow it as

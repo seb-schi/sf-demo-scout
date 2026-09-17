@@ -22,6 +22,7 @@ MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_DEPTH = 20
 MAX_FIELDS = 10_000
 ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+FLOW_API_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,79}$")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 ITEM_KINDS = {"artifact", "change", "seed", "permission", "assignment", "manual"}
 WORKER_STATUSES = {"applied", "already_satisfied", "failed", "blocked", "awaiting_qa"}
@@ -29,6 +30,17 @@ SKIP_AUTHORIZATIONS = {"explicit_se_non_execution", "explicit_spec_exclusion"}
 VERIFICATIONS = {"targeted_state", "presence", "deployment_receipt", "seed_probe"}
 RESULTS = {"match", "mismatch", "unavailable"}
 ATTRIBUTIONS = {"applied", "already_satisfied", "unknown"}
+FLOW_VALIDATION_MODES = {"flow_test_required", "unsupported"}
+FLOW_TEST_OUTCOMES = {
+    "PASS",
+    "FAIL",
+    "ERROR",
+    "SKIP",
+    "PENDING",
+    "UNAVAILABLE",
+    "NOT_RUN",
+    "NOT_SUPPORTED",
+}
 PHASE_DETAIL_TYPES = {
     1: {
         "deployed": list,
@@ -302,6 +314,38 @@ def _validate_ledger(ledger: Any, spec_bytes: bytes) -> tuple[dict[str, Any], di
                     _AGENT_EVIDENCE.validate_expected(acceptance["agent_runtime"])
                 except _AGENT_EVIDENCE.EvidenceError as exc:
                     raise ContractError(f"{label}.acceptance.agent_runtime: {exc}") from exc
+            if "flow_validation" in acceptance:
+                flow_validation = acceptance["flow_validation"]
+                if ledger["phase"] != 2 or not isinstance(flow_validation, dict):
+                    raise ContractError(
+                        f"{label}.acceptance.flow_validation must be an object for phase 2"
+                    )
+                flow_name = flow_validation.get("flow_api_name")
+                test_name = flow_validation.get("flow_test_api_name")
+                mode = flow_validation.get("mode")
+                if not isinstance(flow_name, str) or not FLOW_API_PATTERN.fullmatch(flow_name):
+                    raise ContractError(
+                        f"{label}.acceptance.flow_validation.flow_api_name is malformed"
+                    )
+                if not _is_one_of(mode, FLOW_VALIDATION_MODES):
+                    raise ContractError(
+                        f"{label}.acceptance.flow_validation.mode is unsupported"
+                    )
+                if mode == "flow_test_required":
+                    if not isinstance(test_name, str) or not FLOW_API_PATTERN.fullmatch(test_name):
+                        raise ContractError(
+                            f"{label}.acceptance.flow_validation.flow_test_api_name is malformed"
+                        )
+                    if "unsupported_reason" in flow_validation:
+                        raise ContractError(
+                            f"{label}.acceptance.flow_validation.unsupported_reason conflicts with required testing"
+                        )
+                elif test_name is not None or not _nonempty(
+                    flow_validation.get("unsupported_reason")
+                ):
+                    raise ContractError(
+                        f"{label}.acceptance.flow_validation unsupported mode requires a null test name and reason"
+                    )
         indexed[item_id] = item
     return ledger, indexed
 
@@ -377,13 +421,14 @@ def _worker_rows(
     dict[str, dict[str, Any]],
     dict[str, list[tuple[str, str]]],
     set[str],
+    dict[str, dict[str, Any]],
 ]:
     if worker is None:
-        return {}, {}, {}, set()
+        return {}, {}, {}, set(), {}
     _bounded_json(worker, "worker result")
     errors.extend(_validate_identity(worker, identity, "worker result"))
     if not isinstance(worker, dict):
-        return {}, {}, {}, set()
+        return {}, {}, {}, set(), {}
     phase = identity["phase"]
     for key, wanted_type in PHASE_DETAIL_TYPES[phase].items():
         if key not in worker:
@@ -608,7 +653,7 @@ def _worker_rows(
                         reason = f"[agent runtime] {reason}"
                     add_outcome(item_id, "AWAITING_QA", reason)
 
-    return completion, data_seeded, detail_outcomes, set(skipped_rows)
+    return completion, data_seeded, detail_outcomes, set(skipped_rows), deployed_rows
 
 
 def _evidence_rows(
@@ -695,6 +740,356 @@ def _agent_runtime_assessments(
             errors.append(
                 f"agent runtime evidence {item_id} is malformed: {assessment['reason']}"
             )
+    return assessments
+
+
+def _positive_int(value: Any) -> bool:
+    return _is_int(value) and value > 0
+
+
+def _flow_validation_assessments(
+    items: dict[str, dict[str, Any]],
+    deployed_rows: dict[str, dict[str, Any]],
+    observations: dict[str, dict[str, Any]],
+    worker_present: bool,
+    authorized_skips: dict[str, dict[str, Any]],
+    reported_skips: set[str],
+    errors: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Check normalized Flow claims against independent version-bound evidence."""
+    assessments: dict[str, dict[str, Any]] = {}
+
+    def assessed(
+        item_id: str,
+        assessment: str,
+        reason: str,
+        *,
+        valid: bool = True,
+        observed: bool = True,
+    ) -> dict[str, Any]:
+        result = {
+            "valid": valid,
+            "observed": observed,
+            "assessment": assessment,
+            "reason": reason,
+        }
+        assessments[item_id] = result
+        if not valid:
+            errors.append(f"Flow validation {item_id} is malformed: {reason}")
+        return result
+
+    for item_id, item in items.items():
+        expected = item["acceptance"].get("flow_validation")
+        if expected is None:
+            continue
+        if not worker_present:
+            assessed(
+                item_id,
+                "INCOMPLETE",
+                "worker Flow deployment report is missing",
+                observed=False,
+            )
+            continue
+        row = deployed_rows.get(item_id)
+        observation = observations.get(item_id)
+        if (
+            item_id in authorized_skips
+            and item_id in reported_skips
+            and row is None
+            and (
+                observation is None
+                or not _is_one_of(
+                    observation.get("attribution"), {"applied", "already_satisfied"}
+                )
+            )
+        ):
+            continue
+        if row is None:
+            assessed(item_id, "INVALID", "worker deployed Flow row is missing", valid=False)
+            continue
+        if row.get("type") != "Flow" or row.get("api_name") != expected["flow_api_name"]:
+            assessed(
+                item_id,
+                "INVALID",
+                "worker deployed Flow type or API name contradicts the ledger",
+                valid=False,
+            )
+            continue
+        if row.get("status") == "FAILED":
+            assessed(item_id, "FAILED", "worker deployed Flow row reports FAILED")
+            continue
+        if row.get("status") != "SUCCESS":
+            assessed(item_id, "INVALID", "worker deployed Flow status is malformed", valid=False)
+            continue
+        if (
+            not _nonempty(row.get("flow_version_id"))
+            or not _positive_int(row.get("flow_version_number"))
+            or not _is_one_of(row.get("flow_status"), {"Active", "Draft", "Unknown"})
+            or not _is_one_of(
+                row.get("validation_status"), {"VERIFIED", "AWAITING_QA", "FAILED"}
+            )
+            or not _is_one_of(row.get("flow_test_outcome"), FLOW_TEST_OUTCOMES)
+        ):
+            assessed(item_id, "INVALID", "worker deployed Flow validation fields are malformed", valid=False)
+            continue
+
+        flow_evidence = observation.get("flow_validation") if observation else None
+        if flow_evidence is None:
+            assessed(
+                item_id,
+                "INCOMPLETE",
+                "independent version-bound Flow evidence is missing",
+                observed=False,
+            )
+            continue
+        if not isinstance(flow_evidence, dict) or flow_evidence.get("mode") != expected["mode"]:
+            assessed(
+                item_id,
+                "INVALID",
+                "independent Flow evidence mode contradicts the frozen ledger",
+                valid=False,
+            )
+            continue
+        deployment = flow_evidence.get("deployment")
+        test = flow_evidence.get("test")
+        activation = flow_evidence.get("activation")
+        if not all(isinstance(value, dict) for value in (deployment, test, activation)):
+            assessed(
+                item_id,
+                "INVALID",
+                "independent Flow deployment, test, and activation evidence are required",
+                valid=False,
+            )
+            continue
+        if (
+            deployment.get("flow_api_name") != expected["flow_api_name"]
+            or not _nonempty(deployment.get("flow_id"))
+            or not _positive_int(deployment.get("version"))
+            or not _is_one_of(deployment.get("status"), {"Draft", "Active"})
+        ):
+            assessed(item_id, "INVALID", "independent deployed Flow identity is malformed", valid=False)
+            continue
+        attribution = observation.get("attribution") if observation else None
+        if attribution == "applied":
+            if deployment.get("status") != "Draft" or not all(
+                _nonempty(deployment.get(key)) for key in ("receipt_source", "file_source")
+            ):
+                assessed(
+                    item_id,
+                    "INVALID",
+                    "applied Flow lacks an exact Draft deployment receipt and file identity",
+                    valid=False,
+                )
+                continue
+        elif attribution == "already_satisfied":
+            if (
+                deployment.get("status") != "Active"
+                or deployment.get("receipt_source") is not None
+                or deployment.get("file_source") is not None
+                or not _nonempty(deployment.get("baseline_source"))
+                or not _nonempty(deployment.get("current_source"))
+            ):
+                assessed(
+                    item_id,
+                    "INVALID",
+                    "already-satisfied Flow lacks baseline and current exact active identity",
+                    valid=False,
+                )
+                continue
+        else:
+            assessed(
+                item_id,
+                "INCOMPLETE",
+                "Flow evidence lacks applied or already-satisfied attribution",
+            )
+            continue
+
+        active_id = activation.get("active_flow_id")
+        active_version = activation.get("active_version")
+        if type(activation.get("attempted")) is not bool or not _nonempty(
+            activation.get("source")
+        ):
+            assessed(item_id, "INVALID", "Flow activation evidence is malformed", valid=False)
+            continue
+        if (active_id is None) != (active_version is None) or (
+            active_version is not None and not _positive_int(active_version)
+        ):
+            assessed(item_id, "INVALID", "Flow active identity is malformed", valid=False)
+            continue
+        if (
+            row.get("flow_version_id") != deployment["flow_id"]
+            or row.get("flow_version_number") != deployment["version"]
+            or row.get("active_flow_id") != active_id
+            or row.get("active_flow_version_number") != active_version
+        ):
+            assessed(
+                item_id,
+                "INVALID",
+                "worker Flow version or active identity contradicts independent evidence",
+                valid=False,
+            )
+            continue
+
+        if expected["mode"] == "unsupported":
+            if (
+                test.get("status") != "unsupported"
+                or test.get("reason") != expected["unsupported_reason"]
+                or activation.get("attempted") is not False
+                or not _is_one_of(activation.get("status"), {"not_attempted", "Active"})
+                or row.get("validation_status") != "AWAITING_QA"
+                or row.get("flow_test_outcome") != "NOT_SUPPORTED"
+                or row.get("flow_test_api_name") is not None
+                or row.get("flow_test_run_id") is not None
+                or row.get("flow_test_queue_item_id") is not None
+                or row.get("tested_flow_version_number") is not None
+            ):
+                assessed(
+                    item_id,
+                    "INVALID",
+                    "unsupported Flow claims contradict the immutable ledger mode",
+                    valid=False,
+                )
+                continue
+            expected_flow_status = "Active" if attribution == "already_satisfied" else "Draft"
+            if row.get("flow_status") != expected_flow_status:
+                assessed(
+                    item_id,
+                    "INVALID",
+                    "unsupported Flow state contradicts deployment attribution",
+                    valid=False,
+                )
+                continue
+            assessed(
+                item_id,
+                "AWAITING_QA",
+                expected["unsupported_reason"],
+            )
+            continue
+
+        if (
+            test.get("flow_api_name") != expected["flow_api_name"]
+            or test.get("test_api_name") != expected["flow_test_api_name"]
+            or not _nonempty(test.get("launch_source"))
+            or row.get("flow_test_api_name") != test.get("test_api_name")
+            or row.get("flow_test_run_id") != test.get("run_id")
+            or row.get("flow_test_queue_item_id") != test.get("queue_item_id")
+        ):
+            assessed(item_id, "INVALID", "Flow test identity or launch evidence is malformed", valid=False)
+            continue
+        test_status = test.get("status")
+        if test_status == "terminal":
+            if (
+                not _is_one_of(test.get("outcome"), {"Pass", "Fail", "Error", "Skip"})
+                or not _nonempty(test.get("run_id"))
+                or not _nonempty(test.get("queue_item_id"))
+                or not _positive_int(test.get("tested_version"))
+                or not _nonempty(test.get("terminal_source"))
+                or not _nonempty(test.get("version_source"))
+            ):
+                assessed(item_id, "INVALID", "terminal Flow test evidence is malformed", valid=False)
+                continue
+        elif _is_one_of(test_status, {"pending", "unavailable"}):
+            if test.get("outcome") is not None or test.get("tested_version") is not None:
+                assessed(
+                    item_id,
+                    "INVALID",
+                    "nonterminal Flow test evidence asserts an outcome or tested version",
+                    valid=False,
+                )
+                continue
+            if test_status == "pending" and not _nonempty(test.get("run_id")):
+                assessed(item_id, "INVALID", "pending Flow test lacks run identity", valid=False)
+                continue
+        else:
+            assessed(item_id, "INVALID", "Flow test status is malformed", valid=False)
+            continue
+
+        normalized_outcome = (
+            test.get("outcome", "").upper() if isinstance(test.get("outcome"), str) else None
+        )
+        if (
+            row.get("flow_test_outcome")
+            != ({"pending": "PENDING", "unavailable": "UNAVAILABLE"}.get(test_status) or normalized_outcome)
+            or row.get("tested_flow_version_number") != test.get("tested_version")
+        ):
+            assessed(
+                item_id,
+                "INVALID",
+                "worker Flow test outcome or tested version contradicts independent evidence",
+                valid=False,
+            )
+            continue
+
+        activation_status = activation.get("status")
+        if activation_status == "unknown":
+            if activation.get("attempted") is not True or active_id is not None:
+                assessed(item_id, "INVALID", "unknown activation evidence is malformed", valid=False)
+            else:
+                assessed(
+                    item_id,
+                    "INCOMPLETE",
+                    "activation was attempted but exact active identity read-back is unavailable",
+                )
+            continue
+        if activation_status == "failed":
+            if activation.get("attempted") is not True:
+                assessed(item_id, "INVALID", "failed activation was not marked attempted", valid=False)
+            else:
+                assessed(item_id, "BLOCKED", "exact-version Flow activation failed")
+            continue
+        if activation_status == "not_attempted":
+            if activation.get("attempted") is not False:
+                assessed(item_id, "INVALID", "non-attempted activation evidence is malformed", valid=False)
+                continue
+        elif activation_status == "Active":
+            if (
+                (attribution == "applied" and activation.get("attempted") is not True)
+                or (attribution == "already_satisfied" and activation.get("attempted") is not False)
+                or active_id != deployment["flow_id"]
+                or active_version != deployment["version"]
+            ):
+                assessed(
+                    item_id,
+                    "INVALID",
+                    "active Flow identity does not match the exact deployed/tested version",
+                    valid=False,
+                )
+                continue
+        else:
+            assessed(item_id, "INVALID", "Flow activation status is malformed", valid=False)
+            continue
+
+        exact_pass = (
+            test_status == "terminal"
+            and test.get("outcome") == "Pass"
+            and test.get("tested_version") == deployment["version"]
+            and activation_status == "Active"
+            and active_id == deployment["flow_id"]
+            and active_version == deployment["version"]
+        )
+        if exact_pass:
+            if row.get("flow_status") != "Active" or not _is_one_of(
+                row.get("validation_status"), {"VERIFIED", "AWAITING_QA"}
+            ):
+                assessed(item_id, "INVALID", "worker Flow active validation claim is malformed", valid=False)
+            elif row.get("validation_status") == "AWAITING_QA":
+                assessed(item_id, "AWAITING_QA", "worker still reports Flow validation outstanding")
+            else:
+                assessed(item_id, "VERIFIED", "exact deployed Flow version passed and is active")
+            continue
+        if row.get("validation_status") == "VERIFIED" or row.get("flow_status") == "Active":
+            assessed(
+                item_id,
+                "INVALID",
+                "worker claims verified/active without an exact deployed-version pass and read-back",
+                valid=False,
+            )
+            continue
+        assessed(
+            item_id,
+            "AWAITING_QA",
+            "exact deployed Flow version is not yet terminal-passed and active",
+        )
     return assessments
 
 
@@ -831,6 +1226,7 @@ def _item_result(
     skipped_detail: bool,
     global_report_invalid: bool,
     runtime_assessment: dict[str, Any] | None,
+    flow_assessment: dict[str, Any] | None,
 ) -> dict[str, Any]:
     item_id = item["id"]
     result = {
@@ -842,6 +1238,8 @@ def _item_result(
     }
     if runtime_assessment is not None:
         result["runtime_assessment"] = runtime_assessment
+    if flow_assessment is not None:
+        result["flow_assessment"] = flow_assessment
     skip_is_uncontradicted = (
         completion is None
         and seed_report is None
@@ -851,7 +1249,9 @@ def _item_result(
         )
         and (
             observation is None
-            or observation.get("attribution") not in {"applied", "already_satisfied"}
+            or not _is_one_of(
+                observation.get("attribution"), {"applied", "already_satisfied"}
+            )
         )
     )
     if authorized_skip is not None and skip_is_uncontradicted:
@@ -919,6 +1319,44 @@ def _item_result(
             if detail_disposition == disposition:
                 result.update(disposition=disposition, reason=detail_reason)
                 return result
+
+    if flow_assessment is not None:
+        flow_outcome = flow_assessment["assessment"]
+        if flow_outcome == "FAILED":
+            result.update(disposition="FAILED", reason=flow_assessment["reason"])
+            return result
+        if flow_outcome == "BLOCKED":
+            result.update(disposition="BLOCKED", reason=flow_assessment["reason"])
+            return result
+        if flow_outcome in {"INCOMPLETE", "INVALID"}:
+            result["reason"] = flow_assessment["reason"]
+            return result
+        if flow_outcome == "AWAITING_QA":
+            if global_report_invalid:
+                result["reason"] = "report/evidence structure or identity is invalid"
+                return result
+            if observation is None or observation.get("verification") != "targeted_state":
+                result["reason"] = "Flow awaiting QA lacks targeted current-state evidence"
+                return result
+            if observation.get("result") == "unavailable" or not isinstance(
+                observation.get("actual_state"), dict
+            ):
+                result["reason"] = "Flow awaiting QA current-state evidence is unavailable"
+                return result
+            attribution = observation.get("attribution")
+            if attribution == "applied" and not _nonempty(observation.get("change_source")):
+                result["reason"] = "Flow awaiting QA lacks current change provenance"
+                return result
+            if attribution == "already_satisfied" and not _nonempty(
+                observation.get("baseline_source")
+            ):
+                result["reason"] = "Flow awaiting QA lacks baseline provenance"
+                return result
+            if attribution not in {"applied", "already_satisfied"}:
+                result["reason"] = "Flow awaiting QA lacks applied or baseline attribution"
+                return result
+            result.update(disposition="AWAITING_QA", reason=flow_assessment["reason"])
+            return result
 
     evidence_problem = _verification_problem(item, observation)
     if item["kind"] == "seed":
@@ -1018,7 +1456,7 @@ def reconcile(
         for item_id, item in items.items()
         if "agent_runtime" in item["acceptance"]
     }
-    completion, data_seeded, detail_outcomes, reported_skips = _worker_rows(
+    completion, data_seeded, detail_outcomes, reported_skips, deployed_rows = _worker_rows(
         worker, identity, expected_ids, skips, agent_actions, errors
     )
     observations = _evidence_rows(
@@ -1029,6 +1467,15 @@ def reconcile(
     canonical_gate_bytes = AGENTFORCE_GATE_PATH.read_bytes() if agent_item_ids else b""
     runtime_assessments = _agent_runtime_assessments(
         items, observations, contexts, canonical_gate_bytes, errors
+    )
+    flow_assessments = _flow_validation_assessments(
+        items,
+        deployed_rows,
+        observations,
+        worker is not None,
+        skips,
+        reported_skips,
+        errors,
     )
     global_report_invalid = bool(errors)
 
@@ -1046,6 +1493,7 @@ def reconcile(
                 item_id in reported_skips,
                 global_report_invalid,
                 runtime_assessments.get(item_id),
+                flow_assessments.get(item_id),
             )
         )
 

@@ -7,7 +7,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 **Three phases:**
 - **Phase A — Sync setup + launch prelude (blocking, fast).** Pre-Spawn steps 0–5a, then launch the prelude in the background and return control to the caller. The caller proceeds to ask Stage 3 discovery questions.
 - **Phase B — Prelude completion (push-triggered, log-only).** On the prelude's background-completion notification: collect + parse it, slice ACTIVE_LRP_MAP, launch the 3 parallel sub-agents in the background, append a progress-log line. NO chat message. If a discovery ask is pending, the SE keeps answering — the parallel agents run silently.
-- **Phase C — Consolidation (foreground join).** Invoked by the caller once the SE has answered the audit-independent discovery questions. Collect the 3 parallel sub-agents (await their completions if not all arrived), run the spot-check, consolidate, write the Notable Gaps narrative, clean up, and surface the star summary. This is the audit-dependent join — the star summary and the anchor-app discovery question surface here.
+- **Phase C — AUDIT-READY barrier (foreground join).** Invoked by the caller once the SE has answered the audit-independent discovery questions. If the prelude is still running, finish its bounded Phase B handling and launch the 3 workers first. Then collect the workers (await their completions if needed), apply the existing bounded structural retry, run the spot-check, consolidate, write and validate the audit, and return a ready/not-ready outcome. This is the single audit-dependent boundary; callers own their route-specific star/question UI.
 
 ## Pre-Spawn Setup (orchestrator runs directly)
 
@@ -103,11 +103,11 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
    **End of Phase A.** Return to the caller (scout-sparring.md Stage 3 / showtime.md S1b) so the SE can begin answering discovery questions. The steps below (parse prelude, slice, launch parallel) execute as **Phase B** when the prelude's background completion notification arrives — which may be while an SE discovery answer is still pending. Do NOT wait synchronously here.
 
-   **Phase B begins on the prelude background-completion notification.** Extract the fenced JSON block. Parse it.
-   - `status: SUCCESS` or `status: PARTIAL` → use the returned `default_app_tabs` and `active_lrp_map`. If `PARTIAL`, log each `degradations` entry to `audit-progress.log` so the SE can see which level was lost.
-   - `status: FAILED` or missing/malformed JSON → degrade the audit: set `DEFAULT_APP_TABS` to core-6, set `ACTIVE_LRP_MAP` to `[]`, and flag the SE: "Audit prelude failed — proceeding with core-6 fallback only. Retry in a fresh window if you need full LRP resolution."
+   **Phase B begins on the prelude background-completion notification.** Apply the same structural fenced-JSON check as Post-Return Processing below. If the block is absent or malformed, redispatch the same prelude envelope **once** and log `auto-retry 1/1`; only a second absent/malformed return falls through to the core-6 degradation. Parse a present block.
+   - `status: SUCCESS` or `status: PARTIAL` → use the returned `default_app_tabs` and `active_lrp_map`. If `PARTIAL`, retain every `degradations` entry in `PRELUDE_LIMITATIONS` and log each one to `audit-progress.log` so the SE can see which level was lost. These limitations make the final barrier result `ready-partial` even when every worker succeeds.
+   - `status: FAILED`, or missing/malformed JSON after the one retry → degrade the audit: set `DEFAULT_APP_TABS` to core-6, set `ACTIVE_LRP_MAP` to `[]`, record a partial-result reason, and flag the SE: "Audit prelude failed — proceeding with core-6 fallback only. Retry in a fresh window if you need full LRP resolution."
 
-   Record: `DEFAULT_APP` = `CANDIDATE_APP`, `DEFAULT_APP_DEVELOPER_NAME` = `CANDIDATE_APP_DEVELOPER_NAME`, `DEFAULT_APP_TABS` = from prelude JSON, `ACTIVE_LRP_MAP` = from prelude JSON.
+   Record: `DEFAULT_APP` = `CANDIDATE_APP`, `DEFAULT_APP_DEVELOPER_NAME` = `CANDIDATE_APP_DEVELOPER_NAME`. For `SUCCESS`/`PARTIAL`, record validated `DEFAULT_APP_TABS` and `ACTIVE_LRP_MAP` from the prelude JSON. For the failed/missing/malformed branch, retain the fallback values already assigned (`DEFAULT_APP_TABS` = core-6 and `ACTIVE_LRP_MAP` = `[]`); do not overwrite them from the invalid return.
 
    Then **slice `ACTIVE_LRP_MAP` into two per-sub-agent views** so each Sonnet only sees entries it owns:
    - `ACTIVE_LRP_MAP_STANDARD` = entries where `object` does NOT end in `__c` (standard objects — Account, Contact, Opportunity, Case, Lead, Order, MessagingSession, ServiceResource, etc.). Goes to the standard-objects sub-agent.
@@ -154,19 +154,31 @@ Spawn all 3 in the BACKGROUND (`[PLUGIN_ROOT_ABS]` = the absolute path from Pre-
 
 After spawning, append ONE progress-log line (`echo "[$(date +%H:%M:%S)] [orchestrator] prelude done — 3 parallel audit agents launched" >> [ORG_FOLDER]/.audit-progress.log`) and emit **NO chat message** — a discovery ask may be pending. The live-status heartbeat was already emitted in step 5a. **This ends Phase B.** Do not block waiting for the 3 agents here; their completions will push notifications. As each arrives, you MAY collect it eagerly (hold the parsed JSON), but do NOT begin consolidation until Phase C is invoked by the caller — consolidation emits the SE-facing star summary, which must not compete with a pending discovery ask.
 
-**Phase C — Consolidation join (invoked by the caller after the SE answers the audit-independent discovery questions).** Ensure all 3 parallel sub-agents have completed (await any whose background completion has not yet arrived). Append one coarse marker — `echo "[$(date +%H:%M:%S)] [orchestrator] Phase C — all sub-agents in, consolidating" >> [ORG_FOLDER]/.audit-progress.log` — then (do not read the progress log back — it is SE-facing only) run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup below, and return the consolidated summary to the caller for the star-summary emission.
+<a id="phase-c-audit-ready-barrier"></a>
+## Phase C — AUDIT-READY barrier
+
+Invoke this barrier only after the caller's audit-independent question is answered. If Phase B has not launched the three workers yet, await the prelude, apply Phase B's one-retry/fallback handling, and launch them. Then ensure all 3 parallel sub-agents have completed (await any whose background completion has not yet arrived). Append one coarse marker — `echo "[$(date +%H:%M:%S)] [orchestrator] Phase C — all sub-agents in, consolidating" >> [ORG_FOLDER]/.audit-progress.log` — then (do not read the progress log back — it is SE-facing only) run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup below.
+
+Do not return to an audit consumer until Cleanup & Validation assigns an outcome:
+
+- `ready-complete` — all required sections returned and the written audit passed star validation.
+- `ready-partial` — the prelude degraded or one worker section failed, every degradation/failure is surfaced, and the written audit still passed star validation. A partial result is usable evidence with named limits, never a full-audit claim.
+- `not-ready` — two or more workers failed, consolidation/write failed, or star validation failed. Stop at the existing retry-or-explicit-skip decision. A caller must not consume this run as an audit. An explicit skip changes `AUDIT_MODE` to `skipped`; it does not turn this result into `ready-partial`.
+
+Return the outcome, consolidated summary, and audit-file path. Do not emit a caller-specific star block, Q5, reconciliation, or proposal from this fragment.
 
 ## Post-Return Processing
 
 As each sub-agent returns, **first** apply structural partial-return detection — do not eyeball the response:
 
-1. **Regex-check the agent's return string for a fenced JSON block:** `^```json` (start of line, anywhere in the response). If present, proceed to parse. If absent, the sub-agent returned mid-narration (typically a budget/timeout wall — the harness surfaces last-assistant-text as "result" without flagging the truncation).
-2. **On absent JSON:** auto-redispatch the same envelope **once** (max 1 retry — a second retry usually hits the same wall and doubles worst-case latency). Before redispatching, log to `audit-progress.log`: `⚠️ [agent-id]: returned without fenced JSON — auto-retry 1/1`. Use the same `Agent(...)` call shape as the original spawn.
-3. **On absent JSON after retry:** flag that sub-agent's section as failed and surface the raw return string to the SE: "[agent-id] failed twice — returned mid-narration both times. Likely tool-budget exhaustion. Retry in a fresh window or skip this section."
-4. **On present JSON:** parse it. `status: SUCCESS` or `status: PARTIAL` → collect the JSON. `status: FAILED` → flag that sub-agent's section as failed.
-5. If 2+ sub-agents fail (after retry where applicable) → show the raw outputs, ask the SE to retry in a fresh window or skip the audit entirely.
+1. **Regex-check the agent's return string for a fenced JSON block:** `^```json` (start of line, anywhere in the response), then parse it. A missing block or parse/schema failure is a structural failure; preserve the raw return. A present fence by itself is not success.
+2. **On structural failure:** auto-redispatch the same envelope **once** (max 1 retry — a second retry usually hits the same wall and doubles worst-case latency). Before redispatching, log to `audit-progress.log`: `⚠️ [agent-id]: absent or malformed fenced JSON — auto-retry 1/1`. Use the same `Agent(...)` call shape as the original spawn.
+3. **On structural failure after retry:** flag that sub-agent's section as failed and surface both raw returns to the SE: "[agent-id] failed structural validation twice. Retry in a fresh window or skip this section."
+4. **On structurally valid JSON:** `status: SUCCESS` or `status: PARTIAL` → collect the JSON. `status: FAILED` → flag that sub-agent's section as failed and surface its stated reason.
+5. If 2+ sub-agents fail (after retry where applicable) → set the barrier outcome to `not-ready`, show the raw outputs, and ask the SE to retry in a fresh window or explicitly skip the audit. **Stop.** Do not run consolidation or return data to an audit consumer unless a retry later crosses the barrier; a skip sets `AUDIT_MODE = skipped`.
+6. If exactly one sub-agent fails, require the other two successful/partial fragment files, then write a short fragment at the failed section's expected path containing only its section heading, `Section unavailable`, and the surfaced failure reason. Do not infer findings or star items. If either successful fragment is missing or the placeholder write fails, set `not-ready` and stop. This explicit placeholder is what permits a structurally complete `ready-partial` audit.
 
-The same regex-check applies to the prelude sub-agent's return in the Pre-Spawn Setup step — absent fenced JSON triggers the same max-1 retry before falling through to the core-6 degraded audit.
+The same structural check applies to the prelude sub-agent's return in the Pre-Spawn Setup step — absent or malformed fenced JSON triggers the same max-1 retry before falling through to the core-6 degraded audit.
 
 Check the standard-objects sub-agent's `demo_surface_notes` for non-universal standard objects with data — these hint at which industry cloud the org uses. Record for Stage 3.
 
@@ -177,9 +189,10 @@ Run these SOQL queries in parallel:
 - `SELECT COUNT() FROM FlowDefinitionView WHERE IsActive = true` — active flow count
 
 Compare each against the sub-agent JSON fields:
-- **Flow count:** compare against apps/flows/agents sub-agent's `active_flow_count`. Mismatch means the sub-agent's count query failed — flag it.
+- **Flow count:** compare against apps/flows/agents sub-agent's `active_flow_count`. A mismatch is a discrepancy; retain both raw values and do not infer which query failed without further evidence.
 - **Agent count:** compare against apps/flows/agents sub-agent's `agents_found` array length. If spot-check finds >0 but sub-agent reported 0, query `SELECT DeveloperName, MasterLabel, Type FROM BotDefinition` and include the results in the consolidated summary.
-- For any mismatch >20% or zero-vs-nonzero: flag to the SE: "Sub-agent reported [X] but spot-check found [Y]. The [section] may be incomplete."
+- For any mismatch >20% or zero-vs-nonzero: flag to the SE: "Sub-agent reported [X] but spot-check found [Y]. The [section] may be incomplete." If the discrepancy remains unresolved, add both raw values to `SPOT_CHECK_LIMITATIONS`; that makes the final result `ready-partial` if validation otherwise succeeds.
+- If either spot-check query fails, is unavailable, or returns an unparseable result, record that value as `unknown`, retain the worker's reported value only as unverified context, and add the exact failure to `SPOT_CHECK_LIMITATIONS`. Do not coerce failure to zero or call it ground truth. Any `SPOT_CHECK_LIMITATIONS` entry makes the final result `ready-partial` if validation otherwise succeeds.
 
 Default app is not spot-checked here — the orchestrator confirmed it with the SE in pre-spawn setup.
 
@@ -193,7 +206,7 @@ Merge the 3 JSON summaries + spot-check corrections into one consolidated summar
 - `active_lrps`: union of standard objects + custom objects sub-agent `active_lrps` arrays — each entry carries `{object, lrp_developer_name, composition_class, gap_risk, field_sections}`. `composition_class` ∈ {`record_detail` (uses `force:detailPanel`, layout-pass-through, safe), `field_section` (uses `flexipage:fieldSection`, custom-composed, layout adds invisible), `mixed` (both), `custom` (neither — pure LWC or dynamic-form regions), `unretrievable` (LRP retrieve failed)}. `gap_risk` is `false` for `record_detail`, `true` for `field_section` / `mixed` / `custom` / `unretrievable`.
 - `relevant_custom_objects`: from custom objects sub-agent
 - `agents_found`: from apps/flows/agents sub-agent (corrected by spot-check if needed)
-- `active_flow_count`: from spot-check (ground truth)
+- `active_flow_count`: from a successful spot-check (ground truth); otherwise `unknown`, with the worker-reported value retained as unverified context and the spot-check limitation named
 - `notable_gaps`: collect `issues` arrays from all 3 sub-agents
 - `demo_surface_notes`: collect `demo_surface_notes` arrays from all 3 sub-agents
 
@@ -201,21 +214,24 @@ Merge the 3 JSON summaries + spot-check corrections into one consolidated summar
 
 Using the consolidated JSON summary — especially `demo_surface_notes` from all 3 sub-agents — write a "Notable Gaps and Risks" section. This is cross-cutting synthesis: what the org's metadata means for the demo scenario.
 
-Concatenate fragment files:
+After verifying all three expected paths exist (including an explicit failed-section placeholder when exactly one worker failed), concatenate into a bounded candidate path rather than the published audit path:
 ```
+mkdir -p [ORG_FOLDER]/.scout-tmp
 cat [ORG_FOLDER]/audit-fragment-standard-objects.md \
     [ORG_FOLDER]/audit-fragment-apps-flows-agents.md \
     [ORG_FOLDER]/audit-fragment-custom-objects.md \
-    > [ORG_FOLDER]/audit-[YYYY-MM-DD]-[HHMM].md
+    > [ORG_FOLDER]/.scout-tmp/audit-candidate-[YYYY-MM-DD]-[HHMM].md
 ```
 
-Append the Notable Gaps section (written by Opus from the JSON summaries) to the end of that file.
+If any required fragment is missing or concatenation/write fails, set the barrier outcome to `not-ready`, retain the available fragments and progress log for diagnosis, and stop for retry-or-explicit-skip. Never publish or return the candidate as a valid audit.
+
+Append the Notable Gaps section (written by Opus from the JSON summaries) to the candidate file. Include `PRELUDE_LIMITATIONS`, failed-section details, worker `degradations`, `SPOT_CHECK_LIMITATIONS`, and count mismatches as applicable.
 
 ## Cleanup & Validation
 
-1. Delete the 3 fragment files after successful concatenation.
-2. **Star marker validation:** Grep the consolidated audit file for `★`. If 0 matches, flag to the SE: "The audit file has no ★ markers — build surface identification may have failed." Keep the progress log in place — SE may need the heartbeat history to debug which sub-agent failed to star-flag.
-3. Delete the progress log — `rm -f [ORG_FOLDER]/.audit-progress.log`. Run this only after star-marker validation passes; on validation failure, leave the log so the SE can inspect sub-agent heartbeats.
+1. **Star marker validation:** Grep the candidate audit file for `★`. If 0 matches, set the barrier outcome to `not-ready`, flag to the SE: "The audit candidate has no ★ markers — build surface identification may have failed. Retry in a fresh window or explicitly skip this audit." Keep the candidate, source fragments, and progress log in place, then **stop** — do not publish or return the candidate to an audit consumer.
+2. After star validation succeeds, move the candidate atomically to `[ORG_FOLDER]/audit-[YYYY-MM-DD]-[HHMM].md`, then delete the 3 source fragment files. If the move fails, set `not-ready`, retain the candidate/fragments/log, and stop.
+3. Delete the progress log — `rm -f [ORG_FOLDER]/.audit-progress.log`. Run this only after the validated candidate is published; on validation or publish failure, leave the log so the SE can inspect sub-agent heartbeats.
 4. **Symmetric workspace sweep.** Mirror the Pre-Spawn sweep exactly so a clean successful audit doesn't leave orphans in the SE workspace:
    ```
    find [ORG_FOLDER]/.scout-tmp -mindepth 0 -delete 2>/dev/null || true
@@ -223,3 +239,4 @@ Append the Notable Gaps section (written by Opus from the JSON summaries) to the
    find . -maxdepth 1 -name 'package-*.xml' -delete 2>/dev/null || true
    ```
    Start-of-run cleanup is the safety net for crashed / interrupted / SE-cancelled prior runs (see `pipeline-lessons/sub-agent-architecture.md`); end-of-success cleanup is clean-path hygiene — neither fires in the other's case, so both are needed. The SE workspace at `~/claude-projects/sf-demo-scout/` is not a git repo and has no `.gitignore`, so these files are visible until swept. The bounded `.scout-tmp/` directory keeps the sweep list fixed (one `find … -delete` for the model surface, two for the MCP-server-controlled surface) as new model-invented patterns surface.
+5. **Return the barrier result.** Return `ready-partial` if the prelude returned `PARTIAL` or used core-6 fallback, any collected worker reported `PARTIAL`, exactly one worker section failed, or any spot-check is unknown; include every named limitation. Otherwise return `ready-complete`. Return the consolidated summary and validated published audit-file path with either ready outcome. Never return ready after a `not-ready` condition above.

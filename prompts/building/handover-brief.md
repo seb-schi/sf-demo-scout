@@ -32,7 +32,7 @@ following are VERIFIED in the change log:
 - Agentforce smoke test: [pass/fail count from change log]
 
 **Built — Validate in Sonnet (Scout attempted these; finish them in this session)**
-Scout attempts every metadata-authorable artifact — including ones with NO build-time signal. That covers complex Apex and screen flows (looped against an Apex test / happy-path FlowTest) AND no-signal *visual* surfaces (a deployed FlexiPage / Lightning page, a classic Page Layout arrangement, a screen flow using a non-whitelist component, a complex LWC's rendered UI, a dashboard). Where a signal existed but did NOT go green, or where there is no signal at all, the artifact was still DEPLOYED — but honestly reported unconfirmed, never "working." These are NOT platform limits; finish them right here by telling Claude what to adjust (it reaches for `sf-flow`, `platform-apex-test-run`, `platform-flexipage-generate`, and friends against your org). Include only what applies:
+For approved metadata-authorable work within Scout's build boundaries, separate deployment from validation. Apex tests and supported, exact-version Flow tests may validate logic; visual surfaces still need UI confirmation. Include an artifact as deployed-but-unconfirmed only when deployment evidence supports that description and reconciliation reports AWAITING_QA. Failed, blocked or incomplete deployment is not a built artifact. Preserve the named full-new-RecordPage exception in the build boundaries; do not imply Scout deployed an excluded page. Missing automated coverage does not itself establish an API limitation. Include only what applies:
 - [ ] **Every reconciler AWAITING_QA item:** [ledger item id] — [remaining test,
   visual, or live-runtime confirmation].
 - [ ] **Every remaining Agentforce action, guardrail, or test obligation:** [ledger
@@ -40,15 +40,16 @@ Scout attempts every metadata-authorable artifact — including ones with NO bui
   PASS clears only its own ledger item. Do not carry worker smoke booleans forward
   as proof, and do not erase other required checks.
 - [ ] **Test-unvalidated Apex:** for each Apex class in the change log's "Issues Encountered" whose generated test failed or is low-coverage — review the logic and the test, then iterate in this session until it passes (or confirm the demo path works without it). The class IS deployed.
-- [ ] **Draft screen flows:** for each screen flow the change log lists as `Draft` (its happy-path FlowTest did not pass twice) — walk the logic, fix, re-run the test, and activate. A Draft flow will NOT fire on the org until activated.
+- [ ] **Draft flows:** [flow API name, deployed version, type, test/run ID if available] — [failed, pending, unsupported, unavailable, or wrong-version validation]. Name the exact remaining validation step from Phase 2. Test the intended draft with a supported mechanism and verify terminal results before activation; a passing test of an older active version is insufficient. Keep the new version Draft/AWAITING_QA until proven. If an incumbent version is active, state that it remains active; never claim the new draft is running.
 - [ ] **Screen-flow visual QA:** walk through each activated screen flow once in the Lightning UI (labels, button order, help text) — this has no metadata signal and is always a human-eyes step.
 - [ ] **No-signal visual artifacts (deployed, unconfirmed):** for each item the change log flags as deployed-but-needs-visual-QA (a new/edited Lightning page or FlexiPage, a Page Layout arrangement, a screen flow using a non-whitelist component, a custom LWC's rendered UI, a dashboard) — open it in the relevant builder, confirm it renders/behaves as the story needs, and adjust. The metadata IS deployed; there is simply no build-time signal that could confirm the visual result.
 
-**Your Setup (Salesforce UI — no API path)**
-These are Salesforce platform limits, not Scout gaps — the Metadata API does not expose these surfaces, so no tool can automate them. Populate from the spec's SE Manual Checklist + the change log's "SE Must Do Next":
+**Your Setup and Unresolved Work**
+Populate from the reconciled change log and the spec's SE Manual Checklist. Label docs-confirmed UI-only work with its source; distinguish it from missing provisioning, unavailable evidence, failed deployment or work Scout has not verified. Do not present every outstanding item as a Salesforce API limitation.
 - [ ] **Every reconciler BLOCKED manual item:** [ledger item id] — [specific SE
   action]. Keep it visible until completed; a manual handoff is not a skip.
 - [ ] [SE Manual Checklist items from spec + change log "SE Must Do Next", rephrased with Setup navigation paths where applicable]
+- [ ] **Every remaining FAILED, BLOCKED or INCOMPLETE item:** [ledger item id, actual result, reason and next action]. A failed retrieval means source editability is unknown unless absence was positively established; do not prescribe an agent upgrade from that failure alone.
 
 **For each `actions_unverified_in_preview` entry in the change log, append a checklist item under Your Setup only when its reconciled ledger item remains AWAITING_QA, BLOCKED, FAILED, or INCOMPLETE.** Do not resurrect an entry whose exact action obligation has a current independent PASS; keep unrelated outstanding entries. The canonical definition of this field lives in `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md`. Formatting rules:
 - **Knowledge grounding entry:** append verbatim:
