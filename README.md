@@ -170,6 +170,13 @@ piloted live at World Tour Frankfurt, forked by the US Regulated FDE org
 for live customer orgs, and cloned 200+ times across a 100+ member SE
 community spanning EMEA and AMER.
 
+## Development checks
+
+Run the [offline regression suite](tests/README.md) from a clean checkout with
+`PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -v`.
+The fixtures use temporary files and synthetic CLI responses; they do not test
+a live Salesforce org or install CLI updates.
+
 ## Archive
 
 The full clone-install history is preserved at branch

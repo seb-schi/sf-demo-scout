@@ -4,6 +4,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-17
 
+- **Setup's safety checks now travel with Scout.** Shell-configuration repair and CLI refresh use shipped scripts covered by a repeatable offline regression suite. The existing checks for preserved shell settings, truthful update results, and correct customer-folder lookup can now be rerun from a clean checkout, alongside Scout's newer build and startup checks.
 - **Startup tells you what Scout actually knows.** A failed CLI check no longer means “no default org” or “authentication expired.” Cached results show when they were collected, distinct org aliases keep distinct identities, and a failed refresh cannot quietly reuse an older success. The cache retains only the fields needed for the banner, in private files.
 - **Standalone configuration requests reach the right build phase.** Reports, sharing rules, validation rules, list views, settings, metadata types, and Email-to-Case use the same supported-input list for selection and deployment. Scout also identifies its bundled skills from the installed files, so skill names alone no longer decide what is external.
 - **Email-to-Case has a clear agent handoff.** Base email configuration stays in Phase 1; agent creation stays behind the Phase 3 gate. Email entitlement and channel wiring are separate prerequisites, and missing channel tooling or manual work stays visible.
