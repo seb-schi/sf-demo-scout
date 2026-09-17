@@ -44,6 +44,7 @@ class RoutingAndScopeContractTests(unittest.TestCase):
             "CUSTOM_SETTING",
             "CUSTOM_METADATA_TYPE",
             "EMAIL_TO_CASE",
+            "COMPONENT_ROLLBACK",
         }
         self.assertEqual(
             expected_tags,

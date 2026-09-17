@@ -23,6 +23,9 @@ The loaded demo spec and org audit are your ONLY inputs. If the SE pastes or upl
 > - **New scenario or structural rework** — take it back to `/scout-sparring` to revise the spec, then re-run `/scout-building`."
 
 This is a hard stop, not a judgment call — nothing new gets deployed on the basis of a mid-build request *during this build*. The live-tweak door (the small-tweak route above) is for after the build completes, in the SE's own session.
+Once the build is complete, that user-requested repair is an explicit exception to
+Spec Only. Read `${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md` before its
+first tool call; its compact scope and rollback contract govern the repair.
 
 Selected imported metadata is raw material for an existing spec item, not a new
 source of requirements. Its extraction intent is provenance only. The binding
@@ -150,6 +153,15 @@ converted-retrieve scratch. Resolve `ASSET_HELPER` to the absolute plugin path
    `preedit_snapshot` stays unresolved: preserve scratch and report it. A fresh
    retrieve or a snapshot of already-edited source cannot reconstruct the original
    before-state and must never be relabeled as the missing pre-edit backup.
+6. **Unresolved component-repair checkpoints block startup cleanup.** Read this org's
+   change logs for `PENDING — component repair`. Require a recorded final outcome and,
+   for every `existing` target on which mutation was attempted, a verified first
+   `component-preedit` receipt with its artifact/source/member paths. A finalized
+   `already_satisfied` target is receipt-exempt only with saved independent baseline
+   and current evidence plus proof that no mutation was attempted. A frozen authorized
+   skip needs no checkpoint or receipt when no mutation occurred; an unexpected mutation
+   remains an unresolved out-of-scope deviation. Missing evidence cannot be reconstructed
+   from current or edited source. Retain the named scratch and report the exact unresolved checkpoint.
 
 With no selected imports, the new phase input is empty and an older spec follows
 the existing build path. Existing unresolved preservation failures still block
@@ -374,14 +386,20 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
      If the spec has NO `### External Skills` section, substitute the **empty string** (the placeholder line disappears — no blank artifact). These skills are visible in the sub-agent's menu (the harness indexes all installed skills); this note authorizes and scopes their use, it does not install them.
    - **`{{IMPORTED_ASSETS}}` (all three phases).** Substitute the selected import
      block described below for THIS phase, or the **empty string** when none apply
-     (including older specs with no Imported Assets section). Do not add
-     `{{ROLLBACK_DIR}}` to Phase 2; its consumer uses staged project source.
+     (including older specs with no Imported Assets section).
    - **`{{COMPLETION_CONTRACT}}` (all three phases).** Read and substitute the full
      contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/completion-contract.md`.
    - **`{{EXPECTED_COMPLETION_LEDGER}}` (all three phases).** Substitute the exact
      frozen JSON ledger for this phase. Do not summarize or regenerate it.
    - **`{{BUILD_SCOPE}}` (all three phases).** Substitute the exact BUILD_SCOPE block
      derived during Phase Analysis, verbatim. Never let a phase widen or reinterpret it.
+   - **`{{COMPONENT_ROLLBACK}}` (Phase 1/2 when the marker is retained).** Read and
+     substitute the full contents of
+     `${CLAUDE_PLUGIN_ROOT}/prompts/building/component-rollback.md`. The fragment has
+     no nested plugin-root or template tokens; the phase supplies its already resolved
+     absolute `{{ASSET_HELPER}}` and `{{ROLLBACK_DIR}}`. Retain the marker for selected
+     Report/ReportType work in Phase 1 and for selected Flow/Apex/LWC work in Phase 2;
+     otherwise strip the whole conditional block.
 4. **Immediately before dispatch**, after preceding phases and this phase's SE
    gate, stage only this phase's selected components that are inside BUILD_SCOPE.
    Re-verify each named artifact
@@ -417,11 +435,38 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
    During return review, reject work outside BUILD_SCOPE, preserve it as a deviation,
    and never count it as completion. A retry uses the same frozen BUILD_SCOPE and
    ledger; it cannot add excluded or previously unselected work.
+   Before trusting returned detail rows, derive the complete preservation target set
+   from the frozen ledger plus selected approved phase work: every Phase 1
+   Report/ReportType and Phase 2 Flow/Apex/LWC item that could mutate the org. Do this
+   independently of worker output. Exclude a frozen authorized skip when dispatch/tool
+   evidence proves no mutation was attempted; no worker or detail row is required for
+   that item. If worker, tool, or current-state evidence instead shows an unexpected
+   mutation, the skipped item remains an out-of-scope deviation and a preservation
+   target; skip authorization never hides or authorizes that write. An
+   `already_satisfied` item is snapshot/receipt-exempt only when saved independent
+   pre-dispatch baseline and current read-back prove the exact requested state and that
+   no mutation was attempted. A worker label alone is insufficient; any attempted
+   mutation removes the exemption. For every remaining target, require a matching well-formed row
+   and validate its shared `preedit_snapshot` classification and evidence exactly as
+   `sub-agent-validation.md` requires. Run the absolute `ASSET_HELPER` verify command
+   for each `existing` target and require kind `component-preedit` beneath this org's
+   absolute `ROLLBACK_DIR`. For a Flow also require separate saved original
+   active/inactive evidence and exact original ID/version when active.
+
+   A missing or malformed worker row, classification, receipt, verification, or Flow
+   state record is a preservation failure for that derived item. In the item's existing
+   independent observation, set `result` to `unavailable`, append the exact preservation
+   failure and saved source to `details`, and rerun `scripts/build-completion.py` with
+   that evidence. Keep the operational preservation issue/checkpoint BLOCKED, while
+   using the reconciler's actual unresolved disposition (normally INCOMPLETE for an
+   unavailable observation); do not overwrite it with a prose status or invent a state
+   mismatch. Retain scratch, withhold cleanup, and never reconstruct a receipt from
+   current or edited source.
 
 | Phase | Template | IF markers | Placeholders | Agent description |
 |-------|----------|------------|--------------|-------------------|
-| 1 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` | `QUEUES`, `LAYOUTS`, `LRP`, `PERMSET`, `STRUCTURAL`, `PICKLISTS`, `DATA_SEEDING`, `BUSINESS_PROCESS`, `PATHS`, `VALIDATION_RULES`, `LIST_VIEWS`, `SHARING_RULES`, `CUSTOM_REPORT_TYPE`, `REPORTS`, `CUSTOM_SETTING`, `CUSTOM_METADATA_TYPE`, `EMAIL_TO_CASE` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`), `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning Record Page — Field Section additions, Lightning App / Tabs, Queues, Business Processes, Paths, Validation Rules, List Views, Sharing Rules, Custom Report Type, Reports, Custom Settings, Custom Metadata Types, Email-to-Case), `{{BUILD_SCOPE}}`, `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 1: Org Config deployment` |
-| 2 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` | `FLOWS` = Flows (including record-triggered) + Screen Flows, `APEX` = Apex, `LWC` = LWC Components | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PHASE1_SUMMARY}}`, `{{SPEC_SECTIONS}}` (all selected Flow, Apex, and LWC Components work), `{{BUILD_SCOPE}}`, `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 2: Flows/Apex/LWC deployment` |
+| 1 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` | `QUEUES`, `LAYOUTS`, `LRP`, `PERMSET`, `STRUCTURAL`, `PICKLISTS`, `DATA_SEEDING`, `BUSINESS_PROCESS`, `PATHS`, `VALIDATION_RULES`, `LIST_VIEWS`, `SHARING_RULES`, `CUSTOM_REPORT_TYPE`, `REPORTS`, `CUSTOM_SETTING`, `CUSTOM_METADATA_TYPE`, `EMAIL_TO_CASE`, `COMPONENT_ROLLBACK` = selected Reports or Custom Report Types | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{ASSET_HELPER}}` (= absolute resolved path to `${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py`), `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`), `{{COMPONENT_ROLLBACK}}` (= full materialized shared rollback contract when its marker is retained), `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning Record Page — Field Section additions, Lightning App / Tabs, Queues, Business Processes, Paths, Validation Rules, List Views, Sharing Rules, Custom Report Type, Reports, Custom Settings, Custom Metadata Types, Email-to-Case), `{{BUILD_SCOPE}}`, `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 1: Org Config deployment` |
+| 2 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` | `FLOWS` = Flows (including record-triggered) + Screen Flows, `APEX` = Apex, `LWC` = LWC Components, `COMPONENT_ROLLBACK` = any selected Phase 2 work | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{ASSET_HELPER}}` (= absolute resolved path to `${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py`), `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — same durable directory as Phase 1), `{{COMPONENT_ROLLBACK}}` (= full materialized shared rollback contract), `{{PHASE1_SUMMARY}}`, `{{SPEC_SECTIONS}}` (all selected Flow, Apex, and LWC Components work), `{{BUILD_SCOPE}}`, `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 2: Flows/Apex/LWC deployment` |
 | 3 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` | *(none)* | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PRIOR_PHASES_SUMMARY}}` (= reconciled prior-phase dispositions and risks plus, for email-agent work, the probe command/result, exact `routingName` → Agent API name link, and base Email-to-Case prerequisite status), `{{ASSET_HELPER}}` (= absolute resolved path to `${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py`), `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`; same value injected into Phase 1), `{{SPEC_SECTIONS}}` (Agentforce section), `{{BUILD_SCOPE}}`, `{{VALIDATION_GATE}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` — read the file and substitute; sub-agents cannot resolve `${CLAUDE_PLUGIN_ROOT}`, so inject the content the same way `{{AUDIT_SHARED_RULES}}` is injected), `{{REAUTHOR_FROM_PLANNER}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-reauthor.md`, read-and-substitute like `{{VALIDATION_GATE}}`; PREFIX the substituted block with a line reading `RE-AUTHOR MODE: ON` when the editability pre-flight routed this agent to re-author mode, otherwise substitute the single inert line `RE-AUTHOR MODE: OFF — (not a re-author build — skip this section)`), `{{COMPLETION_CONTRACT}}`, `{{EXPECTED_COMPLETION_LEDGER}}`, `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 3: Agentforce deployment` |
 
 ### Phase 1: Org Config
@@ -587,6 +632,10 @@ The change log must include:
 - Selected import identities, their preserved paths, supplied spec items, and actual outcomes
 - For every `NeedsUICommit` agent: verified absolute recovery artifact and full bundle path, or the preservation failure + original scratch path and cleanup-withheld status. Never describe an unverified path as a preserved blueprint.
 - For every modified incumbent agent: the original active version and independently verified `preedit_snapshot` artifact/source/member paths, or the exact preservation failure and cleanup-withheld status. File restore instructions must name those exact members; no wildcard or workspace git rollback.
+- Every component-repair checkpoint and final outcome. For each modified incumbent,
+  include classification evidence and the independently verified first
+  `component-preedit` artifact/source/member paths; for Flows also include the separate
+  original active/inactive state and exact active identity when applicable.
 - **Docs Consulted** section — aggregate `docs_consulted` arrays from every sub-agent's JSON output, plus any orchestrator-level error-recovery consultations. If nothing was consulted, write "None — no unfamiliar errors encountered."
 
 If the SE already requested a local build-outcome summary, read
@@ -605,7 +654,14 @@ beneath the verified artifact's `source/`, and both actual absolute paths alread
 written in the change log. A missing/malformed Phase 3 result, failed/unverified
 preservation, missing artifact, or interrupted staging BLOCKS this sweep: retain
 scratch and record the reason + original paths in the log. The orchestrator owns
-this guard even if the producer claims success. Only after all checks pass, sweep
+this guard even if the producer claims success. An unresolved `PENDING — component repair`,
+missing final outcome, or existing component with an attempted mutation but without its
+verified first `component-preedit` receipt and recorded paths also BLOCKS cleanup. A
+finalized `already_satisfied` outcome is exempt only when saved independent baseline and
+current evidence prove the requested state and no mutation was attempted. A frozen
+authorized skip needs no receipt/checkpoint when no mutation occurred; an unexpected
+mutation remains an unresolved deviation. Retain required scratch. Re-run the shared
+component rollback artifact checks immediately before the sweep. Only then sweep
 the converted-retrieve scratch (deny-rule-safe `find … -delete`, never `rm -rf`):
 
 ```bash
@@ -659,14 +715,14 @@ osascript -e 'display notification "Build reconciled — review verified work an
 
 ## Step 7: Closing Note — The Demo Is Yours to Tinker With
 
-After the notification fires, emit this as the FINAL message of the session — a standalone, prominent beat (not folded into the brief above). Output it verbatim:
+After the notification fires, emit this as the FINAL message of the session — a standalone, prominent beat (not folded into the brief above). Any repair request that follows uses `${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md`. Output this note verbatim:
 
 > ---
 > 💡 **This demo isn't locked — you can change it right now.**
 >
 > Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? **Just tell me what to change, right here in this session** — I'll reach for the right Salesforce skill (`sf-flow`, `experience-lwc-generate`, `platform-data-manage`, and friends) and make the edit live against your org. Fast and free-wheeling; these tweaks aren't written back to the spec, which is exactly right for iteration.
 >
-> 📝 **When you're done tinkering, ask me to log what changed** — I'll append the live edits to this org's change log so your next `/scout-sparring` session picks them up automatically (that's where the running demo picture is kept current). It's on you to ask before you close the session; if you forget, sparring's next reconciliation will still catch most of it from the org itself — but a quick "log these changes" here is the clean way.
+> 📝 **Each repair is logged automatically** — I'll append the attempt and outcome to this org's change log so your next `/scout-sparring` session picks it up automatically (that's where the running demo picture is kept current).
 >
 > 💨 **Tip:** the heavy planning is done, so you don't need Opus for this part — run `/model` and switch to **Sonnet** for quicker, cheaper tinkering. (Bigger changes — a new agent, a story rebuild, anything you want captured in a clean spec — are the other door: open a fresh session and run `/scout-sparring`. That one stays on Opus.)
 > ---

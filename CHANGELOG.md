@@ -4,6 +4,8 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-17
 
+- **Small repairs keep a recoverable record.** Scout records the exact requested change, original state, current read-back, and any remaining QA automatically in the org change log. A filter or value change uses a compact repair path without a new scenario interview or spec.
+- **Rollback protects components that already existed.** Report, Flow, Apex, and LWC edits preserve verified originals outside cleanup scratch. Recovery restores the original source or Flow activation state; deletion is reserved for components proven new. Missing preservation or unfinished repair records stop cleanup.
 - **Flow validation follows the version Scout actually built.** Activation requires a supported test, completed results for the intended Flow version, and a matching activation read-back. A pass for an older active version cannot validate a new draft; unsupported or unproven validation stays visible as QA work.
 - **Fresh audits finish before Scout uses their results.** New, iteration, and Showtime sessions share one audit-ready check while independent discovery continues in parallel. Failed or partial audits stay explicit; skipped audits cannot quietly reuse stale findings.
 - **Plans and handovers distinguish evidence from assumptions.** Failed agent retrievals no longer imply missing source, Flow complexity alone no longer makes authorable work manual-only, and Showtime cites only sources actually checked. Build notifications and handovers retain unresolved work instead of announcing blanket success.

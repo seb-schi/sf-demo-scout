@@ -71,10 +71,20 @@ rollback notes. On preservation failure, carry the BLOCKED status and retained
 scratch location; do not promise file-level rollback. Runtime validation never
 substitutes for the missing before-state.
 
+For an **Existing Component Before-State and Direct Repairs** section, carry each
+unresolved or rollback-relevant attempt's exact identity, classification evidence,
+first verified artifact/source/member paths, outcome/read-back, and rollback route.
+For a Flow include original active/inactive state and exact original active identity;
+never suggest a fallback version. If an originally inactive Flow is currently active
+without a documented supported deactivation route and read-back, hand off BLOCKED
+manual deactivation and do not describe rollback as complete. Keep a ReportFolder when it was incumbent, contains
+later-added material, or current contents are unknown. A pending or missing receipt
+means cleanup stays withheld and the handover names the retained scratch path.
+
 **Want to Change Something? Two Ways.**
 This demo isn't locked. Pick the door that fits:
 
-**Quick tweak, fix, or tinker — stay right here.** Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? Just tell Claude what you want changed in this session — it'll reach for the right Salesforce skill (`sf-flow`, `experience-lwc-generate`, `platform-data-manage`, and friends came with Scout) and make the change live against your org. Free-wheeling and fast. These edits won't be written back to the spec — and that's fine for iteration.
+**Quick tweak, fix, or tinker — stay right here.** Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? Just tell Claude what you want changed in this session — it'll use Scout's compact direct-repair route and the relevant Salesforce skill (`sf-flow`, `experience-lwc-generate`, `platform-data-manage`, and friends), then append the attempt and outcome to this org's change log automatically. These edits won't be written back to the spec — and that's fine for iteration.
 
 **New scenario or structural rework — run `/scout-sparring`.** A different headline, a new agent, a story rebuild, anything you want captured in a clean spec with a fresh talk track and click path. Open a new Claude Code session and run `/scout-sparring` (iteration intent — and if you know the scenario cold, just tell Scout to move fast). It writes a new spec; `/scout-building` re-deploys over the top. Iterating an existing demo is a first-class Scout capability — not a restart.
 

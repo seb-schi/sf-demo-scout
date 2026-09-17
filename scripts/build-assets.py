@@ -14,7 +14,7 @@ from typing import Dict, Iterable, List, Mapping, Sequence, Set, Tuple
 
 
 RECEIPT_VERSION = 1
-VALID_KINDS = {"imports", "agent-recovery", "agent-preedit"}
+VALID_KINDS = {"imports", "agent-recovery", "agent-preedit", "component-preedit"}
 BUNDLE_TYPES = {"lwc", "aura", "aiAuthoringBundles", "genAiPlannerBundles"}
 COMPANION_TYPES = {"classes": ".cls", "triggers": ".trigger"}
 
@@ -301,7 +301,68 @@ def _validate_preserve_selections(kind: str, values: Sequence[str]) -> List[Pure
             raise AssetError(
                 "agent pre-edit snapshots require exact authoring/planner bundle directories"
             )
+        if kind == "component-preedit":
+            if len(selection.parts) < 2:
+                raise AssetError(
+                    "component pre-edit snapshots require an exact component below its type folder"
+                )
+            metadata_type = selection.parts[0]
+            if metadata_type in BUNDLE_TYPES and len(selection.parts) != 2:
+                raise AssetError(
+                    "component pre-edit snapshots require a whole {} member directory".format(
+                        metadata_type
+                    )
+                )
+            if metadata_type in COMPANION_TYPES:
+                suffix = COMPANION_TYPES[metadata_type]
+                if len(selection.parts) != 2 or not (
+                    selection.name.endswith(suffix)
+                    or selection.name.endswith(suffix + "-meta.xml")
+                ):
+                    raise AssetError(
+                        "component pre-edit snapshots require an exact {} component".format(
+                            metadata_type
+                        )
+                    )
     return selections
+
+
+def _manifest_for_components(
+    root: Path, selections: Sequence[PurePosixPath]
+) -> Tuple[Set[str], Dict[str, str]]:
+    """Build a complete manifest for exact component selectors."""
+    directories: Set[str] = set()
+    files: Dict[str, str] = {}
+    for selection in selections:
+        _existing_chain_has_symlink(root, selection, "component selection")
+        metadata_type = selection.parts[0]
+        selected = root.joinpath(*selection.parts)
+        if metadata_type not in BUNDLE_TYPES:
+            try:
+                info = selected.lstat()
+            except OSError as exc:
+                raise AssetError(
+                    "cannot inspect component selection {}: {}".format(selection, exc)
+                ) from exc
+            if not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode):
+                raise AssetError(
+                    "component selection must name one complete file or bundle: {}".format(
+                        selection
+                    )
+                )
+        selected_files, selected_directories = _expand_stage_selection(root, selection)
+        for relative in selected_directories:
+            directories.add(relative.as_posix())
+        for relative in selected_files:
+            try:
+                files[relative.as_posix()] = hash_file(root.joinpath(*relative.parts))
+            except OSError as exc:
+                raise AssetError("cannot hash {}: {}".format(relative, exc)) from exc
+        for relative in [*selected_files, *selected_directories]:
+            for parent in relative.parents:
+                if len(parent.parts) > 0:
+                    directories.add(parent.as_posix())
+    return directories, files
 
 
 def _resolved_existing_directory(value: str, label: str) -> Path:
@@ -332,7 +393,12 @@ def preserve(source_root_value: str, rollback_dir_value: str, kind: str, values:
 
     rollback_dir = _create_directory_path(rollback_dir, "rollback directory")
     _make_directory_chain(rollback_dir, PurePosixPath(kind))
-    source_directories, source_files = _manifest_for_selections(source_root, selections)
+    manifest = (
+        _manifest_for_components
+        if kind == "component-preedit"
+        else _manifest_for_selections
+    )
+    source_directories, source_files = manifest(source_root, selections)
 
     try:
         artifact = Path(tempfile.mkdtemp(prefix="snapshot-", dir=str(kind_dir))).resolve(strict=True)
@@ -343,9 +409,7 @@ def preserve(source_root_value: str, rollback_dir_value: str, kind: str, values:
     _make_directory(snapshot_source)
 
     _copy_manifest(source_root, snapshot_source, source_directories, source_files)
-    current_source_directories, current_source_files = _manifest_for_selections(
-        source_root, selections
-    )
+    current_source_directories, current_source_files = manifest(source_root, selections)
     snapshot_directories, snapshot_files = _scan_tree(snapshot_source)
     if (source_directories, source_files) != (
         current_source_directories,
@@ -433,7 +497,10 @@ def _validate_receipt(receipt: object) -> dict:
     if set(directory_names) & set(files):
         raise AssetError("receipt path is both a file and a directory")
     selected_names = {path.as_posix() for path in paths}
-    if not selected_names.issubset(set(directory_names)):
+    if kind == "component-preedit":
+        if not selected_names.issubset(set(directory_names) | set(files)):
+            raise AssetError("receipt does not contain every selected component")
+    elif not selected_names.issubset(set(directory_names)):
         raise AssetError("receipt does not contain every selected directory")
     for name in directory_names:
         relative = PurePosixPath(name)
@@ -446,8 +513,57 @@ def _validate_receipt(receipt: object) -> dict:
             raise AssetError("receipt directory falls outside its selected paths: {}".format(name))
     for name in files:
         relative = PurePosixPath(name)
-        if not any(relative == selected or selected in relative.parents for selected in paths):
+        covered = any(relative == selected or selected in relative.parents for selected in paths)
+        if kind == "component-preedit" and not covered:
+            for selected in paths:
+                metadata_type = selected.parts[0]
+                if metadata_type not in COMPANION_TYPES:
+                    continue
+                suffix = COMPANION_TYPES[metadata_type]
+                selected_name = selected.name
+                if selected_name.endswith(suffix + "-meta.xml"):
+                    selected_name = selected_name[: -len("-meta.xml")]
+                companion_names = {
+                    (PurePosixPath(metadata_type) / selected_name).as_posix(),
+                    (PurePosixPath(metadata_type) / (selected_name + "-meta.xml")).as_posix(),
+                }
+                if relative.as_posix() in companion_names:
+                    covered = True
+                    break
+        if not covered:
             raise AssetError("receipt file falls outside its selected paths: {}".format(name))
+    if kind == "component-preedit":
+        for selected in paths:
+            metadata_type = selected.parts[0]
+            selected_name = selected.as_posix()
+            if metadata_type in BUNDLE_TYPES:
+                if selected_name not in set(directory_names) or not any(
+                    selected in PurePosixPath(name).parents for name in files
+                ):
+                    raise AssetError(
+                        "receipt does not contain the complete selected bundle: {}".format(
+                            selected
+                        )
+                    )
+            elif metadata_type in COMPANION_TYPES:
+                suffix = COMPANION_TYPES[metadata_type]
+                base_name = selected.name
+                if base_name.endswith(suffix + "-meta.xml"):
+                    base_name = base_name[: -len("-meta.xml")]
+                required = {
+                    (PurePosixPath(metadata_type) / base_name).as_posix(),
+                    (PurePosixPath(metadata_type) / (base_name + "-meta.xml")).as_posix(),
+                }
+                if not required.issubset(set(files)):
+                    raise AssetError(
+                        "receipt does not contain the complete selected component: {}".format(
+                            selected
+                        )
+                    )
+            elif selected_name not in files:
+                raise AssetError(
+                    "receipt does not contain the selected component file: {}".format(selected)
+                )
     return {
         "kind": kind,
         "paths": path_values,
@@ -614,13 +730,26 @@ def _validate_stage_destinations(
 def stage(artifact_value: str, project_root_value: str, values: Sequence[str]) -> dict:
     """Stage complete selected components; generic metadata completeness is caller-owned."""
     verified, receipt = verify_artifact(artifact_value)
-    if verified["kind"] != "imports":
-        raise AssetError("only import snapshots can be staged")
+    if verified["kind"] not in {"imports", "component-preedit"}:
+        raise AssetError("only import and component pre-edit snapshots can be staged")
     if len(values) == 0:
         raise AssetError("at least one --path is required")
     selections = [_safe_relative(value, "stage selection") for value in values]
     if len({item.as_posix() for item in selections}) != len(selections):
         raise AssetError("duplicate stage selections are not allowed")
+    if verified["kind"] == "component-preedit":
+        preserved_selections = set(receipt["paths"])
+        unexpected = [
+            selection.as_posix()
+            for selection in selections
+            if selection.as_posix() not in preserved_selections
+        ]
+        if unexpected:
+            raise AssetError(
+                "component restore must use exact receipt selections: {}".format(
+                    ", ".join(sorted(unexpected))
+                )
+            )
 
     source_root = Path(verified["source"])
     relative_files: List[PurePosixPath] = []

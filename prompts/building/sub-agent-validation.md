@@ -36,6 +36,30 @@ Neither one can change the frozen expected-work ledger.
      BLOCKED; deployed items with required test/visual/runtime work outstanding are
      AWAITING_QA. None of these are success or an authorized skip.
 
+   Derive every potential Report/ReportType, Flow, Apex class/trigger, and LWC
+   mutation target from the frozen ledger plus selected approved phase work, even when
+   a detailed worker row is absent or malformed. Exclude a frozen authorized skip when
+   dispatch/tool evidence proves no mutation was attempted; it requires no worker row,
+   checkpoint, or receipt. Any worker, tool, or current evidence of unexpected mutation
+   keeps it as an out-of-scope preservation failure. An
+   `already_satisfied` item is receipt-exempt only when saved independent baseline and
+   current evidence prove the exact requested state and that no mutation was attempted.
+   A worker label alone is insufficient, and any attempted mutation removes the
+   exemption. For each remaining target, independently check `preedit_snapshot` and
+   require the saved baseline classification source. An `existing` target with an
+   attempted mutation requires `status: verified`, the first
+   immutable artifact/source/member paths, and a successful `ASSET_HELPER verify`
+   result of kind `component-preedit` beneath this org's rollback directory. `new`
+   requires positive saved absence evidence and `not_needed`; `unknown` is BLOCKED.
+   Never recreate a missing receipt from current or edited source. For a Flow, also
+   require the original active/inactive evidence; active needs exact ID/version and
+   inactive must remain distinct from unknown. Preservation failure overrides an
+   otherwise successful detailed row. In the existing independent observation, set
+   `result` to `unavailable`, put the preservation failure and source in `details`,
+   and rerun the reconciler. Keep the preservation issue/checkpoint BLOCKED while
+   retaining the reconciler's true unresolved result (normally INCOMPLETE for
+   unavailable evidence); do not invent a state mismatch or replace it with prose.
+
 4. **Probe every non-authorized-skipped seed ledger item**, even when worker JSON is
    absent/malformed or `data_seeded[]` is absent/empty:
    - CREATE: query only the ledger's exact stable keys, record `matched_count`, and
@@ -131,6 +155,15 @@ preserve its exact Flow ID and positive version. A latest-row query alone is not
 attribution. For `already_satisfied`, save the exact pre-dispatch active Flow ID and
 version plus a current read-back; do not create a new version merely to fill the
 evidence shape.
+
+Also save the original activation state before dispatch as `active` with exact Flow
+ID/version, `inactive` with null identity plus successful evidence, or `unknown` after
+failed/ambiguous evidence. Do not substitute the post-deploy active identity. The
+rollback path may reactivate only the saved original active version. For an originally
+inactive Flow, preserved source must be restored while current read-back continues to
+prove inactivity. If the Flow is active and no supported deactivation operation with
+read-back has been established, rollback remains BLOCKED for manual deactivation;
+never select a fallback version or claim completed rollback.
 
 Add `flow_validation` to that item's ordinary observation. A supported applied
 example is:

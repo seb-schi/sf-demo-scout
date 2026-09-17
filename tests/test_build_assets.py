@@ -39,6 +39,8 @@ class BuildAssetsContractTests(unittest.TestCase):
     def _create_fixture(self):
         self.write("flows/OrderFlow.flow-meta.xml", "<Flow>order</Flow>\n")
         self.write("flows/OldFlow.flow-meta.xml", "<Flow>old</Flow>\n")
+        self.write("reports/Operations/Order_Status.report-meta.xml", "<Report>old</Report>\n")
+        self.write("reports/Operations/Other.report-meta.xml", "<Report>other</Report>\n")
         self.write("classes/OrderService.cls", "public class OrderService {}\n")
         self.write("classes/OrderService.cls-meta.xml", "<?xml version='1.0'?>\n")
         self.write("classes/Archived.cls", "public class Archived {}\n")
@@ -172,6 +174,120 @@ class BuildAssetsContractTests(unittest.TestCase):
                                 ["aiAuthoringBundles/OrderAgent"])
         self.assertEqual(self.artifact_files(self.source_root), original)
         self.assertEqual(list(self.rollback.rglob("receipt.json")), [])
+
+    def test_component_preedit_preserves_exact_components_across_retry_and_cleanup(self):
+        """A retry or scratch cleanup must not replace an incumbent's first before-state."""
+        paths = (
+            "reports/Operations/Order_Status.report-meta.xml",
+            "flows/OrderFlow.flow-meta.xml",
+            "classes/OrderService.cls",
+            "lwc/orderPanel",
+        )
+        first = self.preserve(*paths, kind="component-preedit")
+        original = self.artifact_files(Path(first["artifact"]))
+
+        self.write("reports/Operations/Order_Status.report-meta.xml", "<Report>changed</Report>\n")
+        self.write("flows/OrderFlow.flow-meta.xml", "<Flow>changed</Flow>\n")
+        self.write("classes/OrderService.cls", "public class OrderService { }\n")
+        self.write("lwc/orderPanel/orderPanel.js", "export default class Changed {}\n")
+        second = self.preserve(*paths, kind="component-preedit")
+
+        self.assertNotEqual(first["artifact"], second["artifact"])
+        self.assertEqual(self.artifact_files(Path(first["artifact"])), original)
+        shutil.rmtree(self.source_root)
+        verified = self.success("verify", "--artifact", first["artifact"])
+        self.assertEqual(verified["kind"], "component-preedit")
+        self.assertEqual(verified["paths"], list(paths))
+
+    def test_component_preedit_restore_stages_complete_selected_components_only(self):
+        """Restore must include companions/bundle contents without staging archived siblings."""
+        paths = (
+            "reports/Operations/Order_Status.report-meta.xml",
+            "flows/OrderFlow.flow-meta.xml",
+            "classes/OrderService.cls-meta.xml",
+            "lwc/orderPanel",
+        )
+        payload = self.preserve(*paths, kind="component-preedit")
+        staged = self.success(
+            "stage", "--artifact", payload["artifact"], "--project-root", self.project_root,
+            *sum((["--path", path] for path in paths), []),
+        )
+        self.assertEqual(
+            staged["staged"],
+            [
+                "classes/OrderService.cls",
+                "classes/OrderService.cls-meta.xml",
+                "flows/OrderFlow.flow-meta.xml",
+                "lwc/orderPanel/orderPanel.html",
+                "lwc/orderPanel/orderPanel.js",
+                "lwc/orderPanel/orderPanel.js-meta.xml",
+                "reports/Operations/Order_Status.report-meta.xml",
+            ],
+        )
+        destination = self.project_root / "force-app/main/default"
+        self.assertFalse((destination / "flows/OldFlow.flow-meta.xml").exists())
+        self.assertFalse((destination / "classes/Archived.cls").exists())
+        self.assertFalse((destination / "lwc/archivePanel").exists())
+        self.assertFalse((destination / "reports/Operations/Other.report-meta.xml").exists())
+        self.assertTrue((destination / "lwc/orderPanel/assets/empty").is_dir())
+        broad_project = self.base / "broad-restore-project"
+        broad_project.mkdir()
+        self.rejected(
+            "stage", "--artifact", payload["artifact"], "--project-root", broad_project,
+            "--path", "reports/Operations",
+        )
+        self.assertFalse((broad_project / "force-app").exists())
+
+    def test_component_preedit_rejects_broad_partial_missing_and_failed_snapshots(self):
+        """Unknown or incomplete source must never become rollback evidence."""
+        for selected in (
+            "reports",
+            "flows",
+            "classes",
+            "lwc",
+            "lwc/orderPanel/orderPanel.js",
+            "classes/OrderService.txt",
+            "flows/Missing.flow-meta.xml",
+        ):
+            with self.subTest(selected=selected):
+                self.rejected(
+                    "preserve", "--source-root", self.source_root,
+                    "--rollback-dir", self.rollback, "--kind", "component-preedit",
+                    "--path", selected,
+                )
+
+        module = self.loaded_helper()
+        with mock.patch.object(module, "copy_file", side_effect=OSError("copy unavailable")):
+            with self.assertRaises(module.AssetError):
+                module.preserve(
+                    str(self.source_root), str(self.rollback), "component-preedit",
+                    ["flows/OrderFlow.flow-meta.xml"],
+                )
+        self.assertEqual(list(self.rollback.rglob("component-preedit/*/receipt.json")), [])
+
+    def test_component_preedit_rejects_symlinked_ancestors_and_incomplete_receipts(self):
+        """Exact-looking paths and self-consistent receipts must still name a complete component."""
+        external = self.base / "external-reports"
+        external.mkdir()
+        (external / "Escaped.report-meta.xml").write_text("<Report/>", encoding="utf-8")
+        shutil.rmtree(self.source_root / "reports")
+        os.symlink(external, self.source_root / "reports")
+        self.rejected(
+            "preserve", "--source-root", self.source_root,
+            "--rollback-dir", self.rollback, "--kind", "component-preedit",
+            "--path", "reports/Escaped.report-meta.xml",
+        )
+        (self.source_root / "reports").unlink()
+
+        payload = self.preserve("classes/OrderService.cls", kind="component-preedit")
+        artifact = Path(payload["artifact"])
+        companion = artifact / "source/classes/OrderService.cls-meta.xml"
+        companion.unlink()
+        receipt_path = artifact / "receipt.json"
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        del receipt["files"]["classes/OrderService.cls-meta.xml"]
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        self.rejected("verify", "--artifact", artifact)
 
     def test_static_existing_agent_snapshot_precedes_edit_and_blocks_cleanup(self):
         """Prompt wiring only: behavioral file protection is exercised above."""

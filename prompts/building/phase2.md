@@ -36,6 +36,13 @@ Invoke these skills via the Skill tool when you need detailed rules:
 
 {{IMPORTED_ASSETS}}
 
+<!-- IF:COMPONENT_ROLLBACK -->
+The absolute helper is `{{ASSET_HELPER}}` and the durable rollback directory is
+`{{ROLLBACK_DIR}}`.
+
+{{COMPONENT_ROLLBACK}}
+<!-- /IF:COMPONENT_ROLLBACK -->
+
 ## Deployment Rules
 
 **Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix — never redeploy unchanged metadata. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill (Pattern D covers the misleading LWC1210 literal/apiVersion-66 error). If it matches, apply the documented fix and redeploy (attempt 2); a different matching error on attempt 2 earns attempt 3. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record FAILED (with error + any pattern id tried) when an attempt fails with no new fix, or after attempt 3.
@@ -80,7 +87,7 @@ Reference guides: skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotc
 6. **Scheduled flow pre-flight:** confirm the spec's Scheduled Flow section names `<startDate>`, `<startTime>`, and `<frequency>` (Once / Daily / Weekly / Monthly / Yearly / Hourly / Weekdays — per FlowSchedule subtype, Salesforce docs API v66.0+). If missing, report BLOCKED with reason "scheduled flow missing schedule fields — SE must add to spec."
 7. **Platform-event flow pre-flight:** confirm the `<eventType>` object exists via `retrieve_metadata` (CustomObject with `__e` suffix, or standard event like `AIPredictionEvent`). If missing and not in-scope for this deploy, report BLOCKED with reason "platform event object not in org — SE must create or import first."
 8. Check for existing flows on the same object/trigger via `retrieve_metadata` — flag execution order conflicts in `discovery_notes`.
-9. Rollback: `sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]` (plus `QuickAction:[Name]` if deployed, plus `FlowTest:[FlowTestApiName]` if deployed).
+9. Rollback: for an incumbent Flow, stage its preserved original definition and follow the shared contract's recorded original activation evidence. Reactivate only an exact recorded active ID/version. If an originally inactive Flow is now active and no supported deactivation operation with read-back is established, stop BLOCKED for manual deactivation; never claim rollback complete, delete the incumbent, or activate a fallback version. Delete only exact Flow/QuickAction/FlowTest identities whose prior absence was positively established, after the explicit destructive-action guard.
 
 **CRITICAL — Flow XML must not use `processMetadataValues`.** Use this record-triggered after-save template:
 ```xml
@@ -249,7 +256,7 @@ is recorded in `issues` and **NEVER blocks the deploy** — the demo/build ships
 3. **Author an Apex test class for every Apex class/trigger deployed.** Invoke `platform-apex-test-generate` for templates, `@TestSetup` / `TestDataFactory` patterns, and naming. Deploy the test alongside the class, run it, and record pass/fail in `issues`. A failing or low-coverage test does NOT block the deploy — record it and continue.
 4. If the spec's Platform Constraints section flags any object with restrictions, follow the dynamic SOQL pattern below for that object.
 5. If compile or runtime tests fail on the first deploy attempt, invoke `platform-apex-test-run` before the next attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). The attempt rule still applies: one platform-apex-test-run loop counts as one attempt. **If the `platform-apex-test-run` loop exhausts its iterations without resolving the failure, invoke `platform-apex-logs-debug` for deeper runtime-log forensics before recording the affected item FAILED.**
-6. Rollback: `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]` (plus `ApexClass:[TestClassName]` if a test class was deployed).
+6. Rollback: restore incumbent Apex source plus its companion from the verified first `component-preedit` artifact. Delete only exact class/trigger/test identities whose prior absence was positively established, after the explicit destructive-action guard.
 
 **InvocableMethod pattern (for Agentforce backing actions).** Use this template:
 ```java
@@ -318,7 +325,7 @@ Scope: demo-specific UI — Customer 360 Cards, custom record views, branded com
 
 2. Use MCP LWC expert tools when available (scaffolding, SLDS, validation) — these complement experience-lwc-generate' guidance.
 3. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`.
-4. Rollback: `sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org [alias]`
+4. Rollback: restore an incumbent whole bundle from the verified first `component-preedit` artifact. Delete only a bundle whose prior absence was positively established, after the explicit destructive-action guard.
 
 **LWC meta XML template.** Every component needs a `componentName.js-meta.xml`:
 ```xml
@@ -388,7 +395,9 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
       "flow_test_outcome": "PASS|FAIL|ERROR|SKIP|PENDING|UNAVAILABLE|NOT_RUN|NOT_SUPPORTED|null",
       "tested_flow_version_number": "positive integer|null",
       "active_flow_id": "exact read-back active Flow id|null",
-      "active_flow_version_number": "positive integer|null"
+      "active_flow_version_number": "positive integer|null",
+      "original_flow_state": {"status": "active|inactive|unknown|null", "flow_id": "exact original active Flow id|null", "version": "positive integer|null", "source": "saved read-back|null"},
+      "preedit_snapshot": {"classification": "existing|new|unknown", "status": "verified|not_needed|blocked", "baseline_source": "saved exact-target evidence", "artifact": "absolute path|null", "source": "absolute path|null", "paths": []}
     }
   ],
   "skipped": [

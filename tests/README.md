@@ -127,6 +127,16 @@ barrier. They do not simulate worker scheduling or prove model compliance.
 Live FlowTest/version-association, activation, retrieval and background-audit
 acceptance remain separate checks in an appropriate org/client environment.
 
+Batch 12 adds 12 focused methods for 271 total while preserving all 259 baseline
+methods. Four executable asset fixtures exercise exact report/Flow files, complete
+Apex companions and LWC bundles through immutable pre-edit snapshots, cleanup,
+selected restore staging, copy failure, symlink rejection, and tampered incomplete
+receipts. Eight static contract methods check only the direct-repair entry route,
+materialized shared pre-mutation ordering, fail-closed folder/Flow restoration,
+authorized-skip and no-mutation exemptions, ledger-derived parent review, and
+cleanup/handover consumers. They do not prove model
+behavior, live Salesforce read-back, Flow activation, or destructive rollback.
+
 ## Release-only validation
 
 Run installed `claude plugin validate` separately against the release candidate.

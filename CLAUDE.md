@@ -67,6 +67,10 @@ Scout's build-time job is to go as far as the Metadata API allows. No artifact i
 **Deployment rules** for Flows, Apex, LWC, Agentforce, Page Layouts, and Lightning Record Pages live in `${CLAUDE_PLUGIN_ROOT}/skills/demo-deployment-rules/SKILL.md` — phase sub-agents load it on-demand.
 
 ## Working Pattern
+For a user-requested small fix or tweak against the active org, including outside a
+completed build session, read and follow
+`${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md` before any write.
+
 1. Before your first tool call, say in one sentence what you're about to do.
    For multi-step loops (audits, deploys), announce the shape upfront
    ("8 counts, then 10 layouts, then 3 deploys"). Give a brief update when you

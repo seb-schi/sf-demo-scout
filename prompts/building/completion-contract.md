@@ -12,6 +12,15 @@ literal requested state. Your report does not prove it; the orchestrator supplie
 separate `actual_state` with the same exact keys and typed values from targeted
 read-back. Do not substitute a presence claim or deployment receipt.
 
+When a supported Report/ReportType, Flow, Apex class/trigger, or LWC target is
+modified, its detailed row also carries the shared component rollback evidence. An
+`existing` target requires the verified first `component-preedit` artifact/source and
+exact receipt paths; `new` requires saved positive absence evidence; `unknown` is
+BLOCKED. This preservation evidence protects rollback but never proves completion.
+For a Flow, report the original active/inactive state separately, including the exact
+active ID/version when active. Missing preservation makes the item BLOCKED even when
+current read-back or runtime testing passes.
+
 Each completion row has exactly this meaning:
 
 ```json
@@ -71,10 +80,10 @@ For every phase-2 Flow item, the frozen ledger also contains
   is unavailable.
 
 An already-satisfied Flow does not require a new version. It needs pre-dispatch and
-current exact active identity plus a current targeted test/version result for that
-same identity. After an activation attempt, failed or unavailable active read-back
-is unresolved and the state is failed/unknown; do not report Draft unless a current
-read-back proves Draft.
+  current exact active identity plus a current targeted test/version result for that
+  same identity. After an activation attempt, failed or unavailable active read-back
+  is unresolved and the state is failed/unknown; do not report Draft unless a current
+  read-back proves Draft.
 
 The required common top-level fields are:
 

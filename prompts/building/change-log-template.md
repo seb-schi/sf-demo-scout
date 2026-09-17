@@ -45,29 +45,39 @@ Presence and deployment receipts alone never belong in either Verified subsectio
 
 ## Business Processes Deployed (if any)
 [API names (as Object.ProcessName), driving picklist, values, record type bindings]
-Rollback: sf project delete source --metadata BusinessProcess:[Object].[ApiName] --target-org [alias]
+Rollback: restore an incumbent from its verified before-state under the shared
+component contract; delete only an exact positively-proven-new BusinessProcess.
 
 ## Paths Deployed (if any)
 [API names, object, record type, driving field, step count]
-Rollback: sf project delete source --metadata PathAssistant:[ApiName] --target-org [alias]
+Rollback: restore an incumbent from its verified before-state under the shared
+component contract; delete only an exact positively-proven-new PathAssistant.
 Note: visual placement of the Path component on the Lightning record page is SE Manual (App Builder).
 
 ## Flows Deployed (if any)
 [API names, description, active/draft status]
-Rollback: sf project delete source --metadata Flow:[FlowApiName] --target-org [alias]
+Rollback: incumbents stage the preserved original definition; reactivate only a
+recorded original active ID/version. An originally inactive Flow requires read-back
+that still proves inactivity. Unknown state remains unresolved; current active state
+requires a supported deactivation/read-back route or BLOCKED manual deactivation. Do
+not claim completed rollback. Delete only an exact positively-proven-new Flow.
 
 ## Apex Deployed (if any)
 [Names, description]
-Rollback: sf project delete source --metadata ApexClass:[Name] / ApexTrigger:[Name] --target-org [alias]
+Rollback: incumbents restore the verified first source+companion snapshot; delete only
+exact positively-proven-new classes/triggers/tests.
 
 ## LWC Deployed (if any)
 [Names, description]
-Rollback: sf project delete source --metadata LightningComponentBundle:[Name] --target-org [alias]
+Rollback: incumbents restore the verified first whole bundle snapshot; delete only an
+exact positively-proven-new bundle.
 
 ## Agentforce Deployed (if any)
 [Names, description]
-Rollback: sf project delete source --metadata AiAuthoringBundle:[AgentName] --target-org [alias]
-(plus `ApexClass:[ClassName]` for each newly created backing action. For existing-agent modifications, rollback is `sf agent activate --api-name [AgentName] --version [N] --target-org [alias]` — use the original active version and verified before-state paths from the phase 3 output.)
+Rollback: for existing-agent modifications, reactivate only the recorded original
+active version and use the verified Phase 3 before-state member paths if source restore
+is required. Delete only an exact positively-proven-new AiAuthoringBundle and its
+positively-proven-new backing classes after the explicit destructive-action guard.
 
 ## Agentforce Current-Test Evidence (if any)
 [For every action-bearing ledger item: item id; runtime assessment
@@ -103,6 +113,20 @@ on failure leave the durable-path fields unavailable and record the original pat
 - **Rollback:** [recorded version reactivation; if source restore is needed, verify the artifact and copy/redeploy these exact members from its immutable source into a disposable restore project]
 Never use a later retrieve as the original before-state or imply a redeploy deletes
 a published version. Keep this evidence separate from a new-agent UI-commit blueprint.
+
+## Existing Component Before-State and Direct Repairs (if any)
+- **Attempt / org / exact component:** [pending attempt id, target org, metadata identity]
+- **Classification / source:** [existing | new | unknown] — [saved exact-target or positive-absence evidence]
+- **Requested delta / exclusions:** [frozen values]
+- **First pre-edit artifact / source / members:** [actual absolute verified `component-preedit` paths and exact receipt members, or not_needed/BLOCKED]
+- **Original Flow activation (Flow only):** [active with exact ID/version | inactive | unknown] — [saved source]
+- **Outcome / read-back:** [applied | already_satisfied | failed | blocked | unverified] — [targeted evidence and unrelated incumbent checks]
+- **Rollback:** [verified exact restore/reactivation route, or proven-new exact delete route]
+
+Write the `PENDING — component repair` row before retrieval or mutation, then update
+the same row with its outcome even on failure or no-op. Never replace the first
+before-state on retry. Keep Report and ReportFolder classification separate; a folder
+with later-added or unknown contents is retained.
 
 ## Execution Order Check
 [Per-object list of active flows after deployment. Flag objects with multiple after-save record-triggered flows and note execution order risks.]
