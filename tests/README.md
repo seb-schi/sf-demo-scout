@@ -104,6 +104,16 @@ failed or malformed snapshot evidence. Static caller checks verify prompt wiring
 the parent still determines whether an edit requires a snapshot and independently
 verifies its receipt. These fixtures do not prove model compliance or live recovery.
 
+Batch 10 adds 24 settings methods for 240 total, retaining all 216 prior methods.
+It runs the shipped settings helper against explicit temporary files.
+It covers the exact JSONC property boundary, comments and unrelated bytes,
+malformed/ambiguous input, live and missing hook targets, supported interpreter
+wrappers, compound commands, unsupported hook types, and inaccessible targets.
+Filesystem fixtures cover no-op identity, exact backups, modes, symlink and
+backup-collision refusal, copy/stage/replace failures, and distinct reporting
+after a completed replacement fails verification. The suite does not modify
+real user settings or exercise live client loading; launchctl behavior is unchanged.
+
 ## Release-only validation
 
 Run installed `claude plugin validate` separately against the release candidate.

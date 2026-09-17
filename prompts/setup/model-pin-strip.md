@@ -11,185 +11,47 @@ Scout-FRESH machines too; this runs on both the fresh and refresh paths.
 the live model-alias → inference-profile routing map, which Scout does not write and
 must not remove (auto-deleting it broke live model routing on an Enterprise-account
 machine, 2026-09-10). Auth, gateway, and OTEL keys are likewise NEVER touched; Scout
-never writes a model value.** The per-knob retirement rationale lives in the
-`PIN_KEYS` comments below. Idempotent, safe-fail.
+never writes a model value.** The shipped helper retains the established exact
+removal set and treats every other field as out of scope. Idempotent, safe-fail.
 
 The `.zshrc` surface is handled separately by the dispatching prompt's managed-block refresh (`zshrc-block.md` sweeps these keys as out-of-block stragglers). This fragment covers the two `~/.claude` JSON files, VS Code's settings, and launchctl.
 
-**a — `~/.claude/settings.json` and `~/.claude/settings.local.json` (Scout-owned JSON, auto-remove):**
+**a — `~/.claude/settings.json` and `~/.claude/settings.local.json` (shared user-owned JSON, bounded exact-key removal):**
+
+Resolve `${CLAUDE_PLUGIN_ROOT}` to the absolute active Scout plugin directory
+and substitute it for `[PLUGIN_ROOT]`. Run the shipped helper with each settings
+path explicit:
 
 ```bash
+SETTINGS_HELPER="[PLUGIN_ROOT]/scripts/setup-settings.py"
+PYTHON_EXE=$(type -P python3 2>/dev/null || true)
+if [ -z "$PYTHON_EXE" ] || [ ! -f "$SETTINGS_HELPER" ]; then
+  echo "SETTINGS_HELPER_UNAVAILABLE"
+else
 for USER_SETTINGS in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
-python3 - "$USER_SETTINGS" <<'PYEOF'
-import json, os, sys, tempfile, shutil
-path = sys.argv[1]
-PIN_KEYS = [
-    "ANTHROPIC_DEFAULT_OPUS_MODEL",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-    # Retired 2026-07-08: no-op on adaptive-thinking models (Sonnet 5 /
-    # Opus 4.8), and a hard 400 landmine when a gateway routes an older CC
-    # build to a newer model. Stripped here so existing installs self-heal;
-    # Scout no longer writes it anywhere.
-    "MAX_THINKING_TOKENS",
-    # Retired 2026-07-27: Scout no longer sets an output-length knob. Probes
-    # showed 16384 was NOT applied as a cap on sub-agent output (a sub-agent
-    # emitted ~24k tokens and completed), so the truncation rationale it was
-    # kept for did not hold. Removed rather than re-tuned: Scout should not
-    # leave an un-sourced tuning value on an SE's machine. CC's own default
-    # applies. Stripped here so existing installs self-heal.
-    "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
-]
-label = os.path.basename(path)
-
-if not os.path.exists(path):
-    print(f"PINS_ABSENT[{label}]"); sys.exit(0)
-try:
-    with open(path) as f:
-        data = json.load(f)
-except (json.JSONDecodeError, OSError) as e:
-    print(f"PINS_PARSE_ERROR[{label}]: {e}"); sys.exit(0)
-
-if not isinstance(data, dict):
-    print(f"PINS_NOT_OBJECT[{label}]"); sys.exit(0)
-
-removed = []
-env = data.get("env")
-if isinstance(env, dict):
-    for k in PIN_KEYS:
-        if k in env:
-            del env[k]
-            removed.append(k)
-# modelOverrides is FLAG-ONLY — never deleted (2026-09-10). On Bedrock / Vertex /
-# Foundry it is the LIVE model-alias -> inference-profile routing map; Scout does
-# not write it and must not remove it (same never-touch class as auth / gateway /
-# OTEL keys). Auto-deleting it broke live model routing on an Enterprise-account
-# machine. Detect + surface; leave untouched.
-flags = []
-if "modelOverrides" in data:
-    flags.append("modelOverrides")
-
-if not removed:
-    tail = (" FLAGS[" + ",".join(flags) + "]") if flags else ""
-    print(f"PINS_NONE[{label}]{tail}"); sys.exit(0)
-
-# Backup before write (distinct per-fragment name — see the aisuite fragment).
-bak = path + ".scout-bak-modelpins"
-try:
-    shutil.copy2(path, bak)
-except OSError as e:
-    print(f"PINS_BACKUP_FAILED[{label}]: {e}"); sys.exit(0)
-
-tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".settings.", suffix=".tmp")
-try:
-    with os.fdopen(tmp_fd, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-    os.rename(tmp_path, path)
-except Exception as e:
-    try: os.unlink(tmp_path)
-    except OSError: pass
-    print(f"PINS_WRITE_FAILED[{label}]: {e}"); sys.exit(0)
-
-tail = (" FLAGS[" + ",".join(flags) + "]") if flags else ""
-print(f"PINS_REMOVED[{label}]: " + ",".join(removed) + tail)
-PYEOF
+  "$PYTHON_EXE" -B "$SETTINGS_HELPER" json-pins --settings "$USER_SETTINGS"
 done
+fi
 ```
 
-**b — VS Code `claudeCode.environmentVariables` (JSONC, comment-preserving auto-edit with backup/validate/restore):**
+**b — VS Code `claudeCode.environmentVariables` (JSONC, comment-preserving bounded edit):**
 
-VS Code's user settings is JSONC — it may contain `//` comments and trailing commas, and it's the SE's hand-curated personal config. Strategy: back it up, surgically delete just the three `ANTHROPIC_DEFAULT_*_MODEL` array entries via line-oriented editing that preserves comments, then validate the result still parses (comments/trailing-commas stripped for the parse check only). On ANY anomaly — parse failure after edit, unexpected structure — restore the backup and fall back to the warn message. The token-knob entries and every other entry are preserved.
+VS Code's user settings is JSONC — it may contain strings with comment-like
+text, comments, and trailing commas. The helper parses it with a string-aware
+bounded JSONC parser, targets only the top-level
+`claudeCode.environmentVariables` array, deletes only exact model-key entry and
+adjacent-comma spans, then reparses and compares the full semantic value to the
+expected deletion. Unsupported or ambiguous documents remain byte-identical.
 
 ```bash
-python3 - "$HOME/Library/Application Support/Code/User/settings.json" <<'PYEOF'
-import os, sys, re, shutil
-
-path = sys.argv[1]
-if not os.path.exists(path):
-    print("VSCODE_ABSENT"); sys.exit(0)
-
-try:
-    with open(path) as f:
-        src = f.read()
-except OSError as e:
-    print(f"VSCODE_READ_ERROR: {e}"); sys.exit(0)
-
-PINS = ("ANTHROPIC_DEFAULT_OPUS_MODEL",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL",
-        "ANTHROPIC_DEFAULT_HAIKU_MODEL")
-
-if not any(p in src for p in PINS):
-    print("VSCODE_PINS_NONE"); sys.exit(0)
-
-# --- helper: strip JSONC comments + trailing commas for a parse-only check
-def jsonc_loads(text):
-    import json
-    # remove /* */ block comments
-    t = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
-    # remove // line comments (not inside strings — best-effort: only at line starts or after whitespace/commas)
-    t = re.sub(r"(^|[\s,{\[])//[^\n]*", r"\1", t)
-    # remove trailing commas before } or ]
-    t = re.sub(r",(\s*[}\]])", r"\1", t)
-    return json.loads(t)
-
-# Validate the file parses BEFORE we touch it; if it doesn't, don't risk an edit.
-try:
-    before = jsonc_loads(src)
-except Exception as e:
-    print(f"VSCODE_UNPARSEABLE_PREEDIT: {e}"); sys.exit(0)
-
-# Backup
-bak = path + ".scout-bak"
-try:
-    shutil.copy2(path, bak)
-except OSError as e:
-    print(f"VSCODE_BACKUP_FAILED: {e}"); sys.exit(0)
-
-# Surgical removal: the entries are objects of the shape
-#   { "name": "ANTHROPIC_DEFAULT_*_MODEL", "value": "..." }
-# possibly spanning multiple lines, each followed by an optional comma.
-# Remove each such object literal wherever it appears in the array.
-out = src
-for pin in PINS:
-    # match an object literal containing "name": "<pin>" with its trailing comma (or leading comma)
-    pattern = re.compile(
-        r"\{\s*\"name\"\s*:\s*\"" + re.escape(pin) + r"\"\s*,\s*\"value\"\s*:\s*\"[^\"]*\"\s*\}\s*,?\s*\n?",
-        re.S,
-    )
-    out = pattern.sub("", out)
-    # also handle value-before-name ordering
-    pattern2 = re.compile(
-        r"\{\s*\"value\"\s*:\s*\"[^\"]*\"\s*,\s*\"name\"\s*:\s*\"" + re.escape(pin) + r"\"\s*\}\s*,?\s*\n?",
-        re.S,
-    )
-    out = pattern2.sub("", out)
-
-# Fix any dangling comma left before a closing bracket of the array
-out = re.sub(r",(\s*\])", r"\1", out)
-
-# Validate post-edit
-try:
-    after = jsonc_loads(out)
-except Exception as e:
-    shutil.copy2(bak, path)
-    print(f"VSCODE_VALIDATE_FAILED_RESTORED: {e}"); sys.exit(0)
-
-# Sanity: the only difference should be the removed pins. Confirm no pin remains.
-flat = str(after)
-if any(p in flat for p in PINS):
-    shutil.copy2(bak, path)
-    print("VSCODE_PINS_SURVIVED_RESTORED"); sys.exit(0)
-
-try:
-    with open(path, "w") as f:
-        f.write(out)
-except OSError as e:
-    shutil.copy2(bak, path)
-    print(f"VSCODE_WRITE_FAILED_RESTORED: {e}"); sys.exit(0)
-
-print("VSCODE_PINS_REMOVED")
-PYEOF
+SETTINGS_HELPER="[PLUGIN_ROOT]/scripts/setup-settings.py"
+PYTHON_EXE=$(type -P python3 2>/dev/null || true)
+if [ -z "$PYTHON_EXE" ] || [ ! -f "$SETTINGS_HELPER" ]; then
+  echo "SETTINGS_HELPER_UNAVAILABLE"
+else
+  "$PYTHON_EXE" -B "$SETTINGS_HELPER" vscode-pins \
+    --settings "$HOME/Library/Application Support/Code/User/settings.json"
+fi
 ```
 
 **c — launchctl GUI env (best-effort detect + unset):**
@@ -208,7 +70,11 @@ Surface inline (compose one combined note; silent only if every surface was alre
 - All clean (`PINS_NONE`/`PINS_ABSENT` for both JSON files, with NO `FLAGS[...]`, + `VSCODE_PINS_NONE`/`VSCODE_ABSENT` + `LAUNCHCTL_PINS_NONE`) — silent.
 - Any `FLAGS[modelOverrides]` (on a `PINS_NONE` or `PINS_REMOVED` result) — add a line: "Spotted a `modelOverrides` block in your Claude settings — left it UNTOUCHED. On Bedrock/Vertex/Foundry that's your live model-routing map, which Scout doesn't manage; noting it only so you know it's there."
 - Any `PINS_REMOVED[...]` and/or `VSCODE_PINS_REMOVED` and/or `LAUNCHCTL_PINS_CLEARED` — "Cleared stale model pins so your `/model` picker shows the full list (including Opus 4.8): [list the surfaces that changed in plain words — e.g. 'Claude settings, VS Code settings']. Scout also removed the leftover output-length setting it used to write — Claude Code's own default applies now. **Restart Claude Code** (and if VS Code changed, fully quit it with Cmd+Q and relaunch) to pick up."
-- `VSCODE_VALIDATE_FAILED_RESTORED` / `VSCODE_PINS_SURVIVED_RESTORED` / `VSCODE_UNPARSEABLE_PREEDIT` / `VSCODE_BACKUP_FAILED` — "Couldn't safely auto-edit VS Code's settings (`~/Library/Application Support/Code/User/settings.json`) — left it untouched. Remove the three `ANTHROPIC_DEFAULT_*_MODEL` entries from the `claudeCode.environmentVariables` array by hand, then fully quit VS Code (Cmd+Q) and relaunch."
+- `VSCODE_UNPARSEABLE` / `VSCODE_UNSUPPORTED_TARGET` / `VSCODE_SEMANTIC_MISMATCH` / `VSCODE_UNSAFE_FILE` / `VSCODE_BACKUP_FAILED` / `VSCODE_WRITE_FAILED` — "Couldn't safely auto-edit VS Code's settings (`~/Library/Application Support/Code/User/settings.json`) — left it untouched. Remove the three `ANTHROPIC_DEFAULT_*_MODEL` entries from the `claudeCode.environmentVariables` array by hand, then fully quit VS Code (Cmd+Q) and relaunch."
+- `VSCODE_POST_WRITE_FAILED` — replacement completed but read-back verification failed; do not claim the settings file is unchanged. The exact pre-edit recovery copy remains at `settings.json.scout-bak`; inspect or restore it before retrying.
+- `PINS_PARSE_ERROR` / `PINS_UNSAFE_FILE` / `PINS_BACKUP_FAILED` / `PINS_WRITE_FAILED` — one-line note naming the affected Claude settings file; leave it untouched and proceed.
+- `PINS_POST_WRITE_FAILED` — replacement completed but read-back verification failed; do not claim the named file is unchanged. Its exact pre-edit recovery copy remains beside it with suffix `.scout-bak-modelpins`.
+- `SETTINGS_HELPER_UNAVAILABLE` — one-line note that the shipped cleanup helper could not be run; leave the helper's JSON/JSONC files untouched and proceed. The independent launchctl check remains unchanged.
 - Any other error variant — one-line note, proceed.
 
 ## Done

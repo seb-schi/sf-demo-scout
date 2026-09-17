@@ -4,6 +4,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-17
 
+- **Settings cleanup preserves unrelated configuration and working hooks.** Model-pin cleanup edits only the intended VS Code property, while AI Suite cleanup removes only hooks with a provably missing script. Ambiguous input stays untouched; supported changes require an exact backup and validated replacement.
 - **Setup verifies the workspace before calling it ready.** Missing project files, settings, or configuration now stop setup with a clear error. Rerunning repairs supported partial installs while preserving existing demo source and user settings.
 - **Failed update checks cannot trigger an installation.** CLI refresh requires successful, unambiguous version and npm probes before updating Salesforce CLI or Claude Code; failed checks leave the installation alone.
 - **Existing-agent edits retain a verified before-state.** Scout preserves complete selected agent bundles before editing, keeps retries from replacing the original snapshot, and records exact recovery paths. Missing or failed preservation stays unresolved and blocks cleanup, even when the agent's runtime test passes.

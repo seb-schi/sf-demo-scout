@@ -27,114 +27,33 @@ aisuite artifacts are SURFACED, never touched:
 
 Idempotent, safe-fail, backup-before-write. Never aborts.
 
+Resolve `${CLAUDE_PLUGIN_ROOT}` to the absolute active Scout plugin directory
+and substitute it for `[PLUGIN_ROOT]`. The helper accepts only a literal direct
+AI Suite script command or a literal script passed to an allowlisted
+interpreter (`sh`, `bash`, `zsh`, `python`, `python3`, or `node`). Shell
+expansion, compound commands, options-before-script, unknown wrappers,
+inaccessible targets, settings symlinks, and any other uncertainty remain
+untouched and are reported.
+
 ```bash
-for USER_SETTINGS in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
-python3 - "$USER_SETTINGS" <<'PYEOF'
-import json, os, sys, tempfile, shutil
-path = sys.argv[1]
-label = os.path.basename(path)
-
-if not os.path.exists(path):
-    print(f"AISUITE_ABSENT[{label}]"); sys.exit(0)
-try:
-    with open(path) as f:
-        data = json.load(f)
-except (json.JSONDecodeError, OSError) as e:
-    print(f"AISUITE_PARSE_ERROR[{label}]: {e}"); sys.exit(0)
-if not isinstance(data, dict):
-    print(f"AISUITE_NOT_OBJECT[{label}]"); sys.exit(0)
-
-MARK = "/.aisuite/"
-
-# --- Auto-strip: aisuite hooks whose target SCRIPT no longer exists ---
-# Path-substring alone is NOT a safe removal signal: on a machine where AI Suite
-# is still INSTALLED these hooks are LIVE, and stripping them breaks working
-# functionality (observed 2026-09-10 — 4 live hooks disabled on an AI-Suite box).
-# Remove a hook ONLY when its /.aisuite/ target script is GONE: a missing script
-# can do nothing but throw (pure repair to remove), a present script is a live
-# hook we must not touch. Also handles partial-uninstall states without needing
-# to know AI Suite's overall install status.
-def _aisuite_script_missing(cmd):
-    for tok in cmd.split():
-        if MARK in tok:
-            return not os.path.isfile(os.path.expanduser(tok))
-    return False
-
-removed_hooks = []
-hooks = data.get("hooks")
-if isinstance(hooks, dict):
-    for event, groups in list(hooks.items()):
-        if not isinstance(groups, list):
-            continue
-        for group in groups:
-            if not isinstance(group, dict) or not isinstance(group.get("hooks"), list):
-                continue
-            kept = []
-            for h in group["hooks"]:
-                cmd = h.get("command", "") if isinstance(h, dict) else ""
-                if isinstance(cmd, str) and MARK in cmd and _aisuite_script_missing(cmd):
-                    removed_hooks.append(f"{event}:{cmd.split('/')[-1]}")
-                else:
-                    kept.append(h)
-            group["hooks"] = kept
-        # drop now-empty hook groups (no remaining commands)
-        hooks[event] = [g for g in groups
-                        if not (isinstance(g, dict) and isinstance(g.get("hooks"), list) and len(g["hooks"]) == 0)]
-    # drop now-empty event arrays
-    for event in list(hooks.keys()):
-        if isinstance(hooks[event], list) and len(hooks[event]) == 0:
-            del hooks[event]
-
-# --- Flag-only (never edit): cert + marketplace/plugin residue ---
-flags = []
-env = data.get("env")
-if isinstance(env, dict):
-    cert = env.get("NODE_EXTRA_CA_CERTS", "")
-    if isinstance(cert, str) and MARK in cert:
-        flags.append("cert:NODE_EXTRA_CA_CERTS")
-ekm = data.get("extraKnownMarketplaces")
-if isinstance(ekm, dict) and any("aisuite" in str(k).lower() for k in ekm):
-    flags.append("marketplace:aisuite")
-ep = data.get("enabledPlugins")
-if isinstance(ep, dict) and any(str(k).lower().endswith("@aisuite") for k in ep):
-    flags.append("plugins:@aisuite")
-
-if not removed_hooks:
-    # nothing to strip; still report flags so the SE sees residue
-    tail = (" FLAGS[" + ",".join(flags) + "]") if flags else ""
-    print(f"AISUITE_HOOKS_NONE[{label}]{tail}"); sys.exit(0)
-
-# Backup before write (distinct per-fragment name so it never clobbers the
-# model-pin fragment's backup of the same file — 2026-09-10).
-bak = path + ".scout-bak-aisuite"
-try:
-    shutil.copy2(path, bak)
-except OSError as e:
-    print(f"AISUITE_BACKUP_FAILED[{label}]: {e}"); sys.exit(0)
-
-tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".settings.", suffix=".tmp")
-try:
-    with os.fdopen(tmp_fd, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-    os.rename(tmp_path, path)
-except Exception as e:
-    try: os.unlink(tmp_path)
-    except OSError: pass
-    try: shutil.copy2(bak, path)
-    except OSError: pass
-    print(f"AISUITE_WRITE_FAILED[{label}]: {e}"); sys.exit(0)
-
-tail = (" FLAGS[" + ",".join(flags) + "]") if flags else ""
-print(f"AISUITE_HOOKS_REMOVED[{label}]: " + ",".join(removed_hooks) + tail)
-PYEOF
-done
+SETTINGS_HELPER="[PLUGIN_ROOT]/scripts/setup-settings.py"
+PYTHON_EXE=$(type -P python3 2>/dev/null || true)
+if [ -z "$PYTHON_EXE" ] || [ ! -f "$SETTINGS_HELPER" ]; then
+  echo "SETTINGS_HELPER_UNAVAILABLE"
+else
+  for USER_SETTINGS in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
+    "$PYTHON_EXE" -B "$SETTINGS_HELPER" aisuite-hooks --settings "$USER_SETTINGS"
+  done
+fi
 ```
 
 Surface inline (compose one combined note across both files; silent only if every result was `AISUITE_ABSENT` / `AISUITE_HOOKS_NONE` with no `FLAGS`):
 - Any `AISUITE_HOOKS_REMOVED[...]` — "Removed leftover AI Suite hooks that were erroring every turn (they pointed at a deleted `~/.aisuite/` script that no longer exists): [name the events in plain words — e.g. 'Stop, PreToolUse']. Backed up your settings to `settings.json.scout-bak-aisuite` first. **Restart Claude Code** to stop the errors."
 - Any `FLAGS[...]` (on either a REMOVED or NONE result) — add a second line: "Also spotted leftover AI Suite config I did NOT touch: [cert path in `NODE_EXTRA_CA_CERTS` / an `aisuite` plugin marketplace + `@aisuite` plugins]. If npm/TLS behaves oddly, check the cert path; manage the plugins via `/plugin`."
-- `AISUITE_PARSE_ERROR` / `AISUITE_NOT_OBJECT` / `AISUITE_BACKUP_FAILED` / `AISUITE_WRITE_FAILED` — one-line note ("couldn't safely scrub AI Suite hooks from [file] — left it untouched; if you see a `Stop hook error` about `~/.aisuite/`, remove those hook entries by hand"), proceed. Never abort.
+- Any `UNSUPPORTED[N]` — note that N ambiguous AI Suite command forms were left untouched for manual review.
+- `AISUITE_PARSE_ERROR` / `AISUITE_UNSAFE_FILE` / `AISUITE_BACKUP_FAILED` / `AISUITE_WRITE_FAILED` — one-line note ("couldn't safely scrub AI Suite hooks from [file] — left it untouched; if you see a `Stop hook error` about `~/.aisuite/`, remove those hook entries by hand"), proceed. Never abort.
+- `AISUITE_POST_WRITE_FAILED` — replacement completed but read-back verification failed; do not claim the named file is unchanged. Its exact pre-edit recovery copy remains beside it with suffix `.scout-bak-aisuite`.
+- `SETTINGS_HELPER_UNAVAILABLE` — one-line note that the shipped cleanup helper could not be run; leave both files untouched and proceed.
 
 ## Done
 
