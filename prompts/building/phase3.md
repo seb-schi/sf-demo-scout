@@ -28,6 +28,8 @@ and never permits backing Apex fallback. Showtime E3 permits its named Apex only
 Phase 2; E3 never selects Phase 3 or authorizes an agent backing action. Out-of-scope
 or excluded work remains BLOCKED.
 
+{{VENDOR_COMPATIBILITY}}
+
 ## Skills Available
 Invoke these skills via the Skill tool:
 - `agentforce-generate` — agent spec, validation, preview, publish, activate

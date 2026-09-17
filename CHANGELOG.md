@@ -4,6 +4,9 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-17
 
+- **Skill handoffs stay within Scout's supported paths.** Flow dependencies, report lookups, validation formulas, and existing-page edits follow shared compatibility guidance without changing bundled upstream skills. Unsupported work stays explicit.
+- **Missing scan and preview prerequisites stay visible.** Scout reports unavailable analysis or simulated-preview tooling without installing dependencies or silently running live actions. A tool check does not replace deployment and test evidence.
+
 - **Small repairs keep a recoverable record.** Scout records the exact requested change, original state, current read-back, and any remaining QA automatically in the org change log. A filter or value change uses a compact repair path without a new scenario interview or spec.
 - **Rollback protects components that already existed.** Report, Flow, Apex, and LWC edits preserve verified originals outside cleanup scratch. Recovery restores the original source or Flow activation state; deletion is reserved for components proven new. Missing preservation or unfinished repair records stop cleanup.
 - **Flow validation follows the version Scout actually built.** Activation requires a supported test, completed results for the intended Flow version, and a matching activation read-back. A pass for an older active version cannot validate a new draft; unsupported or unproven validation stays visible as QA work.

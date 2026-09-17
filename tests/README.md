@@ -137,6 +137,15 @@ authorized-skip and no-mutation exemptions, ledger-derived parent review, and
 cleanup/handover consumers. They do not prove model
 behavior, live Salesforce read-back, Flow activation, or destructive rollback.
 
+Batch 13 adds 9 focused static contract methods for 280 total while preserving all
+271 baseline methods. They cover Scout-owned vendor precedence and dependency
+boundaries, Flow handoffs, analyzer fallback prerequisites, report and formula
+corrections, supported FlexiPage scope, mode-specific Agentforce readiness, all-phase
+injection, direct-repair entry, and caller-derived selected-section materialization.
+The materialization fixture reads the shipped selection table, resolves a synthetic
+installed path, and checks a report-only Phase 1 block excludes unrelated sections.
+These checks do not execute a model, vendor skill, CLI, MCP tool, or Salesforce org.
+
 ## Release-only validation
 
 Run installed `claude plugin validate` separately against the release candidate.
