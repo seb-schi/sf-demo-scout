@@ -23,6 +23,18 @@ root, package metadata, declared bin, and active resolved executable all agree.
 Native, standalone, shadowed, malformed, and unverifiable installations remain
 unchanged. Scout does not choose an updater until ownership is established.
 
+Fresh installation uses a Bash-only bootstrap because Python may not exist yet.
+It accepts a selected Node, Python, or Salesforce CLI only after a successful,
+complete version probe. Existing invalid tools are left untouched rather than
+replaced with a competing runtime. Only a missing executable permits the
+existing Homebrew or npm route, and installer exit 0 is followed by a fresh
+probe of the selected executable before setup continues. Python support remains
+major 3, version 3.9 or newer; Homebrew's current `python3` alias is used instead
+of forcing a minor release. This follows Homebrew's reviewed
+[runtime guidance](https://docs.brew.sh/Language-Runtimes-and-Packages)
+(2026-09-17). The offline checks do not establish actual Python 3.9 runtime
+compatibility; that floor has static review plus local Python 3.10 parsing only.
+
 ## Historical Scout deployment defaults
 
 These values were observed in prior Scout deployments and are offered for an

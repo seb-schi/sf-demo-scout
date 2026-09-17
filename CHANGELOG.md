@@ -4,6 +4,8 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-17
 
+- **First-time tool installation verifies the result.** Scout checks both the installer outcome and the executable selected afterward before reporting Node, Python, or Salesforce CLI installed. Failed or unverified installs stop setup with a clear follow-up. An existing broken or unsupported tool is left for deliberate repair, rather than silently installing a competing copy.
+
 - **Setup respects how your tools are installed.** CLI refresh updates through npm only when it owns the active executable. Optional connection checks preserve existing registrations and distinguish an unavailable check, a connection problem, and tools that still need to be used successfully. When no connection is observed, Scout offers setup instructions instead of automatically adding a possible duplicate; stored credentials no longer count as proof of authentication.
 
 - **Skill refreshes preserve Scout's deliberate adaptations.** Maintainer refreshes use a recorded upstream revision, leave adapted and frozen skills for targeted review, and check replacement files before retiring an existing copy. Failed copies no longer count as successful refreshes or erase the skill already shipped.

@@ -26,6 +26,15 @@ transport states, spoof resistance, invalid text, and secret-free output. They
 do not read configuration or credentials, contact providers, authenticate, or
 create/remove connections.
 
+Batch 8b bootstrap fixtures run the shipped Bash boundary with an isolated
+`PATH` and local tool/installer stubs. They cover valid existing tools without
+installer calls; broken, malformed, unreadable, old, and wrong-major existing
+tools without replacement; successful missing-tool installs with a fresh
+selected-executable probe; installer failure after a partial change; exit-zero
+installs followed by missing, old, malformed, or failing probes; missing brew or
+npm; invalid selectors; and distinct missing-npx versus failed-cache outcomes.
+No fixture runs Homebrew, npm, npx, a registry request, or a real host runtime.
+
 Prerequisites are Python 3, PyYAML, Git, `/bin/bash`, standard POSIX/macOS shell
 utilities, and a real `/bin/zsh`. The shell-repair tests execute `zsh -f -n`
 against both original and staged temporary files. Missing Git, zsh, or PyYAML
@@ -75,8 +84,9 @@ cross-reference stays present. These checks validate shipped instructions; they
 do not claim runtime model compliance.
 
 The baseline contained 128 unittest methods. Batch 6 added 23 focused methods,
-Batch 7 added 14 vendoring methods, and Batch 8a adds 12 setup ownership/status
-methods, for 177 total while preserving all 165 pre-Batch-8a methods. The 119
+Batch 7 added 14 vendoring methods, Batch 8a added 12 setup ownership/status
+methods, and Batch 8b adds 9 bootstrap methods, for 186 total while preserving
+all 177 pre-Batch-8b methods. The 119
 historical assertions above remain executed inside the maintained methods and
 subcases, including all 24 CLI outcome meanings.
 

@@ -51,65 +51,92 @@ If `BREW_MISSING`, ABORT and emit:
 
 ## b: Auto-install Node, Python, sf CLI
 
-Each tool: check first, install only if missing.
+Each tool runs through the shipped Bash bootstrap independently. Before each
+invocation, resolve this active Scout plugin installation's root from the
+current plugin context to a concrete absolute path. Do not pass a literal
+`${CLAUDE_PLUGIN_ROOT}`, reuse a variable from another shell invocation, search
+for another cached version, or reconstruct the helper if it is unavailable.
+Run the Node, Python, and sf blocks below in that order, in separate shell
+invocations. Inspect each exit/result before starting the next; do not batch or
+run them in parallel because the sf installation may depend on npm supplied by
+the preceding Node installation.
+
+The helper probes the actual selected executable and installs only when that
+executable is missing. An existing broken, malformed, unreadable, or unsupported
+tool is left unchanged; Scout never installs a competing runtime over it.
 
 ```bash
-if ! command -v node >/dev/null 2>&1; then
-  echo "INSTALLING_NODE"
-  brew install node 2>&1 | tail -1
-  echo "NODE_DONE"
+SCOUT_BOOTSTRAP_SCRIPT="/absolute/path/of/active/sf-demo-scout/scripts/setup-bootstrap.sh"
+if [ ! -f "$SCOUT_BOOTSTRAP_SCRIPT" ]; then
+  echo "NODE_UNAVAILABLE (shipped bootstrap missing)"
+  exit 1
 else
-  echo "NODE_PRESENT ($(node --version))"
+  /bin/bash "$SCOUT_BOOTSTRAP_SCRIPT" node
 fi
 ```
 
 ```bash
-if command -v python3 >/dev/null 2>&1; then
-  PY_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-  PY_MAJOR=$(echo "$PY_VERSION" | cut -d. -f1)
-  PY_MINOR=$(echo "$PY_VERSION" | cut -d. -f2)
-  if [ "$PY_MAJOR" -ge 3 ] && [ "$PY_MINOR" -ge 9 ]; then
-    echo "PYTHON_PRESENT ($PY_VERSION)"
-  else
-    echo "INSTALLING_PYTHON (current: $PY_VERSION, need 3.9+)"
-    brew install python@3.13 2>&1 | tail -1
-    echo "PYTHON_DONE"
-  fi
+SCOUT_BOOTSTRAP_SCRIPT="/absolute/path/of/active/sf-demo-scout/scripts/setup-bootstrap.sh"
+if [ ! -f "$SCOUT_BOOTSTRAP_SCRIPT" ]; then
+  echo "PYTHON_UNAVAILABLE (shipped bootstrap missing)"
+  exit 1
 else
-  echo "INSTALLING_PYTHON (none found)"
-  brew install python@3.13 2>&1 | tail -1
-  echo "PYTHON_DONE"
+  /bin/bash "$SCOUT_BOOTSTRAP_SCRIPT" python
 fi
 ```
 
 ```bash
-if ! command -v sf >/dev/null 2>&1; then
-  echo "INSTALLING_SF_CLI"
-  npm install @salesforce/cli --global 2>&1 | tail -1
-  echo "SF_CLI_DONE"
+SCOUT_BOOTSTRAP_SCRIPT="/absolute/path/of/active/sf-demo-scout/scripts/setup-bootstrap.sh"
+if [ ! -f "$SCOUT_BOOTSTRAP_SCRIPT" ]; then
+  echo "SF_CLI_UNAVAILABLE (shipped bootstrap missing)"
+  exit 1
 else
-  echo "SF_CLI_PRESENT ($(sf --version | head -1))"
+  /bin/bash "$SCOUT_BOOTSTRAP_SCRIPT" sf
 fi
 ```
 
-If any install fails, ABORT and emit:
+For each independent call:
 
-> "Scout couldn't auto-install [tool name]. Last line from install command:
->
-> ```
-> [last line]
-> ```
->
-> Open a terminal and run the install manually, then re-run `/scout-setup`."
+- `*_PRESENT` / `*_INSTALLED` — proceed. These tokens include the verified
+  selected executable version.
+- `*_UNVERIFIED` — ABORT. The selected executable could not be verified before
+  installation, or an installer exited 0 without leaving a qualifying selected
+  executable. Do not claim success or try another runtime.
+- `PYTHON_UNSUPPORTED` — ABORT. Keep the existing Python unchanged and explain
+  Scout requires Python 3.9+ within major 3.
+- `*_INSTALL_FAILED` — ABORT. Report the installer exit code and warn that a
+  failed installer may have partially changed state; do not promise the old
+  state survived.
+- `*_UNAVAILABLE` — ABORT. Surface the named missing prerequisite or shipped
+  helper/log issue. In particular, missing npm blocks sf installation even when
+  Node exists.
+
+On any nonzero helper exit, stop the fresh-install procedure. Ask the SE to
+select a suitable existing executable or repair it through its own manager in a
+terminal, then rerun `/scout-setup`. Suggest installation only when the tool is
+missing. Never fall through to the ready/Done handoff.
 
 ## c: Pre-cache Salesforce MCP server
 
 ```bash
 echo "PRE_CACHING_MCP"
-npx -y @salesforce/mcp --help >/dev/null 2>&1 && echo "MCP_CACHED" || echo "MCP_CACHE_FAILED"
+NPX_EXE=$(type -P npx 2>/dev/null || true)
+if [ -z "$NPX_EXE" ]; then
+  echo "MCP_CACHE_UNAVAILABLE (npx missing)"
+elif "$NPX_EXE" -y @salesforce/mcp --help >/dev/null 2>&1; then
+  echo "MCP_CACHED"
+else
+  echo "MCP_CACHE_FAILED"
+fi
 ```
 
-On `MCP_CACHE_FAILED`, surface a one-line note ("MCP pre-cache failed — first MCP call may be slow") and proceed.
+- `MCP_CACHE_UNAVAILABLE` — surface that npx is missing, so optional DX MCP
+  pre-cache could not run. Do not replace Node automatically. Proceed.
+- `MCP_CACHE_FAILED` — surface that the actual optional cache attempt failed, so
+  DX MCP readiness remains unverified. Proceed with the existing runtime
+  degradation path.
+- `MCP_CACHED` — means only that this pre-cache command succeeded; it is not a
+  provider compatibility or runtime capability claim.
 
 ## d: Workspace Directory + SFDX Scaffold
 
