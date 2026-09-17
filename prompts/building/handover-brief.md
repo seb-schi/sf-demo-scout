@@ -46,6 +46,12 @@ These are Salesforce platform limits, not Scout gaps — the Metadata API does n
 **If the change log has an "Agent Not Live — UI Commit Required" section** (Phase 3 `NeedsUICommit`), append this checklist item verbatim under Your Setup — the agent is authored + validated but the org instance's headless publish route 404'd, so go-live is a UI step:
 - [ ] Agent **[api_name]** is authored + validated but NOT live (this org instance's headless publish route is not provisioned — a Salesforce platform gap, not a Scout limit). Take it live via the Builder UI runbook (`prompts/building/agent-ui-commit-runbook.md`): New Draft → merge your real topics into the template shell → reconcile action I/O → Commit → Activate. Then verify action side-effects in a live Messaging Session. Escalate the instance gap: Salesforce Support case citing the org instance ID.
 
+Append the change log's **actual absolute recovery artifact and recovery bundle
+paths** to that item so the SE can follow the runbook in a later session. If
+preservation is blocked, say so, include the original scratch path and cleanup-
+withheld warning, and direct the SE to resolve preservation before proceeding.
+Never describe an unverified or scratch-only file as a preserved blueprint.
+
 **Want to Change Something? Two Ways.**
 This demo isn't locked. Pick the door that fits:
 

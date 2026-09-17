@@ -2,6 +2,11 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-09-17
+
+- **Imported components survive build cleanup.** Scout preserves verified copies of assets pulled from another org and carries selected component references into the demo spec. A fresh build stages those components only for their approved spec items and through the usual deployment checks; retries can reuse the same preserved source.
+- **Agent Builder recovery keeps the complete source bundle.** When an org requires UI Commit, Scout saves the agent script, metadata, and nested files outside scratch and records the exact recovery path in the change log. If preservation cannot be verified, Scout retains the originals and stops cleanup.
+
 ## 2026-09-16
 
 - **The startup banner finds your customer folders again.** When your org alias had uppercase or underscores (e.g. `CareConnect4Me_DPA`), the session banner matched folders against the raw alias while they're stored slugged (`careconnect4me-dpa-…`) — so it wrongly said "No customer folders" every session and mislabeled the customer even when it did find one. It now matches and labels by the canonical slug, and if it genuinely can't derive one it says "lookup unavailable" rather than falsely claiming you have no folders.

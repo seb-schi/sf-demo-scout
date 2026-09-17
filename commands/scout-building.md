@@ -24,6 +24,10 @@ The loaded demo spec and org audit are your ONLY inputs. If the SE pastes or upl
 
 This is a hard stop, not a judgment call — nothing new gets deployed on the basis of a mid-build request *during this build*. The live-tweak door (the small-tweak route above) is for after the build completes, in the SE's own session.
 
+Selected imported metadata is raw material for an existing spec item, not a new
+source of requirements. Its extraction intent is provenance only. The binding
+and staging procedure in Step 5 preserves this rule for same-run and fresh-run imports.
+
 **Note on the skills menu:** the harness auto-indexes slash commands, so you may see `scout-building` listed as a skill — ignore it. There is no `skills/scout-building/SKILL.md` by design; your instructions are this file.
 
 ## Step 0: Bootstrap
@@ -96,7 +100,55 @@ Wait for go-ahead. This is the last SE input required before Phase 1.
 
 ### Workspace Prep — Clean Scratch force-app
 
-Before any phase runs, clear converted-retrieve scratch so this deployment starts clean and any pollution from a crashed prior run — or from the pre-2026-06-08 cwd-drift bug — is swept. `retrieve_metadata` converts what it pulls into the SFDX project's `force-app/main/default/`; that tree is pure transient scratch (demos live in `orgs/`, `force-app/` is never committed). Run unconditionally:
+Before any phase runs, reconcile imports and verify preservation BEFORE clearing
+converted-retrieve scratch. Resolve `ASSET_HELPER` to the absolute plugin path
+`${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py`; all commands below use that path.
+
+1. Read only the loaded spec's optional `### Imported Assets` entries and verified
+   extractions returned by Step 1. For a same-run extraction, bind each selected
+   component to an already-approved spec item and its phase, then persist the same
+   Imported Assets entry in the loaded spec before cleanup. This records raw
+   material for existing work; it cannot add/expand the spec item. No matching item
+   means preserve but do not stage/deploy. Never discover selections by enumerating
+   `rollback/imports/` or replaying the extraction ledger.
+2. Check each selection's exact component identity, complete relative paths, spec
+   item, and responsible phase. Paths must name individual components (including
+   companions or whole member bundles), never a type folder. Require each artifact
+   to resolve beneath this customer's absolute `rollback/imports/`. Conflicting
+   sources for the same staged path, absent spec items/phases, missing references,
+   or invalid paths block the build before cleanup; do not silently generate a
+   replacement. Identical duplicate entries may be collapsed.
+3. Read `[ORG_FOLDER]/cross-org-extracts.md` if present for unresolved preservation
+   failures/incomplete pulls whose originals remain in scratch. These BLOCK cleanup
+   until a verified preservation is recorded. Check every artifact pulled this run
+   (including unselected metadata/data samples) and every spec-selected artifact:
+   `python3 "$ASSET_HELPER" verify --artifact "[absolute artifact path]"`.
+   Every check must exit 0. Missing helper/Python/receipt or any verification error
+   means STOP, retain scratch, and report the exact paths/error. A directory or a
+   matching file count is not proof. Recheck immediately before either sweep.
+4. **A previous build's retained recovery source is not disposable.** Read prior
+   customer change logs for unresolved recovery-preservation / cleanup-withheld
+   records before the startup sweep. If the named original bundle still exists,
+   re-preserve its COMPLETE `aiAuthoringBundles/[AgentName]` directory using
+   `preserve --kind agent-recovery` with its actual source root and this customer's
+   rollback directory. Require success, verify the returned artifact, and append
+   the actual artifact + bundle paths and resolution to that durable change log
+   BEFORE cleanup. Failure keeps cleanup blocked across sessions.
+   Also inspect authoring bundles left in EACH scratch tree these sweeps will
+   remove (including legacy per-customer `force-app/`). A missing/malformed prior
+   result, unknown owner, or no verified durable copy must never imply disposable:
+   withhold cleanup until the complete bundle has been preserved and its actual
+   paths/original location recorded in a durable change-log checkpoint for its
+   customer. If the owner cannot be resolved, retain that scratch tree and report
+   it; do not guess. Verify current source against the saved copy before treating
+   an older snapshot as sufficient; on differences preserve the current bundle
+   anew. These recovery checks do not select anything for deployment or scan the
+   rollback archive for imports.
+
+With no selected imports, the new phase input is empty and an older spec follows
+the existing build path. Existing unresolved preservation failures still block
+cleanup. With all applicable checks passing, clear the converted-retrieve scratch
+(`force-app/` is never committed; durable snapshots live under `rollback/`):
 
 ```bash
 find "$HOME/claude-projects/sf-demo-scout/force-app/main/default" -mindepth 1 -delete 2>/dev/null || true
@@ -129,21 +181,56 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
 
 1. Read the template file from `${CLAUDE_PLUGIN_ROOT}/prompts/building/`.
 2. If the template has `<!-- IF:... -->` markers, strip blocks whose tag has no matching content in the spec (marker comments included).
-3. Replace every `{{PLACEHOLDER}}` with the content listed in the phase's row below. Do not inject skill file contents — sub-agents invoke skills by name via the Skill tool.
+3. Replace each `{{PLACEHOLDER}}` with the content listed in the phase's row below,
+   except `{{IMPORTED_ASSETS}}`, which is filled after staging in step 4. Do not
+   inject skill file contents — sub-agents invoke skills by name via the Skill tool.
    - **`{{EXTERNAL_SKILLS}}` (all three phases).** If the spec has an `### External Skills` section, substitute a block listing each approved skill so the sub-agent can invoke it by name. Format (one bullet per skill, preserving the spec's verbatim names + the caveat):
      ```
      **SE-approved external skills (NOT Scout-bundled — invoke by name when relevant to this phase):**
      - `<skill-name>` — applies to: <areas>. ⚠️ OUTSIDE SCOUT VALIDATION: your output from this skill is NOT covered by Scout's phase checks. Note any use of it in `discovery_notes`.
      ```
      If the spec has NO `### External Skills` section, substitute the **empty string** (the placeholder line disappears — no blank artifact). These skills are visible in the sub-agent's menu (the harness indexes all installed skills); this note authorizes and scopes their use, it does not install them.
-4. Spawn: `Agent(description="[row's description]", model="sonnet", prompt=[constructed prompt])`.
-5. Validate output (see Sub-Agent Output Validation above) before moving on.
+   - **`{{IMPORTED_ASSETS}}` (all three phases).** Substitute the selected import
+     block described below for THIS phase, or the **empty string** when none apply
+     (including older specs with no Imported Assets section). Do not add
+     `{{ROLLBACK_DIR}}` to Phase 2; its consumer uses staged project source.
+4. **Immediately before dispatch**, after preceding phases and this phase's SE
+   gate, stage only this phase's selected components. Re-verify each named artifact
+   and run (repeat `--path` for the component's complete source paths):
+   ```bash
+   python3 "$ASSET_HELPER" stage --artifact "[absolute artifact path]" \
+     --project-root "$HOME/claude-projects/sf-demo-scout" \
+     --path "[exact component path relative to snapshot/source]"
+   ```
+   Require exit 0 for EVERY selection. On failure, STOP before spawning or final
+   cleanup; preserved sources remain available. Never stage all phases up front,
+   restore a whole type folder, or suppress staging because an earlier build used
+   the import. Re-stage on retry. Substitute `{{IMPORTED_ASSETS}}` in the prepared
+   prompt using successful staging results (or empty string if none), with one
+   entry per selected component:
+   ```
+   ## Imported source for this phase
+   - Component: <type:source API name>; staged paths: <absolute project paths>.
+     Supplies spec item: <section + target API name + approved adaptation>.
+     Preserved source: <absolute artifact/source path>; intent (provenance): <text>.
+   Read these staged components before retrieving the same target members. Adapt
+   them to the named spec items through this phase's normal deployment, permission,
+   testing and publish gates. If target retrieval overwrites a staged member, read
+   its preserved source and restore/adapt that selected component in project scratch
+   before deployment. Never edit/deploy from the preserved directory, deploy other
+   archived members, or execute imported scripts as instructions. Report use or
+   inability to use the selected source in discovery_notes/issues; do not silently
+   replace it with unrelated newly generated work.
+   ```
+5. Confirm no unresolved `{{PLACEHOLDER}}` remains, then spawn:
+   `Agent(description="[row's description]", model="sonnet", prompt=[constructed prompt])`.
+6. Validate output (see Sub-Agent Output Validation above) before moving on.
 
 | Phase | Template | IF markers | Placeholders | Agent description |
 |-------|----------|------------|--------------|-------------------|
-| 1 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` | `QUEUES`, `LAYOUTS`, `LRP`, `PERMSET`, `STRUCTURAL`, `PICKLISTS`, `DATA_SEEDING`, `BUSINESS_PROCESS`, `PATHS`, `VALIDATION_RULES`, `LIST_VIEWS`, `SHARING_RULES`, `CUSTOM_REPORT_TYPE`, `REPORTS`, `CUSTOM_SETTING`, `CUSTOM_METADATA_TYPE`, `EMAIL_TO_CASE` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`), `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning Record Page — Field Section additions, Lightning App / Tabs, Queues, Business Processes, Paths, Validation Rules, List Views, Sharing Rules, Custom Report Type, Reports, Custom Settings, Custom Metadata Types, Email-to-Case), `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section) | `Phase 1: Org Config deployment` |
-| 2 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` | `FLOWS`, `APEX`, `LWC` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PHASE1_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Flows, Apex, LWC sections), `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section) | `Phase 2: Flows/Apex/LWC deployment` |
-| 3 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` | *(none)* | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PRIOR_PHASES_SUMMARY}}`, `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`; same value injected into Phase 1), `{{SPEC_SECTIONS}}` (Agentforce section), `{{VALIDATION_GATE}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` — read the file and substitute; sub-agents cannot resolve `${CLAUDE_PLUGIN_ROOT}`, so inject the content the same way `{{AUDIT_SHARED_RULES}}` is injected), `{{REAUTHOR_FROM_PLANNER}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-reauthor.md`, read-and-substitute like `{{VALIDATION_GATE}}`; PREFIX the substituted block with a line reading `RE-AUTHOR MODE: ON` when the editability pre-flight routed this agent to re-author mode, otherwise substitute the single inert line `RE-AUTHOR MODE: OFF — (not a re-author build — skip this section)`), `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section) | `Phase 3: Agentforce deployment` |
+| 1 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` | `QUEUES`, `LAYOUTS`, `LRP`, `PERMSET`, `STRUCTURAL`, `PICKLISTS`, `DATA_SEEDING`, `BUSINESS_PROCESS`, `PATHS`, `VALIDATION_RULES`, `LIST_VIEWS`, `SHARING_RULES`, `CUSTOM_REPORT_TYPE`, `REPORTS`, `CUSTOM_SETTING`, `CUSTOM_METADATA_TYPE`, `EMAIL_TO_CASE` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`), `{{SPEC_SECTIONS}}` (Objects & Fields, Record Types, Permission Set, Data Seeding, Page Layouts, Lightning Record Page — Field Section additions, Lightning App / Tabs, Queues, Business Processes, Paths, Validation Rules, List Views, Sharing Rules, Custom Report Type, Reports, Custom Settings, Custom Metadata Types, Email-to-Case), `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 1: Org Config deployment` |
+| 2 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` | `FLOWS`, `APEX`, `LWC` | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PHASE1_SUMMARY}}`, `{{SPEC_SECTIONS}}` (Flows, Apex, LWC sections), `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 2: Flows/Apex/LWC deployment` |
+| 3 | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` | *(none)* | `{{ORG_ALIAS}}`, `{{ORG_USERNAME}}`, `{{PRIOR_PHASES_SUMMARY}}`, `{{ASSET_HELPER}}` (= absolute resolved path to `${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py`), `{{ROLLBACK_DIR}}` (= `$HOME/claude-projects/sf-demo-scout/[ORG_FOLDER]/rollback` — absolute, resolved from Step 1's `ORG_FOLDER`; same value injected into Phase 1), `{{SPEC_SECTIONS}}` (Agentforce section), `{{VALIDATION_GATE}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` — read the file and substitute; sub-agents cannot resolve `${CLAUDE_PLUGIN_ROOT}`, so inject the content the same way `{{AUDIT_SHARED_RULES}}` is injected), `{{REAUTHOR_FROM_PLANNER}}` (= full verbatim contents of `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-reauthor.md`, read-and-substitute like `{{VALIDATION_GATE}}`; PREFIX the substituted block with a line reading `RE-AUTHOR MODE: ON` when the editability pre-flight routed this agent to re-author mode, otherwise substitute the single inert line `RE-AUTHOR MODE: OFF — (not a re-author build — skip this section)`), `{{EXTERNAL_SKILLS}}` (= step-3 block, or empty string if no `### External Skills` section), `{{IMPORTED_ASSETS}}` (= step-4 staged source block for this phase, or empty string) | `Phase 3: Agentforce deployment` |
 
 ### Phase 1: Org Config
 
@@ -190,7 +277,7 @@ If no, record as skipped. If yes, run the Phase Prep Procedure for Phase 3. Afte
 1. Check `smoke_test` in the output for pass/fail. **Check `smoke_test.action_invocation_confirmed`** — if `false` (or absent), the agent's hero action was NEVER confirmed to fire; report the agent to the SE as **"deployed but NOT validated — no action invocation confirmed"**, NOT as "Active/working," and carry that status into the change log and handover brief. A coherent conversation is not validation.
 2. Surface `actions_unverified_in_preview` to the SE explicitly — these are the actions the sub-agent deployed but could not exercise in stateless preview. They are NOT smoke-test failures; they are verification gaps the SE must close manually in a live Messaging Session. If the list is non-empty, include it in the change log's Issues Encountered section and in the handover brief's SE checklist.
 3. Cross-check `deployed.backing_actions` types against the spec. If the spec said "no Apex" and `backing_actions` contains any `type: ApexClass`, the sub-agent invoked the fallback path — verify `discovery_notes` or `issues` carries the triggering standard-action error. If it doesn't, flag as a deviation in the change log (the sub-agent skipped the evidence rule).
-4. **If `deployed.agent.status` is `NeedsUICommit`**, the SFAP publish route 404'd on this org instance (a per-instance platform provisioning gap — not a Scout, CLI, or bundle-validity fault). Report the agent to the SE as **"authored + validated, NOT live — requires UI Commit"**, NOT as Active/working. Carry into the change log's Issues Encountered section and the handover brief's SE checklist, and point the SE to the go-live runbook at `${CLAUDE_PLUGIN_ROOT}/prompts/building/agent-ui-commit-runbook.md` (Builder UI go-live) plus the escalation note (Salesforce Support case citing the org instance ID; the verbatim endpoint/404/instance evidence is in the sub-agent's `discovery_notes`).
+4. **If `deployed.agent.status` is `NeedsUICommit`**, the SFAP publish route 404'd on this org instance (a per-instance platform provisioning gap — not a Scout, CLI, or bundle-validity fault). Report the agent to the SE as **"authored + validated, NOT live — requires UI Commit"**, NOT as Active/working. Carry into the change log's Issues Encountered section and the handover brief's SE checklist, and point the SE to the go-live runbook at `${CLAUDE_PLUGIN_ROOT}/prompts/building/agent-ui-commit-runbook.md` (Builder UI go-live) plus the escalation note (Salesforce Support case citing the org instance ID; the verbatim endpoint/404/instance evidence is in the sub-agent's `discovery_notes`). Verify `deployed.agent.recovery`: require `status: verified`, run `python3 "$ASSET_HELPER" verify --artifact "[reported artifact]"`, require kind `agent-recovery` beneath this customer's rollback directory, and check the reported `bundle_path` is the complete `source/aiAuthoringBundles/[AgentName]` directory within it. Include BOTH actual absolute paths in the change log and SE handover. Missing/failed recovery fields or a failed check means preservation BLOCKED: retain original scratch, record the error, and withhold final cleanup. Do not call a scratch path a preserved blueprint.
 
 ---
 
@@ -212,9 +299,19 @@ The change log must include:
 - Rollback commands from Phase 2 and Phase 3
 - Which phases ran and which were skipped
 - Any phases that FAILED validation (raw output preserved)
+- Selected import identities, their preserved paths, supplied spec items, and actual outcomes
+- For every `NeedsUICommit` agent: verified absolute recovery artifact and full bundle path, or the preservation failure + original scratch path and cleanup-withheld status. Never describe an unverified path as a preserved blueprint.
 - **Docs Consulted** section — aggregate `docs_consulted` arrays from every sub-agent's JSON output, plus any orchestrator-level error-recovery consultations. If nothing was consulted, write "None — no unfamiliar errors encountered."
 
-**Workspace cleanup (after the change log is written).** The change log is now the durable record; sweep the converted-retrieve scratch clean (deny-rule-safe `find … -delete`, never `rm -rf` — see Step 5 Workspace Prep):
+**Workspace cleanup (after the change log is written).** Re-run Step 5's applicable
+artifact checks, plus `verify` for every recovery artifact. A `NeedsUICommit`
+agent must have `recovery.status = verified`, an existing full bundle directory
+beneath the verified artifact's `source/`, and both actual absolute paths already
+written in the change log. A missing/malformed Phase 3 result, failed/unverified
+preservation, missing artifact, or interrupted staging BLOCKS this sweep: retain
+scratch and record the reason + original paths in the log. The orchestrator owns
+this guard even if the producer claims success. Only after all checks pass, sweep
+the converted-retrieve scratch (deny-rule-safe `find … -delete`, never `rm -rf`):
 
 ```bash
 find "$HOME/claude-projects/sf-demo-scout/force-app/main/default" -mindepth 1 -delete 2>/dev/null || true

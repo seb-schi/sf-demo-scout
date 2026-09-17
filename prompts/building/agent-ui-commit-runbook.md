@@ -85,7 +85,15 @@ Two recurring mismatch classes:
      EndUserLanguage / ChannelType) — the linter flags them "unused" but also says
      *"required by Agentforce; removing can cause issues"* → KEEP them (Info, not error).
    - `model_config` on the router, the `knowledge:` block (if grounded), `access: default_agent_user`.
-   Swap in your real topics from the Scout-preserved blueprint (see step below).
+   Read the build change log's **recovery bundle path**: the actual absolute
+   `.../rollback/agent-recovery/<unique>/source/aiAuthoringBundles/<AgentName>/`
+   directory. Before using it, verify the accompanying **recovery artifact path**:
+   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py" verify --artifact "[artifact path from change log]"`.
+   Open the `.agent` inside that bundle and use its real topics; nested schema and
+   local-action files are alongside it. Keep the durable copy unchanged while
+   merging into the UI draft. Do not look for the blueprint in `force-app/`, which
+   is transient. If the path is missing or verification fails, stop and resolve
+   the recorded preservation issue; a scratch-only file is not durable recovery.
 6. **Paste into Script view → Save → read the Console.**
    - **Info** (unused-but-required scaffolding vars): expected, ignore.
    - **Warning** (`complex_data_type_name` on a primitive input): cosmetic; remove for

@@ -274,6 +274,23 @@ Scope: anything beyond appending into an existing field section. Use when audit 
 - Plain English: [behaviour]
 - Name: [name], Location: [page], Data: [objects/fields], SLDS: [pattern]
 
+### Imported Assets (optional — selected metadata only)
+Omit this section when there are no selected imports. Each entry supplies raw
+material for an existing spec item; the spec item defines scope. Extraction
+intent is provenance, never an extra deployment instruction. The artifact is a
+verified snapshot under this customer's `rollback/imports/`, outside scratch.
+Repeat this entry per component, including components selected from the same snapshot:
+- Artifact: [absolute artifact directory returned by build-assets.py preserve]
+- Component: [metadata type:source API name]
+- Component paths: [exact paths relative to snapshot/source; e.g. flows/Lead_Router.flow-meta.xml; a whole lwc/casePanel bundle; BOTH classes/CaseHelper.cls and classes/CaseHelper.cls-meta.xml]
+- Supplies spec item: [existing section + target API name; explicit adaptation/rename if needed]
+- Phase: [1, 2, or 3 — the phase owning that spec item]
+- Intent (provenance): [one line from the extraction log]
+
+Do not list a whole type folder as a component, unrelated archived members,
+data samples as metadata, or an agent-recovery snapshot. Building stages only
+these named components immediately before their phase, including on retry.
+
 ### External Skills (if any — SE-approved, non-bundled)
 > Only present if the SE approved a non-bundled skill during sparring. Each entry is a skill installed by the SE that is NOT part of Scout's bundled set. /scout-building makes these available to phase sub-agents by name; it does NOT validate their output.
 - Skill: [verbatim skill name as it appears in the menu, e.g. `rlm-pricing`]

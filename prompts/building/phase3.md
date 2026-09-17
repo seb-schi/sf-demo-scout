@@ -25,6 +25,8 @@ Invoke these skills via the Skill tool:
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP
 {{EXTERNAL_SKILLS}}
 
+{{IMPORTED_ASSETS}}
+
 ## Deployment Rules
 
 **Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix — never redeploy unchanged metadata. On a deploy failure, check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill before retrying. (Agentforce deploys none of the covered component types, so in practice no pattern matches here and this stays a two-attempt path via the Unfamiliar-errors route — the wording is shared for consistency.) STOP and record SKIPPED (with error + any pattern id tried) when an attempt fails with no new fix, or after attempt 3.
@@ -49,7 +51,34 @@ in the `.agent` config before `sf agent publish`.
 4. Validate via `sf agent validate authoring-bundle` before publishing.
 5. Preview with `sf agent preview` before publishing.
 6. Publish via `sf agent publish authoring-bundle --api-name [AgentName] --target-org [alias] --skip-retrieve`. **The `--skip-retrieve` flag is mandatory, not optional** (documented: `agent-dx-nga-publish.html`). Publish runs 5 steps: validate compile → commit the new version server-side (Bot/BotVersion/GenAiPlannerDefinition) → **retrieve the new metadata back to the DX project** → populate the bundle `<target>` → deploy the AiAuthoringBundle member. The retrieve-back step has a known CLI crash (`TypeError: Cannot read properties of undefined (reading 'map')` at `scriptAgentPublisher.js:187`) that fires AFTER the version is committed but BEFORE the bundle member deploys — leaving an **orphaned version**: a `GenAiPlannerDefinition` with no matching AiAuthoringBundle member, invisible in Builder's version dropdown and NOT deletable via Tooling API (`DELETE_FAILED: setup object in use`). `--skip-retrieve` skips the crash-prone step entirely; retrieve the bundle separately (below) if you need the updated `<target>`. **Orphan detection (before + after publish):** compare the two lists — `sf data query -q "SELECT DeveloperName, VersionNumber FROM GenAiPlannerDefinition WHERE BotId IN (SELECT Id FROM Bot WHERE DeveloperName='[AgentName]') ORDER BY VersionNumber" --target-org [alias]` vs `sf org list metadata --metadata-type AiAuthoringBundle --target-org [alias]` (AiAuthoringBundle is Metadata-API-only, NOT a queryable sObject). Any planner version with no `[AgentName]_N` bundle member is an orphan — record it in `discovery_notes` (verbatim version numbers), do NOT attempt Tooling-API cleanup (not fixable that way; the only reliable route is nuke-and-rebuild, out of scope for demo prep). If a publish crashes at retrieve-back, re-run with `--skip-retrieve` to land the missing bundle member; do NOT retry without the flag. **If publish fails with any error indicating the authoring bundle is not present / not supported / not found** (e.g. `AABNotFound`, "authoring bundle not found", "AiAuthoringBundle is not supported in this org" — do not pattern-match the exact code, the Agentforce surface evolves monthly): **the GenAiPlannerBundle fallback below is ONLY for modifying an EXISTING agent that already has a published planner.** For this New-Agent path the agent is NET-NEW — there is no existing planner to edit, and deploying a hand-built `GenAiPlannerBundle` ships a compiled, SOURCELESS legacy-builder agent (no editable `.agent`/`AiAuthoringBundle`, so all future edits become base64 hand-patching). Do NOT do that. Instead: STOP and record the phase **BLOCKED** in `issues` with the verbatim publish error, and report the agent NOT shipped. Recovering editable authoring-bundle source (re-run `sf agent generate authoring-bundle`, re-validate, re-publish) is the correct next step — surface it to the SE rather than silently shipping a legacy planner. (The GenAiPlannerBundle metadata path — retrieve `GenAiPlannerBundle:[AgentName]`, edit XML, `sf project deploy start --metadata GenAiPlannerBundle:[AgentName]` — remains the legitimate path ONLY under "Modify Existing Agent" below, where a published planner already exists.) Record the publish error in `discovery_notes` verbatim so future deploys learn the current trigger surface.
-6b. **SFAP publish-route 404 (per-instance provisioning gap) — DISTINCT from step 6's `AABNotFound` branch.** If publish fails specifically with an **empty-body HTTP 404 / `AgentApiNotFound` on the `/einstein/ai-agent/v1.1/authoring/agents` (or `/…/agents/{botId}/versions`) resource** — AFTER `sf agent validate` and `sf agent preview` succeeded (i.e. compile `/authoring/scripts` works, so the bundle IS valid) — this is NOT the `AABNotFound` "bundle not supported" case above and the re-generate-source remedy does NOT apply (re-generating loops forever against an unrouted resource). It is a per-instance SFAP provisioning gap on this org instance; UI Commit works, `sf project deploy` lands source but does NOT compile, and the fix is a Support case citing the instance ID. Do NOT loop re-generate, do NOT ship a sourceless `GenAiPlannerBundle`, do NOT `sf project deploy` the bundle as a publish substitute (source-only — proven not to compile). Instead: (a) preserve the validated `.agent` authoring bundle on disk (leave it in place — it is the blueprint the SE edits in Builder); (b) record in `discovery_notes` VERBATIM the failing endpoint, the empty-body 404 status, and the org **instance ID** (from `sf org display` / the org's `instanceName`) — this is the escalation evidence; (c) set `deployed.agent.status` to `NeedsUICommit` (see Output Format) and report the agent **authored + validated, NOT live**; (d) point the SE to the go-live runbook: `${CLAUDE_PLUGIN_ROOT}/prompts/building/agent-ui-commit-runbook.md` (Builder UI New Draft → merge real topics into the template shell → reconcile action I/O → Commit → activate). Frame this as a known per-instance platform gap (ref #agentforce-dx), NOT a Scout failure.
+6b. **SFAP publish-route 404 (per-instance provisioning gap) — DISTINCT from step 6's `AABNotFound` branch.** If publish fails specifically with an **empty-body HTTP 404 / `AgentApiNotFound` on the `/einstein/ai-agent/v1.1/authoring/agents` (or `/…/agents/{botId}/versions`) resource** — AFTER `sf agent validate` and `sf agent preview` succeeded (i.e. compile `/authoring/scripts` works, so the bundle IS valid) — this is NOT the `AABNotFound` "bundle not supported" case above and the re-generate-source remedy does NOT apply (re-generating loops forever against an unrouted resource). It is a per-instance SFAP provisioning gap on this org instance; UI Commit works, `sf project deploy` lands source but does NOT compile, and the fix is a Support case citing the instance ID. Do NOT loop re-generate, do NOT ship a sourceless `GenAiPlannerBundle`, do NOT `sf project deploy` the bundle as a publish substitute (source-only — proven not to compile). Instead: (a) preserve the COMPLETE validated authoring bundle using the mandatory durable-recovery procedure below; (b) record in `discovery_notes` VERBATIM the failing endpoint, the empty-body 404 status, and the org **instance ID** (from `sf org display` / the org's `instanceName`) — this is the escalation evidence; (c) set `deployed.agent.status` to `NeedsUICommit` (see Output Format) and report the agent **authored + validated, NOT live**; (d) point the SE to the go-live runbook: `${CLAUDE_PLUGIN_ROOT}/prompts/building/agent-ui-commit-runbook.md` (Builder UI New Draft → merge real topics into the template shell → reconcile action I/O → Commit → activate). Frame this as a known per-instance platform gap (ref #agentforce-dx), NOT a Scout failure.
+
+**Durable recovery for step 6b (before returning).** Copy the whole
+`aiAuthoringBundles/[AgentName]/` directory, including the `.agent`, bundle
+metadata, and nested schemas/local actions. A compiled planner is not a substitute
+and is not expected for this unpublished agent. Run with the injected absolute
+helper and rollback paths:
+
+```bash
+python3 "{{ASSET_HELPER}}" preserve \
+  --source-root "$HOME/claude-projects/sf-demo-scout/force-app/main/default" \
+  --rollback-dir "{{ROLLBACK_DIR}}" --kind agent-recovery \
+  --path "aiAuthoringBundles/[AgentName]"
+```
+
+Require exit 0. The helper uses a unique directory and verifies complete paths
+and content, so separate attempts never overwrite prior recovery bundles. Set
+`deployed.agent.recovery` to `status: verified`, the returned absolute `artifact`,
+`bundle_path: <artifact>/source/aiAuthoringBundles/[AgentName]`, and the absolute
+`original_path` in scratch; `error: null`. Include the real durable bundle path
+in `discovery_notes` and the runbook handover. Keep the preserved copy immutable.
+On ANY copy/verification/helper error, STOP this phase's work, keep the original,
+set recovery `status: failed` with the original path + error (`artifact` and
+`bundle_path` null), and record **BLOCKED — recovery preservation; DO NOT CLEAN
+SCRATCH** in `issues`. Keep agent status `NeedsUICommit` (not live); never claim
+its blueprint is preserved until verification succeeds. The orchestrator must
+independently verify before cleanup.
+
 7. Activate. (Skip if step 6b set `NeedsUICommit` — there is no headless-published version to activate; activation happens in the runbook after UI Commit.)
 8. Rollback:
    - If published via authoring bundle: `sf project delete source --metadata AiAuthoringBundle:[AgentName] --target-org [alias]`
@@ -193,7 +222,10 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
 {
   "phase": 3,
   "deployed": {
-    "agent": {"api_name": "string", "version": 0, "status": "Active|Inactive|NeedsUICommit"},
+    "agent": {
+      "api_name": "string", "version": 0, "status": "Active|Inactive|NeedsUICommit",
+      "recovery": {"status": "not_needed|verified|failed", "artifact": "string|null", "bundle_path": "string|null", "original_path": "string|null", "error": "string|null"}
+    },
     "backing_actions": [{"type": "ApexClass|Flow|StandardAction", "api_name": "string", "status": "SUCCESS|FAILED"}],
     "agent_user": {"username": "string", "created_by_cli": true},
     "standard_permset_assignment": {"name": "string|null", "assigned_to": "string|null", "status": "SUCCESS|FAILED|NOT_FOUND"}
@@ -223,6 +255,7 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
 ```
 
 **Schema notes:**
+- `deployed.agent.recovery` — required. Use `not_needed` with all path/error fields null when step 6b did not fire. For `NeedsUICommit`, use `verified` only after the helper succeeds, otherwise `failed` with the original scratch path and error. All non-null paths must be actual absolute paths, never placeholders. A `verified` record certifies durable source, not a live agent.
 - `deployed.agent.status = NeedsUICommit` — set ONLY by step 6b (SFAP publish-route 404 on this instance). Means the agent was authored + validated but could NOT be published headless; it is NOT live. `version` will typically be `0` (no published version). The orchestrator surfaces this to the SE as "authored + validated, NOT live — requires UI Commit" and routes to the go-live runbook. Do NOT report a `NeedsUICommit` agent as Active/working.
 - `deployed.agent_user` — record the Einstein Agent User the `sf agent` CLI auto-creates during publish. The orchestrator surfaces this to the SE post-deploy.
 - `deployed.backing_actions[].type = StandardAction` — use this when a standard action (Get Records, Update Record, Knowledge grounding) is wired in the Agent Spec without an Apex class.

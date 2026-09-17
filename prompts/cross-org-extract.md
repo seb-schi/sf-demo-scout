@@ -102,16 +102,52 @@ active default:
   `sf project retrieve start -m [Type:ApiName] --target-org [source-alias]`.
 - Data sample: `sf data query -q "[SOQL]" --target-org [source-alias] --json`.
 
-Retrieved metadata converts into the SFDX project's transient
-`force-app/main/default/` scratch (same as any retrieve — it is not committed;
-the demo lives in `orgs/`). Keep the pulled asset there for the parent command
-to adapt/redeploy into the active org, or save a copy under `[ORG_FOLDER]/` if
-the parent wants a durable artifact.
+Pin metadata retrieval to the Scout project root (`directory` =
+`$HOME/claude-projects/sf-demo-scout` for MCP; run CLI from that root).
+Retrieved metadata converts into transient `force-app/main/default/` scratch.
+**Preserve every successful pull before returning, for BOTH callers.** Resolve
+the workspace and `[ORG_FOLDER]/rollback` to absolute paths. Run:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py" preserve \
+  --source-root "$HOME/claude-projects/sf-demo-scout/force-app/main/default" \
+  --rollback-dir "[absolute ORG_FOLDER]/rollback" --kind imports \
+  --path "[retrieved type folder]"
+```
+
+Repeat `--path` for each retrieved type folder (e.g. `classes`, `flows`,
+`lwc`). Copy whole directories so companions and nested bundle files survive;
+check that the requested components actually landed, including required
+companions. The helper creates a unique snapshot, compares complete paths and
+content, and writes an integrity receipt only on success. A type-folder snapshot
+may contain other members: it does NOT select those members for deployment.
+Record the exact complete component paths separately (e.g.
+`classes/CaseHelper.cls` plus its metadata companion, `lwc/casePanel`, or
+`flows/Lead_Router.flow-meta.xml`).
+
+For a data sample, save the successful query's JSON response to a uniquely named
+subdirectory of scratch `data-samples/`, then preserve that directory with the
+same helper. Return its durable file path as a data sample; it is NOT a metadata
+staging selection or permission to seed data outside the spec.
+
+**Failure gate:** any missing component, copy failure, comparison error, or
+nonzero helper exit means preservation FAILED/unverified. Keep the originals,
+record their absolute paths and the error in this extraction entry, and STOP the
+parent's build before any scratch cleanup. Never substitute file counts for
+content verification or report success from the mere existence of a directory.
 
 ## Step 4: Update the entry status, then return
 
-Flip the entry's `**Status:**` line for this extraction from `requested` to
-`pulled — [what landed]` (or `failed — [reason]` if the retrieve errored).
-Then return control to the parent command with a one-line summary of what was
-pulled and where it landed. The parent continues against the ACTIVE demo org
-(default org unchanged).
+On verified preservation, set this entry's `**Status:**` to `pulled — preserved`
+and add `**Preserved:** [absolute artifact path from helper JSON]`, exact
+component identities + relative paths, and `**Original scratch:** [absolute
+paths]`. If retrieve failed, record `failed — retrieve: [reason]`; if retrieval
+landed files but preservation did not verify, record `blocked — preservation:
+[reason]` with the originals' paths. Do not flip that case to `pulled`.
+
+Return the verified artifact path, exact component paths, and extraction intent
+to the parent. The parent binds selected metadata to an existing spec item and
+phase; intent is provenance, never independent deployment scope. Unselected
+assets remain archived. The parent continues against the ACTIVE demo org
+(default org unchanged). Do not add a consumed marker: a spec-selected import
+must remain available for retries and later builds.

@@ -285,6 +285,18 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/data-shape.md` and execute the proc
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/spec-template.md` for the format, then write the spec to `[ORG_FOLDER]/demo-spec-[YYYY-MM-DD]-[HHmm]-[CUSTOMER].md`
 
+**Imports survive the fresh-session handoff.** For each verified extraction
+selected for this scenario, write the optional `### Imported Assets` entry:
+absolute artifact path returned by `build-assets.py`, exact source component
+identity and relative component paths, the existing spec item it supplies, its
+phase, and extraction intent as provenance. Verify each selected artifact with
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py" verify --artifact "[absolute artifact path]"`
+before saving. Missing/unverified references are a gap to resolve, not permission
+to silently regenerate the imported component. Do not select other archived
+members, infer imports by scanning rollback directories, or turn extraction
+intent into new scope. Omit the section when no metadata imports are selected;
+data samples stay durable references in the relevant data-design context.
+
 **Residual feasibility check:** Before writing, scan the final scenario for any feature or metadata type NOT already covered by Stage 4 research. For each uncovered item, run a quick `salesforce_docs_search`. This is a safety net — Stage 4 should have caught most things.
 
 Populate the **Release Notes & Citations** section with every consultation from Stage 4 and any residual checks. If no consultations occurred, write "None — scenario uses established patterns only."

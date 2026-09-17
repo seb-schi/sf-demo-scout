@@ -56,6 +56,14 @@ Aggregated from the Phase 3 sub-agent's `actions_unverified_in_preview` array (s
 ## Agent Not Live — UI Commit Required (only if Phase 3 `deployed.agent.status` = NeedsUICommit)
 Include ONLY when the Phase 3 sub-agent set `deployed.agent.status: NeedsUICommit` — the headless SFAP publish route returned 404 on this org instance (a per-instance platform provisioning gap; the agent is authored + validated but NOT live). Record the verbatim endpoint/404/instance-ID evidence from the sub-agent's `discovery_notes`. Go-live path: `${CLAUDE_PLUGIN_ROOT}/prompts/building/agent-ui-commit-runbook.md` (Builder UI). Escalation: file a Salesforce Support case citing the org instance ID (cross-post evidence to #agentforce-dx).
 - **Agent:** [api_name] — authored + validated, NOT live. Go live via the Builder UI runbook; escalate the instance gap to Support.
+- **Recovery artifact:** [actual absolute verified artifact path]
+- **Recovery bundle path:** [actual absolute artifact/source/aiAuthoringBundles/AgentName path]
+- **Preservation:** [verified by orchestrator / BLOCKED with error + original scratch path; cleanup withheld]
+Use actual paths from `deployed.agent.recovery` only after independent verification;
+on failure leave the durable-path fields unavailable and record the original path.
+
+## Imported Assets Used (if any)
+- [component identity] — [existing spec item + phase]; preserved at [absolute artifact path]; [used/adapted/skipped/blocked + reason]. List selected imports only; preservation does not prove deployment.
 
 ## Execution Order Check
 [Per-object list of active flows after deployment. Flag objects with multiple after-save record-triggered flows and note execution order risks.]

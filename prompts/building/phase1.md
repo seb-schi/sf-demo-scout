@@ -27,6 +27,8 @@ Invoke these skills via the Skill tool when you need detailed metadata rules:
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
 {{EXTERNAL_SKILLS}}
 
+{{IMPORTED_ASSETS}}
+
 ## Deployment Rules
 
 **Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix — never redeploy unchanged metadata. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill. If it matches, apply the documented fix and redeploy (that is attempt 2); a different matching error on attempt 2 earns attempt 3. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record SKIPPED (with error + any pattern id tried) when an attempt fails with no new fix, or after attempt 3. Pattern B (FlexiPage record-detail) removes a component the SE must re-add — record it in the SE Manual Checklist.
