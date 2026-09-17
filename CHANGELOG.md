@@ -4,6 +4,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-17
 
+- **Startup tells you what Scout actually knows.** A failed CLI check no longer means “no default org” or “authentication expired.” Cached results show when they were collected, distinct org aliases keep distinct identities, and a failed refresh cannot quietly reuse an older success. The cache retains only the fields needed for the banner, in private files.
 - **Standalone configuration requests reach the right build phase.** Reports, sharing rules, validation rules, list views, settings, metadata types, and Email-to-Case use the same supported-input list for selection and deployment. Scout also identifies its bundled skills from the installed files, so skill names alone no longer decide what is external.
 - **Email-to-Case has a clear agent handoff.** Base email configuration stays in Phase 1; agent creation stays behind the Phase 3 gate. Email entitlement and channel wiring are separate prerequisites, and missing channel tooling or manual work stays visible.
 - **Showtime keeps its approved boundaries during the build.** Workers receive the selected envelope and hard exclusions. A failed standard action cannot introduce backing Apex in Showtime E4; ordinary builds need an explicitly approved, accounted-for alternative, and “no Apex” remains binding.
