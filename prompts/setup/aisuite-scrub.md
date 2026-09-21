@@ -36,6 +36,7 @@ inaccessible targets, settings symlinks, and any other uncertainty remain
 untouched and are reported.
 
 ```bash
+/bin/bash <<'SCOUT_AISUITE_SCRUB_BASH'
 SETTINGS_HELPER="[PLUGIN_ROOT]/scripts/setup-settings.py"
 PYTHON_EXE=$(type -P python3 2>/dev/null || true)
 if [ -z "$PYTHON_EXE" ] || [ ! -f "$SETTINGS_HELPER" ]; then
@@ -45,6 +46,7 @@ else
     "$PYTHON_EXE" -B "$SETTINGS_HELPER" aisuite-hooks --settings "$USER_SETTINGS"
   done
 fi
+SCOUT_AISUITE_SCRUB_BASH
 ```
 
 Surface inline (compose one combined note across both files; silent only if every result was `AISUITE_ABSENT` / `AISUITE_HOOKS_NONE` with no `FLAGS`):

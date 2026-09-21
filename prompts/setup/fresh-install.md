@@ -119,6 +119,7 @@ missing. Never fall through to the ready/Done handoff.
 ## c: Pre-cache Salesforce MCP server
 
 ```bash
+/bin/bash <<'SCOUT_MCP_CACHE_BASH'
 echo "PRE_CACHING_MCP"
 NPX_EXE=$(type -P npx 2>/dev/null || true)
 if [ -z "$NPX_EXE" ]; then
@@ -128,6 +129,7 @@ elif "$NPX_EXE" -y @salesforce/mcp --help >/dev/null 2>&1; then
 else
   echo "MCP_CACHE_FAILED"
 fi
+SCOUT_MCP_CACHE_BASH
 ```
 
 - `MCP_CACHE_UNAVAILABLE` — surface that npx is missing, so optional DX MCP
@@ -148,6 +150,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract its
 Run the shipped helper once with explicit paths:
 
 ```bash
+/bin/bash <<'SCOUT_WORKSPACE_SETUP_BASH'
 WORKSPACE="$HOME/claude-projects/sf-demo-scout"
 CONFIG="$HOME/.config/sf-demo-scout/config.json"
 WORKSPACE_HELPER="[PLUGIN_ROOT]/scripts/setup-workspace.py"
@@ -162,6 +165,7 @@ fi
   --config "$CONFIG" \
   --template "$SETTINGS_TEMPLATE" \
   --plugin-version "[PLUGIN_VERSION]"
+SCOUT_WORKSPACE_SETUP_BASH
 ```
 
 The helper stages `sf project generate --json` in a unique temporary

@@ -18,6 +18,7 @@ then run this Bash with those literal paths substituted. A failed workspace
 directory change or missing verifier is an abort, never a setup state.
 
 ```bash
+/bin/bash <<'SCOUT_SETUP_STATE_BASH'
 WORKSPACE="$HOME/claude-projects/sf-demo-scout"
 CONFIG="$HOME/.config/sf-demo-scout/config.json"
 WORKSPACE_HELPER="[PLUGIN_ROOT]/scripts/setup-workspace.py"
@@ -32,15 +33,22 @@ fi
 PYTHON_EXE=$(type -P python3 2>/dev/null || true)
 if [ -z "$PYTHON_EXE" ]; then
   echo "STATE=FRESH"
-elif "$PYTHON_EXE" -B "$WORKSPACE_HELPER" verify \
-    --workspace "$WORKSPACE" --config "$CONFIG" >/dev/null 2>&1; then
-  echo "STATE=REFRESH"
 else
-  echo "STATE=FRESH"
+  "$PYTHON_EXE" -B "$WORKSPACE_HELPER" verify \
+    --workspace "$WORKSPACE" --config "$CONFIG"
+  VERIFY_STATUS=$?
+  if [ "$VERIFY_STATUS" -eq 0 ]; then
+    echo "STATE=REFRESH"
+  else
+    echo "STATE=FRESH"
+  fi
 fi
+SCOUT_SETUP_STATE_BASH
 ```
 
-Capture the STATE value — Step 3 (Done) needs it. `STATE=FRESH` includes an
+Capture the STATE value — Step 3 (Done) needs it. Preserve and surface any verifier
+diagnostic printed before the state instead of replacing it with a generic reason.
+`STATE=FRESH` includes an
 interrupted or partial install even when `config.json` exists; the fresh path
 is idempotent and repairs missing mandatory artifacts without replacing valid
 incumbent workspace files or config.

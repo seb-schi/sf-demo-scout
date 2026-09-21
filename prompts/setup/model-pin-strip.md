@@ -23,6 +23,7 @@ and substitute it for `[PLUGIN_ROOT]`. Run the shipped helper with each settings
 path explicit:
 
 ```bash
+/bin/bash <<'SCOUT_JSON_PINS_BASH'
 SETTINGS_HELPER="[PLUGIN_ROOT]/scripts/setup-settings.py"
 PYTHON_EXE=$(type -P python3 2>/dev/null || true)
 if [ -z "$PYTHON_EXE" ] || [ ! -f "$SETTINGS_HELPER" ]; then
@@ -32,6 +33,7 @@ for USER_SETTINGS in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local
   "$PYTHON_EXE" -B "$SETTINGS_HELPER" json-pins --settings "$USER_SETTINGS"
 done
 fi
+SCOUT_JSON_PINS_BASH
 ```
 
 **b — VS Code `claudeCode.environmentVariables` (JSONC, comment-preserving bounded edit):**
@@ -44,6 +46,7 @@ adjacent-comma spans, then reparses and compares the full semantic value to the
 expected deletion. Unsupported or ambiguous documents remain byte-identical.
 
 ```bash
+/bin/bash <<'SCOUT_VSCODE_PINS_BASH'
 SETTINGS_HELPER="[PLUGIN_ROOT]/scripts/setup-settings.py"
 PYTHON_EXE=$(type -P python3 2>/dev/null || true)
 if [ -z "$PYTHON_EXE" ] || [ ! -f "$SETTINGS_HELPER" ]; then
@@ -52,6 +55,7 @@ else
   "$PYTHON_EXE" -B "$SETTINGS_HELPER" vscode-pins \
     --settings "$HOME/Library/Application Support/Code/User/settings.json"
 fi
+SCOUT_VSCODE_PINS_BASH
 ```
 
 **c — launchctl GUI env (best-effort detect + unset):**

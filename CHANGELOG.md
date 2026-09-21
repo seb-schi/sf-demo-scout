@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-09-21
+
+- **Sparring, building, and setup recognize an existing workspace from zsh sessions.** Scout runs its executable checks explicitly in Bash, so installed Python and npx no longer appear missing because of the caller's shell. Startup checks are read-only and show the actual failure instead of treating every problem as an unconfigured workspace.
+
 ## 2026-09-17
 
 - **Skill handoffs stay within Scout's supported paths.** Flow dependencies, report lookups, validation formulas, and existing-page edits follow shared compatibility guidance without changing bundled upstream skills. Unsupported work stays explicit.
