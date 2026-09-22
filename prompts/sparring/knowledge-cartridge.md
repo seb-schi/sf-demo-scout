@@ -22,33 +22,57 @@ contract; the cartridge never detects, depends on, or hardcodes Scout. All
 consumer-specific adoption logic lives here, in Scout. A cartridge is any plugin
 that conforms to the contract — Scout names no specific cartridge.
 
-## Step 1 — Discover conforming cartridges (cheap; always runs)
+## Step 1 — Discover enabled, selected cartridges (cheap; always runs)
 
-A **conforming knowledge cartridge** is an installed plugin whose cache version
-dir contains BOTH `INTEGRATING.md` and `KNOWLEDGE-INDEX.md` at its root. Both
-files present = the plugin publishes the adoption contract AND a machine-readable
-knowledge map. `INTEGRATING.md` ships only in current, contract-aware versions,
-so requiring both naturally selects conforming + current cartridges and ignores
-stale side-by-side version dirs.
+A conforming cartridge has both `INTEGRATING.md` and `KNOWLEDGE-INDEX.md` at
+its **selected plugin root**. Their presence says nothing about enablement or
+which version the host selected. Never scan cache folders, sort versions, or
+collapse identities to a plugin basename: retained upgrades, rollbacks and
+same-named plugins from different providers must not select each other's content.
+
+Use this session's native plugin inventory, keeping each full `plugin@provider`
+identity and selected absolute root. If native host metadata supplies an exact
+loaded root, prefer it. Otherwise Claude Code's read-only
+[`claude plugin list --json`](https://code.claude.com/docs/en/plugins-reference#plugin-list)
+reports installed selections and enablement. This is evidence of **current selected
+installation**, not a claim about bytes already loaded by a long-lived session.
+
+For Claude Code, resolve the helper from this Scout command's own plugin root,
+then substitute the two absolute paths below. The directory is the **native
+session's project directory**, not a staging/retrieval directory or an arbitrary
+customer folder: it determines the host's project-scoped enablement.
 
 ```bash
-# One conforming cartridge per plugin: latest version dir that has BOTH files.
-# sort -V | tail -1 picks the highest version when multiple are cached
-# (e.g. mid-update, two versions side by side) — same idiom as maintainer-bootstrap.
-for KIDX in $(find "$HOME/.claude/plugins/cache" -name KNOWLEDGE-INDEX.md 2>/dev/null); do
-  DIR=$(dirname "$KIDX")
-  [ -f "$DIR/INTEGRATING.md" ] && echo "$DIR"
-done | sort -V | awk -F/ '{ key=$(NF-1); ver=$NF; latest[key]=$0 } END { for (k in latest) print latest[k] }'
+python3 "/absolute/path/of/active/sf-demo-scout/scripts/knowledge-cartridges.py" \
+  --claude --directory "/absolute/native/session/directory"
 ```
 
-(The `awk` keeps only the latest version dir per plugin name. If the one-liner
-is awkward in practice, an equivalent is: group the found dirs by the
-second-to-last path segment (the plugin name), `sort -V` within each group, keep
-the last. The invariant that matters: **at most one conforming dir per installed
-plugin, the highest version.**)
+The helper uses only `claude plugin list --json`; it never installs, updates or
+changes settings. It selects only explicitly enabled entries, preserves provider
+identity, and requires one selected root per identity with both contract files
+contained inside that root. Disabled entries, ambiguous scopes and unavailable
+roots cannot fall back to another cached version. The result contains `cartridges`
+with `id`, `root`, `integrating` and `knowledge_index`, plus compact `unavailable`
+reasons. Use the returned absolute paths unchanged in Steps 2–3.
 
-If NO conforming cartridge is found: emit nothing, skip to "After this fragment."
-This is the common case on a machine with no cartridge installed — zero ceremony.
+Cross-check the selection against this session's native catalog when it is exposed.
+If the session explicitly selected a different root, disabled that plugin, or uses
+settings/overrides the CLI inventory does not represent, do not consult the
+conflicting candidate. Prefer the host's actual selection or skip the optional
+knowledge. Do not force a reload or ask for a new load receipt to continue sparring.
+
+**Other clients:** do not use Claude's CLI/cache as their plugin authority. When
+that host provides enabled selections and exact roots, pass its native inventory
+to the same helper with `--stdin`, as a JSON list of records with `id`
+(`plugin@provider`), `enabled` (boolean), and `installPath` (absolute). Preserve the
+host's values; never invent enablement or a root from a newest-cache guess. This
+small input adapter is not proof of native command loading or client parity.
+
+If the helper/tool is unavailable, the inventory shape is unsupported, or provenance
+is unresolved, use docs + audit without that cartridge. Treat the returned reason
+as an internal research limitation; do not block sparring or propose installation
+repairs. No conforming enabled candidate means continue silently to "After this
+fragment." Do not read a contract merely because it exists somewhere in a cache.
 
 ## Step 2 — Match the audited industry against each cartridge's Coverage
 
@@ -72,7 +96,7 @@ require all.
 
 Distinguish the no-match cases:
 
-- **No conforming cartridge discovered** (Step 1 found none) → this fragment is done. Proceed silently — do NOT tell the SE a cartridge is missing. Scout grounds the scenario in docs + audit exactly as it always has. (Knowledge cartridges are rare; the LS Booster Pack is the only one today. A "no cartridge for this industry" flag would nag the SE about something they cannot install, and Scout can't tell "no cartridge exists" from "exists but not installed" — it sees only the local plugin cache. Where a future cartridge should go is a maintainer signal, gathered outside the SE's prep session.)
+- **No conforming cartridge discovered** (Step 1 found none) → this fragment is done. Proceed silently — do NOT tell the SE a cartridge is missing. Scout grounds the scenario in docs + audit exactly as it always has. (Knowledge cartridges are rare; the LS Booster Pack is the only one today. A "no cartridge for this industry" flag would nag the SE about something they cannot install, and Scout can't tell "no cartridge exists" from "exists but not installed" — it sees only this host's confirmed plugin selections. Where a future cartridge should go is a maintainer signal, gathered outside the SE's prep session.)
 - **Conforming cartridge, Coverage present, industry doesn't overlap** → silent (same rationale: the cartridge legitimately doesn't cover this org's industry).
 - **Conforming cartridge, Coverage ABSENT or unparseable** (no `## Coverage` block at all, OR a Coverage block missing BOTH `namespaces` and `objects`) → emit exactly one diagnostic line, then proceed as no-match (do NOT block, do NOT guess a match):
   > "⚠ Knowledge cartridge [plugin name] is installed and contract-conforming, but its KNOWLEDGE-INDEX.md has no parseable `## Coverage` block — I can't match it to this org's industry, so I'm grounding the scenario in docs + audit as usual. (This is a cartridge-side contract gap, not something you can fix from here.)"

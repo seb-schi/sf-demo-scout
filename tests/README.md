@@ -172,6 +172,14 @@ protected; `sf-flow` is deliberately maintained without changing its frozen poli
 
 ## Release-only validation
 
+The 16 cartridge-selection methods in `test_knowledge_cartridges.py` exercise
+the shipped helper and its materialized Stage 4 command. Fixtures cover selected
+older versions beside newer cache leftovers, disabled and absent plugins, full
+provider identities, ambiguous scopes, literal paths, contract containment,
+malformed inventories, unavailable CLI results, and the native session directory.
+They use local inventory fixtures and a read-only CLI stub. They do not claim
+native model compliance, loaded-session byte identity, or Claude/Codex parity.
+
 Run installed `claude plugin validate` separately against the release candidate.
 It invokes a real installed client and is therefore a release gate, not part of
 the hermetic offline suite.
