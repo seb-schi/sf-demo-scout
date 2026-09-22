@@ -142,7 +142,7 @@ Next step: <dry-run deploy, activate, or test>
 
 ## Flow Testing
 
-Read [FlowTest authoring and diagnosis](references/flowtest-authoring.md) before generating `.flowTest-meta.xml` or running Flow tests. It owns API applicability, parameter shapes, business assertions, exact-test CLI selection, and bounded failure classification. Use [testing-guide.md](references/testing-guide.md) for broader path, bulk, permission, and manual QA when those checks are in scope. Local validation and successful deployment do not establish executed test acceptance.
+Read [FlowTest authoring and diagnosis](references/flowtest-authoring.md) before generating `.flowtest-meta.xml` or running Flow tests. It owns API applicability, parameter shapes, business assertions, exact-test CLI selection, and bounded failure classification. Use [testing-guide.md](references/testing-guide.md) for broader path, bulk, permission, and manual QA when those checks are in scope. Local validation and successful deployment do not establish executed test acceptance.
 
 ---
 

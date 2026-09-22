@@ -4,6 +4,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-22
 
+- **Flow test files use the suffix Salesforce's source tools recognize.** Corrected template filenames prevent a metadata-type detection error; failure diagnosis preserves each attempt and checks linked execution logs before drawing conclusions.
 - **Builds, audits, and repairs keep their working files separate.** Each writer retains its own project, and original metadata is preserved before changes. Scout stops when a tool explicitly refuses an operation.
 - **Flow completion checks every required test at the intended version.** Updated templates and result guidance distinguish failed tests from missing evidence; incomplete validation stays visible before activation.
 - **Handovers lead with what actually finished.** Remaining QA and manual work stay explicit, and later results clearly supersede older summaries.

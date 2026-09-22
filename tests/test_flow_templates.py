@@ -84,7 +84,7 @@ class FlowTestTemplateTests(unittest.TestCase):
         return points
 
     def test_record_fixture_is_one_typed_sobject_parameter(self):
-        root = render("record-triggered-create.flowTest-meta.xml", self.values)
+        root = render("record-triggered-create.flowtest-meta.xml", self.values)
         start, finish = self.check_common(root)
         parameters = start.findall(NS + "parameters")
         self.assertEqual(1, len(parameters))
@@ -97,7 +97,7 @@ class FlowTestTemplateTests(unittest.TestCase):
         self.assertEqual([], finish.findall(NS + "parameters"))
 
     def test_autolaunched_fixture_uses_named_input_variable(self):
-        root = render("autolaunched-input.flowTest-meta.xml", {**self.values, "EXPECTED_RESOURCE": "resultText"})
+        root = render("autolaunched-input.flowtest-meta.xml", {**self.values, "EXPECTED_RESOURCE": "resultText"})
         start, _ = self.check_common(root)
         parameter = start.find(NS + "parameters")
         self.assertEqual(["leftValueReference", "type", "value"], children(parameter))
@@ -106,7 +106,7 @@ class FlowTestTemplateTests(unittest.TestCase):
         self.assertEqual(self.values["INPUT_VALUE"], parameter.findtext(NS + "value/" + NS + "stringValue"))
 
     def test_assertions_detect_wrong_business_result_without_a_flow_fault(self):
-        for filename in ("record-triggered-create.flowTest-meta.xml", "autolaunched-input.flowTest-meta.xml"):
+        for filename in ("record-triggered-create.flowtest-meta.xml", "autolaunched-input.flowtest-meta.xml"):
             with self.subTest(filename=filename):
                 expected_resource = "$Record.Priority" if filename.startswith("record-") else "resultText"
                 root = render(filename, {**self.values, "EXPECTED_RESOURCE": expected_resource})
