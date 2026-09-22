@@ -12,15 +12,9 @@ Creates and validates Salesforce Flows with 110-point scoring and Spring '26 bes
 - **Transform vs Loop Guide**: Decision pattern for choosing Transform (data mapping) vs Loop (per-record decisions)
 - **Flow Quick Reference**: Comprehensive cheat sheet with flow type selection trees and element reference
 
-## Installation
+## Scout maintenance
 
-```bash
-# Install as part of sf-skills
-npx skills add Jaganpro/sf-skills
-
-# Or install just this skill
-npx skills add Jaganpro/sf-skills --skill sf-flow
-```
+Scout keeps this skill as a permanent hand-managed fork under `policy: frozen` in `skills-manifest.yaml`; upstream replacement is disabled because its successor requires hosted-only tooling. Local maintenance on 2026-09-22 added API-66 [FlowTest authoring](references/flowtest-authoring.md), reusable test templates, bounded diagnosis, and current bundled handoffs. Install and update it with Scout, not an upstream skill installer.
 
 ## Quick Start
 
@@ -86,7 +80,7 @@ The skill generates:
 |---------------|-------------|
 | platform-apex-generate | Create @InvocableMethod for complex logic |
 | experience-lwc-generate | Create screen components for custom UI |
-| sf-metadata | Deploy custom objects BEFORE flows |
+| platform-custom-object-generate / platform-custom-field-generate | Deploy custom objects BEFORE flows |
 | platform-metadata-deploy | Deploy flows to org |
 
 ## Orchestration Order

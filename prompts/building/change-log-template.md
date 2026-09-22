@@ -11,6 +11,14 @@ Org: [alias] ([username])
 Spec: demo-spec-[DATE]-[HHmm]-[CUSTOMER].md
 Audit used: audit-[YYYY-MM-DD]-[HHmm].md
 
+## Achieved State — [as-of receipt timestamp]
+[Current reconciler disposition and observed state; distinguish active/Draft,
+failed/blocked work and remaining runtime, agent, UI and recovery obligations.]
+[When newer evidence changes an earlier summary, name the receipt/time and the
+summary it supersedes. Keep the earlier report as history. Preserve policy refusals
+separately from actual state; do not undo or conceal a later successful mutation.]
+[Writer-owned project and ownership receipt paths; preservation failures retained.]
+
 ## What Was Deployed
 [Every component, grouped by type — include API names]
 
@@ -163,3 +171,9 @@ Aggregated from sub-agent `docs_consulted` arrays + any orchestrator-level error
 
 After saving, tell the SE:
 > "Change log saved. Review 'SE Must Do Next' — complete those before the demo."
+
+Diagnostic accuracy: a test execution may roll back business DML while persisting test
+result records; do not label it literally read-only. Aggregate failures do not identify
+a failed assertion. A failed inventory pipeline is unavailable evidence, not absence
+or proof that every supported route is impossible. Retain inconclusive diagnostics
+separately from the required acceptance tests.

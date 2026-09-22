@@ -7,36 +7,26 @@ This document details how sf-flow fits into the multi-skill workflow for Salesfo
 
 ## Standard Orchestration Order
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  STANDARD MULTI-SKILL ORCHESTRATION ORDER                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  1. sf-metadata                                                             │
-│     └── Create object/field definitions (LOCAL files)                       │
-│                                                                             │
-│  2. sf-flow  ◀── YOU ARE HERE                                              │
-│     └── Create flow definitions (LOCAL files)                               │
-│                                                                             │
-│  3. sf-deploy                                                               │
-│     └── Deploy all metadata (REMOTE)                                        │
-│                                                                             │
-│  4. sf-data                                                                 │
-│     └── Create test data (REMOTE - objects must exist!)                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+1. Confirm referenced objects and fields. For missing, approved dependencies use `platform-custom-object-generate` and `platform-custom-field-generate`.
+2. Author the Flow and eligible FlowTests with `sf-flow`.
+3. Use `platform-metadata-deploy` for the authorized deployment; preserve the caller's exact-version test and activation gate.
+4. Use `platform-data-manage` only for separately in-scope data setup or bulk verification.
+
+Existing schema does not need to be recreated. An unavailable or unapproved dependency is a gap to report, not permission to add it.
+
 
 ---
 
-## Why sf-flow Depends on sf-metadata
+## Confirm Schema Dependencies
 
-| sf-flow Uses | From sf-metadata | What Fails Without It |
+| sf-flow Uses | Schema prerequisite | What Fails Without It |
 |--------------|------------------|----------------------|
 | Object references | Custom Objects | `Invalid reference: Quote__c` |
 | Field references | Custom Fields | `Field does not exist: Status__c` |
 | Picklist values | Picklist Fields | Flow decision uses non-existent value |
 | Record Types | Record Type metadata | `Invalid record type: Inquiry` |
 
-**Rule**: If your Flow references custom objects or fields, create them with sf-metadata FIRST.
+**Rule**: Verify referenced schema first. Create only missing dependencies within the approved scope, using the object or field skill as appropriate.
 
 ---
 
@@ -73,35 +63,10 @@ See `references/triangle-pattern.md` for detailed Flow XML patterns.
 
 When building agents with Flow actions:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  AGENTFORCE FLOW ORCHESTRATION                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  1. sf-metadata                                                             │
-│     └── Create object/field definitions                                     │
-│                                                                             │
-│  2. sf-connected-apps (if external API)                                     │
-│     └── Create OAuth Connected App                                          │
-│                                                                             │
-│  3. sf-integration (if external API)                                        │
-│     └── Create Named Credential + External Service                          │
-│                                                                             │
-│  4. sf-apex (if custom logic needed)                                        │
-│     └── Create @InvocableMethod classes                                     │
-│                                                                             │
-│  5. sf-flow  ◀── YOU ARE HERE                                              │
-│     └── Create Flow (HTTP Callout, Apex wrapper, or standard)               │
-│                                                                             │
-│  6. sf-deploy                                                               │
-│     └── Deploy all metadata                                                 │
-│                                                                             │
-│  7. sf-ai-agentforce                                                        │
-│     └── Create agent with flow:// target                                    │
-│                                                                             │
-│  8. sf-deploy                                                               │
-│     └── Publish agent (sf agent publish authoring-bundle)                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+Use `platform-apex-generate` for approved invocable actions, `sf-flow` for the Flow wrapper, `platform-metadata-deploy` for deployment, and `agentforce-generate` for Agent Script authoring and lifecycle guidance. Deploy dependencies before their consumers; the caller controls publication and activation.
+
+External authentication, Named Credentials, and External Services require their own confirmed supported route and approved scope. This skill does not depend on absent `sf-connected-apps` or `sf-integration` skills.
+
 
 ---
 
@@ -146,7 +111,7 @@ actions:
 | Error | Cause | Fix |
 |-------|-------|-----|
 | "Internal Error" on publish | Variable name mismatch | Match Flow var names exactly |
-| "Flow not found" | Flow not deployed | sf-deploy before sf-ai-agentforce |
+| "Flow not found" | Flow not deployed | platform-metadata-deploy before agentforce-generate |
 | Agent can't read output | Missing `isOutput: true` | Add output flag to Flow variable |
 
 ---
@@ -155,15 +120,15 @@ actions:
 
 | From Skill | To sf-flow | When |
 |------------|------------|------|
-| sf-ai-agentforce | → sf-flow | "Create Autolaunched Flow for agent action" |
-| sf-apex | → sf-flow | "Create Flow wrapper for Apex logic" |
-| sf-integration | → sf-flow | "Create HTTP Callout Flow" |
+| agentforce-generate | → sf-flow | "Create Autolaunched Flow for agent action" |
+| platform-apex-generate | → sf-flow | "Create Flow wrapper for Apex logic" |
+| Approved integration work | → sf-flow | Create an HTTP Callout Flow after its dependencies are confirmed |
 
 | From sf-flow | To Skill | When |
 |--------------|----------|------|
-| sf-flow | → sf-metadata | "Describe Invoice__c" (verify fields before flow) |
-| sf-flow | → sf-deploy | "Deploy flow with --dry-run" |
-| sf-flow | → sf-data | "Create 200 test Accounts" (after deploy) |
+| sf-flow | → platform-custom-object-generate / platform-custom-field-generate | verify Invoice__c fields using an approved describe tool |
+| sf-flow | → platform-metadata-deploy | "Deploy flow with --dry-run" |
+| sf-flow | → platform-data-manage | "Create 200 test Accounts" (after deploy) |
 
 ---
 
@@ -187,7 +152,7 @@ When deploying Flows that reference Apex or LWC:
 ## Best Practices
 
 1. **Always verify objects exist** before creating Flow references
-2. **Use sf-metadata describe** to confirm field API names
+2. **Use the approved object/field describe tool** to confirm field API names
 3. **Deploy as Draft first** for complex flows
 4. **Test with 251 records** for bulk safety
 5. **Match variable names exactly** when creating for Agentforce
@@ -201,4 +166,4 @@ When deploying Flows that reference Apex or LWC:
 | Triangle pattern (Flow perspective) | `sf-flow/references/triangle-pattern.md` |
 | LWC integration | `sf-flow/references/lwc-integration-guide.md` |
 | Apex action template | `sf-flow/assets/apex-action-template.xml` |
-| sf-ai-agentforce | `sf-ai-agentforce/SKILL.md` |
+| agentforce-generate | `agentforce-generate/SKILL.md` |

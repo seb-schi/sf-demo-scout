@@ -1,14 +1,14 @@
 <!-- Parent: sf-flow/SKILL.md -->
 
-# Flows for Agentforce (sf-ai-agentscript)
+# Flows for Agentforce (agentforce-generate)
 
-## When sf-ai-agentscript Requests a Flow
+## When agentforce-generate Requests a Flow
 
-- sf-ai-agentscript will invoke sf-flow (this skill) to create Flows
+- agentforce-generate will invoke sf-flow (this skill) to create Flows
 - sf-flow creates the validated Flow XML
-- sf-deploy handles deployment to org
+- platform-metadata-deploy handles deployment to org
 - **Action Definition registration required** (see below)
-- Only THEN can sf-ai-agentscript use `flow://FlowName` targets
+- Only THEN can agentforce-generate use `flow://FlowName` targets
 
 ## Variable Name Matching
 
@@ -47,7 +47,7 @@ Use `out_` prefix for output variables to distinguish them in Action Definition 
 > **CRITICAL**: Creating a Flow is NOT sufficient for Agentforce. The Flow must be registered as an Action Definition.
 
 **Registration Workflow:**
-1. **Deploy Flow** to target org via sf-deploy
+1. **Deploy Flow** to target org via platform-metadata-deploy
 2. Navigate to **Setup > Agentforce > Action Definitions**
 3. Click **"New Action"**, select **"Flow"** as target type
 4. Choose your deployed Flow from the list
@@ -63,7 +63,7 @@ Use `out_` prefix for output variables to distinguish them in Action Definition 
 ```
 Flow Created  →  Deployed to Org  →  Action Definition Created  →  Agent Can Use
      ↑               ↑                        ↑                         ↑
-   sf-flow       sf-deploy           Setup > Agentforce         @actions.MyAction
+   sf-flow       platform-metadata-deploy           Setup > Agentforce         @actions.MyAction
 ```
 
 **Why This Matters**: The Action Definition is what exposes the Flow to the agent runtime. Without it, `@actions.FlowName` will fail with `ValidationError: Tool target 'FlowName' is not an action definition`.

@@ -5,7 +5,7 @@ description: >
   TRIGGER when: user builds or edits record-triggered, screen, autolaunched, or
   scheduled flows, or touches .flow-meta.xml files.
   DO NOT TRIGGER when: Apex automation (use platform-apex-generate), process builder migration
-  questions only, or non-Flow declarative config (use sf-metadata).
+  questions only, or non-Flow declarative configuration.
 license: MIT
 metadata:
   version: "2.1.0"
@@ -27,9 +27,11 @@ Use `sf-flow` when the work involves:
 
 Delegate elsewhere when the user is:
 - writing Apex-first automation → [platform-apex-generate](../platform-apex-generate/SKILL.md)
-- creating objects / fields first → [sf-metadata](../sf-metadata/SKILL.md)
+- creating objects / fields first → [platform-custom-object-generate](../platform-custom-object-generate/SKILL.md) / [platform-custom-field-generate](../platform-custom-field-generate/SKILL.md)
 - deploying metadata → [platform-metadata-deploy](../platform-metadata-deploy/SKILL.md)
 - seeding post-deploy test data → [platform-data-manage](../platform-data-manage/SKILL.md)
+
+Handoffs identify capability; they do not expand approved work. Verify existing schema before creating dependencies. If a required skill or permission is unavailable, preserve the gap for the caller rather than installing tools or starting unrelated schema/agent work.
 
 ---
 
@@ -86,7 +88,9 @@ Focus on:
 - AI Decision elements not placed inside loops (credit cost per iteration)
 - AI Decision prompts include merge field references for data context
 
-### 5. Hand off deployment and testing
+### 5. Author tests, then hand off deployment
+For eligible FlowTests, read [FlowTest authoring](references/flowtest-authoring.md) and use its canonical templates. Keep caller-specific acceptance and activation rules in the caller.
+
 Use:
 - [platform-metadata-deploy](../platform-metadata-deploy/SKILL.md) for deploy / dry-run
 - [platform-data-manage](../platform-data-manage/SKILL.md) for high-volume test data
@@ -136,22 +140,9 @@ Next step: <dry-run deploy, activate, or test>
 
 ---
 
-## Flow Testing (CLI)
+## Flow Testing
 
-Run Flow tests from the command line without VS Code:
-
-```bash
-# Run all flow tests
-sf flow run test --target-org <alias> --json
-
-# Run tests for a specific flow
-sf flow run test --class-names MyFlow --target-org <alias> --json
-
-# Get results for an asynchronous run
-sf flow get test --test-run-id <id> --target-org <alias> --json
-```
-
-Flow tests execute in the org and can take 1-5 minutes. `sf flow run test` returns a test run ID for asynchronous runs; use `sf flow get test` to retrieve results later. Always run with `--json` and use background execution for longer runs.
+Read [FlowTest authoring and diagnosis](references/flowtest-authoring.md) before generating `.flowTest-meta.xml` or running Flow tests. It owns API applicability, parameter shapes, business assertions, exact-test CLI selection, and bounded failure classification. Use [testing-guide.md](references/testing-guide.md) for broader path, bulk, permission, and manual QA when those checks are in scope. Local validation and successful deployment do not establish executed test acceptance.
 
 ---
 
@@ -159,18 +150,19 @@ Flow tests execute in the org and can take 1-5 minutes. `sf flow run test` retur
 
 | Need | Delegate to | Reason |
 |---|---|---|
-| create objects / fields first | [sf-metadata](../sf-metadata/SKILL.md) | schema readiness |
+| create objects / fields first | [platform-custom-object-generate](../platform-custom-object-generate/SKILL.md) / [platform-custom-field-generate](../platform-custom-field-generate/SKILL.md) | approved schema dependency |
 | deploy / activate flow | [platform-metadata-deploy](../platform-metadata-deploy/SKILL.md) | safe deployment sequence |
 | create realistic bulk test data | [platform-data-manage](../platform-data-manage/SKILL.md) | post-deploy verification |
 | create Apex actions / invocables | [platform-apex-generate](../platform-apex-generate/SKILL.md) | imperative logic |
 | embed LWC in a screen flow | [experience-lwc-generate](../experience-lwc-generate/SKILL.md) | custom UI components |
-| expose Flow to Agentforce | [sf-ai-agentscript](../sf-ai-agentscript/SKILL.md) | agent action orchestration |
+| expose Flow to Agentforce | [agentforce-generate](../agentforce-generate/SKILL.md) | agent action orchestration |
 
 ---
 
 ## Reference Map
 
 ### Start here
+- [references/flowtest-authoring.md](references/flowtest-authoring.md) — canonical FlowTest templates and testing semantics
 - [references/flow-best-practices.md](references/flow-best-practices.md)
 - [references/flow-quick-reference.md](references/flow-quick-reference.md)
 - [references/orchestration.md](references/orchestration.md)

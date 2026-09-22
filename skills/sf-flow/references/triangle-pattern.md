@@ -405,5 +405,5 @@ When deploying integrated triangle solutions:
 | Apex action template | `sf-flow/assets/apex-action-template.xml` |
 | Screen Flow with LWC | `sf-flow/assets/screen-flow-with-lwc.xml` |
 | LWC integration guide | `sf-flow/references/lwc-integration-guide.md` |
-| Apex triangle perspective | `sf-apex/references/triangle-pattern.md` |
-| LWC triangle perspective | `sf-lwc/references/triangle-pattern.md` |
+| Apex triangle perspective | `platform-apex-generate/SKILL.md` |
+| LWC triangle perspective | `experience-lwc-generate/references/triangle-pattern.md` |

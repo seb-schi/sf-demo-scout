@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FlowTest xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Verify the expected business output for an autolaunched Flow input.</description>
+    <flowApiName>{{FLOW_API_NAME}}</flowApiName>
+    <flowTestFlowVersions>
+        <flowVersionNumber>{{FLOW_VERSION}}</flowVersionNumber>
+    </flowTestFlowVersions>
+    <label>{{TEST_LABEL}}</label>
+    <testPoints>
+        <elementApiName>Start</elementApiName>
+        <parameters>
+            <leftValueReference>{{INPUT_VARIABLE}}</leftValueReference>
+            <type>InputVariable</type>
+            <value>
+                <stringValue>{{INPUT_VALUE}}</stringValue>
+            </value>
+        </parameters>
+    </testPoints>
+    <testPoints>
+        <assertions>
+            <conditions>
+                <leftValueReference>{{EXPECTED_RESOURCE}}</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>{{EXPECTED_VALUE}}</stringValue>
+                </rightValue>
+            </conditions>
+            <errorMessage>The observed business output must equal the specified expected value.</errorMessage>
+        </assertions>
+        <elementApiName>Finish</elementApiName>
+    </testPoints>
+    <testType>WithAssertion</testType>
+</FlowTest>

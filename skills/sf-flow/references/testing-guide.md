@@ -7,6 +7,8 @@
 
 This guide provides structured testing approaches to ensure your flows work correctly under all conditions.
 
+For platform FlowTest XML, command selection, exact-version evidence, and bounded failure diagnosis, use [flowtest-authoring.md](flowtest-authoring.md). This guide covers complementary QA; select checks within the caller's authorized scope. Apex, new logins, data seeding, bulk writes, and activation are not implied by a request for FlowTest authoring. Do not substitute these checks for a required automated test.
+
 ---
 
 ## Table of Contents
@@ -106,12 +108,6 @@ static void testBulkTrigger() {
 }
 ```
 
-**Via Flow Simulator**:
-```bash
-python3 validators/flow_simulator.py \
-  force-app/main/default/flows/[FlowName].flow-meta.xml \
-  --test-records 200
-```
 
 ---
 
@@ -227,7 +223,7 @@ For flows running in System Mode:
 
 ### Record-Triggered Flows
 
-**CRITICAL**: Always bulk test with 200+ records.
+When bulk behavior is part of the obligation, use separately authorized bulk tests (251+ records covers more than one 200-record batch). FlowTest fixture execution alone does not prove bulk behavior.
 
 **Test Checklist**:
 - [ ] Create single test record - verify trigger fires
@@ -312,7 +308,7 @@ Follow this 5-step deployment validation:
 |------|--------|-------------|------------------|
 | 1 | Validate XML structure | Flow validator scripts | No errors |
 | 2 | Deploy with checkOnly=true | `sf project deploy start --dry-run` | Deployment succeeds |
-| 3 | Verify package.xml | Manual review | API version matches flow |
+| 3 | Verify package.xml | Manual review | Deployment API supports the used metadata fields |
 | 4 | Test with minimal data | 1-5 records in sandbox | Basic functionality works |
 | 5 | Test with bulk data | 200+ records in sandbox | Governor limits OK |
 
@@ -328,7 +324,7 @@ sf project deploy report --target-org sandbox
 
 ### Package.xml Verification
 
-Ensure API version matches:
+Ensure the deployment API supports the fields used by both Flow and FlowTest:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -336,7 +332,7 @@ Ensure API version matches:
         <members>My_Flow</members>
         <name>Flow</name>
     </types>
-    <version>66.0</version>  <!-- Must match flow's apiVersion -->
+    <version>66.0</version>  <!-- FlowTest version association requires 66.0+ -->
 </Package>
 ```
 
@@ -496,35 +492,7 @@ sf org login web --alias test-user-org
 
 ## Flow Test CLI Commands
 
-### Run Flow Tests
-
-> `sf flow run test` is a first-class CLI command for running Flow tests (available in sf CLI v2.122.6+).
-
-```bash
-# Run all Flow tests
-sf flow run test -o TARGET_ORG --json
-
-# Run with code coverage
-sf flow run test -o TARGET_ORG --code-coverage --json
-
-# Run specific test classes
-sf flow run test --class-names MyFlowTest -o TARGET_ORG --json
-
-# Synchronous execution (waits for completion)
-sf flow run test -o TARGET_ORG --synchronous --json
-```
-
-### Combined Apex + Flow Test Runner
-
-> `sf logic run test` runs both Apex and Flow tests in a single command — useful for comprehensive CI/CD test suites.
-
-```bash
-# Run combined Apex + Flow tests
-sf logic run test -o TARGET_ORG --json
-
-# Check results
-sf logic get test --test-run-id <id> -o TARGET_ORG --json
-```
+Use the exact-test commands and capability checks in [flowtest-authoring.md](flowtest-authoring.md). A Flow API name belongs in `--class-names`; use `--tests FlowApiName.TestApiName` for selected tests. Broad or combined Apex/Flow runs are appropriate only when that broader scope is intended.
 
 ---
 

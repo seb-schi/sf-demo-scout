@@ -25,27 +25,23 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    - **Why `installed_plugins.json` and not `find ... | sort -V | tail -1`:** Scout ships multiple same-date versions whose topic suffix breaks version-sort (`2026.06.07-deploy-error-extract-and-cli-guard` sorts after `2026.06.07-audit-field-dump-cut`, so `tail -1` would pick the PRIOR version). `installed_plugins.json` names the actually-installed path regardless of version-string shape. The per-plugin value is a LIST of install records (one per scope) — prefer the `scope=="user"` entry, fall back to the first.
    - **On failure** (file missing, key absent, empty output): fall back to `${CLAUDE_PLUGIN_ROOT}` literal in the envelopes (current behaviour — sub-agents will hunt, but the audit still completes) and log to `audit-progress.log`: `⚠️ plugin-root resolution failed — sub-agents will self-locate prompts (slower; verify they read the active version)`. Do NOT abort the audit over this.
 
-1. Clean stale orchestrator artifacts and prepare a bounded scratch dir for this run. End-of-success cleanup (Cleanup & Validation steps 3–4) does not fire when a prior run crashes, hangs, or is SE-interrupted — the next run then inherits corrupt state and typically hangs at the parse step that consumes it, with no causal link visible to the SE. Run unconditionally:
-   ```
-   rm -f [ORG_FOLDER]/audit-fragment-*.md 2>/dev/null || true
-   rm -f [ORG_FOLDER]/.audit-* 2>/dev/null || true
-   find [ORG_FOLDER]/.scout-tmp -mindepth 0 -delete 2>/dev/null || true
-   mkdir -p [ORG_FOLDER]/.scout-tmp/
-   rm -rf unpackaged/ 2>/dev/null || true
-   find . -maxdepth 1 -name 'package-*.xml' -delete 2>/dev/null || true
-   ```
-   Notes:
-   - **Bounded scratch dir.** `[ORG_FOLDER]/.scout-tmp/` is the only location sub-agents write transient working files (manifests for ad-hoc `retrieve_metadata` calls, intermediate XML, anything that isn't an audit fragment or the progress log). Sub-agents see the absolute path via the `{{SCOUT_TMPDIR}}` envelope placeholder in Sub-Agent Dispatch and are instructed in `prompts/sparring/audit/shared.md` to write only inside it. The whole directory is wiped on entry (above, via `find … -delete`) and on successful exit (Cleanup & Validation step 4), so any new working-file pattern the model invents lands inside the disposable boundary automatically — no need to widen a per-pattern sweep list.
-   - The `.audit-*` sweep stays as a wildcard — it catches `.audit-progress.log` from a crashed prior run AND any ad-hoc files the model may have invented at the customer-folder root (where the SE looks first). Hidden-file convention; the model knows to write hidden state files there.
-   - `audit-fragment-*.md` stays as an explicit sweep — these are first-class audit outputs the consolidation step concatenates, not transient scratch, so they live at the customer folder root, not inside `.scout-tmp/`.
-   - The `2>/dev/null || true` wrappers keep zsh's `NO_MATCH` from erroring on empty globs (see `pipeline-lessons/mcp-platform-constraints.md`); without them the bundled cleanup step fails silently and step 2 (`printf` to init the progress log) never runs.
-   - **Why two repo-root sweeps survive.** `unpackaged/` is the directory the MCP `retrieve_metadata` server drops at the repo root when no manifest argument is supplied — it is SFDX-controlled, not redirectable through the `manifest` argument. `package-*.xml` at the repo root is an MCP-side sibling artifact (e.g. `package-prelude-app.xml` from prelude retrieves). Both are model-uncontrollable, so they get explicit sweeps. The model-controllable equivalents (`manifest-*.xml`, `retrieve-*.xml`, `temp-*.xml`, `*.tmp`, model-written `package-*.xml`) are now structurally impossible — sub-agents only write inside `.scout-tmp/`.
-   - **If a new MCP-side orphan pattern appears at the repo root** (unrelated to model writes — i.e. the SE sees an unfamiliar repo-root file after a clean audit), add a pattern-prefixed sweep here. Inside `.scout-tmp/` no sweep additions are ever needed.
-   - `find . -maxdepth 1 -name 'package-*.xml' -delete` is the zsh-safe shape — `rm -f package-*.xml` errors at glob expansion time on zsh before the redirection takes effect, so the `2>/dev/null` doesn't help. `find -delete` does its own argv handling and returns 0 on no matches.
-   - **Why `.scout-tmp` is cleared with `find … -mindepth 0 -delete`, NOT `rm -rf`.** The SE workspace `.claude/settings.json` ships a catastrophic-deletion deny rule `Bash(rm -rf orgs*)`. Claude Code denies the ENTIRE compound command if any segment matches a deny glob, and a prefix-glob cannot distinguish `rm -rf orgs/<customer>/.scout-tmp` from `rm -rf orgs/<customer>` — so an `rm -rf orgs/...` scratch sweep gets the whole Pre-Spawn block hard-denied and the audit can't start. `find <dir> -mindepth 0 -delete` removes the directory and its contents (depth-first, dir last — same net effect as `rm -rf <dir>/`) but matches no deny rule. `-mindepth 0` includes the top dir itself in the delete set; `2>/dev/null || true` swallows the "No such file or directory" when the dir is absent (first run). Do NOT change this back to `rm -rf orgs/...` — it will re-trip the deny rule. (2026-06-07)
+1. Read `[PLUGIN_ROOT_ABS]/prompts/operation-safety.md` and follow it. Resolve
+   `WORKSPACE_ROOT` from bootstrap and absolute `CUSTOMER_DIR` from the selected
+   customer; set `ASSET_HELPER` to `[PLUGIN_ROOT_ABS]/scripts/build-assets.py`.
+   Prepare and verify a unique coordinator project with `WRITER=audit-coordinator`.
+   Retain its returned project root as `AUDIT_RUN_DIR`; use it for this audit's
+   progress log, fragments and candidate. Never remove or reuse old audit files.
+   Prepare a separate verified project for each prelude/parallel metadata writer
+   immediately before dispatch. Pass its own `PROJECT_ROOT` and `SCOUT_TMPDIR`
+   (the same absolute project root), the common `AUDIT_RUN_DIR`, and the unchanged
+   selected `ORG_FOLDER` to each envelope. A replacement worker gets fresh staging.
+   Set each worker's `ASSET_HELPER` to that injected absolute helper path; the
+   projects are already prepared, so workers verify/use them without re-preparing.
+   Retain all receipts/paths; failure blocks the affected writer without a shared
+   source fallback. The coordinator and workers never sweep source or audit files.
 2. Initialize progress log — truncate the file and write a header so the SE-facing link opens to a non-empty file. The log now carries only coarse orchestrator phase markers + sub-agent `⚠️` failure lines (routine sub-agent heartbeats were removed — they rendered as chat-card noise during background discovery):
    ```
-   printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\nThis log shows phase milestones + failures only.\n\n[%s] [orchestrator] Phase A — sync setup + prelude launch\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[ORG_FOLDER]" "$(date '+%H:%M:%S')" > [ORG_FOLDER]/.audit-progress.log
+   printf "=== Audit started %s for %s ===\nSub-agents: standard-objects, apps-flows-agents, custom-objects\nThis log shows phase milestones + failures only.\n\n[%s] [orchestrator] Phase A — sync setup + prelude launch\n" "$(date '+%Y-%m-%d %H:%M:%S')" "[ORG_FOLDER]" "$(date '+%H:%M:%S')" > [AUDIT_RUN_DIR]/.audit-progress.log
    ```
 3. Resolve the current user Id: `run_soql_query` with `SELECT Id FROM User WHERE Username = '[username from Stage 1]' LIMIT 1`. Record as `CURRENT_USER_ID`.
 4. Resolve the candidate default app — 2 SOQL queries:
@@ -73,9 +69,9 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
    **The link MUST be a workspace-relative path**, not an absolute `file://` URI. The VSCode native CC extension renders markdown links relative to the SE's VSCode workspace root (which is reliably `~/claude-projects/sf-demo-scout` for Scout SEs) and does not open `file://` URIs as in-editor file opens. Emit exactly this message as the next assistant turn — single message, verbatim:
 
-   > Audit running in the background. Status → [.audit-progress.log]([ORG_FOLDER]/.audit-progress.log) — click to open; it logs phase milestones and any failures (not every step). Typical runtime 5-10 min on SDO-scale orgs. No need to watch it — I'll fold the results in once it lands.
+   > Audit running in the background. Status → [audit progress]([AUDIT_RUN_DIR]/.audit-progress.log) — click to open; it logs phase milestones and any failures (not every step). Typical runtime 5-10 min on SDO-scale orgs. No need to watch it — I'll fold the results in once it lands.
 
-   Substitute `[ORG_FOLDER]` with the actual resolved folder path before emitting (e.g. `orgs/voice-wt-26-wsa/.audit-progress.log`).
+   Substitute `[AUDIT_RUN_DIR]` with this run's actual workspace-relative path before emitting.
 
    The heartbeat exists because SE-facing silence is expensive — minutes of sub-agent runtime with no signal reads as "is Scout stuck?" Do not skip it. Do not paraphrase it. Do not bundle it into a later message. **If you find yourself about to call a tool here, stop — the heartbeat goes first.**
 
@@ -84,7 +80,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    Construct the dispatch envelope (do NOT read the prompt body — the sub-agent reads it itself). The envelope is the only string passed to `Agent()`. **Substitute the absolute `PLUGIN_ROOT_ABS` resolved in Pre-Spawn step 0 for `[PLUGIN_ROOT_ABS]` below — do NOT emit the literal `${CLAUDE_PLUGIN_ROOT}`, which the sub-agent cannot expand:**
 
    ```
-   Read your prompt file at `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/prelude.md`. Also read `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
+   Read your prompt file at `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/prelude.md`. Also read `[PLUGIN_ROOT_ABS]/prompts/operation-safety.md` as `{{OPERATION_SAFETY}}` and `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
 
    {{ORG_ALIAS}} = [raw alias — for --target-org; NOT slugified]
    {{ORG_USERNAME}} = [username]
@@ -93,7 +89,10 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    {{CANDIDATE_APP}} = [label]
    {{CANDIDATE_APP_DEVELOPER_NAME}} = [developer name]
    {{CURRENT_USER_ID}} = [user id]
-   {{SCOUT_TMPDIR}} = [absolute path to [ORG_FOLDER]/.scout-tmp/]
+   {{ASSET_HELPER}} = [PLUGIN_ROOT_ABS]/scripts/build-assets.py
+   {{SCOUT_TMPDIR}} = [this writer's helper-returned absolute project_root]
+   {{PROJECT_ROOT}} = [this writer's helper-returned absolute project_root]
+   {{AUDIT_RUN_DIR}} = [coordinator's unique absolute project_root]
 
    Execute the prompt and return the JSON block per its Output Format section.
    ```
@@ -103,7 +102,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
    **End of Phase A.** Return to the caller (scout-sparring.md Stage 3 / showtime.md S1b) so the SE can begin answering discovery questions. The steps below (parse prelude, slice, launch parallel) execute as **Phase B** when the prelude's background completion notification arrives — which may be while an SE discovery answer is still pending. Do NOT wait synchronously here.
 
-   **Phase B begins on the prelude background-completion notification.** Apply the same structural fenced-JSON check as Post-Return Processing below. If the block is absent or malformed, redispatch the same prelude envelope **once** and log `auto-retry 1/1`; only a second absent/malformed return falls through to the core-6 degradation. Parse a present block.
+   **Phase B begins on the prelude background-completion notification.** Apply the same structural fenced-JSON check as Post-Return Processing below. If the block is absent or malformed, redispatch the prelude envelope with a fresh owned project **once** and log `auto-retry 1/1`; only a second absent/malformed return falls through to the core-6 degradation. Parse a present block.
    - `status: SUCCESS` or `status: PARTIAL` → use the returned `default_app_tabs` and `active_lrp_map`. If `PARTIAL`, retain every `degradations` entry in `PRELUDE_LIMITATIONS` and log each one to `audit-progress.log` so the SE can see which level was lost. These limitations make the final barrier result `ready-partial` even when every worker succeeds.
    - `status: FAILED`, or missing/malformed JSON after the one retry → degrade the audit: set `DEFAULT_APP_TABS` to core-6, set `ACTIVE_LRP_MAP` to `[]`, record a partial-result reason, and flag the SE: "Audit prelude failed — proceeding with core-6 fallback only. Retry in a fresh window if you need full LRP resolution."
 
@@ -119,9 +118,9 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 ## Sub-Agent Dispatch
 
-Do NOT read the sub-agent prompt bodies. Each sub-agent reads its own prompt file and `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` (the absolute path resolved in Pre-Spawn step 0). The orchestrator's job is to construct each envelope with the right placeholder values and dispatch. **Every `[PLUGIN_ROOT_ABS]` and `[PROMPT_PATH]` below must be the resolved absolute path — never the literal `${CLAUDE_PLUGIN_ROOT}`, which is empty in sub-agent context.**
+Do NOT read the sub-agent prompt bodies. Each sub-agent reads `[PLUGIN_ROOT_ABS]/prompts/operation-safety.md` as `{{OPERATION_SAFETY}}`, its own prompt file and `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` (the absolute path resolved in Pre-Spawn step 0). The orchestrator's job is to construct each envelope with the right placeholder values and dispatch. **Every `[PLUGIN_ROOT_ABS]` and `[PROMPT_PATH]` below must be the resolved absolute path — never the literal `${CLAUDE_PLUGIN_ROOT}`, which is empty in sub-agent context.**
 
-Build a per-sub-agent envelope. Common placeholder values (computed by the orchestrator from earlier steps): `{{ORG_ALIAS}}` (raw — `--target-org` only), `{{ORG_FOLDER}}` (resolved folder path — every file path uses this), `{{ORG_USERNAME}}`, `{{CUSTOMER}}` (raw — object name-matching only), `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`, `{{SCOUT_TMPDIR}}`. The two LRP-aware sub-agents receive a sliced `{{ACTIVE_LRP_MAP}}`:
+Build a per-sub-agent envelope. Common placeholder values (computed by the orchestrator from earlier steps): `{{ORG_ALIAS}}` (raw — `--target-org` only), `{{ORG_FOLDER}}` (resolved folder path — every file path uses this), `{{ORG_USERNAME}}`, `{{CUSTOMER}}` (raw — object name-matching only), `{{YYYY-MM-DD}}`, `{{HHMM}}`, `{{DEFAULT_APP}}`, `{{DEFAULT_APP_TABS}}`, `{{SCOUT_TMPDIR}}`, `{{PROJECT_ROOT}}`, `{{AUDIT_RUN_DIR}}`, `{{ASSET_HELPER}}`. The two LRP-aware sub-agents receive a sliced `{{ACTIVE_LRP_MAP}}`:
   - standard-objects: `ACTIVE_LRP_MAP_STANDARD`
   - custom-objects: `ACTIVE_LRP_MAP_CUSTOM`
   - apps-flows-agents: omit the placeholder (its prompt does not reference it).
@@ -129,7 +128,7 @@ Build a per-sub-agent envelope. Common placeholder values (computed by the orche
 Envelope template (substitute the prompt path and the placeholder block). `[PROMPT_PATH]` = `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/<sub-agent>.md`:
 
 ```
-Read your prompt file at `[PROMPT_PATH]`. Also read `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
+Read your prompt file at `[PROMPT_PATH]`. Also read `[PLUGIN_ROOT_ABS]/prompts/operation-safety.md` as `{{OPERATION_SAFETY}}` and `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
 
 {{ORG_ALIAS}} = [raw alias — for --target-org; NOT slugified]
 {{ORG_USERNAME}} = [username]
@@ -140,7 +139,10 @@ Read your prompt file at `[PROMPT_PATH]`. Also read `[PLUGIN_ROOT_ABS]/prompts/s
 {{DEFAULT_APP}} = [label]
 {{DEFAULT_APP_TABS}} = [tabs JSON]
 {{ACTIVE_LRP_MAP}} = [sliced map JSON — omit this line for apps-flows-agents]
-{{SCOUT_TMPDIR}} = [absolute path to [ORG_FOLDER]/.scout-tmp/]
+{{ASSET_HELPER}} = [PLUGIN_ROOT_ABS]/scripts/build-assets.py
+   {{SCOUT_TMPDIR}} = [this writer's helper-returned absolute project_root]
+   {{PROJECT_ROOT}} = [this writer's helper-returned absolute project_root]
+   {{AUDIT_RUN_DIR}} = [coordinator's unique absolute project_root]
 
 Execute the prompt and return the JSON block per its Output Format section.
 ```
@@ -152,12 +154,12 @@ Spawn all 3 in the BACKGROUND (`[PLUGIN_ROOT_ABS]` = the absolute path from Pre-
 - `Agent(description="Org audit: apps/flows/agents", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/apps-flows-agents.md], run_in_background=true)`
 - `Agent(description="Org audit: custom objects", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/custom-objects.md], run_in_background=true)`
 
-After spawning, append ONE progress-log line (`echo "[$(date +%H:%M:%S)] [orchestrator] prelude done — 3 parallel audit agents launched" >> [ORG_FOLDER]/.audit-progress.log`) and emit **NO chat message** — a discovery ask may be pending. The live-status heartbeat was already emitted in step 5a. **This ends Phase B.** Do not block waiting for the 3 agents here; their completions will push notifications. As each arrives, you MAY collect it eagerly (hold the parsed JSON), but do NOT begin consolidation until Phase C is invoked by the caller — consolidation emits the SE-facing star summary, which must not compete with a pending discovery ask.
+After spawning, append ONE progress-log line (`echo "[$(date +%H:%M:%S)] [orchestrator] prelude done — 3 parallel audit agents launched" >> [AUDIT_RUN_DIR]/.audit-progress.log`) and emit **NO chat message** — a discovery ask may be pending. The live-status heartbeat was already emitted in step 5a. **This ends Phase B.** Do not block waiting for the 3 agents here; their completions will push notifications. As each arrives, you MAY collect it eagerly (hold the parsed JSON), but do NOT begin consolidation until Phase C is invoked by the caller — consolidation emits the SE-facing star summary, which must not compete with a pending discovery ask.
 
 <a id="phase-c-audit-ready-barrier"></a>
 ## Phase C — AUDIT-READY barrier
 
-Invoke this barrier only after the caller's audit-independent question is answered. If Phase B has not launched the three workers yet, await the prelude, apply Phase B's one-retry/fallback handling, and launch them. Then ensure all 3 parallel sub-agents have completed (await any whose background completion has not yet arrived). Append one coarse marker — `echo "[$(date +%H:%M:%S)] [orchestrator] Phase C — all sub-agents in, consolidating" >> [ORG_FOLDER]/.audit-progress.log` — then (do not read the progress log back — it is SE-facing only) run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup below.
+Invoke this barrier only after the caller's audit-independent question is answered. If Phase B has not launched the three workers yet, await the prelude, apply Phase B's one-retry/fallback handling, and launch them. Then ensure all 3 parallel sub-agents have completed (await any whose background completion has not yet arrived). Append one coarse marker — `echo "[$(date +%H:%M:%S)] [orchestrator] Phase C — all sub-agents in, consolidating" >> [AUDIT_RUN_DIR]/.audit-progress.log` — then (do not read the progress log back — it is SE-facing only) run Post-Return Processing, Spot-Check, Consolidation, Notable Gaps, and Cleanup below.
 
 Do not return to an audit consumer until Cleanup & Validation assigns an outcome:
 
@@ -172,7 +174,7 @@ Return the outcome, consolidated summary, and audit-file path. Do not emit a cal
 As each sub-agent returns, **first** apply structural partial-return detection — do not eyeball the response:
 
 1. **Regex-check the agent's return string for a fenced JSON block:** `^```json` (start of line, anywhere in the response), then parse it. A missing block or parse/schema failure is a structural failure; preserve the raw return. A present fence by itself is not success.
-2. **On structural failure:** auto-redispatch the same envelope **once** (max 1 retry — a second retry usually hits the same wall and doubles worst-case latency). Before redispatching, log to `audit-progress.log`: `⚠️ [agent-id]: absent or malformed fenced JSON — auto-retry 1/1`. Use the same `Agent(...)` call shape as the original spawn.
+2. **On structural failure:** auto-redispatch the envelope with a fresh owned project **once** (max 1 retry — a second retry usually hits the same wall and doubles worst-case latency). Before redispatching, log to `audit-progress.log`: `⚠️ [agent-id]: absent or malformed fenced JSON — auto-retry 1/1`. Use the same `Agent(...)` call shape as the original spawn.
 3. **On structural failure after retry:** flag that sub-agent's section as failed and surface both raw returns to the SE: "[agent-id] failed structural validation twice. Retry in a fresh window or skip this section."
 4. **On structurally valid JSON:** `status: SUCCESS` or `status: PARTIAL` → collect the JSON. `status: FAILED` → flag that sub-agent's section as failed and surface its stated reason.
 5. If 2+ sub-agents fail (after retry where applicable) → set the barrier outcome to `not-ready`, show the raw outputs, and ask the SE to retry in a fresh window or explicitly skip the audit. **Stop.** Do not run consolidation or return data to an audit consumer unless a retry later crosses the barrier; a skip sets `AUDIT_MODE = skipped`.
@@ -216,11 +218,10 @@ Using the consolidated JSON summary — especially `demo_surface_notes` from all
 
 After verifying all three expected paths exist (including an explicit failed-section placeholder when exactly one worker failed), concatenate into a bounded candidate path rather than the published audit path:
 ```
-mkdir -p [ORG_FOLDER]/.scout-tmp
-cat [ORG_FOLDER]/audit-fragment-standard-objects.md \
-    [ORG_FOLDER]/audit-fragment-apps-flows-agents.md \
-    [ORG_FOLDER]/audit-fragment-custom-objects.md \
-    > [ORG_FOLDER]/.scout-tmp/audit-candidate-[YYYY-MM-DD]-[HHMM].md
+cat [AUDIT_RUN_DIR]/audit-fragment-standard-objects.md \
+    [AUDIT_RUN_DIR]/audit-fragment-apps-flows-agents.md \
+    [AUDIT_RUN_DIR]/audit-fragment-custom-objects.md \
+    > [AUDIT_RUN_DIR]/audit-candidate-[YYYY-MM-DD]-[HHMM].md
 ```
 
 If any required fragment is missing or concatenation/write fails, set the barrier outcome to `not-ready`, retain the available fragments and progress log for diagnosis, and stop for retry-or-explicit-skip. Never publish or return the candidate as a valid audit.
@@ -230,13 +231,15 @@ Append the Notable Gaps section (written by Opus from the JSON summaries) to the
 ## Cleanup & Validation
 
 1. **Star marker validation:** Grep the candidate audit file for `★`. If 0 matches, set the barrier outcome to `not-ready`, flag to the SE: "The audit candidate has no ★ markers — build surface identification may have failed. Retry in a fresh window or explicitly skip this audit." Keep the candidate, source fragments, and progress log in place, then **stop** — do not publish or return the candidate to an audit consumer.
-2. After star validation succeeds, move the candidate atomically to `[ORG_FOLDER]/audit-[YYYY-MM-DD]-[HHMM].md`, then delete the 3 source fragment files. If the move fails, set `not-ready`, retain the candidate/fragments/log, and stop.
-3. Delete the progress log — `rm -f [ORG_FOLDER]/.audit-progress.log`. Run this only after the validated candidate is published; on validation or publish failure, leave the log so the SE can inspect sub-agent heartbeats.
-4. **Symmetric workspace sweep.** Mirror the Pre-Spawn sweep exactly so a clean successful audit doesn't leave orphans in the SE workspace:
-   ```
-   find [ORG_FOLDER]/.scout-tmp -mindepth 0 -delete 2>/dev/null || true
-   rm -rf unpackaged/ 2>/dev/null || true
-   find . -maxdepth 1 -name 'package-*.xml' -delete 2>/dev/null || true
-   ```
-   Start-of-run cleanup is the safety net for crashed / interrupted / SE-cancelled prior runs (see `pipeline-lessons/sub-agent-architecture.md`); end-of-success cleanup is clean-path hygiene — neither fires in the other's case, so both are needed. The SE workspace at `~/claude-projects/sf-demo-scout/` is not a git repo and has no `.gitignore`, so these files are visible until swept. The bounded `.scout-tmp/` directory keeps the sweep list fixed (one `find … -delete` for the model surface, two for the MCP-server-controlled surface) as new model-invented patterns surface.
+2. After star validation succeeds, publish the candidate to a new customer audit
+   path `[ORG_FOLDER]/audit-[YYYY-MM-DD]-[HHMM]-[unique coordinator directory name].md`.
+   Require the destination to be absent; use an exclusive-create copy and verify
+   its complete bytes against the candidate. Never overwrite an existing audit.
+   On copy/verification failure set `not-ready`, retain the candidate/fragments/log,
+   report the exact failure (including any partial destination), and stop.
+3. Retain the progress log, fragments, candidate, and all writer projects with their
+   ownership receipts. There is no automatic cleanup. Return the exact published
+   file path; consumers must not derive a timestamp-only path or pick another run.
+4. Preservation and file-write failures remain visible. Do not suppress errors,
+   infer absence from failed enumeration, or reroute a refused operation.
 5. **Return the barrier result.** Return `ready-partial` if the prelude returned `PARTIAL` or used core-6 fallback, any collected worker reported `PARTIAL`, exactly one worker section failed, or any spot-check is unknown; include every named limitation. Otherwise return `ready-complete`. Return the consolidated summary and validated published audit-file path with either ready outcome. Never return ready after a `not-ready` condition above.

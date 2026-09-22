@@ -64,7 +64,9 @@ skills:
     policy: frozen
     reason: >-
       The upstream automation-flow-generate successor requires hosted-only
-      execute_metadata_action; preserve Scout's templates and phase-2 references.
+      execute_metadata_action; permanent hand-managed fork. Local maintenance on
+      2026-09-22 adds canonical API-66 FlowTest templates, bounded testing guidance,
+      and bundled handoffs. Frozen prevents upstream replacement, not these edits.
 
   # ── FROZEN (NOT vendored — vendored dir stays on disk, hand-managed) ────
   #   sf-flow — A4V-blocked. Upstream generating-flow calls execute_metadata_action

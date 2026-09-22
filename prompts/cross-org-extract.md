@@ -102,16 +102,17 @@ active default:
   `sf project retrieve start -m [Type:ApiName] --target-org [source-alias]`.
 - Data sample: `sf data query -q "[SOQL]" --target-org [source-alias] --json`.
 
-Pin metadata retrieval to the Scout project root (`directory` =
-`$HOME/claude-projects/sf-demo-scout` for MCP; run CLI from that root).
-Retrieved metadata converts into transient `force-app/main/default/` scratch.
-**Preserve every successful pull before returning, for BOTH callers.** Resolve
-the workspace and `[ORG_FOLDER]/rollback` to absolute paths. Run:
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` before retrieval. Prepare
+and verify a writer-owned project with `WRITER=cross-org-extract` using the resolved
+workspace and selected destination customer. Pin `retrieve_metadata.directory` and
+each CLI cwd to its unchanged `project_root`; pass the source alias explicitly.
+Retain its `source_root` and `rollback_dir` as `SOURCE_ROOT` and `ROLLBACK_DIR`.
+**Preserve every successful pull before returning, for BOTH callers.** Run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build-assets.py" preserve \
-  --source-root "$HOME/claude-projects/sf-demo-scout/force-app/main/default" \
-  --rollback-dir "[absolute ORG_FOLDER]/rollback" --kind imports \
+  --source-root "$SOURCE_ROOT" \
+  --rollback-dir "$ROLLBACK_DIR" --kind imports \
   --path "[retrieved type folder]"
 ```
 

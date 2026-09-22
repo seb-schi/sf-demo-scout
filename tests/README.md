@@ -146,6 +146,30 @@ The materialization fixture reads the shipped selection table, resolves a synthe
 installed path, and checks a report-only Phase 1 block excludes unrelated sections.
 These checks do not execute a model, vendor skill, CLI, MCP tool, or Salesforce org.
 
+## September 22 local hardening verification
+
+The same offline command also runs the owned-workspace, required-Flow-test,
+FlowTest-template, and materialized-caller regressions. Owned-workspace fixtures
+exercise concurrent audit/build/repair writers, interrupted and unknown source
+retention, absolute path/config/ownership checks, failed preparation/preservation,
+and immutable Layout/SharingRules/FlexiPage originals across separate edits.
+Caller fixtures execute shipped prepare/preserve/stage commands with temporary
+projects, including the existing-agent parent-to-worker handoff, and feed the
+shipped unsupported-Flow JSON into the actual reconciler.
+
+Required-test fixtures cover complete sets and legacy singleton compatibility,
+missing/duplicate/failing/skipped/pending companions, diagnostic substitution,
+stale/wrong-org/mixed-version identities and sync/async result correlations.
+XML fixtures parse/materialize the canonical maintained `sf-flow` templates,
+reject entity declarations and exercise their business assertions against values.
+Static instruction checks protect delivery only. A separately recorded local
+model canary is not native-client enforcement or Salesforce acceptance evidence.
+No automatic staging cleanup exists; retained source is intentional. Live MCP
+directory behavior, exact-version execution and exclusion semantics require the
+separately scoped disposable-target experiment. Normalized evidence still does
+not authenticate Salesforce truth. The other 25 upstream-derived skills remain
+protected; `sf-flow` is deliberately maintained without changing its frozen policy.
+
 ## Release-only validation
 
 Run installed `claude plugin validate` separately against the release candidate.

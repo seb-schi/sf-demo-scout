@@ -19,7 +19,7 @@ If MCP is unavailable, stop and return a JSON error block (see Output Format).
 
 ## Step 1: Retrieve confirmed app's tabs + action overrides
 
-`retrieve_metadata` with type `CustomApplication`, member `{{CANDIDATE_APP_FULL_NAME}}` (pass `directory` = the SE workspace root). Then read the CONVERTED file at `force-app/main/default/applications/{{CANDIDATE_APP_FULL_NAME}}.app-meta.xml` — NOT the result-JSON `fileName`, which is the in-ZIP MDAPI path and does not exist on disk (see `{{AUDIT_SHARED_RULES}}` read-back rule). From that XML extract two things in one parse:
+`retrieve_metadata` with type `CustomApplication`, member `{{CANDIDATE_APP_FULL_NAME}}` (pass `directory` = `{{PROJECT_ROOT}}`). Then read the CONVERTED file at `force-app/main/default/applications/{{CANDIDATE_APP_FULL_NAME}}.app-meta.xml` — NOT the result-JSON `fileName`, which is the in-ZIP MDAPI path and does not exist on disk (see `{{AUDIT_SHARED_RULES}}` read-back rule). From that XML extract two things in one parse:
 - `<tabs>` elements → `DEFAULT_APP_TABS` (list of tab API names).
 - `<actionOverrides>` elements where `<actionName>View</actionName>` AND `<type>Flexipage</type>` AND `<formFactor>Large</formFactor>` → for each, capture `<pageOrSobjectType>` (the object), `<content>` (the LRP DeveloperName), and `<recordType>` if present (e.g. `Account.VIP`; null if absent). Hold these as `APP_OVERRIDES`.
 

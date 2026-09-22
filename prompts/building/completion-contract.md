@@ -66,15 +66,21 @@ redeploy or reseed merely to repair a missing or malformed report; return a
 corrected envelope describing what happened.
 
 For every phase-2 Flow item, the frozen ledger also contains
-`acceptance.flow_validation`. Its `flow_api_name` and optional
-`flow_test_api_name` are authoritative identities. Its mode is immutable:
+`acceptance.flow_validation`. Its `flow_api_name` and required test declarations
+are authoritative identities. Its mode is immutable:
 
-- `flow_test_required` requires a terminal current test for that exact Flow/test,
-  independent `FlowTestResult` proof of the tested positive version, and active
-  read-back of the same Flow ID and version before VERIFIED. Pending, failed,
+- `flow_test_required` requires every name in `required_tests_all_must_pass` to
+  have a terminal current Pass, independent `FlowTestResult` proof of the tested
+  positive version, and active read-back of the same Flow ID and version before
+  VERIFIED. The array must be nonempty, unique, and contain only API names. A
+  legacy declaration with only `flow_test_api_name` explicitly requires that one
+  test. When both fields exist, the single name must belong to the array; it is a
+  selector, never permission to omit companions. Malformed/conflicting declarations
+  are invalid input. Pending, failed,
   unavailable, missing, old-version, or ambiguous evidence remains AWAITING_QA or
-  INCOMPLETE. A worker's VERIFIED claim is never evidence.
-- `unsupported` has a null test name and a concrete frozen reason. Report the
+  INCOMPLETE. A diagnostic cannot replace or join the required set. A worker's
+  VERIFIED claim is never evidence.
+- `unsupported` has a null test name, no required-test array, and a concrete frozen reason. Report the
   deployed Flow Draft and AWAITING_QA with `flow_test_outcome=NOT_SUPPORTED`.
   Do not switch a required item to unsupported because an org query or association
   is unavailable.
@@ -83,7 +89,92 @@ An already-satisfied Flow does not require a new version. It needs pre-dispatch 
   current exact active identity plus a current targeted test/version result for that
   same identity. After an activation attempt, failed or unavailable active read-back
   is unresolved and the state is failed/unknown; do not report Draft unless a current
-  read-back proves Draft.
+read-back proves Draft.
+
+For a required-test array, return `deployed[].flow_tests[]`, exactly one row for
+each required name. The orchestrator separately supplies
+`observations[].flow_validation.tests[]` with the same exact set. Do not mix these
+collections with independent `test` or the old worker `flow_test_*`/
+`tested_flow_version_number` singleton fields. Existing singleton declarations may
+still use that legacy async report/evidence form; new sync evidence, including a
+single test, uses the collection form below. A required array cannot silently fall
+back to the singleton path. Explicit `execution_mode` or frozen `target_org_id`
+also requires collection evidence so those new constraints cannot be ignored by
+the legacy path.
+
+The collection's independent `flow_validation.target_org_id` comes from the
+orchestrator's selected target observation. New ledgers should freeze the same
+`acceptance.flow_validation.target_org_id`; when present it must match. Older
+immutable ledgers can use the independently captured target context. Both
+`deployment` and `activation` carry that `target_org_id` and the current `build_id`.
+Each test and its `version_result` must match those identities and the exact Flow.
+These additions do not change the existing deployment/active read-back fields.
+
+Each worker `flow_tests[]` row contains these normalized fields (illustrative
+identities below are placeholders, never values to manufacture):
+
+```json
+{
+  "test_api_name": "Required_Test",
+  "flow_api_name": "Requested_Flow",
+  "flow_id": "exact deployed Flow ID",
+  "execution_mode": "synchronous",
+  "build_id": "injected current build id",
+  "target_org_id": "independently selected org ID",
+  "run_id": null,
+  "queue_item_id": null,
+  "apex_test_result_id": "observed ApexTestResultId",
+  "status": "terminal",
+  "outcome": "Pass",
+  "tested_version": 1
+}
+```
+
+Here `apex_test_result_id` normalizes the unified runner's per-method `id` only
+after its relationship is established. It does not imply that the response has a
+property literally named `ApexTestResultId`. The relationships below were observed
+on an API-66 Tooling projection; the public FlowTestResult Object Reference does
+not list them, and Tooling documentation marks that object reserved for internal
+use. Follow the sf-flow reference: retain a fresh target/API describe with the
+version-query evidence and prove the exact relationship before normalizing it.
+Missing support leaves required validation incomplete; do not substitute a
+name/timestamp join or change the frozen validation mode to `unsupported`.
+
+The independent `tests[]` row repeats those fields and adds `launch_source`,
+`terminal_source`, and `version_source`: separate saved raw request, response, and
+version-query references. It also adds `version_result`, the independently
+correlated durable FlowTestResult observation. That object carries `id` (the
+FlowTestResult record ID) and repeats `test_api_name`, `flow_api_name`, `flow_id`,
+`build_id`, `target_org_id`, `outcome`, `tested_version`, `queue_item_id`, and
+`apex_test_result_id`. Those are normalized fields derived from the saved result,
+its related records and the current invocation context, not a claim that all are
+literal Salesforce fields. Result/method IDs cannot be reused across required names.
+If the execution response supplies `numTestsRun`, retain it as `num_tests_run` in
+the independent test row; a terminal result requires a positive integer. Never
+discard a zero-test response and replace it with historical result records.
+
+- **Synchronous:** `execution_mode=synchronous`, `run_id=null`, and
+  `queue_item_id=null`. A populated observed `apex_test_result_id` must match the
+  independent FlowTestResult's `ApexTestResultId` relationship. A returned method
+  result is not a run ID. Null queue identity is legitimate for this path.
+- **Asynchronous:** `execution_mode=asynchronous`; a terminal or pending result
+  requires the observed `queue_item_id`. Terminal evidence must match the
+  FlowTestResult's `ApexTestQueueItemId` relationship. `run_id` may remain null;
+  if an actual run ID is reported, independent evidence also needs `run_source`
+  and `version_result.run_id` proving the queue/run relationship. Do not copy a
+  method result ID into a run field.
+- **Unfinished:** `status=pending|unavailable`, with null `outcome`,
+  `tested_version`, `apex_test_result_id`, `terminal_source`, `version_source`,
+  and `version_result`. Retain the attempted request/error under `launch_source`.
+  Pending is only supported for async execution with a queue identity. A terminal
+  `Fail|Error|Skip` remains unfulfilled and cannot authorize activation.
+
+The helper reconciles local normalized assertions. It does not query Salesforce,
+authenticate source references, or prove a caller's build/org attribution true.
+The orchestrator must independently preserve and correlate current raw receipts;
+timestamps alone, historic records relabeled as current, and a matching local hash
+do not establish that a required test ran for this invocation. Correcting an
+evidence envelope is not authorization to rerun tests, activate, or waive a gate.
 
 The required common top-level fields are:
 

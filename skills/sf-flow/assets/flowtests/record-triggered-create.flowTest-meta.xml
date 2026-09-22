@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FlowTest xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Verify the expected business result for a synthetic created record.</description>
+    <flowApiName>{{FLOW_API_NAME}}</flowApiName>
+    <flowTestFlowVersions>
+        <flowVersionNumber>{{FLOW_VERSION}}</flowVersionNumber>
+    </flowTestFlowVersions>
+    <label>{{TEST_LABEL}}</label>
+    <testPoints>
+        <elementApiName>Start</elementApiName>
+        <parameters>
+            <leftValueReference>$Record</leftValueReference>
+            <type>InputTriggeringRecordInitial</type>
+            <value>
+                <sobjectValue>{{TRIGGER_RECORD_JSON}}</sobjectValue>
+            </value>
+        </parameters>
+    </testPoints>
+    <testPoints>
+        <assertions>
+            <conditions>
+                <leftValueReference>{{EXPECTED_RESOURCE}}</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>{{EXPECTED_VALUE}}</stringValue>
+                </rightValue>
+            </conditions>
+            <errorMessage>The observed business result must equal the specified expected value.</errorMessage>
+        </assertions>
+        <elementApiName>Finish</elementApiName>
+    </testPoints>
+    <testType>WithAssertion</testType>
+</FlowTest>

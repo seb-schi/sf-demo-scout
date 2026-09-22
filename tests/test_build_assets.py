@@ -577,29 +577,17 @@ for _ in range(2):
                 self.assertEqual(self.artifact_files(self.source_root / "flows"), before)
                 self.assertEqual(list(self.rollback.rglob("receipt.json")), [])
 
-    def test_static_prior_recovery_guard_precedes_sweeps_and_final_cleanup_rechecks(self):
-        """Static prompt wiring only; no live model or Salesforce behavior is claimed."""
-        prompt = (REPOSITORY / "commands" / "scout-building.md").read_text(encoding="utf-8")
-        startup_guard = prompt.index("A previous build's retained recovery source is not disposable.")
-        startup_sweep = prompt.index(
-            'find "$HOME/claude-projects/sf-demo-scout/force-app/main/default" -mindepth 1 -delete'
-        )
-        self.assertLess(startup_guard, startup_sweep)
-        guard = prompt[startup_guard:startup_sweep]
-        for behavior in (
-            "unresolved recovery-preservation / cleanup-withheld",
-            "preserve --kind agent-recovery",
-            "missing/malformed prior",
-            "unknown owner",
-            "withhold cleanup",
-        ):
-            self.assertIn(behavior, guard)
-
-        final_cleanup = prompt.index("Workspace cleanup (after the change log is written).")
-        final_sweep = prompt.index(
-            'find "$HOME/claude-projects/sf-demo-scout/force-app/main/default" -mindepth 1 -delete',
-            final_cleanup,
-        )
-        final_guard = prompt[final_cleanup:final_sweep]
-        for behavior in ("NeedsUICommit", "failed/unverified", "BLOCKS this sweep"):
-            self.assertIn(behavior, final_guard)
+    def test_static_prior_recovery_guard_and_final_retention_keep_recovery_visible(self):
+        """Static delivery only; the executable fixtures test original-byte protection."""
+        prompt = (REPOSITORY / "commands/scout-building.md").read_text(encoding="utf-8")
+        startup = prompt[prompt.index("A previous build's retained recovery source is not disposable."):
+                         prompt.index("### Phase Analysis")]
+        for behavior in ("unresolved recovery-preservation / cleanup-withheld",
+                         "preserve --kind agent-recovery", "Unknown owners", "untouched"):
+            self.assertIn(behavior, startup)
+        final = prompt[prompt.index("Workspace cleanup (after the change log is written)."):
+                       prompt.index("### 6b:")]
+        for behavior in ("No automatic cleanup", "NeedsUICommit", "failed preservation",
+                         "ownership receipt", "preedit_snapshot"):
+            self.assertIn(behavior, final)
+        self.assertNotRegex(prompt, r"find[^\n]*-delete")

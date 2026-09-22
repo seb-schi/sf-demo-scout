@@ -2,9 +2,13 @@
 
 This Scout contract overrides only the named vendor conflicts below. All caller rules for scope, category permissions, retries, preservation, and acceptance remain binding. Missing dependency is evidence to report, never authorization to install, upgrade, broaden work, substitute unrelated work, or mark a check passed. Direct invocation outside Scout's callers is outside this compatibility guarantee.
 
-## Flow handoffs
+## Flow scope
 
-When `sf-flow` calls for the unavailable `sf-metadata` skill, use bundled `platform-custom-object-generate` or `platform-custom-field-generate` only for the exact approved schema dependency. When it calls for unavailable `sf-ai-agentscript`, use `agentforce-generate` only through the existing approved Agentforce route. A Flow-only phase or repair cannot execute unrelated schema or agent work. If the mapped skill is unavailable or the dependency is not approved, report the named dependency BLOCKED. Preserve the caller's exact Flow test, version, activation, and rollback contract.
+The maintained `sf-flow` skill owns its current bundled handoffs and FlowTest
+schema/templates. Only execute an exact approved schema dependency through its
+named skill; a Flow-only phase or repair cannot execute unrelated schema or agent
+work. An absent or unapproved dependency stays BLOCKED. Preserve Scout's exact
+required-test set, version, activation, and rollback contract in Phase 2.
 
 ## Analyzer prerequisites
 

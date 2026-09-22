@@ -558,8 +558,8 @@ Even for simple pass-through flows, add at least one assignment:
 - **Solution**: Use `$Record` directly - platform handles batching
 
 ### Deployment
-- **Problem**: Using direct CLI commands
-- **Solution**: Always use sf-deploy skill
+- **Problem**: Deployment without the caller's scope, preservation, and validation checks
+- **Solution**: Use platform-metadata-deploy guidance and the caller-approved CLI/MCP path
 
 ### $Record Context
 - **Problem**: Confusing Flow's `$Record` with Process Builder's `$Record__c`

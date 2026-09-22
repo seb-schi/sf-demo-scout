@@ -6,10 +6,15 @@ identity/result contract: the named `sf flow run test`, Tooling describe/query, 
 exact-version `FlowDefinition` activation/read-back commands may use `sf` CLI, always
 with `--target-org {{ORG_ALIAS}}`. Keep using MCP for other operations.
 
-**Retrieve output location.** When calling `retrieve_metadata`, ALWAYS pass `directory` = `$HOME/claude-projects/sf-demo-scout` (the SFDX project root — it has `sfdx-project.json` and `force-app/`). The MCP server converts retrieved metadata into source format under that root's `force-app/main/default/`. Without an explicit `directory`, conversion lands wherever your cwd resolves — often the customer org folder — littering `orgs/<customer>/force-app/`. Pin it so every retrieve converges on the one project `force-app/`, which the orchestrator sweeps clean after deployment. Do NOT drop this argument.
+{{OPERATION_SAFETY}}
+
+**Writer-owned project:** `{{PROJECT_ROOT}}`. The parent has prepared it. Verify
+its ownership receipt before use. Set each CLI call's working directory and
+`retrieve_metadata.directory` to this exact project; all relative `force-app/`
+paths below are inside it. Use its source paths for deployment; retain the project.
 Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is available for unfamiliar-error recovery — not for pre-flight checks.
 
-**Target-org integrity.** The orchestrator has already confirmed the target org is authenticated and `connectedStatus: Connected` — that is authoritative. Ignore MCP `get_username` / auth-status probes and do NOT bail out before any deploy/query tool call based on them; MCP DX tools can hold a stale target-org binding while `sf` CLI is fine. If any MCP call errors with target-org ambiguity or returns the wrong alias, fall back to `sf` CLI with `--target-org {{ORG_ALIAS}}` for that call and record the fallback in `discovery_notes`. Otherwise keep using MCP — it is faster and richer when it works.
+**Target-org integrity.** The orchestrator has already confirmed the target org is authenticated and `connectedStatus: Connected` — that is authoritative. Ignore MCP `get_username` / auth-status probes and do NOT bail out before any deploy/query tool call based on them; MCP DX tools can hold a stale target-org binding while `sf` CLI is fine. Only for a technical target-binding error, after ruling out a permission/policy rejection and confirming the intended target, fall back to `sf` CLI with `--target-org {{ORG_ALIAS}}` for that call and record the fallback in `discovery_notes`. Otherwise keep using MCP — it is faster and richer when it works.
 
 ## Binding Build Scope
 
@@ -80,12 +85,50 @@ Reference guides: skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotc
 4. Follow the frozen validation mode:
    - **`unsupported`:** do not generate a pretend test. Preserve the exact frozen reason, leave the new Flow Draft, and report AWAITING_QA.
    - **`flow_test_required`:**
-     1. Use the frozen ledger's exact `[FlowTestApiName]`; the usual generated default is `[FlowApiName]_Test`, but the worker must not rename a custom or already-existing frozen test identity. Confirm the effective Metadata API for this deployment supports API v66 `flowTestFlowVersions`. Do not silently change the user's project version. If v66 association cannot be used, leave the Flow Draft and report AWAITING_QA with the unavailable evidence. Otherwise generate `[FlowTestApiName].flowTest-meta.xml` from the template below, insert the exact target Flow version, and deploy that FlowTest separately.
-     2. Run exactly `sf flow run test --tests [FlowApiName].[FlowTestApiName] --test-level RunSpecifiedTests --synchronous --target-org [alias] --json`. Accept a completed result only when CLI `status` is 0; `result.summary.outcome` is `Passed`; `testsRan=1`, `passing=1`, `failing=0`, and `skipped=0`; `result.tests` has exactly one row; that row names the exact frozen Flow and test, has `Outcome=Pass`, and supplies nonempty `result.summary.testRunId` and `QueueItemId`. Empty, enqueue-only, skipped, extra, pending, wrong-name, or failed results do not pass.
-     3. The CLI reporter does not expose the tested Flow version. Its installed source establishes Tooling `FlowTestResult`, `ApexTestQueueItemId`, and the Flow/FlowTest developer-name relationships, but does not establish `FlowVersionNumber`; treat that projection as version-sensitive. First save a Tooling describe that positively exposes `ApexTestQueueItemId`, `Result`, `FlowVersionNumber`, `FlowDefinitionId`, and `FlowTestId`. Only then query `FlowTestResult` by the returned queue item ID and require exactly one row whose Result is Pass, Flow and FlowTest DeveloperNames are exact, and `FlowVersionNumber` equals the target Flow version. If describe/query cannot prove those exact fields and relationships, leave the Flow Draft/AWAITING_QA; do not guess another field or infer version from the name. Save the describe, launch result, terminal result, and Tooling query separately.
-     4. On failure, make at most one concrete fix and create/attribute the resulting fresh draft version, regenerate its version association, and test that new version. Never rerun an unchanged Flow/test merely to obtain a different result. After two failed attempts, leave the current version Draft and report AWAITING_QA.
-     5. Activate only the exact tested version through a temporary `FlowDefinition` containing its `activeVersionNumber`. Read back the FlowDefinition active Flow ID and version; both must equal the deployed/tested Flow row. If activation is attempted but read-back fails, report the active state as `Unknown` and the item INCOMPLETE/BLOCKED. Never claim it remains Draft without a successful read-back.
-5. **Screen flows with QuickAction wiring** (spec requests it): deploy a `QuickAction` (actionType=Flow) pointing at the flow's API name; retrieve the target object's active Layout, add the QuickAction under `<quickActionListItems>`, redeploy the layout.
+     1. Read the canonical `sf-flow` FlowTest guide and use every exact name in
+        the frozen `required_tests_all_must_pass`; an explicitly singleton
+        `flow_test_api_name` is supported by the completion contract. A singular
+        anchor alongside a list must belong to it and never narrows the list.
+        Freeze new tests and their behavioral obligations before dispatch; do not
+        change historical ledgers. Confirm target Metadata API support for API 66
+        `flowTestFlowVersions`; do not change the workspace API version silently.
+        Attribute the target Flow version first, then deploy each exact FlowTest
+        separately with that association. Diagnostics are separate, never gate tests.
+     2. Execute the exact required test selectors using the installed supported
+        CLI/API surface described in the skill. Save raw launch and terminal receipts.
+        Check each required result by exact Flow/test identity. No missing, extra,
+        skipped, pending or failing required test can satisfy the gate. A raw batch
+        can include diagnostics, but retain it unchanged and select only the frozen
+        required names into the normalized gate evidence; never substitute a probe.
+     3. Collect current exact-version evidence using freshly described target/API
+        fields and relationships. The sf-flow reference distinguishes the public
+        result object from the observed, target-dependent Tooling bridge; retain
+        its describe and query receipts rather than assume those fields exist.
+        Synchronous runner method `id` values correlate through the actual
+        `ApexTestResultId`; a null queue ID is valid for that path, and a method-result
+        ID is not a run ID. Async results require the actual `ApexTestQueueItemId`
+        and terminal completion. Never invent either identity or associate by time
+        alone. Capture the stable target org ID, current build/attempt identity,
+        exact Flow/test/version/outcome, and saved result/describe sources in the
+        completion contract's `tests[]` / `version_result` shape; worker rows use
+        `flow_tests[]`. Missing correlation leaves AWAITING_QA/INCOMPLETE.
+     4. Classify a failure before repair: Flow defect, fixture/assertion defect,
+        execution-tool failure, policy refusal, or missing evidence. At most one
+        repair attempt with a recorded discriminating hypothesis and concrete change
+        after the initial failure. A Flow fix creates a newly attributed Draft and
+        requires all tests against it. A fixture/assertion fix preserves the same
+        behavioral obligation and may test the same Flow version; retain original
+        failed test metadata/results. An execution-tool fix changes only that route;
+        a refusal stops it under operation-safety. Missing evidence calls for a
+        supported targeted collection, not a redeploy. Never unchanged-rerun to
+        fish for Pass or diagnose which assertion failed from an aggregate Fail.
+     5. Activate only after an independent check proves every required test against
+        the intended Flow/version/target; final FULLY_VERIFIED also needs activation, then activate the exact tested version through a temporary
+        `FlowDefinition` containing its `activeVersionNumber` in the owned project.
+        Read back active Flow ID/version; both must equal the tested identity. If
+        read-back fails after an attempt, report `Unknown` and INCOMPLETE/BLOCKED,
+        never presume Draft. No alternate-tool retry after a host refusal.
+5. **Screen flows with QuickAction wiring** (spec requests it): deploy a `QuickAction` (actionType=Flow) pointing at the flow's API name; retrieve the target object's active Layout and preserve/verify its exact first original under the shared rollback contract, add the QuickAction under `<quickActionListItems>`, redeploy the layout.
 6. **Scheduled flow pre-flight:** confirm the spec's Scheduled Flow section names `<startDate>`, `<startTime>`, and `<frequency>` (Once / Daily / Weekly / Monthly / Yearly / Hourly / Weekdays — per FlowSchedule subtype, Salesforce docs API v66.0+). If missing, report BLOCKED with reason "scheduled flow missing schedule fields — SE must add to spec."
 7. **Platform-event flow pre-flight:** confirm the `<eventType>` object exists via `retrieve_metadata` (CustomObject with `__e` suffix, or standard event like `AIPredictionEvent`). If missing and not in-scope for this deploy, report BLOCKED with reason "platform event object not in org — SE must create or import first."
 8. Check for existing flows on the same object/trigger via `retrieve_metadata` — flag execution order conflicts in `discovery_notes`.
@@ -206,45 +249,12 @@ Key rules for updating the triggering record:
 
 Screen flow template lives at `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/assets/screen-flow-template.xml` (vendored — present in every plugin install). Before authoring a screen flow, skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotchas.md` — it carries the root-level alphabetical ordering rule and the `storeOutputAutomatically` data-leak rule among other traps. (Already referenced at the top of Flow Rules, restated here because screen flows are where these two specifically bite.)
 
-**FlowTest template** (only for a frozen `flow_test_required` item whose exact shape is supported). Save as `[FlowTestApiName].flowTest-meta.xml` and replace the version placeholder with the positively attributed target Flow version before the separate FlowTest deploy. The example below is record-triggered; eligible autolaunched and Data Cloud-triggered flows need their documented parameter shape.
-
-**CRITICAL — FlowTest does NOT accept `<apiVersion>` (unlike Flow). Do not add it.** The Start node is the mandatory entry test point for record-triggered flows — `<elementApiName>Start</elementApiName>`, not the name of an assignment / create / update element. Additional assertions on downstream elements go in **additional** `<testPoints>` blocks; the Start block must exist regardless.
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<FlowTest xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>Happy-path smoke test for [FlowApiName]</description>
-    <flowApiName>[FlowApiName]</flowApiName>
-    <flowTestFlowVersions>
-        <flowVersionNumber>[deployed positive VersionNumber]</flowVersionNumber>
-    </flowTestFlowVersions>
-    <label>[FlowApiName] Happy Path</label>
-    <testPoints>
-        <elementApiName>Start</elementApiName>
-        <parameters>
-            <name>FieldApiName__c</name>
-            <type>InputTriggeringRecordInitial</type>
-            <value><stringValue>SeedValue</stringValue></value>
-        </parameters>
-        <parameters>
-            <name>Subject</name>
-            <type>InputTriggeringRecordInitial</type>
-            <value><stringValue>Seed Subject</stringValue></value>
-        </parameters>
-        <assertions>
-            <conditionLogic>and</conditionLogic>
-            <conditions>
-                <leftValueReference>$Flow.FaultMessage</leftValueReference>
-                <operator>IsNull</operator>
-                <rightValue><booleanValue>true</booleanValue></rightValue>
-            </conditions>
-            <errorMessage>Flow produced a fault on the happy path</errorMessage>
-        </assertions>
-    </testPoints>
-    <testType>WithAssertion</testType>
-</FlowTest>
-```
-Adapt: `flowApiName` is the flow under test. For eligible record-triggered flows, one `<parameters>` block per field on the trigger object that the flow reads or asserts on; `<name>` is the field API name (no `<leftValueReference>` — the parameter seeds `$Record` directly). Assertion checks `$Flow.FaultMessage IS NULL`. For record creates/updates, add a second `<testPoints>` block with `<elementApiName>` set to the create/update element name and an assertion on the resulting record's key field.
+**FlowTest authoring:** use the maintained `sf-flow` skill's
+`references/flowtest-authoring.md` and `assets/flowtests/` templates. They own the
+platform-specific parameter/assertion structure and supported-shape diagnosis;
+this caller owns scope, frozen required tests, version attribution and activation.
+Do not copy an older inline Phase 2 template or infer that fixing XML resolves an
+unexplained aggregate failure in an already schema-correct test.
 <!-- /IF:FLOWS -->
 
 <!-- IF:APEX -->
@@ -391,11 +401,7 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
       "validation_status": "VERIFIED|AWAITING_QA|FAILED",
       "flow_version_id": "exact Flow row id|null",
       "flow_version_number": "positive integer|null",
-      "flow_test_api_name": "exact test name|null",
-      "flow_test_run_id": "terminal run id|null",
-      "flow_test_queue_item_id": "exact queue item id|null",
-      "flow_test_outcome": "PASS|FAIL|ERROR|SKIP|PENDING|UNAVAILABLE|NOT_RUN|NOT_SUPPORTED|null",
-      "tested_flow_version_number": "positive integer|null",
+      "flow_tests": [],
       "active_flow_id": "exact read-back active Flow id|null",
       "active_flow_version_number": "positive integer|null",
       "original_flow_state": {"status": "active|inactive|unknown|null", "flow_id": "exact original active Flow id|null", "version": "positive integer|null", "source": "saved read-back|null"},
@@ -413,5 +419,26 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
     {"question": "string", "url": "string", "verdict": "string"}
   ],
   "issues": ["string"]
+}
+```
+
+For Flow rows, fill `flow_tests[]` with the completion contract's per-test execution
+identities/outcomes for every required name. Use legacy flat FlowTest fields only
+for an explicitly single-test legacy report; never mix flat and array declarations.
+
+### Unsupported Flow report fields
+
+For an `unsupported` Flow, omit `flow_tests` from the deployed row and add the
+fields below. Keep `validation_status: AWAITING_QA`, the actual deployed/active
+identities and frozen unsupported reason. These fields report no executed test;
+they are a separate mode, not a required-test collection or successful singleton.
+
+```json
+{
+  "flow_test_api_name": null,
+  "flow_test_run_id": null,
+  "flow_test_queue_item_id": null,
+  "flow_test_outcome": "NOT_SUPPORTED",
+  "tested_flow_version_number": null
 }
 ```

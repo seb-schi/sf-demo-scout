@@ -1814,14 +1814,17 @@ class StaticPromptWiringTests(unittest.TestCase):
         self.assertIn("unavailable probe is INCOMPLETE", text)
 
     def test_phase2_flow_test_selector_and_version_gate_are_exact(self):
-        text = (ROOT / "prompts" / "building" / "phase2.md").read_text(encoding="utf-8")
-        self.assertIn("--tests [FlowApiName].[FlowTestApiName]", text)
-        self.assertNotIn("--class-names [FlowApiName]_Test", text)
-        self.assertIn("<flowTestFlowVersions>", text)
-        self.assertIn("<flowVersionNumber>", text)
-        self.assertIn("<testType>WithAssertion</testType>", text)
-        self.assertIn("FlowTestResult", text)
+        text = (ROOT / "prompts/building/phase2.md").read_text(encoding="utf-8")
+        guide = (ROOT / "skills/sf-flow/references/flowtest-authoring.md").read_text(encoding="utf-8")
+        self.assertIn("references/flowtest-authoring.md", text)
+        self.assertIn("required_tests_all_must_pass", text)
+        self.assertNotIn("<FlowTest ", text)
+        self.assertIn("--tests", guide)
+        self.assertIn("ApexTestResultId", text)
+        self.assertIn("ApexTestQueueItemId", text)
         self.assertIn("active_flow_id", text)
+        self.assertIn("newly attributed Draft", text)
+        self.assertIn("every required test", text)
 
     def test_flow_evidence_contract_names_unknown_activation_and_supported_limits(self):
         validation = (ROOT / "prompts" / "building" / "sub-agent-validation.md").read_text(

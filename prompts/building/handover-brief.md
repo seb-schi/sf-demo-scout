@@ -6,8 +6,14 @@ Format (output as plain text, not a blockquote):
 
 **Demo Handover — [Customer]**
 
-**What Was Built**
-[1-2 sentences in business terms — from the spec scenario, not component names]
+**Achieved State — [reconciler disposition, as of evidence timestamp]**
+[1–2 sentences describing what the current receipts actually establish, including
+failed/blocked/unverified work that prevents the intended story. The spec supplies
+intent, not proof of what was built. State current active versus Draft versions
+separately from procedural refusals. A later activation receipt supersedes an older
+Draft summary; a later failed test supersedes an earlier pass for the same obligation.
+Name the superseding receipt/time and preserve the earlier report as history. When
+identities or chronology cannot be reconciled, state unresolved rather than guessing.]
 
 **Demo Story**
 1. [Open with... — entry point and context-setting]
@@ -15,7 +21,7 @@ Format (output as plain text, not a blockquote):
 3. [Then... — supporting workflow or automation]
 4. [Close with... — value moment tied to pain point]
 
-(Derive from spec's Business story + Core capability + Pain point addressed.
+(Derive the intended story from the spec; label unfulfilled steps as planned/unverified.
 Use "Show the customer..." framing. 3-5 steps.)
 
 **Already Done (Scout handled this)**

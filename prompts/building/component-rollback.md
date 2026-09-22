@@ -15,7 +15,9 @@ a component skill's authoring and validation rules.
    Record an attempt ID, target org and component identity, expected delta and
    exclusions, with classification/evidence and artifact fields pending. If this
    checkpoint cannot be saved, stop BLOCKED.
-3. Retrieve and read back that exact target. Classify it as `existing` only from
+3. Retrieve and read back that exact target in the writer-owned project returned by
+   the operation-safety contract. Use its returned source_root and rollback_dir
+   unchanged; never derive a rollback path from cwd. Classify it as `existing` only from
    successful current evidence, `new` only from positive absence evidence, otherwise
    `unknown`. Empty, failed, or ambiguous retrieval is `unknown`, not absence.
    Classify a Report and its ReportFolder separately. For a Flow, separately record
@@ -31,7 +33,8 @@ a component skill's authoring and validation rules.
    path with `preserve --kind component-preedit`, the exact component selector, and the caller's absolute
    `ROLLBACK_DIR`. A class or trigger
    selector includes its metadata companion; LWC/Aura and other supported bundles
-   require the whole member directory. Never select a metadata-type folder. Verify
+   require the whole member directory. Classic Layout, SharingRules and FlexiPage
+   selectors name the exact complete XML file; preserve all incumbent content. Never select a metadata-type folder. Verify
    the returned artifact immediately, then append its absolute artifact/source paths,
    exact receipt members, and verification result to the pending checkpoint. Preserve
    the first verified before-state on retries. Never reconstruct it after mutation.

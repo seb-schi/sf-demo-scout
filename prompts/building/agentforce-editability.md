@@ -14,7 +14,7 @@ SELECT DeveloperName, Type, AgentType FROM BotDefinition WHERE DeveloperName = '
 ```
 **Risk-class flag:** `AgentType = 'EinsteinServiceAgent'` (or a legacy `Type = 'Bot'` / `Type = 'ExternalCopilot'`) has indicated UI-built, planner-only agents in observed SDO/IDO examples. The enum is empirical, not proof: an Agent-Script-authored service agent may have the same value. A failed or ambiguous identity query leaves editability unavailable.
 
-Create a unique empty retrieve directory beneath the runtime project's `force-app/main/default/` (for example with `mktemp -d` and a `.scout-agent-retrieve.XXXXXX` template), and substitute its actual absolute path for `[fresh retrieve directory]`. Do not reuse a previous directory. Capture the complete stdout JSON, separate stderr, and actual exit code; do not pipe through `head` or replace a failed command with a successful pipeline exit.
+Create a unique empty retrieve directory beneath the separately prepared parent-owned project's `force-app/main/default/` (for example with `mktemp -d` and a `.scout-agent-retrieve.XXXXXX` template), and substitute its actual absolute path for `[fresh retrieve directory]`. Do not reuse a previous directory. Capture the complete stdout JSON, separate stderr, and actual exit code; do not pipe through `head` or replace a failed command with a successful pipeline exit.
 
 ```bash
 sf project retrieve start --json --metadata "AiAuthoringBundle:[AgentName]" --output-dir "[fresh retrieve directory]" --target-org {{ORG_ALIAS}}
@@ -44,10 +44,8 @@ Classify exactly one outcome:
 
 Record the editability verdict and evidence reference in `discovery_notes` (for example, `"Agentforce_Service_Agent: source unavailable — retrieve authentication failed; structural edit BLOCKED pending a successful probe"`). Do not include credentials in the diagnostic.
 
-Then return to `scout-building.md` Phase 3 for the SE gate.
-
 For an eligible route, stage only the positively retrieved complete members from
-the fresh directory into their canonical project source paths; record the source
+the fresh directory into their canonical parent-owned project source paths; record the source
 and destination mapping. Retain the fresh retrieval and raw evidence until the
 existing preservation/cleanup guards pass. Do not deploy from the retrieval
 scratch directory or treat staging as permission to change the agent.
@@ -59,3 +57,21 @@ the orchestrator's independent receipt check. Preserve only relevant complete
 members; an unused absent family is not an error. A required source missing from
 disk blocks the edit. Re-authoring under a new side-by-side name does not modify
 the incumbent and follows the new-agent recovery contract instead.
+
+For the modify-existing route, preserve the selected complete source for transfer
+before returning. Set `SOURCE_ROOT` and `ROLLBACK_DIR` to the parent's helper-returned
+paths, and `AGENT_PREFLIGHT_PATH` to the exact selected relative member. Repeat
+`--path` when both families are selected:
+
+```bash
+python3 "$ASSET_HELPER" preserve --source-root "$SOURCE_ROOT" \
+  --rollback-dir "$ROLLBACK_DIR" --kind component-preedit \
+  --path "$AGENT_PREFLIGHT_PATH"
+```
+
+Require success and verify the returned artifact. Retain it as
+`AGENT_PREFLIGHT_ARTIFACT`, with the exact member list and retrieval evidence.
+This immutable transfer uses existing preservation machinery; it does not replace
+Phase 3's required `agent-preedit` snapshot and original active-version record.
+On failure, block the affected edit and retain all parent source. Then return to
+`scout-building.md` Phase 3 for its SE gate and explicit source handoff.

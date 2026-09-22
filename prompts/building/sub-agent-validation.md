@@ -36,8 +36,9 @@ Neither one can change the frozen expected-work ledger.
      BLOCKED; deployed items with required test/visual/runtime work outstanding are
      AWAITING_QA. None of these are success or an authorized skip.
 
-   Derive every potential Report/ReportType, Flow, Apex class/trigger, and LWC
-   mutation target from the frozen ledger plus selected approved phase work, even when
+   Derive every selected Phase 1 metadata target (including Layout, SharingRules,
+   FlexiPage and Report/ReportType), plus Flow, Apex class/trigger, and LWC
+   mutation targets from the frozen ledger plus selected approved phase work, even when
    a detailed worker row is absent or malformed. Exclude a frozen authorized skip when
    dispatch/tool evidence proves no mutation was attempted; it requires no worker row,
    checkpoint, or receipt. Any worker, tool, or current evidence of unexpected mutation
@@ -143,7 +144,8 @@ spec section and for grounding each evidence assertion in saved tool output.
 
 Every Flow ledger item carries authoritative `acceptance.flow_validation` with an
 exact Flow API name, an immutable `flow_test_required|unsupported` mode, and either
-an exact test API name or a concrete unsupported reason. Collect this evidence even
+the complete `required_tests_all_must_pass` list (or explicit legacy singleton)
+or a concrete unsupported reason. Collect this evidence even
 when the worker omits or renames its deployed Flow row. Missing independent Flow
 evidence leaves only that item INCOMPLETE; malformed identities or contradictions
 invalidate the report.
@@ -165,63 +167,36 @@ prove inactivity. If the Flow is active and no supported deactivation operation 
 read-back has been established, rollback remains BLOCKED for manual deactivation;
 never select a fallback version or claim completed rollback.
 
-Add `flow_validation` to that item's ordinary observation. A supported applied
-example is:
+Add `flow_validation` to that item's ordinary observation using the canonical
+schema in `completion-contract.md`. Use `tests[]` for the complete required set and
+worker `flow_tests[]` for matching exact named results; flat `test`/worker fields are
+only the explicit singleton compatibility path. Select the current execution
+receipts independently, before normalizing the results; preserve all earlier attempts
+and any diagnostic results separately. Never choose a stale Pass to displace the
+current failure. State which later receipt supersedes which earlier summary.
 
-```json
-{
-  "mode": "flow_test_required",
-  "deployment": {
-    "flow_api_name": "Demo_Flow",
-    "flow_id": "exact deployed Flow row id",
-    "version": 13,
-    "status": "Draft",
-    "receipt_source": "saved one-Flow deployment receipt",
-    "file_source": "saved returned file identity"
-  },
-  "test": {
-    "flow_api_name": "Demo_Flow",
-    "test_api_name": "Demo_Flow_Test",
-    "run_id": "nonempty terminal run id",
-    "queue_item_id": "nonempty exact result queue id",
-    "status": "terminal",
-    "outcome": "Pass",
-    "tested_version": 13,
-    "launch_source": "saved synchronous launch result",
-    "terminal_source": "saved completed result",
-    "version_source": "saved FlowTestResult Tooling query"
-  },
-  "activation": {
-    "attempted": true,
-    "status": "Active",
-    "active_flow_id": "same exact deployed Flow row id",
-    "active_version": 13,
-    "source": "saved FlowDefinition active-version read-back"
-  }
-}
-```
+Before activation, independently check every required test against the deployed
+Flow ID/version and current target/build. Do not demand FULLY_VERIFIED yet: that
+final disposition also requires the subsequent active-version read-back. A required
+Fail, missing/skipped/pending companion, mixed version or unresolved attribution
+keeps the gate unsatisfied. After an allowed activation, collect fresh active
+identity and run final reconciliation; actual state and policy deviations remain
+separate facts. After any activation attempt, unknown activation read-back cannot be labelled Draft.
 
-VERIFIED requires a terminal Pass for the frozen Flow/test names, a Tooling result
-for that queue item whose tested version equals the deployed version, and active
-read-back whose ID and version equal that same deployment. Pending, failed,
-unavailable, empty, skipped, wrong-name, old-version, or ambiguous results never
-verify. If an activation attempt was made but its read-back is unavailable, record
-`attempted: true`, `status: "unknown"`, null active identity, and the saved error
-source; the item is unresolved, and neither worker nor orchestrator may call it
-Draft. A known activation failure uses `status: "failed"` and remains BLOCKED.
+Save a runtime Tooling describe for the selected result projection and relationships.
+For synchronous execution, correlate the returned method result through its actual
+`ApexTestResultId` to exactly one `FlowTestResult`; null queue/run identities are
+valid for this path and must remain null. For asynchronous execution, correlate the
+actual queue ID and terminal result. Require exact Flow and test names, org, version,
+current build and outcome in the contract's `version_result`; timestamps alone and
+name-only queries are not correlation. `FlowVersionNumber` availability remains
+version-sensitive: a missing/unsupported describe or failed query leaves evidence
+unavailable, never a guessed field. Raw receipts and normalized assertions remain
+separate; the helper validates supplied consistency, not Salesforce authenticity.
 
-`FlowTestResult.FlowVersionNumber` is a version-sensitive Tooling projection, not a
-portable public API guarantee. Save a runtime Tooling describe that exposes the
-queue, result, version, Flow, and FlowTest identity fields before querying it. The
-installed CLI source establishes the queue-item and developer-name correlation but
-does not query the version field. If describe or query cannot prove the exact
-projection, record version evidence unavailable and leave the Flow AWAITING_QA;
-never fall through to a guessed field or name-only match.
-
-For `unsupported`, use `test.status: "unsupported"` with the exact frozen reason,
-`activation.attempted: false`, and the current incumbent read-back. Leave an applied
-Flow Draft/AWAITING_QA. Never change a required ledger mode to unsupported because
-the API-v66 association, test run, or Tooling query was unavailable.
+For `unsupported`, preserve the exact frozen reason and incumbent read-back with
+`activation.attempted: false`; the authored Draft remains AWAITING_QA. A required
+route that becomes unavailable keeps its required mode and unresolved tests.
 
 ## Agentforce Current-Test Evidence (Phase 3)
 

@@ -24,7 +24,7 @@ project root for parsing:
 # {{ORG_ALIAS}} substituted by orchestrator; directory pinned per the Retrieve output location rule
 ```
 Use `retrieve_metadata` for `GenAiPlannerBundle:[LegacyAgentName]` with
-`directory` = `$HOME/claude-projects/sf-demo-scout`. If the retrieve FAILS here (the SE did not
+`directory` = the worker-owned absolute `PROJECT_ROOT` already supplied by the parent. If the retrieve FAILS here (the SE did not
 actually complete the upgrade, or it is org-specific), **STOP** and record the phase **BLOCKED**
 in `issues` with reason "re-author requested but GenAiPlannerBundle:[LegacyAgentName] did not
 retrieve — upgrade not confirmed on the org; do not ship a partial build." Report the agent NOT

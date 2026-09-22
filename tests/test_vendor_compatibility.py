@@ -38,7 +38,7 @@ class VendorCompatibilityContractTests(unittest.TestCase):
         headings = re.findall(r"^## (.+)$", reference, flags=re.MULTILINE)
         self.assertEqual(
             [
-                "Flow handoffs",
+                "Flow scope",
                 "Analyzer prerequisites",
                 "Report tools",
                 "Validation formulas",
@@ -47,25 +47,23 @@ class VendorCompatibilityContractTests(unittest.TestCase):
             ],
             headings,
         )
-        preamble = reference[: reference.index("## Flow handoffs")]
+        preamble = reference[: reference.index("## Flow scope")]
         self.assertIn("only the named vendor conflicts", preamble)
         self.assertIn("scope, category permissions, retries, preservation, and acceptance", preamble)
         self.assertIn("Missing dependency is evidence to report", preamble)
         self.assertIn("never authorization to install", preamble)
         self.assertIn("mark a check passed", preamble)
 
-    def test_flow_handoffs_map_bundled_routes_without_widening_phase_scope(self):
-        flow = section(read("prompts/building/vendor-compatibility.md"), "Flow handoffs")
-        self.assertIn("`sf-metadata`", flow)
-        self.assertIn("`platform-custom-object-generate`", flow)
-        self.assertIn("`platform-custom-field-generate`", flow)
-        self.assertIn("`sf-ai-agentscript`", flow)
-        self.assertIn("`agentforce-generate`", flow)
+    def test_flow_scope_uses_maintained_skill_without_duplicate_obsolete_handoffs(self):
+        flow = section(read("prompts/building/vendor-compatibility.md"), "Flow scope")
+        self.assertNotIn("`sf-metadata`", flow)
+        self.assertNotIn("`sf-ai-agentscript`", flow)
+        self.assertIn("maintained `sf-flow`", flow)
         self.assertIn("exact approved schema dependency", flow)
         self.assertIn("Flow-only", flow)
-        self.assertIn("unrelated schema or agent work", flow)
+        self.assertIn("unrelated schema or agent", flow)
         self.assertIn("BLOCKED", flow)
-        self.assertIn("test, version, activation, and rollback", flow)
+        self.assertIn("required-test set, version, activation, and rollback", flow)
 
     def test_analyzer_prefers_mcp_and_preserves_unavailable_scan_gap(self):
         analyzer = section(
@@ -193,7 +191,7 @@ class VendorCompatibilityContractTests(unittest.TestCase):
             "Validation formulas",
             "FlexiPage scope",
             "Phase 2",
-            "Flow handoffs",
+            "Flow scope",
             "Analyzer prerequisites",
             "Phase 3",
             "Agentforce prerequisites and precedence",

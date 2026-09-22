@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Preserve, verify, and stage durable Salesforce source snapshots."""
+"""Prepare owned metadata projects and preserve, verify, and stage source snapshots."""
 
 import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import sys
@@ -17,6 +18,7 @@ RECEIPT_VERSION = 1
 VALID_KINDS = {"imports", "agent-recovery", "agent-preedit", "component-preedit"}
 BUNDLE_TYPES = {"lwc", "aura", "aiAuthoringBundles", "genAiPlannerBundles"}
 COMPANION_TYPES = {"classes": ".cls", "triggers": ".trigger"}
+WORKSPACE_RECEIPT_VERSION = 1
 
 
 class AssetError(Exception):
@@ -32,6 +34,16 @@ def _is_within(path: Path, base: Path) -> bool:
 
 def _paths_overlap(first: Path, second: Path) -> bool:
     return _is_within(first, second) or _is_within(second, first)
+
+
+def _absolute_path(value: str, label: str) -> Path:
+    if not isinstance(value, str) or not value:
+        raise AssetError("{} must be an absolute path".format(label))
+    path = Path(value)
+    if not path.is_absolute() or ".." in path.parts or str(path) != value:
+        raise AssetError("{} must be a normalized absolute path".format(label))
+    _reject_symlink_ancestors(path, label)
+    return path
 
 
 def _safe_relative(value: str, label: str = "path") -> PurePosixPath:
@@ -157,6 +169,122 @@ def write_receipt(path: Path, receipt: Mapping[str, object]) -> None:
         except FileNotFoundError:
             pass
         raise
+
+
+def _read_json_file(path: Path, label: str) -> object:
+    _require_plain_file(path, label)
+    try:
+        with path.open("r", encoding="utf-8") as stream:
+            return json.load(stream)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise AssetError("cannot read {}: {}".format(label, exc)) from exc
+
+
+def _workspace_context(workspace_value: str, customer_value: str) -> Tuple[Path, Path, dict]:
+    workspace = _resolved_existing_directory(workspace_value, "workspace root")
+    customer = _resolved_existing_directory(customer_value, "customer directory")
+    if customer.parent != workspace / "orgs":
+        raise AssetError("customer directory must be a direct child of workspace_root/orgs")
+    config = _read_json_file(workspace / "sfdx-project.json", "workspace project config")
+    if not isinstance(config, dict):
+        raise AssetError("workspace project config must be a JSON object")
+    packages = config.get("packageDirectories")
+    if not isinstance(packages, list) or not any(
+        isinstance(entry, dict) and entry.get("path") == "force-app" for entry in packages
+    ):
+        raise AssetError("workspace packageDirectories must include force-app")
+    api_version = config.get("sourceApiVersion")
+    if not isinstance(api_version, str) or re.fullmatch(r"[1-9][0-9]*\.0", api_version) is None:
+        raise AssetError("workspace sourceApiVersion must be an explicit API version such as 66.0")
+    minimal = {
+        "packageDirectories": [{"path": "force-app", "default": True}],
+        "sourceApiVersion": api_version,
+    }
+    if "namespace" in config:
+        namespace = config["namespace"]
+        if not isinstance(namespace, str) or (
+            namespace != "" and re.fullmatch(r"[A-Za-z][A-Za-z0-9]{0,14}", namespace) is None
+        ):
+            raise AssetError("workspace namespace must be empty or a valid namespace prefix")
+        minimal["namespace"] = namespace
+    return workspace, customer, minimal
+
+
+def _validate_writer(writer: str) -> None:
+    if not isinstance(writer, str) or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", writer) is None:
+        raise AssetError("writer must be 1-64 letters, digits, underscores or hyphens")
+
+
+def _owned_paths(workspace: Path, customer: Path, project: Path, writer: str) -> dict:
+    return {
+        "version": WORKSPACE_RECEIPT_VERSION,
+        "writer": writer,
+        "workspace_root": str(workspace),
+        "customer_dir": str(customer),
+        "project_root": str(project),
+        "source_root": str(project / "force-app/main/default"),
+        "rollback_dir": str(customer / "rollback"),
+        "ownership_receipt": str(project / "ownership.json"),
+    }
+
+
+def prepare_workspace(workspace_value: str, customer_value: str, writer: str) -> dict:
+    """Create a fresh retained project; preservation remains a separate required gate.
+
+    No existing project is reused, cleared, or copied. The receipt records path
+    ownership, not authorization to edit an incumbent or proof of its preservation.
+    """
+    _validate_writer(writer)
+    workspace, customer, config = _workspace_context(workspace_value, customer_value)
+    staging = customer / ".scout-work"
+    rollback = customer / "rollback"
+    for path in (staging, rollback):
+        _reject_symlink_ancestors(path, "owned workspace directory")
+        if path.exists():
+            _require_plain_directory(path, "owned workspace directory")
+    _make_directory(staging)
+    _make_directory(rollback)
+    project = Path(tempfile.mkdtemp(prefix=writer + "-", dir=str(staging)))
+    # A failed preparation is retained for inspection, with no success response.
+    result = _owned_paths(workspace, customer, project, writer)
+    try:
+        _make_directory_chain(project, PurePosixPath("force-app/main/default"))
+        project_config = project / "sfdx-project.json"
+        write_receipt(project_config, config)
+        receipt = dict(result, project_config_sha256=hash_file(project_config))
+        write_receipt(Path(result["ownership_receipt"]), receipt)
+        return verify_workspace(str(project))
+    except (OSError, AssetError) as exc:
+        raise AssetError("workspace preparation failed; retained {}: {}".format(project, exc)) from exc
+
+
+def verify_workspace(project_value: str) -> dict:
+    """Read-only check of a project's exact recorded boundary and initial config."""
+    project = _resolved_existing_directory(project_value, "project root")
+    receipt = _read_json_file(project / "ownership.json", "ownership receipt")
+    expected_keys = {
+        "version", "writer", "workspace_root", "customer_dir", "project_root",
+        "source_root", "rollback_dir", "ownership_receipt", "project_config_sha256",
+    }
+    if not isinstance(receipt, dict) or set(receipt) != expected_keys:
+        raise AssetError("ownership receipt has an invalid schema")
+    if type(receipt["version"]) is not int or receipt["version"] != WORKSPACE_RECEIPT_VERSION:
+        raise AssetError("unsupported ownership receipt version")
+    writer = receipt["writer"]
+    _validate_writer(writer)
+    workspace, customer, _ = _workspace_context(receipt["workspace_root"], receipt["customer_dir"])
+    if project.parent != customer / ".scout-work" or not project.name.startswith(writer + "-"):
+        raise AssetError("project root is outside its recorded writer/customer boundary")
+    expected = _owned_paths(workspace, customer, project, writer)
+    if any(receipt[key] != value for key, value in expected.items()):
+        raise AssetError("ownership receipt paths do not match their exact derived locations")
+    for key in ("source_root", "rollback_dir"):
+        _resolved_existing_directory(expected[key], key)
+    config_path = project / "sfdx-project.json"
+    _require_plain_file(config_path, "owned project config")
+    if receipt["project_config_sha256"] != hash_file(config_path):
+        raise AssetError("owned project config does not match the ownership receipt")
+    return expected
 
 
 def _scan_tree(root: Path) -> Tuple[Set[str], Dict[str, str]]:
@@ -366,8 +494,7 @@ def _manifest_for_components(
 
 
 def _resolved_existing_directory(value: str, label: str) -> Path:
-    path = Path(value).expanduser()
-    _reject_symlink_ancestors(path, label)
+    path = _absolute_path(value, label)
     _require_plain_directory(path, label)
     try:
         return path.resolve(strict=True)
@@ -379,8 +506,7 @@ def preserve(source_root_value: str, rollback_dir_value: str, kind: str, values:
     selections = _validate_preserve_selections(kind, values)
     source_root = _resolved_existing_directory(source_root_value, "source root")
 
-    rollback_dir = Path(rollback_dir_value).expanduser()
-    _reject_symlink_ancestors(rollback_dir, "rollback directory")
+    rollback_dir = _absolute_path(rollback_dir_value, "rollback directory")
     try:
         candidate_rollback_dir = rollback_dir.resolve(strict=False)
     except OSError as exc:
@@ -573,8 +699,7 @@ def _validate_receipt(receipt: object) -> dict:
 
 
 def verify_artifact(artifact_value: str) -> Tuple[dict, dict]:
-    artifact_path = Path(artifact_value).expanduser()
-    _reject_symlink_ancestors(artifact_path, "artifact")
+    artifact_path = _absolute_path(artifact_value, "artifact")
     _require_plain_directory(artifact_path, "artifact")
     try:
         artifact = artifact_path.resolve(strict=True)
@@ -771,7 +896,7 @@ def stage(artifact_value: str, project_root_value: str, values: Sequence[str]) -
         if relative.as_posix() not in receipt_files:
             raise AssetError("stage selection is not covered by the snapshot: {}".format(relative))
 
-    project_root = Path(project_root_value).expanduser()
+    project_root = _absolute_path(project_root_value, "project root")
     destination_root = _validate_stage_destinations(
         project_root,
         Path(verified["artifact"]),
@@ -805,6 +930,14 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    workspace_parser = subparsers.add_parser("prepare-workspace", help="create a retained owned project")
+    workspace_parser.add_argument("--workspace-root", required=True)
+    workspace_parser.add_argument("--customer-dir", required=True)
+    workspace_parser.add_argument("--writer", required=True)
+
+    owned_verify_parser = subparsers.add_parser("verify-workspace", help="verify an owned project")
+    owned_verify_parser.add_argument("--project-root", required=True)
+
     preserve_parser = subparsers.add_parser("preserve", help="create a durable snapshot")
     preserve_parser.add_argument("--source-root", required=True)
     preserve_parser.add_argument("--rollback-dir", required=True)
@@ -825,7 +958,11 @@ def main(argv: Sequence[str] = None) -> int:
     parser = _parser()
     arguments = parser.parse_args(argv)
     try:
-        if arguments.command == "preserve":
+        if arguments.command == "prepare-workspace":
+            result = prepare_workspace(arguments.workspace_root, arguments.customer_dir, arguments.writer)
+        elif arguments.command == "verify-workspace":
+            result = verify_workspace(arguments.project_root)
+        elif arguments.command == "preserve":
             result = preserve(
                 arguments.source_root,
                 arguments.rollback_dir,

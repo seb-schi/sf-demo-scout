@@ -1535,19 +1535,19 @@ class EnhancedFlowValidator:
         if results['critical_issues']:
             report.append("⛔ DEPLOYMENT BLOCKED - Fix critical issues first")
         else:
-            report.append("✅ DEPLOYMENT APPROVED (advisory recommendations provided)")
+            report.append("✅ LOCAL VALIDATION COMPLETE (deployment and runtime acceptance still required)")
         report.append("═"*70)
 
         # Deployment reminder - always shown when approved
         if not results['critical_issues']:
             report.append("")
-            report.append("📦 NEXT STEP - Use sf-deploy skill (REQUIRED):")
+            report.append("📦 NEXT STEP - Follow platform-metadata-deploy and the caller contract:")
             report.append("─"*70)
-            report.append("   Skill(skill=\"sf-deploy\")")
+            report.append("   Skill(skill=\"platform-metadata-deploy\")")
             report.append("   Request: \"Deploy flow to [target-org] with --dry-run first\"")
             report.append("")
-            report.append("   ⚠️  NEVER use 'sf project deploy' directly via Bash")
-            report.append("   ✅  ALWAYS use sf-deploy skill for consistent deployment")
+            report.append("   Preserve the approved scope, originals, required tests, and activation gate")
+            report.append("   Use the supported CLI/MCP path; this local report does not authorize deployment")
             report.append("═"*70)
 
         report.append("\n")

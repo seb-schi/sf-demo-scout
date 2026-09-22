@@ -2,6 +2,12 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-09-22
+
+- **Builds, audits, and repairs keep their working files separate.** Each writer retains its own project, and original metadata is preserved before changes. Scout stops when a tool explicitly refuses an operation.
+- **Flow completion checks every required test at the intended version.** Updated templates and result guidance distinguish failed tests from missing evidence; incomplete validation stays visible before activation.
+- **Handovers lead with what actually finished.** Remaining QA and manual work stay explicit, and later results clearly supersede older summaries.
+
 ## 2026-09-21
 
 - **Sparring, building, and setup recognize an existing workspace from zsh sessions.** Scout runs its executable checks explicitly in Bash, so installed Python and npx no longer appear missing because of the caller's shell. Startup checks are read-only and show the actual failure instead of treating every problem as an unconfigured workspace.

@@ -257,6 +257,27 @@ def _validate_seed_acceptance(acceptance: Any, label: str, spec_text: str) -> No
     _validate_calibration(acceptance, label, spec_text)
 
 
+def _required_flow_tests(expected: dict[str, Any]) -> list[str]:
+    """The historical singleton may select a member, never narrow a full gate."""
+    single = expected.get("flow_test_api_name")
+    if "required_tests_all_must_pass" not in expected:
+        if not isinstance(single, str) or not FLOW_API_PATTERN.fullmatch(single):
+            raise ContractError("flow_test_api_name must explicitly name the single required test")
+        return [single]
+    names = expected["required_tests_all_must_pass"]
+    if not isinstance(names, list) or not names or not all(
+        isinstance(name, str) and FLOW_API_PATTERN.fullmatch(name) for name in names
+    ):
+        raise ContractError("required_tests_all_must_pass must be a nonempty array of test API names")
+    if len(names) != len(set(names)):
+        raise ContractError("required_tests_all_must_pass contains duplicate test names")
+    if "flow_test_api_name" in expected and (
+        not isinstance(single, str) or single not in names
+    ):
+        raise ContractError("flow_test_api_name conflicts with required_tests_all_must_pass")
+    return names
+
+
 def _validate_ledger(ledger: Any, spec_bytes: bytes) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     if not isinstance(ledger, dict):
         raise ContractError("ledger must be a JSON object")
@@ -332,20 +353,23 @@ def _validate_ledger(ledger: Any, spec_bytes: bytes) -> tuple[dict[str, Any], di
                         f"{label}.acceptance.flow_validation.mode is unsupported"
                     )
                 if mode == "flow_test_required":
-                    if not isinstance(test_name, str) or not FLOW_API_PATTERN.fullmatch(test_name):
-                        raise ContractError(
-                            f"{label}.acceptance.flow_validation.flow_test_api_name is malformed"
-                        )
+                    _required_flow_tests(flow_validation)
                     if "unsupported_reason" in flow_validation:
                         raise ContractError(
                             f"{label}.acceptance.flow_validation.unsupported_reason conflicts with required testing"
                         )
-                elif test_name is not None or not _nonempty(
-                    flow_validation.get("unsupported_reason")
+                elif (
+                    test_name is not None
+                    or "required_tests_all_must_pass" in flow_validation
+                    or not _nonempty(flow_validation.get("unsupported_reason"))
                 ):
                     raise ContractError(
                         f"{label}.acceptance.flow_validation unsupported mode requires a null test name and reason"
                     )
+                if "target_org_id" in flow_validation and not _nonempty(
+                    flow_validation["target_org_id"]
+                ):
+                    raise ContractError(f"{label}.acceptance.flow_validation.target_org_id is malformed")
         indexed[item_id] = item
     return ledger, indexed
 
@@ -747,6 +771,141 @@ def _positive_int(value: Any) -> bool:
     return _is_int(value) and value > 0
 
 
+def _validate_flow_test_collection(
+    expected: dict[str, Any],
+    flow_evidence: dict[str, Any],
+    row: dict[str, Any],
+    build_id: str,
+) -> bool:
+    """Validate supplied attribution; saved-source assertions are not authenticated."""
+    if "test" in flow_evidence or any(
+        key.startswith("flow_test_") or key == "tested_flow_version_number" for key in row
+    ):
+        raise ContractError("collection and singleton Flow test evidence must not be mixed")
+    target_org = flow_evidence.get("target_org_id")
+    if not _nonempty(target_org) or (
+        "target_org_id" in expected and target_org != expected["target_org_id"]
+    ):
+        raise ContractError("Flow test collection lacks the selected target org identity")
+    for section in ("deployment", "activation"):
+        value = flow_evidence[section]
+        if value.get("target_org_id") != target_org or value.get("build_id") != build_id:
+            raise ContractError(f"Flow {section} belongs to another org or build")
+
+    required = set(_required_flow_tests(expected))
+
+    def indexed(values: Any, label: str) -> dict[str, dict[str, Any]]:
+        if not isinstance(values, list):
+            raise ContractError(f"{label} must be an array covering every required test")
+        result = {}
+        for value in values:
+            if not isinstance(value, dict) or not _nonempty(value.get("test_api_name")):
+                raise ContractError(f"{label} contains a malformed test identity")
+            name = value["test_api_name"]
+            if name not in required or name in result:
+                raise ContractError(f"{label} contains an unexpected or duplicate test {name}")
+            result[name] = value
+        if set(result) != required:
+            raise ContractError(f"{label} is missing required tests: {', '.join(sorted(required - set(result)))}")
+        return result
+
+    tests = indexed(flow_evidence.get("tests"), "independent Flow tests")
+    claims = indexed(row.get("flow_tests"), "worker Flow tests")
+    claim_fields = (
+        "test_api_name", "flow_api_name", "flow_id", "execution_mode", "build_id",
+        "target_org_id", "run_id", "queue_item_id", "apex_test_result_id",
+        "status", "outcome", "tested_version",
+    )
+    result_fields = (
+        "test_api_name", "flow_api_name", "flow_id", "build_id", "target_org_id",
+        "outcome", "tested_version", "queue_item_id", "apex_test_result_id",
+    )
+    all_passed = True
+    seen_results: set[str] = set()
+    seen_methods: set[str] = set()
+    for name, test in tests.items():
+        if any(
+            key not in test or key not in claims[name]
+            or not _same_json_value(test[key], claims[name][key])
+            for key in claim_fields
+        ):
+            raise ContractError(f"worker Flow test {name} contradicts independent evidence")
+        if (
+            test.get("flow_api_name") != expected["flow_api_name"]
+            or test.get("flow_id") != flow_evidence["deployment"]["flow_id"]
+            or test.get("target_org_id") != target_org
+            or test.get("build_id") != build_id
+            or not _nonempty(test.get("launch_source"))
+        ):
+            raise ContractError(f"Flow test {name} has stale or mismatched launch attribution")
+        mode = test.get("execution_mode")
+        if not _is_one_of(mode, {"synchronous", "asynchronous"}):
+            raise ContractError(f"Flow test {name} requires an explicit execution mode")
+        if mode == "synchronous" and (
+            test.get("run_id") is not None or test.get("queue_item_id") is not None
+        ):
+            raise ContractError(f"synchronous Flow test {name} must not invent a run or queue identity")
+        if test.get("run_id") is not None and not _nonempty(test["run_id"]):
+            raise ContractError(f"Flow test {name} has malformed run identity")
+        if test.get("run_id") is not None and not _nonempty(test.get("run_source")):
+            raise ContractError(f"Flow test {name} asserts a run identity without its observed source")
+        status = test.get("status")
+        if _is_one_of(status, {"pending", "unavailable"}):
+            if any(test.get(key) is not None for key in (
+                "outcome", "tested_version", "version_result", "terminal_source",
+                "version_source", "apex_test_result_id",
+            )):
+                raise ContractError(f"nonterminal Flow test {name} asserts a terminal result")
+            if status == "pending" and (
+                mode != "asynchronous" or not _nonempty(test.get("queue_item_id"))
+            ):
+                raise ContractError(f"pending Flow test {name} lacks an async queue identity")
+            all_passed = False
+            continue
+        if (
+            status != "terminal"
+            or not _is_one_of(test.get("outcome"), {"Pass", "Fail", "Error", "Skip"})
+            or not _positive_int(test.get("tested_version"))
+            or not _nonempty(test.get("terminal_source"))
+            or not _nonempty(test.get("version_source"))
+        ):
+            raise ContractError(f"terminal Flow test {name} is malformed")
+        if len({test["launch_source"], test["terminal_source"], test["version_source"]}) != 3:
+            raise ContractError(f"Flow test {name} conflates launch, terminal, and version sources")
+        if "num_tests_run" in test and not _positive_int(test["num_tests_run"]):
+            raise ContractError(f"Flow test {name} reports zero tests or a malformed execution count")
+        method_id = test.get("apex_test_result_id")
+        if mode == "synchronous" and not _nonempty(method_id):
+            raise ContractError(f"synchronous Flow test {name} lacks ApexTestResultId correlation")
+        if method_id is not None and not _nonempty(method_id):
+            raise ContractError(f"Flow test {name} has malformed ApexTestResultId")
+        if mode == "asynchronous" and not _nonempty(test.get("queue_item_id")):
+            raise ContractError(f"asynchronous Flow test {name} lacks queue correlation")
+        version_result = test.get("version_result")
+        if (
+            not isinstance(version_result, dict)
+            or not _nonempty(version_result.get("id"))
+            or any(key not in version_result or not _same_json_value(
+                version_result[key], test[key]
+            ) for key in result_fields)
+        ):
+            raise ContractError(f"FlowTestResult for {name} does not correlate with the exact terminal result")
+        if not _same_json_value(version_result.get("run_id"), test["run_id"]):
+            raise ContractError(f"Flow test {name} run identity lacks an independent queue/run relationship")
+        if version_result["id"] in seen_results or (
+            method_id is not None and method_id in seen_methods
+        ):
+            raise ContractError(f"Flow test {name} reuses another test's result identity")
+        seen_results.add(version_result["id"])
+        if method_id is not None:
+            seen_methods.add(method_id)
+        all_passed = all_passed and (
+            test["outcome"] == "Pass"
+            and test["tested_version"] == flow_evidence["deployment"]["version"]
+        )
+    return all_passed
+
+
 def _flow_validation_assessments(
     items: dict[str, dict[str, Any]],
     deployed_rows: dict[str, dict[str, Any]],
@@ -755,6 +914,7 @@ def _flow_validation_assessments(
     authorized_skips: dict[str, dict[str, Any]],
     reported_skips: set[str],
     errors: list[str],
+    build_id: str,
 ) -> dict[str, dict[str, Any]]:
     """Check normalized Flow claims against independent version-bound evidence."""
     assessments: dict[str, dict[str, Any]] = {}
@@ -828,7 +988,9 @@ def _flow_validation_assessments(
             or not _is_one_of(
                 row.get("validation_status"), {"VERIFIED", "AWAITING_QA", "FAILED"}
             )
-            or not _is_one_of(row.get("flow_test_outcome"), FLOW_TEST_OUTCOMES)
+            or ("flow_tests" not in row and not _is_one_of(
+                row.get("flow_test_outcome"), FLOW_TEST_OUTCOMES
+            ))
         ):
             assessed(item_id, "INVALID", "worker deployed Flow validation fields are malformed", valid=False)
             continue
@@ -853,7 +1015,14 @@ def _flow_validation_assessments(
         deployment = flow_evidence.get("deployment")
         test = flow_evidence.get("test")
         activation = flow_evidence.get("activation")
-        if not all(isinstance(value, dict) for value in (deployment, test, activation)):
+        collection = expected["mode"] == "flow_test_required" and (
+            "required_tests_all_must_pass" in expected or "tests" in flow_evidence
+            or "flow_tests" in row or "target_org_id" in expected
+            or (isinstance(test, dict) and "execution_mode" in test)
+        )
+        if not all(isinstance(value, dict) for value in (deployment, activation)) or (
+            not collection and not isinstance(test, dict)
+        ):
             assessed(
                 item_id,
                 "INVALID",
@@ -966,59 +1135,74 @@ def _flow_validation_assessments(
             )
             continue
 
-        if (
-            test.get("flow_api_name") != expected["flow_api_name"]
-            or test.get("test_api_name") != expected["flow_test_api_name"]
-            or not _nonempty(test.get("launch_source"))
-            or row.get("flow_test_api_name") != test.get("test_api_name")
-            or row.get("flow_test_run_id") != test.get("run_id")
-            or row.get("flow_test_queue_item_id") != test.get("queue_item_id")
-        ):
-            assessed(item_id, "INVALID", "Flow test identity or launch evidence is malformed", valid=False)
-            continue
-        test_status = test.get("status")
-        if test_status == "terminal":
-            if (
-                not _is_one_of(test.get("outcome"), {"Pass", "Fail", "Error", "Skip"})
-                or not _nonempty(test.get("run_id"))
-                or not _nonempty(test.get("queue_item_id"))
-                or not _positive_int(test.get("tested_version"))
-                or not _nonempty(test.get("terminal_source"))
-                or not _nonempty(test.get("version_source"))
-            ):
-                assessed(item_id, "INVALID", "terminal Flow test evidence is malformed", valid=False)
+        if collection:
+            try:
+                all_tests_passed = _validate_flow_test_collection(
+                    expected, flow_evidence, row, build_id
+                )
+            except ContractError as exc:
+                assessed(item_id, "INVALID", str(exc), valid=False)
                 continue
-        elif _is_one_of(test_status, {"pending", "unavailable"}):
-            if test.get("outcome") is not None or test.get("tested_version") is not None:
+        else:
+            if (
+                test.get("flow_api_name") != expected["flow_api_name"]
+                or test.get("test_api_name") != expected["flow_test_api_name"]
+                or not _nonempty(test.get("launch_source"))
+                or row.get("flow_test_api_name") != test.get("test_api_name")
+                or row.get("flow_test_run_id") != test.get("run_id")
+                or row.get("flow_test_queue_item_id") != test.get("queue_item_id")
+            ):
+                assessed(item_id, "INVALID", "Flow test identity or launch evidence is malformed", valid=False)
+                continue
+            test_status = test.get("status")
+            if test_status == "terminal":
+                if (
+                    not _is_one_of(test.get("outcome"), {"Pass", "Fail", "Error", "Skip"})
+                    or not _nonempty(test.get("run_id"))
+                    or not _nonempty(test.get("queue_item_id"))
+                    or not _positive_int(test.get("tested_version"))
+                    or not _nonempty(test.get("terminal_source"))
+                    or not _nonempty(test.get("version_source"))
+                ):
+                    assessed(item_id, "INVALID", "terminal Flow test evidence is malformed", valid=False)
+                    continue
+            elif _is_one_of(test_status, {"pending", "unavailable"}):
+                if test.get("outcome") is not None or test.get("tested_version") is not None:
+                    assessed(
+                        item_id,
+                        "INVALID",
+                        "nonterminal Flow test evidence asserts an outcome or tested version",
+                        valid=False,
+                    )
+                    continue
+                if test_status == "pending" and not _nonempty(test.get("run_id")):
+                    assessed(item_id, "INVALID", "pending Flow test lacks run identity", valid=False)
+                    continue
+            else:
+                assessed(item_id, "INVALID", "Flow test status is malformed", valid=False)
+                continue
+
+            normalized_outcome = (
+                test.get("outcome", "").upper() if isinstance(test.get("outcome"), str) else None
+            )
+            if (
+                row.get("flow_test_outcome")
+                != ({"pending": "PENDING", "unavailable": "UNAVAILABLE"}.get(test_status) or normalized_outcome)
+                or row.get("tested_flow_version_number") != test.get("tested_version")
+            ):
                 assessed(
                     item_id,
                     "INVALID",
-                    "nonterminal Flow test evidence asserts an outcome or tested version",
+                    "worker Flow test outcome or tested version contradicts independent evidence",
                     valid=False,
                 )
                 continue
-            if test_status == "pending" and not _nonempty(test.get("run_id")):
-                assessed(item_id, "INVALID", "pending Flow test lacks run identity", valid=False)
-                continue
-        else:
-            assessed(item_id, "INVALID", "Flow test status is malformed", valid=False)
-            continue
 
-        normalized_outcome = (
-            test.get("outcome", "").upper() if isinstance(test.get("outcome"), str) else None
-        )
-        if (
-            row.get("flow_test_outcome")
-            != ({"pending": "PENDING", "unavailable": "UNAVAILABLE"}.get(test_status) or normalized_outcome)
-            or row.get("tested_flow_version_number") != test.get("tested_version")
-        ):
-            assessed(
-                item_id,
-                "INVALID",
-                "worker Flow test outcome or tested version contradicts independent evidence",
-                valid=False,
+            all_tests_passed = (
+                test_status == "terminal"
+                and test.get("outcome") == "Pass"
+                and test.get("tested_version") == deployment["version"]
             )
-            continue
 
         activation_status = activation.get("status")
         if activation_status == "unknown":
@@ -1060,9 +1244,7 @@ def _flow_validation_assessments(
             continue
 
         exact_pass = (
-            test_status == "terminal"
-            and test.get("outcome") == "Pass"
-            and test.get("tested_version") == deployment["version"]
+            all_tests_passed
             and activation_status == "Active"
             and active_id == deployment["flow_id"]
             and active_version == deployment["version"]
@@ -1075,7 +1257,7 @@ def _flow_validation_assessments(
             elif row.get("validation_status") == "AWAITING_QA":
                 assessed(item_id, "AWAITING_QA", "worker still reports Flow validation outstanding")
             else:
-                assessed(item_id, "VERIFIED", "exact deployed Flow version passed and is active")
+                assessed(item_id, "VERIFIED", "every required test passed at the exact deployed Flow version, which is active")
             continue
         if row.get("validation_status") == "VERIFIED" or row.get("flow_status") == "Active":
             assessed(
@@ -1476,6 +1658,7 @@ def reconcile(
         skips,
         reported_skips,
         errors,
+        ledger["build_id"],
     )
     global_report_invalid = bool(errors)
 

@@ -1,10 +1,15 @@
 You are deploying Salesforce metadata to org {{ORG_ALIAS}} ({{ORG_USERNAME}}).
 Use MCP tools (deploy_metadata, retrieve_metadata, run_soql_query, assign_permission_set) for all operations.
 
-**Retrieve output location.** When calling `retrieve_metadata`, ALWAYS pass `directory` = `$HOME/claude-projects/sf-demo-scout` (the SFDX project root — it has `sfdx-project.json` and `force-app/`). The MCP server converts retrieved metadata into source format under that root's `force-app/main/default/`. Without an explicit `directory`, conversion lands wherever your cwd resolves — often the customer org folder — littering `orgs/<customer>/force-app/`. Pin it so every retrieve converges on the one project `force-app/`, which the orchestrator sweeps clean after deployment. Do NOT drop this argument.
+{{OPERATION_SAFETY}}
+
+**Writer-owned project:** `{{PROJECT_ROOT}}`. The parent has prepared it. Verify
+its ownership receipt before use. Set each CLI call's working directory and
+`retrieve_metadata.directory` to this exact project; all relative `force-app/`
+paths below are inside it. Use its source paths for deployment; retain the project.
 Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is available for unfamiliar-error recovery — not for pre-flight checks.
 
-**Target-org integrity.** The orchestrator has already confirmed the target org is authenticated and `connectedStatus: Connected` — that is authoritative. Ignore MCP `get_username` / auth-status probes and do NOT bail out before any deploy/query tool call based on them; MCP DX tools can hold a stale target-org binding while `sf` CLI is fine. If any MCP call errors with target-org ambiguity or returns the wrong alias, fall back to `sf` CLI with `--target-org {{ORG_ALIAS}}` for that call and record the fallback in `discovery_notes`. Otherwise keep using MCP — it is faster and richer when it works.
+**Target-org integrity.** The orchestrator has already confirmed the target org is authenticated and `connectedStatus: Connected` — that is authoritative. Ignore MCP `get_username` / auth-status probes and do NOT bail out before any deploy/query tool call based on them; MCP DX tools can hold a stale target-org binding while `sf` CLI is fine. Only for a technical target-binding error, after ruling out a permission/policy rejection and confirming the intended target, fall back to `sf` CLI with `--target-org {{ORG_ALIAS}}` for that call and record the fallback in `discovery_notes`. Otherwise keep using MCP — it is faster and richer when it works.
 
 ## Binding Build Scope
 
@@ -141,7 +146,7 @@ Scope: standard objects only (Opportunity, Lead, Case, Solution). Salesforce's S
    `<fullName>` is `Object.ProcessName` (same convention as RecordType). Value order in XML = order in UI. Include every value the demo needs; omit the ones it does not.
 4. Bind the Business Process to the target Record Type: retrieve the RecordType metadata, set `<businessProcess>Process_Api_Name</businessProcess>` (just the process name, not the qualified form), redeploy. Without the binding, the Business Process drives no UI.
 5. Verify: `SELECT Id, MasterLabel FROM BusinessProcess WHERE DeveloperName = '[ApiName]' AND TableEnumOrId = '[Object]'`
-6. Rollback: `sf project delete source --metadata BusinessProcess:[Object].[ApiName] --target-org [alias]`
+6. Rollback: restore incumbent exact members from the first verified `component-preedit` artifact and read back original content. Delete only exact positively proven-new identities after the explicit destructive-action guard; unknown classification blocks rollback.
 <!-- /IF:BUSINESS_PROCESS -->
 
 <!-- IF:VALIDATION_RULES -->
@@ -152,7 +157,7 @@ Scope: declarative `ValidationRule` metadata on any object. Invoke the `platform
 3. File extension MUST be `.validationRule-meta.xml`. `fullName` ≤40 chars, starts with a letter, no trailing/consecutive underscores. `errorMessage` ≤255 chars.
 4. Before deployment, correct vendor `ISCHANGE()` guidance to Salesforce `ISCHANGED(field)` while preserving formula semantics, CDATA, and existing rules. Never apply a blind replacement inside literal strings.
 5. Deploy the rule (active=true unless the spec says otherwise), then verify: `SELECT Id, ValidationName, Active FROM ValidationRule WHERE EntityDefinition.QualifiedApiName = '[Object]' AND ValidationName = '[ApiName]'` (Tooling API).
-6. Rollback: `sf project delete source --metadata ValidationRule:[Object].[ApiName] --target-org [alias]`.
+6. Rollback: restore incumbent exact members from the first verified `component-preedit` artifact and read back original content. Delete only exact positively proven-new identities after the explicit destructive-action guard; unknown classification blocks rollback.
 <!-- /IF:VALIDATION_RULES -->
 
 <!-- IF:LIST_VIEWS -->
@@ -162,22 +167,22 @@ Scope: `ListView` metadata on any object (shared all-users or specific filter sc
 2. ListView is a child of the object's `.object-meta.xml` in source format but deploys as its own `ListView` metadata type: member name is `[Object].[ListViewApiName]`.
 3. `<filterScope>` is one of `Everything`, `Mine`, `Queue` (or others per object). Columns reference field API names. Filters use `<filters>` with `field`/`operation`/`value`.
 4. Deploy, then verify the list view appears: `retrieve_metadata` for `ListView` member `[Object].[ApiName]` and confirm it round-trips.
-5. Rollback: `sf project delete source --metadata ListView:[Object].[ApiName] --target-org [alias]`.
+5. Rollback: restore incumbent exact members from the first verified `component-preedit` artifact and read back original content. Delete only exact positively proven-new identities after the explicit destructive-action guard; unknown classification blocks rollback.
 <!-- /IF:LIST_VIEWS -->
 
 <!-- IF:SHARING_RULES -->
 ### Sharing Rule Rules
 Scope: record-level `sharingCriteriaRules` / `sharingOwnerRules` / `sharingGuestRules` on any object. Invoke the `platform-sharing-rules-generate` skill before authoring — it carries the per-rule-type XML shape, the `<fullName>` PascalCase convention, and the guest-rule requirements.
 1. Invoke `platform-sharing-rules-generate` for the metadata shape and rule-type selection.
-2. **Retrieve before you write — MANDATORY, and the one destructive risk in this category.** `SharingRules` deploys as ONE file per object (`sharingRules/[Object].sharingRules-meta.xml`) and a deploy **replaces that entire file**. Authoring a fresh file for an object that already has sharing rules therefore DELETES the incumbents. Before authoring: `retrieve_metadata` for `SharingRules` member `[Object]`. If rules already exist, (a) save a verbatim pre-edit copy to `{{ROLLBACK_DIR}}/[Object].sharingRules-meta.xml.preedit` (`mkdir -p {{ROLLBACK_DIR}}` first; it is an absolute path, independent of your cwd) — this is a before-state snapshot of the org and is NOT regenerable once overwritten, so it must not live inside `force-app/`, which is swept after deployment — and (b) APPEND your new rule element inside the existing `<SharingRules>` root rather than authoring a new file. Record every pre-existing `<fullName>` you found in `discovery_notes`.
+2. **Retrieve before you write.** SharingRules deploys one entire `sharingRules/[Object].sharingRules-meta.xml` file per object and replaces all its rules. Follow the shared component rollback contract: classify the exact object member from successful current evidence, preserve and verify the complete incumbent file with `preserve --kind component-preedit`, and record the returned immutable artifact/source/member paths before editing. Append the approved rule inside the existing root, preserving all incumbents. Keep the first verified receipt on retries; a later separate edit gets its own original. Record existing rule fullNames in `discovery_notes`.
 3. **OWD prerequisite.** A sharing rule is inert unless the object's org-wide default is restrictive. For a **custom object in this spec**, set its `<sharingModel>` to `Private` (or `ControlledByParent` for Master-Detail) in the object metadata in the same deploy — autonomous. For a **standard object**, do NOT deploy an OWD change (see the `platform-sharing-rules-generate` note in Skills Available for why — blast radius, not impossibility); the SE sets it in Setup → Sharing Settings. Deploy the rule anyway and record it in `discovery_notes` as inert-until-OWD-set so the change log and SE Manual Checklist carry the dependency.
 4. **If the object is `Account`, `<accountSettings>` is REQUIRED** — all three sub-access levels default to `None` unless the spec says otherwise. Without it the deploy fails with "AccountSettings is required for account sharing rules".
 5. Deploy `SharingRules` for the object.
 6. Verify (post-deploy read-back — do NOT skip): `retrieve_metadata` for `SharingRules` member `[Object]`, then assert against the retrieved XML:
    - every `<fullName>` the spec names is present, and its `<accessLevel>` and shared-to target (`<role>` / `<roleAndSubordinates>` / `<group>` / `<guestUser>` / `<portalRole>`) match the spec;
-   - **every pre-existing `<fullName>` recorded in step 2 is STILL present.** This is the check that catches the replace-the-whole-file failure. If any incumbent is missing, the deploy destroyed existing metadata: restore from the `.preedit` copy saved in step 2, redeploy, mark the rule `FAILED`, and surface it in `issues` verbatim.
+   - **every pre-existing `<fullName>` recorded in step 2 is STILL present.** This is the check that catches the replace-the-whole-file failure. If any incumbent is missing, the deploy destroyed existing metadata: mark the rule `FAILED`, preserve the read-back and surface it in `issues` verbatim. Recovery uses only the first verified `component-preedit` artifact from step 2 under the shared rollback contract and current recovery authorization.
    A rule that deploys but is inert (standard-object OWD not yet restrictive) still verifies as SUCCESS here — inertness is an OWD prerequisite recorded in step 3, not a deployment failure. Say so in `discovery_notes` rather than reporting a false failure.
-7. Rollback: if the object had NO pre-existing rules, `sf project delete source --metadata SharingRules:[Object] --target-org [alias]`. If it DID, restore the pre-edit XML from `{{ROLLBACK_DIR}}/[Object].sharingRules-meta.xml.preedit` over `sharingRules/[Object].sharingRules-meta.xml` and redeploy `SharingRules:[Object]` — a bare delete would remove the incumbents too. Record the absolute `.preedit` path in `rollback_commands` so the SE can roll back in a later session after `force-app/` has been swept.
+7. Rollback: restore the incumbent object's entire rule file from its first verified `component-preedit` artifact and read back all original rules. Delete only an exact positively proven-new metadata identity under the destructive-action guard. Having no rules in a failed or incomplete retrieve is not positive absence.
 <!-- /IF:SHARING_RULES -->
 
 <!-- IF:CUSTOM_REPORT_TYPE -->
@@ -214,7 +219,7 @@ Scope: a Custom Setting — a `CustomObject` with `<customSettingsType>` set (`H
 5. **Verify — the wrong-component assert is MANDATORY and is the highest-value check.** XML inspection CANNOT catch the missing-`customSettingsType` failure because it deploys green. After a successful deploy, run `sf sobject describe --sobject <Name>__c --target-org [alias]` and assert `customSetting` is `true`. If it is `false`, the component deployed as a regular custom object — mark it `FAILED` in your JSON output, surface the describe result in `issues` verbatim, and do NOT report success. Also confirm each spec'd field is present.
 6. **Values are data, not metadata — there is NO source-format path for them.** If the spec lists setting values, do NOT author a values file. Seed them with `sf data create record` after the definition deploys — this is single-object data seeding, autonomous. A Hierarchy org-default row omits `SetupOwnerId` (it defaults to the Organization Id): `sf data create record --sobject <Name>__c --values "Field__c=value" --target-org [alias]`. A profile/user override is two steps (query the Profile/User Id, then create a row with `SetupOwnerId=<id>`). Record the seed commands in `discovery_notes` so they carry into the change log and survive a re-spin.
 7. `Protected` visibility deploys ONLY in a dev/sandbox/scratch org. If it fails on org type, do NOT silently switch to `Public` — record the constraint in `issues` and leave the SE to decide (no-silent-downgrade).
-8. Rollback: `sf project delete source --metadata CustomObject:<Name>__c --target-org [alias]`.
+8. Rollback: restore incumbent exact members from the first verified `component-preedit` artifact and read back original content. Delete only exact positively proven-new identities after the explicit destructive-action guard; unknown classification blocks rollback.
 <!-- /IF:CUSTOM_SETTING -->
 
 <!-- IF:CUSTOM_METADATA_TYPE -->
@@ -231,7 +236,7 @@ Scope: a Custom Metadata Type (`__mdt`) — its type definition, fields, and dep
 5. Deploy type + fields + records via `deploy_metadata` (no ordering constraint — the type and every referenced field only need to *resolve*, already in the org or present in the same deploy).
 6. **Verify (post-deploy read-back — do NOT skip):** confirm the type exists, then for records run `SELECT DeveloperName, <spec'd fields> FROM <Name>__mdt` and assert every spec'd record DeveloperName is present with the expected field values. If any record is missing or a field value is wrong, mark it `FAILED` in your JSON output and surface it in `issues` verbatim. If any record populates a `LongTextArea`, note that the generated Apex accessors truncate to 255 chars (SOQL is needed for the full value).
 7. `Protected`/`PackageProtected` visibility deploys ONLY in a dev/sandbox/scratch org — same no-silent-downgrade rule as Custom Settings (step 7 there): never switch to `Public` to satisfy an org-type failure; record it and let the SE decide.
-8. Rollback: `sf project delete source --metadata CustomObject:<Name>__mdt --target-org [alias]` (removes the type + its fields); plus `sf project delete source --metadata CustomMetadata:<Name>.<Record> --target-org [alias]` per record.
+8. Rollback: restore incumbent exact members from the first verified `component-preedit` artifact and read back original content. Delete only exact positively proven-new identities after the explicit destructive-action guard; unknown classification blocks rollback.
 <!-- /IF:CUSTOM_METADATA_TYPE -->
 
 <!-- IF:EMAIL_TO_CASE -->
@@ -281,7 +286,7 @@ Scope: PathAssistant metadata — renders the stepped path component on record p
    - the top-level `<fieldName>` equals the spec's driving picklist.
    If `<active>` is `false` (or absent) where the spec asked for active: an incumbent Path likely holds the slot. Record in `issues` the retrieved `<masterLabel>` plus the (entity, record type, driving field) triple, mark the Path `FAILED` in your JSON output, and add "resolve competing active Path" to the SE Manual Checklist — do NOT deactivate the incumbent (that is existing metadata; see the NEVER rules). If any spec'd picklist value has no matching step, report the Path `FAILED` with the missing values listed.
 4. Visual placement of the Path component on the Lightning record page is SE Manual (App Builder).
-5. Rollback: `sf project delete source --metadata PathAssistant:[ApiName] --target-org [alias]`
+5. Rollback: restore incumbent exact members from the first verified `component-preedit` artifact and read back original content. Delete only exact positively proven-new identities after the explicit destructive-action guard; unknown classification blocks rollback.
 <!-- /IF:PATHS -->
 
 <!-- IF:LAYOUTS -->
@@ -294,8 +299,8 @@ Before modifying any page layout, identify which layout is actually active.
    WHERE TableEnumOrId = '[Object]'
    AND Profile.Name = 'System Administrator'
    ```
-2. Retrieve only the layout(s) returned by that query.
-3. Modify and redeploy only the active layout.
+2. Retrieve only the layout(s) returned by that query into the owned project. Preserve each exact `layouts/[FullName].layout-meta.xml` with `preserve --kind component-preedit` and verify its returned artifact under the shared rollback contract before editing. Keep the first verified before-state on retries.
+3. Modify and redeploy only the active layout; read back the requested placement and unrelated incumbent sections. Rollback restores its exact first receipt-selected original, never deletes the incumbent.
 4. If multiple record types are in scope, run the query per record type.
 <!-- /IF:LAYOUTS -->
 
@@ -374,7 +379,7 @@ Reference XML model (from a real Service Console Case LRP — `Case_Record_Page_
 
 For a single-column section, the `<flexipage:fieldSection>.columns` Facet contains `<fieldInstance>` entries directly — no intermediate `<flexipage:column>` indirection. Identical insert shape, one fewer hop.
 
-1. **Retrieve the FlexiPage XML.** `retrieve_metadata` with type `FlexiPage`, member `[LRP DeveloperName from spec]`. The retrieved file lands at `force-app/main/default/flexipages/[Name].flexipage-meta.xml`. **Save a verbatim copy of the pre-edit XML as your rollback artifact** — this is the ONLY irreplaceable file produced this phase, so it must survive the end-of-deployment `force-app/` sweep. Write it to `{{ROLLBACK_DIR}}/[Name].flexipage-meta.xml.preedit` (create `{{ROLLBACK_DIR}}` with `mkdir -p` first; `{{ROLLBACK_DIR}}` is an absolute path, so it is independent of your cwd). Do NOT save it as a sibling inside `force-app/` — that tree is swept after deployment and the copy would be lost.
+1. **Retrieve the FlexiPage XML** into the owned project: type `FlexiPage`, exact member `[LRP DeveloperName from spec]`. Preserve `flexipages/[Name].flexipage-meta.xml` with `preserve --kind component-preedit` and verify the returned immutable artifact under the shared rollback contract before any edit. Record exact returned artifact/source/member paths unchanged and reuse the first verified receipt on retries. Never overwrite a fixed-name backup or reconstruct an original after editing.
 2. **Pre-flight composition check.** Grep the retrieved XML for `<componentName>flexipage:fieldSection</componentName>` and `<componentName>force:detailPanel</componentName>`. The XML must contain at least one `flexipage:fieldSection`. If it contains only `force:detailPanel` (composition flipped to `record_detail` since audit), record this LRP ledger item BLOCKED with reason "LRP composition is `record_detail` post-audit — classic Page Layout add already covers visibility; no autonomous LRP edit is possible." Do not deploy the LRP edit. Audit data is at most a few hours old; flipped composition is rare but possible. Record it in `discovery_notes`.
 3. **Resolve the deploy-target Facet UUID** from the spec + retrieved XML:
    a. Find the `<componentInstance>` whose `<componentName>` is `flexipage:fieldSection` AND whose `<componentInstanceProperties><name>label</name><value>[label]</value>` matches the spec's target section label exactly. The label may be wrapped in `@@@SFDC...SFDC@@@` placeholders — match the wrapped form from the FlexiPage, but compare against the spec by stripping the wrappers (e.g. `@@@SFDCCase_InformationSFDC@@@` → spec target "Case Information"). If no match: record the item BLOCKED with reason "Target field section `[label]` not found in FlexiPage `[Name]` — audit-specified section may have been renamed or removed. Drop into App Builder." The attempt rule does not apply because no deploy was attempted.
@@ -411,8 +416,7 @@ For a single-column section, the `<flexipage:fieldSection>.columns` Facet contai
    - Sections where the audit reported `facet_uuid: null` (opaque structure)
    - Editing tabsets, dynamic-form regions, or any non-field-section / non-column component
    - Any LRP whose pre-flight check finds zero `flexipage:fieldSection` instances
-10. **Rollback** (record in `rollback_commands`): restore the pre-edit XML saved at `{{ROLLBACK_DIR}}/[Name].flexipage-meta.xml.preedit` (step 1) back over `force-app/main/default/flexipages/[Name].flexipage-meta.xml`, then redeploy:
-   `sf project deploy start --metadata FlexiPage:[Name] --target-org [alias]`. Record the absolute `.preedit` path in `rollback_commands` so the SE can perform the rollback in a later session after `force-app/` has been swept.
+10. **Rollback:** verify and stage the exact first receipt-selected FlexiPage original with the shared helper into a new owned restore project, deploy only `FlexiPage:[Name]`, and read back original content. Record the helper-returned immutable artifact/source/member paths unchanged in `rollback_commands`; never delete this incumbent.
 <!-- /IF:LRP -->
 
 <!-- IF:PERMSET -->

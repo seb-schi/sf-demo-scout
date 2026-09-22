@@ -33,7 +33,7 @@ Proceed to S2.
 
 Emit this right after S1 returns from Phase A — the audit is running in the background; do not wait for it. Emit:
 
-> "Audit running in the background — live status → [.audit-progress.log]([ORG_FOLDER]/.audit-progress.log). Do your opening discovery with the customer; Scout will join and validate the audit before using it.
+> "Audit running in the background — live status → [audit progress]([AUDIT_RUN_DIR]/.audit-progress.log). Do your opening discovery with the customer; Scout will join and validate the audit before using it.
 >
 > When you're done with discovery, paste the customer transcript here. Multiple chunks fine — say `go` when done.
 >
