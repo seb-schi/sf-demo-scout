@@ -4,6 +4,8 @@ Shared fragment Read by `/scout-sparring` and `/scout-building` as their first s
 
 ## Step 1: Sanity gate
 
+Apply `prompts/host-runtime.md`; substitute `[SCOUT_HOST]` with the active
+`claude` or `codex` host. Unknown host is a check failure, not a Claude fallback.
 Resolve `${CLAUDE_PLUGIN_ROOT}` to the absolute active Scout plugin directory,
 then run this whole fence as written with that literal path substituted. The
 quoted heredoc makes the check use `/bin/bash` even when the parent tool shell is
@@ -28,7 +30,7 @@ if [ ! -f "$WORKSPACE_HELPER" ]; then
 fi
 
 "$PYTHON_EXE" -B "$WORKSPACE_HELPER" verify \
-  --workspace "$WORKSPACE" --config "$CONFIG"
+  --workspace "$WORKSPACE" --config "$CONFIG" --host "[SCOUT_HOST]"
 VERIFY_STATUS=$?
 if [ "$VERIFY_STATUS" -eq 0 ]; then
   echo "STATE=OK"

@@ -67,6 +67,7 @@ class ShellCallerTests(unittest.TestCase):
             ),
             "[PLUGIN_ROOT]": str(plugin or self.plugin),
             "[PLUGIN_VERSION]": "2026.09.21-test",
+            "[SCOUT_HOST]": "claude",
         }
         rendered = block
         for original, replacement in replacements.items():
@@ -312,6 +313,8 @@ print("WORKSPACE_READY")
             str(template),
             "--plugin-version",
             "2026.09.21-test",
+            "--host",
+            "claude",
         ]
         for name, shell in SHELLS:
             with self.subTest(shell=name, block="workspace"):

@@ -35,6 +35,8 @@ and staging procedure in Step 5 preserves this rule for same-run and fresh-run i
 
 ## Step 0: Bootstrap
 
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md` first and apply its active-host contract throughout this command and all worker handoffs. Resolve the root from the current plugin context before expanding this path.
+
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This read-only gate verifies the Scout workspace and aborts with the specific reason when it cannot. Its Bash heredoc cannot persist a working directory in the parent tool shell, so each later shell call needs an explicit workspace working directory or a checked `cd`. Do not proceed with the steps below if the fragment aborted.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` for failure/refusal handling now; prepare projects only after resolving the selected customer.
@@ -51,7 +53,9 @@ Run `sf config get target-org --json` and `sf org display --json`. Extract the r
 
 List org folders: `ls -d orgs/<slug(alias)>-*/`. Once the SE confirms the customer, set `ORG_FOLDER` = the matched folder (e.g. `orgs/metro-cpq-metro`) and use `[ORG_FOLDER]` for every path below.
 
-Present both in a single message. Prepend the model-gate warning verbatim as the FIRST line of whichever branch fires, then a blank line, then the active-org sentence:
+Present both in a single message. On Claude, prepend the model-gate warning as
+the first line, then a blank line and the active-org sentence. On Codex omit
+that warning and retain the org confirmation in each branch:
 - No folders -> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.\n\nActive org: [alias] ([username]). No customer folders found — run /scout-sparring first." Stop.
 - One folder -> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.\n\nActive org: [alias] ([username]). Customer: [customer]. Deploying here. Type 'switch' to change, or confirm."
 - Multiple folders -> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.\n\nActive org: [alias] ([username]). Multiple customers found: [list]. Which one?" Wait.
@@ -697,13 +701,15 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/building/handover-brief.md` for the format, 
 
 **Then offer the Slack handover canvas:**
 
-1. Probe Slack MCP availability: bash `claude mcp list 2>/dev/null | grep -qE '^slack:.*Connected' && echo OK || echo MISSING`.
-   - On `MISSING`: skip silently to the notification (no prompt — nothing to offer).
-   - On `OK`: proceed to step 2.
+1. Follow `prompts/mcp-readiness.md` and discover a Slack canvas-create tool
+   with the required personal-canvas scope in the active session. If unavailable,
+   skip to the notification; otherwise proceed to step 2. A CLI listing alone
+   does not establish this capability.
 2. Ask the SE inline:
    > "Write the handover brief to a Slack canvas in your personal Slack? (y/n)"
    Wait for the reply. On `n` or silence: skip to the notification.
-3. On `y`: call `mcp__slack__slack_create_canvas` with:
+3. On `y`: call the discovered canvas-create tool using its actual schema
+   (`mcp__slack__slack_create_canvas` on the historical Claude connection) with:
    - `title`: `Demo Handover — [Customer] — [YYYY-MM-DD]`
    - `content`: the same markdown brief you output to the terminal, reformatted for Canvas-flavored Markdown (plain headers, lists, links — no Slack-message syntax). The canvas lands in the SE's personal Slack; no channel targeting needed.
 4. Capture the returned canvas link. Append one line to the terminal output AFTER the brief:
@@ -730,7 +736,7 @@ osascript -e 'display notification "Build reconciled — review verified work an
 
 ## Step 7: Closing Note — The Demo Is Yours to Tinker With
 
-After the notification fires, emit this as the FINAL message of the session — a standalone, prominent beat (not folded into the brief above). Any repair request that follows uses `${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md`. Output this note verbatim:
+After the notification fires, emit this as the FINAL message of the session — a standalone, prominent beat (not folded into the brief above). Any repair request that follows uses `${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md`. On Claude output this note verbatim. On Codex omit the Opus/Sonnet model-switch tip; retain the repair and change-log guidance:
 
 > ---
 > 💡 **This demo isn't locked — you can change it right now.**

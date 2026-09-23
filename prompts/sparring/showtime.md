@@ -162,18 +162,15 @@ Skip the "Propose Lessons" step in main command Stage 6 — Showtime is too comp
 
 This is the customer-facing artifact of Showtime. While Scout writes it (~1–2min), the SE narrates to the customer how Headless 360's Docs MCP integration lets Scout reason over the live Salesforce documentation surface to plan the build — turning the canvas write itself into a demo moment.
 
-Probe Slack MCP availability first:
-
-```bash
-claude mcp list 2>/dev/null | grep -qE '^slack:.*Connected' && echo OK || echo MISSING
-```
-
-- On `MISSING`: skip silently to S8 with a one-line note in the Done message that Slack canvas was unavailable.
-- On `OK`: proceed.
+Follow `prompts/mcp-readiness.md` and discover the active session's Slack
+canvas-create capability with the required scope. If unavailable, skip to S8
+and include the observed reason in Done; otherwise proceed. A CLI listing
+is not proof of capability.
 
 Emit a single line first so the SE has the cue: *"Writing the customer-facing canvas now — talk the customer through Headless 360 + Docs MCP while this lands."*
 
-Call `mcp__slack__slack_create_canvas`:
+Call the discovered canvas-create tool with its actual schema
+(`mcp__slack__slack_create_canvas` on the historical Claude connection):
 - `title`: `Showtime Build Plan — [Customer] — [YYYY-MM-DD]`
 - `content`: Canvas-flavored Markdown structured as below. The canvas is the customer's takeaway document — write it for the customer to read, not for the SE to refine.
 

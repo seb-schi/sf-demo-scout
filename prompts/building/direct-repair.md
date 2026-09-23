@@ -6,7 +6,7 @@ post-build exception to `scout-building`'s Spec Only hard stop: the current repa
 instruction supplies the scope. Keep the NEVER tier, category gates, no-Apex choice,
 target-org checks, and whole-new-FlexiPage exclusion unchanged.
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` before any tool mutation.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md` from the active plugin context first, then `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` before any tool mutation.
 Resolve the successful bootstrap workspace and selected customer as absolute paths;
 prepare and verify a writer-owned project with `WRITER=direct-repair`. Use only its
 returned `project_root`, `source_root`, `rollback_dir` and `customer_dir`, unchanged.

@@ -1,32 +1,45 @@
 #!/bin/bash
-# SF Demo Scout — Maintainer Uninstall Script
-# Wipes all local Scout state for clean reinstall testing.
+# SF Demo Scout — Claude Code Maintainer Uninstall Script
+# Removes Claude's Scout installation state for clean reinstall testing.
+# Codex plugins must be removed through Codex's own plugin controls.
 # Idempotent. Default preserves SE workspace data (orgs/, .sf/);
 # pass --wipe-orgs to nuke the whole workspace.
 #
 # Usage:
-#   bash ~/claude-projects/sf-demo-scout-dev/scripts/scout-uninstall.sh
-#   bash ~/claude-projects/sf-demo-scout-dev/scripts/scout-uninstall.sh --wipe-orgs
+#   bash ~/claude-projects/sf-demo-scout-dev/scripts/scout-uninstall.sh --host claude
+#   bash ~/claude-projects/sf-demo-scout-dev/scripts/scout-uninstall.sh --host claude --wipe-orgs
 
 set -u
 
 WIPE_ORGS=0
 WIPE_INTERNAL=0
-for arg in "$@"; do
-  case "$arg" in
+UNINSTALL_HOST=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --host)
+      if [ "$#" -lt 2 ]; then echo "--host requires claude"; exit 1; fi
+      UNINSTALL_HOST="$2"
+      shift
+      ;;
     --wipe-orgs) WIPE_ORGS=1 ;;
     --wipe-internal) WIPE_INTERNAL=1 ;;
     -h|--help)
-      echo "Usage: $0 [--wipe-orgs] [--wipe-internal]"
+      echo "Usage: $0 --host claude [--wipe-orgs] [--wipe-internal]"
+      echo "  Claude Code only; use Codex plugin controls for a Codex installation."
       echo "  --wipe-orgs       Also remove ~/claude-projects/sf-demo-scout/ (otherwise preserved)"
       echo "  --wipe-internal   Also wipe the scout-internal maintainer plugin (default: preserved)"
       exit 0
       ;;
-    *) echo "Unknown arg: $arg (use --help)"; exit 1 ;;
+    *) echo "Unknown arg: $1 (use --help)"; exit 1 ;;
   esac
+  shift
 done
+if [ "$UNINSTALL_HOST" != "claude" ]; then
+  echo "UNINSTALL_SKIPPED: explicit --host claude required; use Codex plugin controls for Codex."
+  exit 1
+fi
 
-echo "=== Scout Uninstall ==="
+echo "=== Scout Uninstall (Claude Code) ==="
 echo ""
 
 # 1. Wipe plugin on-disk artifacts

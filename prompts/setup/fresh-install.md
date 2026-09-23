@@ -2,6 +2,13 @@
 
 End-to-end install procedure. Run on `STATE=FRESH`.
 
+Apply `prompts/host-runtime.md`. On Codex, run the shared prerequisite and
+Salesforce workspace steps a–f, optional provider checks h/h.5/h.7, and config
+postcondition i. Skip all g steps and j (Claude settings, marketplace, hooks,
+model pins, and shell changes); return `ZSHRC_UNCHANGED`. Do not install or
+configure Claude as a prerequisite for Codex. Substitute `[SCOUT_HOST]` in
+every helper call; unknown host must return to the orchestrator before writes.
+
 **Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an abort (e.g. SE returning from `/mcp` Slack auth) is safe and fast — completed steps fast-no-op via their own probes (`BREW_OK`, `NODE_PRESENT`, `SETTINGS_PRESENT`, `USER_SETTINGS_NO_CHANGES`, `AUTOUPDATE_ALREADY_ON`, etc.). Always run end-to-end; do NOT skip steps trying to "resume" — the no-ops are the resume mechanism. Within the same CC session you may rely on conversation memory to fast-forward; across sessions, just run the full sequence — it will land in the right place naturally.
 
 ## a: Brew Check (hard abort if missing)
@@ -118,6 +125,10 @@ missing. Never fall through to the ready/Done handoff.
 
 ## c: Pre-cache Salesforce MCP server
 
+`sf` above is the machine-installed Salesforce CLI. This step only caches the
+separate `@salesforce/mcp` adapter that each host launches from Scout's manifest.
+It neither creates a global MCP connection nor proves a host can start it.
+
 ```bash
 /bin/bash <<'SCOUT_MCP_CACHE_BASH'
 echo "PRE_CACHING_MCP"
@@ -164,7 +175,8 @@ fi
   --workspace "$WORKSPACE" \
   --config "$CONFIG" \
   --template "$SETTINGS_TEMPLATE" \
-  --plugin-version "[PLUGIN_VERSION]"
+  --plugin-version "[PLUGIN_VERSION]" \
+  --host "[SCOUT_HOST]"
 SCOUT_WORKSPACE_SETUP_BASH
 ```
 
@@ -173,7 +185,8 @@ directory and accepts it only when the process exits zero, the JSON reports
 integer status `0`, and the generated SFDX artifacts validate. It preserves
 incumbent `force-app`, lessons, settings, and valid config files. New JSON and
 text files use same-directory atomic replacement; config is created only after
-the SFDX project, `force-app`, lessons, and workspace settings all validate.
+the SFDX project, `force-app`, and lessons validate (plus workspace settings
+on Claude; Codex neither requires nor changes those files).
 
 On any nonzero helper exit, surface its outcome token and ABORT. Do not run
 user-scope merges, optional MCP setup, shell changes, or Done. `WORKSPACE_READY`
@@ -317,6 +330,9 @@ Surface inline:
 - Any error variant — one-line note, proceed.
 
 ## h: Slack MCP
+
+First read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-dx-mcp.md` and run
+its host-aware DX readiness check. Preserve its status in the setup summary.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it. Report the observed registration/transport state without inferring authentication or tool availability. Existing connections are preserved; an optional new registration is an explicit SE choice. Return and continue setup.
 

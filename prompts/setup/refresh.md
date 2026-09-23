@@ -1,6 +1,12 @@
 # Scout Setup — Refresh
 
-Workspace already configured. Update CLIs, sync skills, refresh `.zshrc` block, bump config version.
+Workspace already configured. Apply `prompts/host-runtime.md`.
+
+On Codex run a.0, the Salesforce CLI ownership/update check a, and the provider
+checks c/c.5/c.6. Skip b and every d step: those update or repair Claude and its
+shell integration. Return `ZSHRC_UNCHANGED`; use Codex's own updater and
+configuration controls. Unknown host must return before any setup writes.
+On Claude, run the complete procedure below.
 
 **Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an SE-chosen `/mcp` action is safe — setup re-observes MCP status without modifying connections, and completed repair steps retain their existing no-op probes (`ZSHRC_UNCHANGED`, etc.). Always run end-to-end; do NOT skip steps trying to "resume". Within the same CC session you may rely on conversation memory to fast-forward; across sessions, run the full sequence.
 
@@ -27,8 +33,7 @@ command -v npx >/dev/null 2>&1 && echo "NPX_PRESENT" || echo "NPX_ABSENT"
   will fail to start each session (`ENOENT: npx not found`), so the DX MCP
   metadata/SOQL/deploy tools won't be available — Scout falls back to the `sf` CLI
   where it can. To restore the MCP: install a Node that bundles npm/npx (e.g. `brew
-  install node`) and make sure it precedes the DevBar Node on your PATH, then restart
-  Claude Code."
+  install node`) and make sure it precedes the DevBar Node on your PATH, then start a fresh session in the active host."
 - `NPM_PRESENT` / `NPX_PRESENT` — silent; proceed.
 
 ## a: Update Salesforce CLI (only if behind latest)
@@ -93,6 +98,9 @@ truth; do not infer "updated" from the fact that an install command ran):
 
 ## c: Slack MCP
 
+First read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-dx-mcp.md` and run
+its host-aware DX readiness check. Preserve its status in the setup summary.
+
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute its read-only readiness check. It preserves every existing or possibly omitted registration and never auto-registers or authenticates.
 
 ## c.5: Google Workspace MCP
@@ -113,7 +121,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its pr
 
 ## d.75: Repair stale MCP tool-name prefixes (self-heal)
 
-Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/repair-mcp-prefixes.py"`. Scout's allowlists shipped with unnamespaced MCP prefixes (`mcp__Salesforce_DX__*`) until 2026-07-27; plugin-provided MCP tools are actually namespaced `mcp__plugin_sf-demo-scout_<Server_Name>__<tool>`, so those entries matched nothing. The script rewrites them in place in the workspace and user-scope settings files. Idempotent, safe-fail, never aborts.
+Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/repair-mcp-prefixes.py" --host claude`. Scout's allowlists shipped with unnamespaced MCP prefixes (`mcp__Salesforce_DX__*`) until 2026-07-27; plugin-provided MCP tools are actually namespaced `mcp__plugin_sf-demo-scout_<Server_Name>__<tool>`, so those entries matched nothing. The script rewrites them in place in the workspace and user-scope settings files. Idempotent, safe-fail, never aborts.
 
 Surface inline:
 - `MCP_PREFIX_OK` — silent.
@@ -126,4 +134,4 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its proc
 
 ## Done
 
-Refresh procedure complete. Return to the orchestrator. Pass the result of step d (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note. Also pass every CLI outcome token from steps a and b, including `*_NOT_NPM_OWNED` and `*_OWNERSHIP_UNVERIFIED`, so the done message reflects the actual status. Pass the three MCP status lines as registration/transport observations only; they never prove authentication or tool capability. If d.7 emitted any `PINS_REMOVED[...]`, `VSCODE_PINS_REMOVED`, `LAUNCHCTL_PINS_CLEARED`, or a VS-Code-restore/warn variant, the SE has a restart (and possibly a manual VS Code edit) pending — make sure that note survived into the done summary.
+Refresh procedure complete. Return to the orchestrator. Pass the result of step d (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note. Also pass every CLI outcome token from steps a and b, including `*_NOT_NPM_OWNED` and `*_OWNERSHIP_UNVERIFIED`, so the done message reflects the actual status. Pass all four MCP status lines as registration/transport observations only; they never prove authentication or tool capability. If d.7 emitted any `PINS_REMOVED[...]`, `VSCODE_PINS_REMOVED`, `LAUNCHCTL_PINS_CLEARED`, or a VS-Code-restore/warn variant, the SE has a restart (and possibly a manual VS Code edit) pending — make sure that note survived into the done summary.

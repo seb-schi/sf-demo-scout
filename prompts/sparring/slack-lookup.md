@@ -19,10 +19,12 @@ Rules:
 
 ## Availability Probe
 
-Run once before the first Slack tool call:
-- Bash: `claude mcp list 2>/dev/null | grep -qE '^slack:.*Connected' && echo OK || echo MISSING`
-- On `MISSING`: tell the SE *"Slack MCP not connected — skipping the lookup. (Register via /scout-setup, authenticate via /mcp.)"* and return empty.
-- On `OK`: proceed.
+Read the active plugin's `prompts/host-runtime.md` and `prompts/mcp-readiness.md`.
+Discover Slack tools for canvas search/read or channel search/read in this session.
+Use the discovered names and input schemas for the operations below. If a
+required capability is unavailable, report the observed reason and return empty.
+CLI status alone cannot establish tool availability; policy denial must not be
+reported as an authentication failure.
 
 ## Inputs (from SE reply in Stage 3)
 

@@ -1,5 +1,10 @@
 # Setup compatibility and reviewed defaults
 
+For the 2026-09-23 Claude/Codex audit, host selection, DX packaging correction,
+and verification limits, see [MCP host compatibility](mcp-host-compatibility.md).
+The provider defaults below remain unchanged. The historical Claude syntax
+applies only when Claude is the active host.
+
 Reviewed 2026-09-17 against the official Claude Code
 [setup documentation](https://code.claude.com/docs/en/setup) and
 [MCP documentation](https://code.claude.com/docs/en/mcp), plus npm's

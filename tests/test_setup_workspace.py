@@ -89,6 +89,7 @@ exit "${SF_EXIT_CODE}"
         *,
         config: Path | None = None,
         extra_env: dict[str, str] | None = None,
+        host: str = "claude",
     ) -> subprocess.CompletedProcess[str]:
         env = dict(os.environ)
         env.pop("PYTHONPATH", None)
@@ -110,6 +111,8 @@ exit "${SF_EXIT_CODE}"
                 str(self.template),
                 "--plugin-version",
                 "2026.09.17-test",
+                "--host",
+                host,
             ],
             env=env,
             text=True,
@@ -118,7 +121,7 @@ exit "${SF_EXIT_CODE}"
             timeout=10,
         )
 
-    def run_verify(self) -> subprocess.CompletedProcess[str]:
+    def run_verify(self, host: str = "claude") -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
                 sys.executable,
@@ -129,12 +132,36 @@ exit "${SF_EXIT_CODE}"
                 str(self.workspace),
                 "--config",
                 str(self.config),
+                "--host",
+                host,
             ],
             text=True,
             capture_output=True,
             check=False,
             timeout=10,
         )
+
+    def test_codex_setup_and_verify_do_not_require_claude_settings(self) -> None:
+        self.install_sf_stub()
+        result = self.run_setup(host="codex")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse((self.workspace / ".claude").exists())
+        self.assertFalse((self.workspace / ".codex").exists())
+        self.assertEqual(self.run_verify(host="codex").returncode, 0)
+        self.assertNotEqual(self.run_verify(host="claude").returncode, 0)
+        # Switching back to Claude adds only its missing settings.
+        self.assertEqual(self.run_setup(host="claude").returncode, 0)
+        self.assertEqual(self.run_verify(host="claude").returncode, 0)
+
+    def test_codex_preserves_even_malformed_incumbent_claude_settings(self) -> None:
+        self.install_sf_stub()
+        settings = self.workspace / ".claude" / "settings.json"
+        settings.parent.mkdir(parents=True)
+        settings.write_text("USER_OWNED_MALFORMED_SETTINGS")
+        result = self.run_setup(host="codex")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(settings.read_text(), "USER_OWNED_MALFORMED_SETTINGS")
+        self.assertEqual(self.run_verify(host="codex").returncode, 0)
 
     def test_sf_failure_aborts_before_settings_and_config(self) -> None:
         self.install_sf_stub(exit_code=73, output='{"status": 1}')

@@ -11,19 +11,16 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 ## Pre-Spawn Setup (orchestrator runs directly)
 
-0. **Resolve the absolute plugin root (MUST — before any sub-agent envelope is built).** `${CLAUDE_PLUGIN_ROOT}` resolves in this orchestrator context but is **empty inside Agent-tool sub-agents** — if you pass the literal `${CLAUDE_PLUGIN_ROOT}/prompts/...` into a sub-agent envelope, the sub-agent cannot expand it and wastes ~10 tool calls hunting for its prompt file via `find`, with a real risk of reading a stale cached plugin version (13 versions sit side by side in the cache). Resolve the active install path once here and reuse it in every envelope below as `PLUGIN_ROOT_ABS`:
-   ```bash
-   python3 -c "
-   import json, os
-   d = json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))
-   entries = d['plugins']['sf-demo-scout@scout']
-   e = next((x for x in entries if x.get('scope') == 'user'), entries[0])
-   print(e['installPath'])
-   "
-   ```
-   - The value is an absolute path like `/Users/<user>/.claude/plugins/cache/scout/sf-demo-scout/<active-version>`. Record it as `PLUGIN_ROOT_ABS`.
-   - **Why `installed_plugins.json` and not `find ... | sort -V | tail -1`:** Scout ships multiple same-date versions whose topic suffix breaks version-sort (`2026.06.07-deploy-error-extract-and-cli-guard` sorts after `2026.06.07-audit-field-dump-cut`, so `tail -1` would pick the PRIOR version). `installed_plugins.json` names the actually-installed path regardless of version-string shape. The per-plugin value is a LIST of install records (one per scope) — prefer the `scope=="user"` entry, fall back to the first.
-   - **On failure** (file missing, key absent, empty output): fall back to `${CLAUDE_PLUGIN_ROOT}` literal in the envelopes (current behaviour — sub-agents will hunt, but the audit still completes) and log to `audit-progress.log`: `⚠️ plugin-root resolution failed — sub-agents will self-locate prompts (slower; verify they read the active version)`. Do NOT abort the audit over this.
+0. **Resolve the active host and absolute plugin root before building envelopes.**
+   Apply `prompts/host-runtime.md` using the current plugin context. Reuse the
+   caller's resolved `PLUGIN_ROOT_ABS`; do not consult another host's registry,
+   scan cached versions, or pass a literal `${CLAUDE_PLUGIN_ROOT}` to workers.
+   If the active root cannot be resolved, return an explicit not-ready result
+   before dispatch; workers must not guess which source version to execute.
+   Pass the active host, selected org, resolved root, and discovered DX tool
+   contracts to every worker. Workers check their own tool exposure and may
+   use the established `sf` fallback with that explicit org. Use the active
+   host's delegation API; `Agent(...)`/Sonnet examples below are Claude-only.
 
 1. Read `[PLUGIN_ROOT_ABS]/prompts/operation-safety.md` and follow it. Resolve
    `WORKSPACE_ROOT` from bootstrap and absolute `CUSTOMER_DIR` from the selected
@@ -67,11 +64,11 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
 5a. **Emit the live-status heartbeat (MUST, before any sub-agent dispatch).** Async sub-agent work begins at step 6 (prelude) and continues through the parallel sub-agent dispatch — total async window is 5-10 min on SDO-scale orgs, all of it invisible to the SE in chat. The progress log is the only signal.
 
-   **The link MUST be a workspace-relative path**, not an absolute `file://` URI. The VSCode native CC extension renders markdown links relative to the SE's VSCode workspace root (which is reliably `~/claude-projects/sf-demo-scout` for Scout SEs) and does not open `file://` URIs as in-editor file opens. Emit exactly this message as the next assistant turn — single message, verbatim:
+   **Use a path link supported by the active host.** In Claude's VS Code extension use a workspace-relative path; in Codex use an absolute filesystem path. Do not use a `file://` URI. Emit exactly this message as the next assistant turn — single message, verbatim:
 
    > Audit running in the background. Status → [audit progress]([AUDIT_RUN_DIR]/.audit-progress.log) — click to open; it logs phase milestones and any failures (not every step). Typical runtime 5-10 min on SDO-scale orgs. No need to watch it — I'll fold the results in once it lands.
 
-   Substitute `[AUDIT_RUN_DIR]` with this run's actual workspace-relative path before emitting.
+   Substitute `[AUDIT_RUN_DIR]` with this run's actual path in the format required by the active host before emitting.
 
    The heartbeat exists because SE-facing silence is expensive — minutes of sub-agent runtime with no signal reads as "is Scout stuck?" Do not skip it. Do not paraphrase it. Do not bundle it into a later message. **If you find yourself about to call a tool here, stop — the heartbeat goes first.**
 

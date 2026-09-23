@@ -22,6 +22,8 @@ Keep responses to 4-6 sentences unless the SE asks for detail or the stage requi
 
 ## Before You Start
 
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md` first and apply its active-host contract throughout this command and all worker handoffs. Resolve the root from the current plugin context before expanding this path.
+
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This read-only gate verifies the Scout workspace and aborts with the specific reason when it cannot. Its Bash heredoc cannot persist a working directory in the parent tool shell, so each later shell call needs an explicit workspace working directory or a checked `cd`. Do not proceed with the steps below if the fragment aborted.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-bootstrap.md` and follow it — it creates the lessons INDEX on first run, loads it, and loads the topic files relevant to this session. These topic files hold mistakes from previous sessions; do not repeat them.
@@ -44,6 +46,9 @@ Build boundaries (what's autonomous, gated, or manual) are defined in CLAUDE.md 
 ---
 
 ## Stage 1: Org Setup & Intent
+
+The Opus warning in the templates below is Claude-only. Omit it on Codex;
+retain the org checks, questions, and confirmation boundaries.
 
 Run `sf config get target-org --json` and `sf org display --json`. Extract alias and username.
 
@@ -167,28 +172,27 @@ Ask max 6 clarifying questions:
 
 If the SE's reply names an external source to look up — a Slack canvas or channel, or a Google Doc/Sheet (a URL, file name, or "the RfP sheet") — delegate each read to a **foreground Sonnet sub-agent**. Both sources read large blobs (channel history, canvas bodies, sheet ranges, doc markdown) that would otherwise land in this Opus context and be discarded after a few attributed lines are extracted; the sub-agent reads the source, extracts attributed findings, and returns only the compact synthesis. Same "Opus never reads raw payloads" pattern the audit uses. If the SE answers only 1-6 and names no external source, move on without ceremony — do not re-ask.
 
-**Resolve the absolute plugin root once** (sub-agents cannot expand `${CLAUDE_PLUGIN_ROOT}`). If you already resolved `PLUGIN_ROOT_ABS` earlier this session (e.g. a fresh audit ran), reuse it; otherwise:
-```bash
-python3 -c "
-import json, os
-d = json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))
-entries = d['plugins']['sf-demo-scout@scout']
-e = next((x for x in entries if x.get('scope') == 'user'), entries[0])
-print(e['installPath'])
-"
-```
-On failure (file missing, key absent, empty output), fall back to reading the fragment and executing it inline yourself this once — do NOT abort the lookup.
+**Resolve the absolute plugin root once** from the active plugin context using
+`prompts/host-runtime.md`; do not consult another host's plugin cache. If the
+root cannot be resolved, report that source context is unavailable.
 
-**Procedure — run once per named source, substituting the bracketed fields from the table below:**
-1. Probe availability inline (so a MISSING never costs a spawn): bash `claude mcp list 2>/dev/null | grep -qE '[PROBE_PATTERN]' && echo OK || echo MISSING`. On MISSING, tell the SE the source's `[MISSING_MSG]` and move on.
-2. On OK, dispatch a foreground Sonnet sub-agent — `Agent(description="[DESC]", model="sonnet", prompt=[envelope below])`. Substitute the resolved absolute path for `[PLUGIN_ROOT_ABS]`; do NOT emit the literal `${CLAUDE_PLUGIN_ROOT}`:
-   > Read your prompt file at `[PLUGIN_ROOT_ABS]/prompts/sparring/[FRAGMENT]` and execute its Procedure. Availability was already confirmed by the caller — SKIP the Availability Probe section. Inputs: [INPUTS]. Return ONLY the attributed findings per the fragment's Output section return-contract — never the raw source text.
-3. Take the sub-agent's returned findings as Stage 5 context — attributed, never asserted.
+**Procedure — run once per named source:**
+1. Read `prompts/mcp-readiness.md` and discover the required session tools for
+   the named source. A CLI listing is diagnostic only. If the capability is
+   unavailable, report the observed reason and skip that lookup.
+2. Dispatch a foreground worker using the active host's delegation API (Sonnet
+   only on Claude; inherited model on Codex). Pass the resolved plugin root,
+   host, source inputs, and discovered operations with their schemas:
+   > Read `[PLUGIN_ROOT_ABS]/prompts/sparring/[FRAGMENT]` and execute it. The
+   > caller discovered candidate tools; verify they are exposed in your own
+   > session before use. Inputs: [INPUTS]. Return only attributed findings per
+   > the fragment's Output contract, never raw source text.
+3. Take the returned findings as Stage 5 context, attributed and never asserted.
 
-| Source | `[PROBE_PATTERN]` | `[MISSING_MSG]` | `[DESC]` | `[FRAGMENT]` | `[INPUTS]` |
-|--------|-------------------|-----------------|----------|--------------|------------|
-| **Slack** (SE names canvas(es) or a channel) | `^slack:.*Connected` | *"Slack MCP not connected — skipping the lookup. (Register via /scout-setup, authenticate via /mcp.)"* | `Slack lookup` | `slack-lookup.md` | canvas_names = [the canvas titles the SE named, or empty]; channel_name = [the channel the SE named, or empty] |
-| **Google Workspace** (SE names/links a Doc or Sheet) | `^[[:space:]]*google-workspace:.*Connected` | *"Google Workspace MCP not connected — skipping the lookup. (Register + authenticate via /scout-setup.)"* | `Google Workspace lookup` | `google-workspace-lookup.md` | doc_refs = [the URLs/IDs/titles the SE named] |
+| Source | Required operations | Fragment | Inputs |
+|--------|---------------------|----------|--------|
+| Slack | Canvas search/read or channel search/read, as requested | `slack-lookup.md` | Named canvas titles and/or channel |
+| Google Workspace | File search and document or sheet reads, as requested | `google-workspace-lookup.md` | Named URLs, IDs, or titles |
 
 **Google-only nuance:** an RfP's stated requirements are high-signal, but any solution-fit claim in the doc is a hypothesis to validate against Stage 4 docs + the audit, never asserted.
 

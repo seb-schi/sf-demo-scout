@@ -187,12 +187,32 @@ def normalize_display(
 
 
 def normalize_mcp(raw: str, base: dict[str, Any]) -> dict[str, Any]:
-    slack_lines = [line for line in raw.splitlines() if line.startswith("slack:")]
+    slack_lines = []
+    for line in raw.splitlines():
+        if ": " not in line.strip():
+            continue
+        name, details = line.strip().split(": ", 1)
+        if name.rsplit(":", 1)[-1].lower() == "slack" or (
+            name.lower().startswith("plugin_") and name.lower().endswith("_slack")
+        ):
+            slack_lines.append(details)
     if len(slack_lines) == 0:
-        return {**base, "state": "absent"}
+        return {**base, "state": "not_observed"}
     if len(slack_lines) > 1:
         raise EvidenceError("duplicate Slack MCP rows")
-    state = "connected" if "✓ Connected" in slack_lines[0] else "not_connected"
+    suffix = slack_lines[0].rsplit(" - ", 1)[-1].strip().lower()
+    suffix = re.sub(r"^[✔✓✘✗!⏸⊘]\s*", "", suffix).strip()
+    state = "unknown"
+    if suffix == "connected":
+        state = "connected"
+    elif suffix in {"authentication required", "needs authentication"}:
+        state = "authentication_required"
+    elif suffix.startswith("disabled"):
+        state = "disabled"
+    elif suffix.startswith(("failed", "error")):
+        state = "failed"
+    elif suffix in {"pending", "checking"} or suffix.startswith("pending approval"):
+        state = "pending"
     return {**base, "state": state}
 
 
@@ -289,7 +309,10 @@ def validate_payload(
         else:
             raise EvidenceError("org display cache state is invalid")
     else:
-        if payload.get("state") not in {"connected", "not_connected", "absent"}:
+        if payload.get("state") not in {
+            "connected", "authentication_required", "disabled", "failed",
+            "pending", "unknown", "not_observed",
+        }:
             raise EvidenceError("MCP cache state is invalid")
         allowed_keys = common_keys | {"state"}
     if set(payload) != allowed_keys:

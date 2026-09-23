@@ -8,6 +8,12 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract `version`.
 
 ## Compose
 
+On Codex describe verified workspace setup/refresh and actual CLI/provider
+outcomes. Say to start a fresh Codex task after updating the installed plugin.
+Do not emit Claude-tab, Opus, model-pin, or shell-repair notices for skipped
+Claude steps. Workspace readiness does not establish DX or optional MCP readiness.
+The fixed Claude wording below applies only to Claude.
+
 **If STATE was FRESH:**
 
 > "✓ Scout is set up and ready. Workspace at `~/claude-projects/sf-demo-scout/`.

@@ -15,6 +15,31 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PackagingTests(unittest.TestCase):
+    def test_all_bundled_mcp_identifiers_are_portable(self) -> None:
+        # Scan every manifest/config, including future companion MCP files.
+        declarations = []
+        for path in ROOT.rglob("*.json"):
+            if any(part in {".git", "orgs", ".sfdx"} for part in path.relative_to(ROOT).parts):
+                continue
+            payload = json.loads(path.read_text())
+            if isinstance(payload, dict) and isinstance(payload.get("mcpServers"), dict):
+                declarations.extend((path, name) for name in payload["mcpServers"])
+        self.assertTrue(declarations)
+        for path, name in declarations:
+            with self.subTest(path=path, name=name):
+                self.assertRegex(name, r"^[a-zA-Z0-9_-]+$")
+        manifest = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())
+        self.assertIn("Salesforce_DX", manifest["mcpServers"])
+
+    def test_runtime_prompts_do_not_probe_another_hosts_cli(self) -> None:
+        for folder in ("commands", "prompts"):
+            for path in (ROOT / folder).rglob("*.md"):
+                with self.subTest(path=path):
+                    self.assertNotIn("claude mcp list", path.read_text())
+                    self.assertNotIn("~/.claude/plugins/installed_plugins.json", path.read_text())
+        for name in ("scout-setup", "scout-building", "scout-sparring"):
+            self.assertIn("prompts/host-runtime.md", (ROOT / "commands" / f"{name}.md").read_text())
+
     def test_manifest_json_and_required_setup_scripts(self) -> None:
         for relative in (".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"):
             with self.subTest(relative=relative):

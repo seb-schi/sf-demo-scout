@@ -13,6 +13,10 @@ You are the setup orchestrator. This command is idempotent and state-driven: det
 
 ## Step 1: Detect State
 
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md` first and apply its active-host contract throughout this command and all worker handoffs. Resolve the root from the current plugin context before expanding this path.
+
+If the active host is unknown, report it and stop before setup writes.
+Substitute `[SCOUT_HOST]` with `claude` or `codex` in each shell call.
 Resolve `${CLAUDE_PLUGIN_ROOT}` to the absolute active Scout plugin directory,
 then run this Bash with those literal paths substituted. A failed workspace
 directory change or missing verifier is an abort, never a setup state.
@@ -35,7 +39,7 @@ if [ -z "$PYTHON_EXE" ]; then
   echo "STATE=FRESH"
 else
   "$PYTHON_EXE" -B "$WORKSPACE_HELPER" verify \
-    --workspace "$WORKSPACE" --config "$CONFIG"
+    --workspace "$WORKSPACE" --config "$CONFIG" --host "[SCOUT_HOST]"
   VERIFY_STATUS=$?
   if [ "$VERIFY_STATUS" -eq 0 ]; then
     echo "STATE=REFRESH"

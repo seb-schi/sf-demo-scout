@@ -20,11 +20,22 @@ declared executable bins, and active symlinks. Negative cases cover native or
 shadowed executables, missing tools, failed/timed-out/ambiguous roots, malformed
 metadata, unsafe bin paths, non-executable targets, invalid text, and shell
 function shadowing. MCP fixtures execute the shipped status helper against a
-local `claude mcp list` stub and cover aliases, exact known signatures, list
+local Claude or Codex CLI stub and cover explicit host selection, conflicting
+host signals, managed-policy versus user disablement, invalid server names,
+enabled registrations without runtime readiness, current-project inheritance,
+aliases, exact known signatures, list
 failure/timeout, malformed or nonmatching output, ambiguity, documented
 transport states, spoof resistance, invalid text, and secret-free output. They
 do not read configuration or credentials, contact providers, authenticate, or
 create/remove connections.
+
+Host compatibility fixtures also cover Codex startup ignoring Claude's cached
+MCP state and credential settings, disabled Slack not triggering authentication,
+Codex workspace setup preserving Claude files, and a Claude-only guard on prefix
+repairs. Packaging checks reject nonportable MCP identifiers and operational
+prompts that reintroduce Claude-only CLI availability gates. These tests do not
+replace fresh-session startup, actual tool discovery, or an authorized DX read
+in each host after installing a release.
 
 Batch 8b bootstrap fixtures run the shipped Bash boundary with an isolated
 `PATH` and local tool/installer stubs. They cover valid existing tools without

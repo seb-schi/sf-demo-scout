@@ -330,7 +330,7 @@ def ensure_config(config_path: Path, workspace: Path, plugin_version: str) -> No
     print("CONFIG_WRITTEN")
 
 
-def verify(workspace: Path, config_path: Path) -> None:
+def verify(workspace: Path, config_path: Path, host: str = "claude") -> None:
     if not workspace.is_dir():
         fail("WORKSPACE_INVALID", f"missing directory: {workspace}")
     validate_project(workspace / "sfdx-project.json")
@@ -340,11 +340,13 @@ def verify(workspace: Path, config_path: Path) -> None:
     lessons = workspace / "orgs" / "lessons" / "INDEX.md"
     if not lessons.is_file():
         fail("LESSONS_INVALID", f"missing regular file: {lessons}")
-    validate_settings(workspace / ".claude" / "settings.json")
+    if host == "claude":
+        validate_settings(workspace / ".claude" / "settings.json")
     validate_config(config_path, workspace)
 
 
-def setup(workspace: Path, config: Path, template: Path, plugin_version: str) -> None:
+def setup(workspace: Path, config: Path, template: Path, plugin_version: str,
+          host: str = "claude") -> None:
     try:
         workspace.mkdir(parents=True, exist_ok=True)
     except OSError as error:
@@ -353,9 +355,10 @@ def setup(workspace: Path, config: Path, template: Path, plugin_version: str) ->
         fail("WORKSPACE_INVALID", f"not a directory: {workspace}")
     install_scaffold(workspace)
     ensure_lessons(workspace)
-    ensure_settings(workspace, template)
+    if host == "claude":
+        ensure_settings(workspace, template)
     ensure_config(config, workspace, plugin_version)
-    verify(workspace, config)
+    verify(workspace, config, host)
     print("WORKSPACE_READY")
 
 
@@ -370,6 +373,8 @@ def parse_args() -> argparse.Namespace:
     verify_parser = subparsers.add_parser("verify")
     verify_parser.add_argument("--workspace", required=True)
     verify_parser.add_argument("--config", required=True)
+    for child in (setup_parser, verify_parser):
+        child.add_argument("--host", choices=("claude", "codex"), default="claude")
     return parser.parse_args()
 
 
@@ -380,9 +385,9 @@ def main() -> int:
         config = explicit_path(arguments.config, "config")
         if arguments.command == "setup":
             template = explicit_path(arguments.template, "template")
-            setup(workspace, config, template, arguments.plugin_version)
+            setup(workspace, config, template, arguments.plugin_version, arguments.host)
         else:
-            verify(workspace, config)
+            verify(workspace, config, arguments.host)
             print("WORKSPACE_READY")
     except SetupFailure as error:
         print(f"{error.token}: {error.detail}")

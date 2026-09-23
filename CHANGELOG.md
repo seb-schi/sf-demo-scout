@@ -2,6 +2,12 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-09-23
+
+- **DX uses a server identifier accepted by Codex.** The manifest now declares `Salesforce_DX`, preserving Claude's existing tool-name spelling. The Salesforce CLI and MCP launch arguments are unchanged.
+- **MCP checks follow the active host.** Setup, discovery, Showtime, handovers, and startup distinguish policy denial, connection status, and discovered capabilities. Codex no longer relies on Claude's MCP connection or cached status.
+- **Codex setup leaves Claude configuration alone.** Shared Salesforce workspace checks accept an explicit host; Claude credentials, settings, model notices, CLI updates, and repair routines stay scoped to Claude. Plugin roots and callable tools come from the active session.
+
 ## 2026-09-22
 
 - **Flow test files use the suffix Salesforce's source tools recognize.** Corrected template filenames prevent a metadata-type detection error; failure diagnosis preserves each attempt and checks linked execution logs before drawing conclusions.

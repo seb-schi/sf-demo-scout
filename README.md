@@ -4,6 +4,11 @@ A Claude Code plugin for Salesforce Solution Engineers. Scout audits your
 demo org, spars with you on the scenario, and deploys the configuration —
 so you ship a CLI-driven demo this week instead of next quarter.
 
+Scout's `sf` prerequisite is the Salesforce CLI installed on your Mac. Its
+Salesforce DX MCP integration is a separate adapter, launched by each host from
+the plugin manifest through `npx`. See [host compatibility and verification
+limits](docs/mcp-host-compatibility.md) for Claude/Codex behavior and diagnostics.
+
 ## Why Scout exists
 
 The SE role is shifting. We're increasingly asked to do post-sales

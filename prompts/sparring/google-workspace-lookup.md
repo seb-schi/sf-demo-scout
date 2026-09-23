@@ -28,11 +28,12 @@ Rules:
 
 ## Availability Probe
 
-Run once before the first Google tool call:
-- Bash: `claude mcp list 2>/dev/null | grep -qE '^[[:space:]]*google-workspace:.*Connected' && echo OK || echo MISSING`
-- On `MISSING`: tell the SE *"Google Workspace MCP not connected — skipping the
-  lookup. (Register + authenticate via `/scout-setup`.)"* and return empty.
-- On `OK`: proceed.
+Read the active plugin's `prompts/host-runtime.md` and `prompts/mcp-readiness.md`.
+Discover Google Workspace tools for file search and document or sheet reads in this session.
+Use the discovered names and input schemas for the operations below. If a
+required capability is unavailable, report the observed reason and return empty.
+CLI status alone cannot establish tool availability; policy denial must not be
+reported as an authentication failure.
 
 ## Inputs (from SE reply in Stage 3)
 

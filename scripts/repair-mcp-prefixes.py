@@ -1,4 +1,10 @@
-import json, os, tempfile
+import json, os, sys, tempfile
+
+# This repair owns Claude permission spellings only. A migrated command must
+# explicitly select Claude before any files are read or changed.
+if sys.argv[1:] != ["--host", "claude"]:
+    print("MCP_PREFIX_SKIPPED (Claude-only repair; explicit --host claude required)")
+    sys.exit(0)
 
 FIX = {
     "mcp__Salesforce_DX__*":   "mcp__plugin_sf-demo-scout_Salesforce_DX__*",

@@ -1,6 +1,6 @@
 #!/bin/bash
 # SF Demo Prep — Session Startup Script
-# Runs automatically via SessionStart when Claude Code launches.
+# Runs via SessionStart. Host-specific checks never consult another host.
 
 # The plugin loads globally. Stay completely silent outside Scout's workspace.
 SCOUT_WORKSPACE="${SCOUT_WORKSPACE:-$HOME/claude-projects/sf-demo-scout}"
@@ -15,6 +15,11 @@ umask 077
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SLUGIFY="${SCOUT_SLUGIFY:-$HOOK_DIR/../scripts/slugify.py}"
 STARTUP_EVIDENCE="${SCOUT_STARTUP_EVIDENCE:-$HOOK_DIR/../scripts/startup-evidence.py}"
+MCP_STATUS_SCRIPT="${SCOUT_MCP_STATUS_SCRIPT:-$HOOK_DIR/../scripts/setup-mcp-status.py}"
+SCOUT_ACTIVE_HOST="unknown"
+if command -v python3 >/dev/null 2>&1 && [ -f "$MCP_STATUS_SCRIPT" ]; then
+  SCOUT_ACTIVE_HOST="$(python3 -B "$MCP_STATUS_SCRIPT" --detect-host 2>/dev/null)"
+fi
 CACHE_DIR="${SCOUT_CACHE_DIR:-$HOME/.cache/sf-demo-scout}"
 RUNTIME_BASE="${SCOUT_RUNTIME_DIR:-${TMPDIR:-/tmp}}"
 SETTINGS_FILE="${SCOUT_SETTINGS_FILE:-$HOME/.claude/settings.json}"
@@ -271,11 +276,13 @@ evidence_age_label() {
 }
 
 # --- 1. LLMGW Auth Check ---
-if [ -f "$SETTINGS_FILE" ] && grep -q '"ANTHROPIC_AUTH_TOKEN"' "$SETTINGS_FILE" 2>/dev/null; then
-  OUTPUT+="## ✅ LLMGW auth token present.\n\n"
-else
-  OUTPUT+="## ⚠️ No LLMGW auth token found in ~/.claude/settings.json\n"
-  OUTPUT+="   Run the Claude Code installer first: see the 'Installing Claude Code for Solutions' canvas.\n\n"
+if [ "$SCOUT_ACTIVE_HOST" = "claude" ]; then
+  if [ -f "$SETTINGS_FILE" ] && grep -q '"ANTHROPIC_AUTH_TOKEN"' "$SETTINGS_FILE" 2>/dev/null; then
+    OUTPUT+="## ✅ LLMGW auth token present.\n\n"
+  else
+    OUTPUT+="## ⚠️ No LLMGW auth token found in ~/.claude/settings.json\n"
+    OUTPUT+="   Run the Claude Code installer first: see the 'Installing Claude Code for Solutions' canvas.\n\n"
+  fi
 fi
 
 CONFIG_STATUS="unavailable"
@@ -288,8 +295,14 @@ ORG_COUNT=""
 if [ "$HELPER_READY" -eq 1 ] && [ "$CACHE_READY" -eq 1 ] && [ -n "$RUN_DIR" ]; then
   cache_fill org-list list 'sf org list --json' "$NETWORK_TIMEOUT" '' sf org list --json &
   LIST_PID=$!
-  if command -v claude >/dev/null 2>&1; then
+  if [ "$SCOUT_ACTIVE_HOST" = "claude" ] && command -v claude >/dev/null 2>&1; then
     cache_fill mcp-list mcp 'claude mcp list' "$NETWORK_TIMEOUT" '' claude mcp list &
+    MCP_PID=$!
+  elif [ "$SCOUT_ACTIVE_HOST" = "codex" ]; then
+    # Codex policy depends on the current project. Never reuse Claude's cache
+    # or persist Codex's raw listing (it can contain transport credentials).
+    run_bounded "$NETWORK_TIMEOUT" "$RUN_DIR/codex-mcp.status" \
+      python3 -B "$MCP_STATUS_SCRIPT" --host codex slack &
     MCP_PID=$!
   else
     printf 'exit:127\n' >"$RUN_DIR/mcp-list.status"
@@ -307,13 +320,23 @@ if [ "$HELPER_READY" -eq 1 ] && [ "$CACHE_READY" -eq 1 ] && [ -n "$RUN_DIR" ]; t
 fi
 
 # --- 3. Slack MCP state ---
-if [ "$MCP_STATUS" = "fresh" ] || [ "$MCP_STATUS" = "cached" ]; then
+if [ "$SCOUT_ACTIVE_HOST" = "codex" ]; then
+  CODEX_MCP_STATUS="$(cat "$RUN_DIR/codex-mcp.status" 2>/dev/null)"
+  case "$CODEX_MCP_STATUS" in
+    *' policy=blocked '*)
+      OUTPUT+="## ℹ️ Slack MCP is disabled by workspace policy. Ask workspace support to review the existing registration.\n\n" ;;
+    *' reason=user_disabled '*)
+      OUTPUT+="## ℹ️ Slack MCP is disabled in Codex configuration.\n\n" ;;
+  esac
+elif [ "$SCOUT_ACTIVE_HOST" = "claude" ] && { [ "$MCP_STATUS" = "fresh" ] || [ "$MCP_STATUS" = "cached" ]; }; then
   SLACK_STATE="$(evidence_field mcp-list mcp state '')"
-  if [ "$SLACK_STATE" = "not_connected" ]; then
-    OUTPUT+="## ℹ️ Slack MCP registered but not connected ($(evidence_age_label mcp-list mcp '')).\n"
+  if [ "$SLACK_STATE" = "authentication_required" ]; then
+    OUTPUT+="## ℹ️ Slack MCP needs authentication ($(evidence_age_label mcp-list mcp '')).\n"
     OUTPUT+="   Run \`/mcp\` in this session, select 'slack', choose 'Authenticate'.\n\n"
+  elif [ "$SLACK_STATE" = "disabled" ] || [ "$SLACK_STATE" = "failed" ] || [ "$SLACK_STATE" = "pending" ]; then
+    OUTPUT+="## ℹ️ Slack MCP reports $SLACK_STATE ($(evidence_age_label mcp-list mcp '')). Inspect the existing entry in \`/mcp\`.\n\n"
   fi
-elif command -v claude >/dev/null 2>&1 && [ "$HELPER_READY" -eq 1 ] && [ "$CACHE_READY" -eq 1 ]; then
+elif [ "$SCOUT_ACTIVE_HOST" = "claude" ] && command -v claude >/dev/null 2>&1 && [ "$HELPER_READY" -eq 1 ] && [ "$CACHE_READY" -eq 1 ]; then
   OUTPUT+="## ℹ️ Slack MCP connection check unavailable ($(failure_reason "$MCP_STATUS")).\n\n"
 fi
 
@@ -447,8 +470,13 @@ fi
 # --- 7. Ready ---
 OUTPUT+="---\n"
 OUTPUT+="**Ready.**\n"
-OUTPUT+="  /scout-sparring  — Opus discovery sparring + spec generation\n"
-OUTPUT+="  /scout-building  — Opus orchestrator for org deployment\n"
+if [ "$SCOUT_ACTIVE_HOST" = "claude" ]; then
+  OUTPUT+="  /scout-sparring  — Opus discovery sparring + spec generation\n"
+  OUTPUT+="  /scout-building  — Opus orchestrator for org deployment\n"
+else
+  OUTPUT+="  /scout-sparring  — discovery sparring + spec generation\n"
+  OUTPUT+="  /scout-building  — orchestrator for org deployment\n"
+fi
 OUTPUT+="  /scout-setup     — install, refresh, or repair Scout\n"
 
 printf '%b\n' "$OUTPUT"

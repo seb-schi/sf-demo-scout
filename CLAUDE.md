@@ -6,7 +6,13 @@
 - Type: Personal demo org — destructive operations permitted with prior explanation
 
 ## MCP Tools
-Four MCP servers may be configured: Salesforce DX (declared in the plugin's `plugin.json`), plus Salesforce Docs, Slack, and Google Workspace (all three user-scope, registered separately by `/scout-setup`; all optional and degrade gracefully when absent). Prefer MCP over `sf` CLI; fall back to CLI if MCP is unavailable.
+Four MCP integrations may be available: Salesforce DX (declared as `Salesforce_DX`
+in the plugin's `plugin.json`), plus Salesforce Docs, Slack, and Google Workspace
+(optional connections managed by the active host). Apply
+`prompts/host-runtime.md` and `prompts/mcp-readiness.md` before checking or using
+them. Prefer discovered MCP tools over `sf` CLI; fall back to CLI if DX MCP is
+unavailable. The machine-installed `sf` CLI and the host-launched
+`@salesforce/mcp` adapter are separate packages.
 
 - **Salesforce DX** — metadata retrieve/deploy, SOQL, permset assignment, org listing, `run_code_analyzer`, and LWC expert tools (complement the `experience-lwc-generate` skill's PICKLES methodology + 165-point scoring).
 - **Salesforce Docs** — `salesforce_docs_search` + `salesforce_docs_fetch` for release-gated features and unfamiliar deploy errors. Decision tree in `demo-docs-consultation`. Registered at user scope (bare HTTP, no auth) by `/scout-setup`, NOT in `plugin.json` — a manifest `type: http` declaration triggers a spurious OAuth Dynamic Client Registration probe that 404s and withholds the tools, so it lives in `~/.claude.json` alongside Slack/Google. Degrades gracefully if unavailable.

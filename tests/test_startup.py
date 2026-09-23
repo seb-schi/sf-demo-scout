@@ -135,12 +135,14 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
         nocache: bool = False,
         helper: Path = HELPER,
         default_runtime: bool = False,
+        host: str = "claude",
     ) -> subprocess.CompletedProcess[str]:
         workdir = cwd or self.workspace
         env = dict(os.environ)
         env.update(
             PATH=f"{self.bin}:/usr/bin:/bin:/usr/sbin:/sbin",
             PYTHONDONTWRITEBYTECODE="1",
+            SCOUT_HOST=host,
             SCOUT_WORKSPACE=str(self.workspace),
             SCOUT_CACHE_DIR=str(self.cache),
             SCOUT_RUNTIME_DIR=str(self.runtime),
@@ -150,7 +152,10 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
             SCOUT_SLUGIFY=str(SLUGIFY),
             SCOUT_FIXTURE_DIR=str(self.fixtures),
             SCOUT_FIXTURE_LOG=str(self.log),
-            SCOUT_NETWORK_TIMEOUT="1",
+            # Keep ordinary stub startup tolerant of a busy developer machine.
+            # The timeout fixture sleeps five seconds, so a three-second bound
+            # still exercises the real process-group timeout/cleanup path.
+            SCOUT_NETWORK_TIMEOUT="3",
             PWD=str(workdir),
         )
         if nocache:
@@ -493,10 +498,48 @@ class StartupEvidenceTests(unittest.TestCase):
     def test_slack_status_distinguishes_fresh_and_cached_evidence(self) -> None:
         self.fx.write_mcp("slack: registered - authentication required\n")
         fresh = self.fx.run().stdout
-        self.assertIn("Slack MCP registered but not connected (fresh evidence", fresh)
+        self.assertIn("Slack MCP needs authentication (fresh evidence", fresh)
         self.fx.set_mode("mcp", "exit:61")
         cached = self.fx.run().stdout
-        self.assertIn("Slack MCP registered but not connected (cached evidence", cached)
+        self.assertIn("Slack MCP needs authentication (cached evidence", cached)
+
+    def test_codex_ignores_claude_credentials_and_cached_mcp_status(self) -> None:
+        self.fx.write_mcp("slack: command - Needs authentication\n")
+        self.fx.run()  # Seed a same-day Claude cache.
+        self.fx.log.write_text("")
+        self.fx.settings.unlink()
+        codex = self.fx.bin / "codex"
+        codex.write_text(
+            '#!/bin/bash\n'
+            'printf "codex-mcp\\n" >> "$SCOUT_FIXTURE_LOG"\n'
+            'printf \'%s\\n\' \'[{"name":"slack","enabled":false,'
+            '"disabled_reason":"requirements (Baseline)",'
+            '"transport":{"http_headers":{"Authorization":"RAW_SECRET"}}}]\'\n'
+        )
+        codex.chmod(0o700)
+        result = self.fx.run(host="codex")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Slack MCP is disabled by workspace policy", result.stdout)
+        for wrong in ("LLMGW", "Claude Code installer", "Opus", "needs authentication", "RAW_SECRET"):
+            self.assertNotIn(wrong, result.stdout)
+        calls = self.fx.log.read_text().splitlines()
+        self.assertIn("codex-mcp", calls)
+        self.assertNotIn("mcp", calls)
+        for path in self.fx.cache.iterdir():
+            if path.is_file():
+                self.assertNotIn("RAW_SECRET", path.read_text())
+
+    def test_unknown_host_does_not_infer_claude_or_authentication(self) -> None:
+        self.fx.settings.unlink()
+        result = self.fx.run(host="unknown")
+        self.assertNotIn("LLMGW", result.stdout)
+        self.assertNotIn("mcp", self.fx.log.read_text().splitlines())
+
+    def test_disabled_slack_does_not_request_authentication(self) -> None:
+        self.fx.write_mcp("slack: command - Disabled for this project\n")
+        output = self.fx.run().stdout
+        self.assertIn("Slack MCP reports disabled", output)
+        self.assertNotIn("Authenticate", output)
 
 
 if __name__ == "__main__":

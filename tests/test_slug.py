@@ -94,6 +94,7 @@ class CustomerFolderHookTests(unittest.TestCase):
         env.update(
             PATH=f"{self.fx.bin}:/usr/bin:/bin:/usr/sbin:/sbin",
             PYTHONDONTWRITEBYTECODE="1",
+            SCOUT_HOST="claude",
             SCOUT_WORKSPACE=str(self.fx.workspace),
             SCOUT_CACHE_DIR=str(self.fx.cache),
             SCOUT_RUNTIME_DIR=str(self.fx.runtime),
@@ -103,7 +104,7 @@ class CustomerFolderHookTests(unittest.TestCase):
             SCOUT_SLUGIFY=str(slugifier),
             SCOUT_FIXTURE_DIR=str(self.fx.fixtures),
             SCOUT_FIXTURE_LOG=str(self.fx.log),
-            SCOUT_NETWORK_TIMEOUT="1",
+            SCOUT_NETWORK_TIMEOUT="3",
             SCOUT_HOOK_NOCACHE="1",
             PWD=str(self.fx.workspace),
         )
