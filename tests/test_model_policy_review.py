@@ -171,4 +171,3 @@ class ReviewTests(unittest.TestCase):
         for phrase in ('per-call `model`', "orchestrator's own model family", 'omit `model`',
                        'CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1', 'Codex keeps'):
             self.assertIn(phrase, contract)
-
