@@ -118,7 +118,7 @@ conforming cartridge that means:
    authored to be more current and correct on its industry than a general model.
 3. **Honor the one hard retrieval rule.** Index/hybrid-disposition skills point at
    large external hubs (Slack canvases, Google decks, product repos). NEVER read
-   a hub into this sparring context — dispatch a Sonnet subagent that returns only
+   a hub into this sparring context — dispatch a subagent that returns only
    the distilled answer, and never cache release/competitive/setup figures the
    skill marks churny. (This is already Scout's named-source discipline from
    Stage 3 — the same subagent pattern.)

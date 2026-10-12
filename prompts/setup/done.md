@@ -54,5 +54,7 @@ its required tools work before discovery and the first real use.
 
 > "Scout refreshed its shell block and ensured `~/.local/bin` is on PATH, removing recognized retired Scout exports where present. For an existing file, the pre-edit backup is `~/.zshrc.scout-bak-zshrc` (beside the target if `.zshrc` is a symlink). Open a new shell to load the updated file; already-running processes keep their current environment."
 
-Only actual mapping-preservation flags from the setup helpers justify a separate
-model-routing note. `ZSHRC_MODIFIED` alone does not establish that mappings exist.
+Include the Claude running-client version (or unverified reason), any floor
+notice and the read-only model report from setup. Keep its provider/source-specific
+advice; a CLI update on PATH does not establish that the desktop or IDE updated.
+`ZSHRC_MODIFIED` alone does not establish that model mappings exist.

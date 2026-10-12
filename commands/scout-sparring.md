@@ -1,7 +1,7 @@
 ---
 name: scout-sparring
 description: >
-  Opus sparring partner for Salesforce demo preparation.
+  Sparring partner for Salesforce demo preparation.
   Handles both new scenario discovery and targeted iterations on existing demos.
   Produces a structured spec for /scout-building to deploy.
   Activate with /scout-sparring.
@@ -47,16 +47,13 @@ Build boundaries (what's autonomous, gated, or manual) are defined in CLAUDE.md 
 
 ## Stage 1: Org Setup & Intent
 
-The Opus warning in the templates below is Claude-only. Omit it on Codex;
-retain the org checks, questions, and confirmation boundaries.
+On Claude, only when the actual session model is a Claude model older than 5.5, start the message with "Scout is built for the 5.5 models. Run `/model` to switch." Omit this notice on Codex or when the model version is unknown.
 
 Run `sf config get target-org --json` and `sf org display --json`. Extract alias and username.
 
-**If `sf org display` fails** (no org connected, or auth expired): emit the model-gate line, then offer to connect an org inline — do NOT bounce the SE to another command or a fresh session.
+**If `sf org display` fails** (no org connected, or auth expired): offer to connect an org inline — do NOT bounce the SE to another command or a fresh session.
 
-> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
->
-> No demo org connected. Want me to connect one now? (yes / no)"
+> "No demo org connected. Want me to connect one now? (yes / no)"
 
 If the SE declines, stop. If the SE says yes (or names an org to connect), read `${CLAUDE_PLUGIN_ROOT}/prompts/switch-org.md` and follow it end-to-end — it lists connected orgs, offers to authenticate a new one, sets the chosen org as default, and returns the active alias + username. Then re-run `sf config get target-org --json` and `sf org display --json` to pick up the new org, and continue.
 
@@ -64,9 +61,7 @@ Do not continue to audit routing without an org.
 
 Output as a single message, then wait for the SE's reply.
 
-> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.
->
-> Active org: [alias] ([username]). Right org, or switch? (say **switch** and I'll list your orgs)
+> "Active org: [alias] ([username]). Right org, or switch? (say **switch** and I'll list your orgs)
 >
 > I can help you with:
 > - **A new demo scenario** — full sparring for a new customer situation, typically on a fresh demo org
@@ -111,7 +106,7 @@ Set exactly one state; do not infer reuse from “not background-fresh.”
 
 **Reuse branch (audit exists, <=7 days old, SE confirms no manual changes):** set `AUDIT_MODE = reused`, read that selected audit markdown file directly, and extract the star-flagged items from it.
 
-**Fresh audit branch (stale >7 days or absent):** Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit-orchestration.md` and execute **Phase A only** — sync setup through launching the prelude sub-agent in the background. Phase A returns control here so the SE answers discovery while the audit runs in the background; the audit delegates bulk metadata retrieval to 3 parallel Sonnet sub-agents (launched in Phase B on the prelude's background completion), runs spot-checks, and consolidates in Phase C. Opus never reads raw metadata payloads. **Do NOT surface the star summary now — the fresh audit is still running.** Mark this session as `AUDIT_MODE = background-fresh` and proceed directly to the route table / Stage 3; the star summary and the anchor-app question surface at the Stage 3 join (see "Discovery ‖ background audit join" below), after the SE answers the audit-independent questions and you invoke audit-orchestration Phase C.
+**Fresh audit branch (stale >7 days or absent):** Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit-orchestration.md` and execute **Phase A only** — sync setup through launching the prelude sub-agent in the background. Phase A returns control here so the SE answers discovery while the audit runs in the background; the audit delegates bulk metadata retrieval to 3 parallel sub-agents (launched in Phase B on the prelude's background completion), runs spot-checks, and consolidates in Phase C. The orchestrator never reads raw metadata payloads. **Do NOT surface the star summary now — the fresh audit is still running.** Mark this session as `AUDIT_MODE = background-fresh` and proceed directly to the route table / Stage 3; the star summary and the anchor-app question surface at the Stage 3 join (see "Discovery ‖ background audit join" below), after the SE answers the audit-independent questions and you invoke audit-orchestration Phase C.
 
 **Reuse-org intent always takes the fresh audit branch** — the SE is reusing an org from a prior customer, so the audit must rediscover what's there regardless of age.
 
@@ -168,9 +163,9 @@ Ask max 6 clarifying questions:
 
 **Stop and wait for answers.**
 
-### Named-source lookup handling (delegated to Sonnet sub-agents)
+### Named-source lookup handling (delegated to sub-agents)
 
-If the SE's reply names an external source to look up — a Slack canvas or channel, or a Google Doc/Sheet (a URL, file name, or "the RfP sheet") — delegate each read to a **foreground Sonnet sub-agent**. Both sources read large blobs (channel history, canvas bodies, sheet ranges, doc markdown) that would otherwise land in this Opus context and be discarded after a few attributed lines are extracted; the sub-agent reads the source, extracts attributed findings, and returns only the compact synthesis. Same "Opus never reads raw payloads" pattern the audit uses. If the SE answers only 1-6 and names no external source, move on without ceremony — do not re-ask.
+If the SE's reply names an external source to look up — a Slack canvas or channel, or a Google Doc/Sheet (a URL, file name, or "the RfP sheet") — delegate each read to a **foreground sub-agent**. Both sources read large blobs (channel history, canvas bodies, sheet ranges, doc markdown) that would otherwise land in this orchestrator context and be discarded after a few attributed lines are extracted; the sub-agent reads the source, extracts attributed findings, and returns only the compact synthesis. Same "The orchestrator never reads raw payloads" pattern the audit uses. If the SE answers only 1-6 and names no external source, move on without ceremony — do not re-ask.
 
 **Resolve the absolute plugin root once** from the active plugin context using
 `prompts/host-runtime.md`; do not consult another host's plugin cache. If the
@@ -180,8 +175,8 @@ root cannot be resolved, report that source context is unavailable.
 1. Read `prompts/mcp-readiness.md` and discover the required session tools for
    the named source. A CLI listing is diagnostic only. If the capability is
    unavailable, report the observed reason and skip that lookup.
-2. Dispatch a foreground worker using the active host's delegation API (Sonnet
-   only on Claude; inherited model on Codex). Pass the resolved plugin root,
+2. Dispatch a foreground worker using the active host's delegation API (leave
+   the model unspecified, following the user's worker configuration). Pass the resolved plugin root,
    host, source inputs, and discovered operations with their schemas:
    > Read `[PLUGIN_ROOT_ABS]/prompts/sparring/[FRAGMENT]` and execute it. The
    > caller discovered candidate tools; verify they are exposed in your own
@@ -357,4 +352,4 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-maintenance.md` and execute the "Pro
 >
 > Then run `/scout-building` in the new window — it will cross-check against the audit and flag conflicts."
 
-**Never offer to run `/scout-building` yourself or spawn it as a sub-agent** — it is itself an orchestrator (delegates to phase Sonnet sub-agents, writes the change log) and must run top-level in a fresh session on its own model gate. Your handoff ends at the spec. This holds even though the harness now makes sub-agent spawning cheap and default.
+**Never offer to run `/scout-building` yourself or spawn it as a sub-agent** — it is itself an orchestrator (delegates to phase sub-agents, writes the change log) and must run top-level in a fresh session on its own model gate. Your handoff ends at the spec. This holds even though the harness now makes sub-agent spawning cheap and default.

@@ -40,7 +40,7 @@ Budget: up to 3 canvas reads + 1 channel skim total.
 For each named canvas (cap at 3):
 1. `slack_search_public_and_private` with `query="<canvas name>"`, `limit=5`, filter for canvas results — the Slack MCP returns canvas objects with URLs. If no match, tell the SE *"Couldn't locate canvas '[name]' — skipping."* and continue.
 2. `slack_read_canvas` on the resolved URL.
-3. Extract post-spin setup steps, demo personas, known bugs, storyline scaffolding — whatever the canvas actually contains. Surface to Opus for scenario integration.
+3. Extract post-spin setup steps, demo personas, known bugs, storyline scaffolding — whatever the canvas actually contains. Surface to the main conversation for scenario integration.
 
 ### Channel (if `channel_name` non-empty)
 
@@ -50,7 +50,7 @@ For each named canvas (cap at 3):
 
 ## Output
 
-**Sub-agent return contract.** This procedure is normally dispatched as a Sonnet sub-agent (see scout-sparring.md "Slack & Google Workspace lookup handling"). Return ONLY the compact attributed findings — never the raw canvas or channel text. Format each finding as `[#channel] or [canvas title], [date]: [author] — [quoted or paraphrased point].` If a named source could not be located or read, return a one-line note saying so. The caller (Opus) keeps your return as Stage 5 context; the raw payloads must die in your context, not the caller's.
+**Sub-agent return contract.** This procedure is normally dispatched as a sub-agent (see scout-sparring.md "Slack & Google Workspace lookup handling"). Return ONLY the compact attributed findings — never the raw canvas or channel text. Format each finding as `[#channel] or [canvas title], [date]: [author] — [quoted or paraphrased point].` If a named source could not be located or read, return a one-line note saying so. The caller (the orchestrator) keeps your return as Stage 5 context; the raw payloads must die in your context, not the caller's.
 
 Findings feed Stage 5 scenario proposal as **context only** — attributed,
 never asserted. Canvas findings may directly shape demo storylines or

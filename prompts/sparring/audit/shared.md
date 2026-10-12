@@ -41,4 +41,4 @@ The audit runs in the BACKGROUND while the SE answers discovery questions. Each 
 ```
 Bash: echo "[$(date +%H:%M:%S)] [<your-agent-id>] ⚠️ <section>: <one-line reason>" >> {{AUDIT_RUN_DIR}}/.audit-progress.log
 ```
-Your agent-id is declared at the top of your prompt (`Progress log agent-id:`). Use it verbatim. Never read this file back. Continue with your normal fallbacks after logging — the failure line is in addition to, not instead of, your error handling. Opus does not read this file; the orchestrator writes coarse phase markers to it separately.
+Your agent-id is declared at the top of your prompt (`Progress log agent-id:`). Use it verbatim. Never read this file back. Continue with your normal fallbacks after logging — the failure line is in addition to, not instead of, your error handling. The main conversation does not read this file; the orchestrator writes coarse phase markers to it separately.

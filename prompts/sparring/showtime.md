@@ -21,9 +21,9 @@ The format is a continuous engaged experience: audit runs while SE does opening 
 
 ## Step S1 — Run Fresh Audit
 
-Showtime always runs a fresh audit. A stale audit risks customer-facing deploy failures, which is the worst possible outcome of this format. The SE was warned at Stage 1: ideal pattern is to fire up Showtime when the customer sits down, so the audit runs in parallel with the SE's opening discovery questions. Audit takes ~5–10min via 3 parallel Sonnet sub-agents; opening discovery should take at least that long.
+Showtime always runs a fresh audit. A stale audit risks customer-facing deploy failures, which is the worst possible outcome of this format. The SE was warned at Stage 1: ideal pattern is to fire up Showtime when the customer sits down, so the audit runs in parallel with the SE's opening discovery questions. Audit takes ~5–10min via 3 parallel sub-agents; opening discovery should take at least that long.
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit-orchestration.md` and execute **Phase A only** — sync setup through launching the prelude sub-agent in the background. Phase A returns control here; the audit then runs in the background (Phase B launches the 3 parallel sub-agents on the prelude's push completion) while the SE does opening discovery with the customer and prepares the transcript. Opus never reads raw metadata payloads. The audit-orchestration procedure already emitted the live-status note pointing at `.audit-progress.log` in its step 5a.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit-orchestration.md` and execute **Phase A only** — sync setup through launching the prelude sub-agent in the background. Phase A returns control here; the audit then runs in the background (Phase B launches the 3 parallel sub-agents on the prelude's push completion) while the SE does opening discovery with the customer and prepares the transcript. The orchestrator never reads raw metadata payloads. The audit-orchestration procedure already emitted the live-status note pointing at `.audit-progress.log` in its step 5a.
 
 This is exactly the intended Showtime shape — the audit overlaps the SE's opening discovery instead of blocking it. Because the audit now runs silently in the background, you MAY prompt for the transcript right away (S2): one pending ask (transcript) + one silent background op (audit) is the resolvable case — not the two-simultaneous-asks confusion the 2026-05-11 rule guards against. The transcript paste is the join: when the SE says `go`, pull the audit to completion (Phase C) before extracting.
 
@@ -237,7 +237,7 @@ docs-confirmed UI steps and capabilities still needing research:
 *Prepared from this conversation and the current audit, with any evidence gaps and consulted sources noted above. This is a build plan; deployment and runtime verification are pending.*
 ```
 
-Authoring guidance for Opus when filling this template:
+Authoring guidance for the orchestrator when filling this template:
 - The summary table is the skim layer — every capability gets exactly one row, "Powered by" stays comma-separated and short (e.g. "Agentforce Service Assistant, Service Cloud Voice, Knowledge"), no full URLs in the table.
 - Per-capability sections are the read layer — "What it does for you" is the only place to be a bit punchy/quippy. "How Salesforce delivers it" stays factual.
 - Pull-quotes (`> "..."`) for direct customer quotes only — don't fabricate them. If the transcript has none, drop the pull-quote line.

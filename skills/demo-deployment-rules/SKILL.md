@@ -181,7 +181,7 @@ are in scope. No "complexity" cutoff; the gate is the test signal + the bounded
 fix-loop (`platform-apex-test-run` → `platform-apex-logs-debug`), not a size label.
 Author a test class for every class/trigger; a failing / low-coverage test is
 recorded in `issues` and NEVER blocks the deploy (the build ships test-unvalidated
-for the SE to finish in Sonnet).
+for the SE to finish in this session).
 
 1. Invoke `platform-apex-generate` skill for generation rules.
 2. Run `run_code_analyzer` before deploying (if MCP available). Record any

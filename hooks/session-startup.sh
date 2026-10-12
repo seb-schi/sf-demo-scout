@@ -2,9 +2,26 @@
 # SF Demo Prep — Session Startup Script
 # Runs via SessionStart. Host-specific checks never consult another host.
 
-# The plugin loads globally. Stay completely silent outside Scout's workspace.
+# Client notices apply globally; org/status probes remain workspace-scoped.
+CLIENT_EVIDENCE="${SCOUT_STARTUP_EVIDENCE:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/startup-evidence.py}"
+SCOUT_CLIENT_FLOOR=""
+if command -v python3 >/dev/null 2>&1 && [ -f "$CLIENT_EVIDENCE" ]; then
+  SCOUT_CLIENT_FLOOR=$(python3 -B "$CLIENT_EVIDENCE" client-floor 2>/dev/null) || SCOUT_CLIENT_FLOOR=""
+fi
+scout_emit_context() {
+  local rendered
+  if [ -n "$SCOUT_CLIENT_FLOOR" ]; then
+    if rendered=$(python3 -B "$CLIENT_EVIDENCE" hook-output --floor-line "$SCOUT_CLIENT_FLOOR" 2>/dev/null); then
+      printf '%s\n' "$rendered"
+      return
+    fi
+    return 1
+  fi
+  return 1
+}
 SCOUT_WORKSPACE="${SCOUT_WORKSPACE:-$HOME/claude-projects/sf-demo-scout}"
 if [ "$PWD" != "$SCOUT_WORKSPACE" ]; then
+  scout_emit_context </dev/null || true
   exit 0
 fi
 
@@ -479,4 +496,6 @@ else
 fi
 OUTPUT+="  /scout-setup     — install, refresh, or repair Scout\n"
 
-printf '%b\n' "$OUTPUT"
+if [ -z "$SCOUT_CLIENT_FLOOR" ] || ! printf '%b\n' "$OUTPUT" | scout_emit_context; then
+  printf '%b\n' "$OUTPUT"
+fi

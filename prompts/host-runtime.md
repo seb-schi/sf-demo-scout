@@ -22,7 +22,7 @@ Apply this before Scout setup, discovery, builds, repairs, or tool calls.
   Existing org-selection, user-approval, and read/write boundaries still apply.
   Use the established `sf` fallback when DX tools are unavailable, always with
   the explicitly selected org. Do not replace a policy-blocked MCP registration.
-- Opus/Sonnet model selectors, `/model` notices, and `Agent(...)` examples apply
+- `/model` notices and `Agent(...)` examples apply
   to Claude. On Codex use the host's available delegation tools and inherited
   model settings, with the same task boundaries and result contracts. Pass the
   host, resolved root, selected org, and discovered tool contracts to workers.

@@ -12,6 +12,8 @@ from datetime import date, datetime, timezone
 import hashlib
 import json
 import re
+import runpy
+from pathlib import Path
 import sys
 import time
 from typing import Any
@@ -353,6 +355,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     key_parser = subparsers.add_parser("key")
     key_parser.add_argument("target")
+    subparsers.add_parser("client-floor")
+    output_parser = subparsers.add_parser("hook-output")
+    output_parser.add_argument("--floor-line", required=True)
 
     for command in ("normalize", "validate", "field", "contains"):
         child = subparsers.add_parser(command)
@@ -372,7 +377,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     try:
-        if args.command == "key":
+        if args.command == "client-floor":
+            client = runpy.run_path(str(Path(__file__).with_name('client-version.py')))
+            line = client['floor_line'](client['observe']())
+            if line:
+                print(line)
+        elif args.command == "hook-output":
+            print(json.dumps({'systemMessage': args.floor_line, 'hookSpecificOutput': {
+                'hookEventName': 'SessionStart', 'additionalContext': read_stdin()}}))
+        elif args.command == "key":
             target = safe_text(args.target, "target")
             print(hashlib.sha256(target.encode("utf-8")).hexdigest())
         elif args.command == "normalize":

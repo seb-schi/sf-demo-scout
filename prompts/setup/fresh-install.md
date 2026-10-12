@@ -270,6 +270,11 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its proc
 
 ## g.8: Preserve model routing and clean retired Scout settings
 
+On Claude, also report the running client with
+`SCOUT_HOST=claude python3 -B "[PLUGIN_ROOT]/scripts/client-version.py" setup`,
+using the resolved active plugin root. Carry its version or unverified reason
+and any floor notice into the setup message; it never updates the client.
+
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure (the fragment carries the full "why"). Carry actual cleanup and preservation results into the closing message. Read-only mapping checks need no restart.
 
 ## g.5: Ensure marketplace autoUpdate is enabled

@@ -281,7 +281,7 @@ Scope: anything beyond appending into an existing field section. Use when audit 
 - **Proves:** KP[1|2|3] — [one line: how this Apex makes a KP land in the demo]
 - Plain English: [description]
 - Name: [name], Object(s): [single or multiple — cross-object is in scope], Logic: [steps]
-- Note: Scout authors a test and self-fixes via a bounded loop; if the test can't be made to pass, the class ships test-unvalidated and is handed to the SE for a Sonnet iteration (see the handover brief). No "too complex" refusal.
+- Note: Scout authors a test and self-fixes via a bounded loop; if the test can't be made to pass, the class ships test-unvalidated and is handed to the SE for another iteration (see the handover brief). No "too complex" refusal.
 
 ### LWC Components (if applicable)
 - ⚠️ SE CONFIRMATION REQUIRED (single upfront gate — Scout will notify you)
@@ -362,7 +362,7 @@ these named components immediately before their phase, including on retry.
 
 ## SE Manual Checklist
 
-> Only **docs-confirmed UI-only** items belong here (disposition 3 — no Metadata API path; cite the doc). Do NOT list an artifact as manual on "complexity" or "visual" grounds: if it is metadata-authorable, Scout ATTEMPTS + deploys it (see CLAUDE.md §Build Boundaries → Docs-Gated). Artifacts Scout deployed but that carry no build-time signal (a rendered page, a layout arrangement, a UX) are **attempt-with-QA** — they surface in the handover brief's *Built — Validate in Sonnet* section, NOT in this checklist.
+> Only **docs-confirmed UI-only** items belong here (disposition 3 — no Metadata API path; cite the doc). Do NOT list an artifact as manual on "complexity" or "visual" grounds: if it is metadata-authorable, Scout ATTEMPTS + deploys it (see CLAUDE.md §Build Boundaries → Docs-Gated). Artifacts Scout deployed but that carry no build-time signal (a rendered page, a layout arrangement, a UX) are **attempt-with-QA** — they surface in the handover brief's *Built — Needs Validation* section, NOT in this checklist.
 
 ### Docs-confirmed UI-only Flow Steps
 - [Exact unsupported metadata operation, current source URL, affected flow, and SE action. Omit when none; keep authorable work and its QA in the Flow sections above.]
