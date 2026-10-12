@@ -68,7 +68,7 @@ class SetupSettingsTests(unittest.TestCase):
         (injection / "sitecustomize.py").write_text(body)
         return {"PYTHONPATH": str(injection)}
 
-    def test_vscode_only_removes_targets_from_owned_top_level_array(self) -> None:
+    def test_vscode_ignores_other_extensions_model_entries(self) -> None:
         settings = self.base / "settings.json"
         before = {
             "claudeCode.environmentVariables": [
@@ -88,7 +88,7 @@ class SetupSettingsTests(unittest.TestCase):
         self.assertEqual(settings.read_bytes(), original)
         self.assertFalse(Path(str(settings) + ".scout-bak").exists())
 
-    def test_vscode_jsonc_removal_preserves_comments_and_unrelated_bytes(self) -> None:
+    def test_vscode_preserves_mappings_comments_modes_and_existing_backup(self) -> None:
         settings = self.base / "settings.json"
         original = b'''{
   // before property
@@ -104,33 +104,15 @@ class SetupSettingsTests(unittest.TestCase):
 '''
         settings.write_bytes(original)
         settings.chmod(0o640)
-        expected = b'''{
-  // before property
-  "claudeCode.environmentVariables": [
-    // keep this comment
-    { "name": "KEEP_ME", "value": "yes" },
-    /* target comment */\x20
-     // after target
-  ],
-  "url": "https://example.test//kept",
-  "unrelated": { "name": "ANTHROPIC_DEFAULT_HAIKU_MODEL", "value": "keep" },
-}
-'''
-
-        result = self.run_helper("vscode-pins", settings)
-
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertEqual(result.stdout.strip(), "VSCODE_PINS_REMOVED")
-        self.assertEqual(settings.read_bytes(), expected)
         backup = Path(str(settings) + ".scout-bak")
-        self.assertEqual(backup.read_bytes(), original)
-        self.assertEqual(stat.S_IMODE(settings.stat().st_mode), 0o640)
-        self.assertEqual(stat.S_IMODE(backup.stat().st_mode), 0o640)
-        written = settings.read_bytes()
-        second = self.run_helper("vscode-pins", settings)
-        self.assertEqual(second.stdout.strip(), "VSCODE_PINS_NONE")
-        self.assertEqual(settings.read_bytes(), written)
-        self.assertEqual(backup.read_bytes(), original)
+        backup.write_bytes(b"earlier recovery material")
+        for _ in range(2):
+            result = self.run_helper("vscode-pins", settings)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertEqual(result.stdout.strip(), "VSCODE_PINS_PRESERVED")
+            self.assertEqual(settings.read_bytes(), original)
+            self.assertEqual(stat.S_IMODE(settings.stat().st_mode), 0o640)
+            self.assertEqual(backup.read_bytes(), b"earlier recovery material")
 
     def test_vscode_rejects_unsupported_target_shape(self) -> None:
         settings = self.base / "settings.json"
@@ -150,9 +132,9 @@ class SetupSettingsTests(unittest.TestCase):
         self.assertEqual(settings.read_bytes(), original)
         self.assertFalse(Path(str(settings) + ".scout-bak").exists())
 
-    def test_vscode_removes_repeated_exact_target_entries_only(self) -> None:
+    def test_vscode_preserves_repeated_mapping_entries(self) -> None:
         settings = self.base / "settings.json"
-        self.write_json(
+        original = self.write_json(
             settings,
             {
                 "claudeCode.environmentVariables": [
@@ -166,13 +148,9 @@ class SetupSettingsTests(unittest.TestCase):
 
         result = self.run_helper("vscode-pins", settings)
 
-        self.assertEqual(result.stdout.strip(), "VSCODE_PINS_REMOVED")
-        after = json.loads(settings.read_text())
-        self.assertEqual(
-            after["claudeCode.environmentVariables"],
-            [{"name": "KEEP", "value": "yes"}],
-        )
-        self.assertEqual(after["outside"], {"name": MODEL_KEYS[0], "value": "keep"})
+        self.assertEqual(result.stdout.strip(), "VSCODE_PINS_PRESERVED")
+        self.assertEqual(settings.read_bytes(), original)
+        self.assertFalse(Path(str(settings) + ".scout-bak").exists())
 
     def test_vscode_rejects_malformed_and_duplicate_jsonc(self) -> None:
         for name, body in (
@@ -241,18 +219,18 @@ class SetupSettingsTests(unittest.TestCase):
                 settings = case / "settings.json"
                 original = self.write_json(
                     settings,
-                    {"claudeCode.environmentVariables": [{"name": MODEL_KEYS[0], "value": "x"}]},
+                    {"env": {"MAX_THINKING_TOKENS": "100"}},
                 )
-                backup = Path(str(settings) + ".scout-bak")
+                backup = Path(str(settings) + ".scout-bak-modelpins")
                 collision = case / "collision-target"
                 collision.write_bytes(b"keep backup target\n")
                 if symlink:
                     backup.symlink_to(collision)
                 else:
                     backup.write_bytes(b"keep old backup\n")
-                result = self.run_helper("vscode-pins", settings)
+                result = self.run_helper("json-pins", settings)
                 self.assertEqual(result.returncode, 0)
-                self.assertIn("VSCODE_BACKUP_FAILED", result.stdout)
+                self.assertIn("PINS_BACKUP_FAILED", result.stdout)
                 self.assertEqual(settings.read_bytes(), original)
                 if symlink:
                     self.assertTrue(backup.is_symlink())
@@ -264,34 +242,34 @@ class SetupSettingsTests(unittest.TestCase):
         settings = self.base / "settings.json"
         original = self.write_json(
             settings,
-            {"claudeCode.environmentVariables": [{"name": MODEL_KEYS[0], "value": "x"}]},
+            {"env": {"MAX_THINKING_TOKENS": "100"}},
         )
         environment = self.install_injection(
             """import os
 import shutil
 _copy2 = shutil.copy2
 def fail_backup(src, dst, *args, **kwargs):
-    if os.fspath(dst).endswith('.scout-bak'):
+    if os.fspath(dst).endswith('.scout-bak-modelpins'):
         raise OSError('injected backup failure')
     return _copy2(src, dst, *args, **kwargs)
 shutil.copy2 = fail_backup
 """
         )
 
-        result = self.run_helper("vscode-pins", settings, extra_env=environment)
+        result = self.run_helper("json-pins", settings, extra_env=environment)
 
-        self.assertIn("VSCODE_BACKUP_FAILED", result.stdout)
+        self.assertIn("PINS_BACKUP_FAILED", result.stdout)
         self.assertEqual(settings.read_bytes(), original)
-        self.assertFalse(Path(str(settings) + ".scout-bak").exists())
+        self.assertFalse(Path(str(settings) + ".scout-bak-modelpins").exists())
 
     def test_replace_failure_preserves_original_exact_backup_and_mode(self) -> None:
         settings = self.base / "settings.json"
         original = self.write_json(
             settings,
-            {"claudeCode.environmentVariables": [{"name": MODEL_KEYS[0], "value": "x"}]},
+            {"env": {"MAX_THINKING_TOKENS": "100"}},
         )
         settings.chmod(0o640)
-        backup = Path(str(settings) + ".scout-bak")
+        backup = Path(str(settings) + ".scout-bak-modelpins")
         backup.write_bytes(original)
         backup.chmod(0o640)
         environment = self.install_injection(
@@ -306,9 +284,9 @@ os.replace = fail_target_replace
         )
         environment["SCOUT_TEST_REPLACE_TARGET"] = str(settings)
 
-        result = self.run_helper("vscode-pins", settings, extra_env=environment)
+        result = self.run_helper("json-pins", settings, extra_env=environment)
 
-        self.assertIn("VSCODE_WRITE_FAILED", result.stdout)
+        self.assertIn("PINS_WRITE_FAILED", result.stdout)
         self.assertEqual(settings.read_bytes(), original)
         self.assertEqual(backup.read_bytes(), original)
         self.assertEqual(stat.S_IMODE(settings.stat().st_mode), 0o640)
@@ -319,7 +297,7 @@ os.replace = fail_target_replace
         settings = self.base / "settings.json"
         original = self.write_json(
             settings,
-            {"claudeCode.environmentVariables": [{"name": MODEL_KEYS[0], "value": "x"}]},
+            {"env": {"MAX_THINKING_TOKENS": "100"}},
         )
         environment = self.install_injection(
             """import tempfile
@@ -332,18 +310,18 @@ tempfile.mkstemp = fail_settings_stage
 """
         )
 
-        result = self.run_helper("vscode-pins", settings, extra_env=environment)
+        result = self.run_helper("json-pins", settings, extra_env=environment)
 
-        self.assertIn("VSCODE_WRITE_FAILED", result.stdout)
+        self.assertIn("PINS_WRITE_FAILED", result.stdout)
         self.assertEqual(settings.read_bytes(), original)
-        self.assertEqual(Path(str(settings) + ".scout-bak").read_bytes(), original)
+        self.assertEqual(Path(str(settings) + ".scout-bak-modelpins").read_bytes(), original)
         self.assertEqual(list(self.base.glob(".settings.*.tmp")), [])
 
     def test_post_replace_verification_failure_reports_recovery_backup(self) -> None:
         settings = self.base / "settings.json"
         original = self.write_json(
             settings,
-            {"claudeCode.environmentVariables": [{"name": MODEL_KEYS[0], "value": "x"}]},
+            {"env": {"MAX_THINKING_TOKENS": "100"}},
         )
         environment = self.install_injection(
             """import os
@@ -362,11 +340,11 @@ Path.read_bytes = fail_post_replace_read
         )
         environment["SCOUT_TEST_POST_VERIFY_TARGET"] = str(settings)
 
-        result = self.run_helper("vscode-pins", settings, extra_env=environment)
+        result = self.run_helper("json-pins", settings, extra_env=environment)
 
-        self.assertIn("VSCODE_POST_WRITE_FAILED", result.stdout)
+        self.assertIn("PINS_POST_WRITE_FAILED", result.stdout)
         self.assertNotEqual(settings.read_bytes(), original)
-        self.assertEqual(Path(str(settings) + ".scout-bak").read_bytes(), original)
+        self.assertEqual(Path(str(settings) + ".scout-bak-modelpins").read_bytes(), original)
 
     def test_json_pins_remove_exact_scope_and_preserve_flags(self) -> None:
         settings = self.base / "settings.json"
@@ -385,13 +363,26 @@ Path.read_bytes = fail_post_replace_read
         result = self.run_helper("json-pins", settings)
 
         self.assertIn("PINS_REMOVED[settings.json]", result.stdout)
-        self.assertIn("FLAGS[modelOverrides]", result.stdout)
+        self.assertIn("FLAGS[modelOverrides,modelMappings]", result.stdout)
         after = json.loads(settings.read_text())
-        self.assertEqual(after["env"], {"ANTHROPIC_AUTH_TOKEN": "keep"})
+        self.assertEqual(after["env"], {MODEL_KEYS[0]: "old", "ANTHROPIC_AUTH_TOKEN": "keep"})
         self.assertEqual(after["modelOverrides"], {"opus": "live-profile"})
         backup = Path(str(settings) + ".scout-bak-modelpins")
         self.assertEqual(backup.read_bytes(), original)
         self.assertEqual(stat.S_IMODE(settings.stat().st_mode), 0o600)
+
+    def test_json_model_mappings_alone_are_byte_identical_and_not_logged(self) -> None:
+        settings = self.base / "settings.json"
+        before = {"env": {key: "provider-private-route" for key in MODEL_KEYS}}
+        original = self.write_json(settings, before)
+        inode = settings.stat().st_ino
+        for _ in range(2):
+            result = self.run_helper("json-pins", settings)
+            self.assertIn("PINS_NONE[settings.json] FLAGS[modelMappings]", result.stdout)
+            self.assertNotIn("provider-private-route", result.stdout)
+            self.assertEqual(settings.read_bytes(), original)
+            self.assertEqual(settings.stat().st_ino, inode)
+        self.assertFalse(Path(str(settings) + ".scout-bak-modelpins").exists())
 
     def test_json_pins_reject_duplicate_keys(self) -> None:
         settings = self.base / "settings.json"

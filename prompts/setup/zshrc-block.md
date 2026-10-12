@@ -1,11 +1,10 @@
 # Setup — .zshrc Managed Block
 
-Refresh `~/.zshrc` with the Scout-managed environment block (idempotent, transactional). Adds `~/.local/bin` to PATH if missing, rewrites the managed `# BEGIN SF-DEMO-SCOUT` … `# END SF-DEMO-SCOUT` block, sweeps Scout-owned keys that escaped the block (including the retired `MAX_THINKING_TOKENS` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS`, and the `ANTHROPIC_DEFAULT_*_MODEL` pins — swept out and never re-added), and warns about legacy `ANTHROPIC_MODEL`.
+Refresh `~/.zshrc` with the Scout-managed environment block (idempotent, transactional). Adds `~/.local/bin` to PATH if missing, rewrites the managed `# BEGIN SF-DEMO-SCOUT` … `# END SF-DEMO-SCOUT` block, sweeps Scout-owned keys that escaped the block (including the retired `MAX_THINKING_TOKENS` and `CLAUDE_CODE_MAX_OUTPUT_TOKENS`), and reports an existing `ANTHROPIC_MODEL` without changing it.
 
 As of 2026-07-27 Scout sets no shell environment variables, so the managed block
 is marker-only. The machinery is kept deliberately: it still removes the exports
-Scout used to write (that is how existing installs self-heal) and still catches a
-legacy `ANTHROPIC_MODEL`. Do not delete the block or this fragment.
+Scout used to write (that is how existing installs self-heal) and preserves provider model routing. Do not delete the block or this fragment.
 
 **Transactional contract (2026-09-16, Batch 1 B2).** The refresh NEVER mutates the
 file until a validated result is ready. In order: (1) classify the path — a
@@ -55,7 +54,7 @@ If any `SCOUT_ZSHRC_DIAG:` line was emitted, surface it to the SE verbatim (one 
 
 If `ANTHROPIC_MODEL_PRESENT`, surface a one-line warning:
 
-> "⚠️ Found legacy `ANTHROPIC_MODEL` in your `~/.zshrc` — this is not a Claude Code variable. Remove it manually."
+> "Your shell sets `ANTHROPIC_MODEL`; Scout preserved your model selection."
 
 If `ZSHRC_REFRESH_UNAVAILABLE` was emitted, surface it as a one-line setup warning
 and do not report the shell file as refreshed.
@@ -63,3 +62,9 @@ and do not report the shell file as refreshed.
 ## Done
 
 Return to the dispatching prompt. Pass back `ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED` (and optional `ANTHROPIC_MODEL_PRESENT`). Every non-modify outcome (validation skip, marker/syntax rejection, symlink/validator issue, write failure) returns `ZSHRC_UNCHANGED` to the orchestrator and surfaces its `SCOUT_ZSHRC_DIAG` line to the SE inline. A missing shipped script instead returns the visible `ZSHRC_REFRESH_UNAVAILABLE` result.
+
+Model mappings outside the managed block are preserved, including multiline exports.
+Inside the block, only the literal Scout exports shipped in `0ed78db` and `7ff1b30`
+are recognized as owned residue and retired. Comments and blank lines do not block
+refresh. Any unknown executable content preserves the whole file for explicit review.
+Do not generalize an old-looking value into permission to remove user/provider routing.

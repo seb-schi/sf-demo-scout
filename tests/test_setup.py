@@ -19,7 +19,7 @@ BEGIN = "# BEGIN SF-DEMO-SCOUT"
 END = "# END SF-DEMO-SCOUT"
 VALID_BLOCK = f"{BEGIN}\n# old\n{END}\n"
 MULTILINE_EXPORT = (
-    'export ANTHROPIC_DEFAULT_OPUS_MODEL=$(\n  printf "example-model"\n)\n'
+    'export MAX_THINKING_TOKENS=$(\n  printf "example-model"\n)\n'
     + VALID_BLOCK
     + "export UNRELATED_USER_SETTING=important\n"
 )
@@ -103,6 +103,61 @@ class ZshrcScriptTests(unittest.TestCase):
         self.assertTrue(Path(str(fixture) + ".scout-bak-zshrc").is_file())
         second = self.run_script(fixture)
         self.assertEqual(second.stdout.splitlines()[0], "ZSHRC_UNCHANGED")
+
+    def test_provider_mappings_outside_block_survive_including_multiline(self) -> None:
+        fixture = self.base / "routing.zshrc"
+        mapping = ('export ANTHROPIC_DEFAULT_OPUS_MODEL=$(\n  printf "custom-opus"\n)\n'
+                   'export ANTHROPIC_DEFAULT_SONNET_MODEL="custom-sonnet"\n'
+                   'export ANTHROPIC_DEFAULT_HAIKU_MODEL="custom-haiku"\n')
+        fixture.write_text(mapping + VALID_BLOCK + "export MAX_THINKING_TOKENS=123\n")
+        result = self.run_script(fixture)
+        self.assertEqual(result.stdout.splitlines()[0], "ZSHRC_MODIFIED")
+        self.assertIn(mapping, fixture.read_text())
+        self.assertNotIn("MAX_THINKING_TOKENS", fixture.read_text())
+        self.assertNotIn("custom-opus", result.stdout)
+        self.assertEqual(self.run_script(fixture).stdout.splitlines()[0], "ZSHRC_UNCHANGED")
+
+    def test_provider_mapping_inside_block_preserves_entire_file(self) -> None:
+        for key in ("ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_MODEL",
+                    "ANTHROPIC_DEFAULT_FABLE_MODEL", "CLAUDE_CODE_SUBAGENT_MODEL",
+                    "ANTHROPIC_BASE_URL"):
+            with self.subTest(key=key):
+                self.assert_case(
+                    "managed_" + key,
+                    BEGIN + '\nexport ' + key + '="custom"\n' + END + '\n',
+                    "ZSHRC_UNCHANGED", diagnostic="model routing", unchanged=True,
+                )
+
+    def test_literal_historical_scout_blocks_are_retired(self) -> None:
+        # Literal exports from 0ed78db and 7ff1b30, independent of the helper.
+        for revision, output, thinking, opus in (
+            ("0ed78db", "8192", "4096", "us.anthropic.claude-opus-4-7"),
+            ("7ff1b30", "16384", "8192", "us.anthropic.claude-opus-4-7[1m]"),
+        ):
+            with self.subTest(revision=revision):
+                block = (BEGIN + '\n# Managed by Scout plugin — do not edit. Refreshed on first-run setup.\n'
+                         + 'export CLAUDE_CODE_MAX_OUTPUT_TOKENS=' + output + '\n'
+                         + 'export MAX_THINKING_TOKENS=' + thinking + '\n'
+                         + 'export ANTHROPIC_DEFAULT_OPUS_MODEL=' + opus + '\n'
+                         + 'export ANTHROPIC_DEFAULT_SONNET_MODEL=us.anthropic.claude-sonnet-4-6\n'
+                         + 'export ANTHROPIC_DEFAULT_HAIKU_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0\n'
+                         + END + '\n')
+                fixture = self.base / (revision + '.zshrc')
+                fixture.write_text(block)
+                self.assertIn('ZSHRC_MODIFIED', self.run_script(fixture).stdout)
+                self.assertNotIn('export ANTHROPIC_', fixture.read_text())
+                self.assertNotIn('export MAX_THINKING_TOKENS', fixture.read_text())
+                self.assertNotIn('export CLAUDE_CODE_MAX_OUTPUT_TOKENS', fixture.read_text())
+                self.assertEqual(Path(str(fixture) + '.scout-bak-zshrc').read_text(), block)
+                self.assertIn('ZSHRC_UNCHANGED', self.run_script(fixture).stdout)
+
+    def test_comments_do_not_freeze_but_unknown_executable_content_does(self) -> None:
+        self.assert_case('comment_model', BEGIN + '\n# ANTHROPIC_MODEL is user-owned\n' + END + '\n',
+                         'ZSHRC_MODIFIED', unchanged=False)
+        self.assert_case('unknown_command', BEGIN + '\nexport SOMETHING_CUSTOM=1\n' + END + '\n',
+                         'ZSHRC_UNCHANGED', diagnostic='unknown shell content')
+        self.assert_case('quoted_old_model', BEGIN + '\nexport ANTHROPIC_DEFAULT_OPUS_MODEL="us.anthropic.claude-opus-4-7"\n' + END + '\n',
+                         'ZSHRC_UNCHANGED', diagnostic='unknown shell content')
 
     def test_malformed_markers_and_safe_rejections(self) -> None:
         cases = (

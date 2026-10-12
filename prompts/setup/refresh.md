@@ -115,9 +115,9 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute it
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/zshrc-block.md` and execute it. Capture the result (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) — the orchestrator's done step needs it.
 
-## d.7: Strip stale model pins across all surfaces (self-heal)
+## d.7: Preserve model routing and clean retired Scout settings
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure (the fragment carries the full "why"; the `.zshrc` surface is handled by step d, where `zshrc-block.md` sweeps these keys as out-of-block stragglers). Carry any `PINS_REMOVED[...]` / `VSCODE_PINS_REMOVED` / `LAUNCHCTL_PINS_CLEARED` / VS-Code-restore-or-warn result into the done summary — the SE has a restart (and possibly a manual VS Code edit) pending.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure (the fragment carries the full "why"; the `.zshrc` surface is handled by step d and preserves model mappings). Carry any cleanup or preservation result into the done summary — only an actual settings change needs a restart note.
 
 ## d.75: Repair stale MCP tool-name prefixes (self-heal)
 
@@ -134,4 +134,4 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its proc
 
 ## Done
 
-Refresh procedure complete. Return to the orchestrator. Pass the result of step d (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note. Also pass every CLI outcome token from steps a and b, including `*_NOT_NPM_OWNED` and `*_OWNERSHIP_UNVERIFIED`, so the done message reflects the actual status. Pass all four MCP status lines as registration/transport observations only; they never prove authentication or tool capability. If d.7 emitted any `PINS_REMOVED[...]`, `VSCODE_PINS_REMOVED`, `LAUNCHCTL_PINS_CLEARED`, or a VS-Code-restore/warn variant, the SE has a restart (and possibly a manual VS Code edit) pending — make sure that note survived into the done summary.
+Refresh procedure complete. Return to the orchestrator. Pass the result of step d (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note. Also pass every CLI outcome token from steps a and b, including `*_NOT_NPM_OWNED` and `*_OWNERSHIP_UNVERIFIED`, so the done message reflects the actual status. Pass all four MCP status lines as registration/transport observations only; they never prove authentication or tool capability. Carry d.7 preservation flags and actual cleanup results into the done summary; read-only mapping checks need no restart.

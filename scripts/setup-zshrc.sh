@@ -9,13 +9,10 @@ path = sys.argv[1]
 BEGIN = "# BEGIN SF-DEMO-SCOUT"
 END = "# END SF-DEMO-SCOUT"
 # Keys Scout used to export and now sweeps as out-of-block stragglers (never
-# re-added). Retired output-length knobs + the model-profile pins.
+# re-added). Provider model mappings are user-owned and must survive refresh.
 KEYS = [
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
     "MAX_THINKING_TOKENS",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
 ]
 BLOCK_LINES = [
     BEGIN,
@@ -99,6 +96,24 @@ valid_markers = (
 )
 if not valid_markers:
     emit("ZSHRC_MARKERS_INVALID")
+    sys.exit(0)
+
+# Literal lines shipped in 0ed78db and 7ff1b30. Only within Scout's marked
+# block do these exact lines establish provenance. Outside mappings survive.
+HISTORICAL_SCOUT_LINES = {
+    "export CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192",
+    "export CLAUDE_CODE_MAX_OUTPUT_TOKENS=16384",
+    "export MAX_THINKING_TOKENS=4096",
+    "export MAX_THINKING_TOKENS=8192",
+    "export ANTHROPIC_DEFAULT_OPUS_MODEL=us.anthropic.claude-opus-4-7",
+    "export ANTHROPIC_DEFAULT_OPUS_MODEL=us.anthropic.claude-opus-4-7[1m]",
+    "export ANTHROPIC_DEFAULT_SONNET_MODEL=us.anthropic.claude-sonnet-4-6",
+    "export ANTHROPIC_DEFAULT_HAIKU_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0",
+}
+if begins and any(line.strip() and not line.lstrip().startswith("#")
+                  and line not in HISTORICAL_SCOUT_LINES
+                  for line in lines[begins[0] + 1:ends[0]]):
+    emit("ZSHRC_MODEL_ROUTING_PRESERVED")
     sys.exit(0)
 
 # (5) Compute new content in memory. Pass 1: strip out-of-block KEY stragglers +
@@ -201,6 +216,9 @@ case "$ZSHRC_STATUS" in
     echo "ZSHRC_MODIFIED" ;;
   ZSHRC_UNCHANGED)
     echo "ZSHRC_UNCHANGED" ;;
+  ZSHRC_MODEL_ROUTING_PRESERVED)
+    echo "ZSHRC_UNCHANGED"
+    echo "SCOUT_ZSHRC_DIAG: unknown shell content or model routing inside the Scout-managed block; preserved the entire file. Scout can remove only its exact historical exports; custom content needs explicit review." ;;
   ZSHRC_MARKERS_INVALID)
     echo "ZSHRC_UNCHANGED"
     echo "SCOUT_ZSHRC_DIAG: Scout found malformed \`# BEGIN/END SF-DEMO-SCOUT\` markers in your ~/.zshrc (missing, reversed, duplicated, nested, or not an exact match). Left the file byte-for-byte unchanged. Fix or delete both marker lines, then re-run /scout-setup." ;;

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 from dataclasses import dataclass, field
 import json
 import math
@@ -24,7 +23,9 @@ MODEL_KEYS = (
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL",
 )
-JSON_PIN_KEYS = MODEL_KEYS + (
+# Model mappings belong to the provider/user, regardless of their value or age.
+# Only these legacy Scout tuning settings remain in the cleanup contract.
+JSON_PIN_KEYS = (
     "MAX_THINKING_TOKENS",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
 )
@@ -391,85 +392,42 @@ def parse_jsonc(content: bytes) -> tuple[str, Node]:
     return source, root
 
 
-def delete_spans(source: str, spans: list[tuple[int, int]]) -> str:
-    unique = sorted(set(spans), reverse=True)
-    output = source
-    for start, end in unique:
-        output = output[:start] + output[end:]
-    return output
-
-
-def vscode_replacement(content: bytes) -> bytes | None:
-    source, root = parse_jsonc(content)
+def vscode_model_mappings(content: bytes) -> bool:
+    """Inspect the extension's mappings without rewriting user-owned JSONC."""
+    _, root = parse_jsonc(content)
     member = next(
         (item for item in root.members if item.key == "claudeCode.environmentVariables"),
         None,
     )
     if member is None:
-        return None
+        return False
     array = member.value
     if array.kind != "array":
         raise SettingsError("VSCODE_UNSUPPORTED_TARGET: environmentVariables is not an array")
-    selected: list[int] = []
-    for index, element in enumerate(array.elements):
+    found = False
+    for element in array.elements:
         value = element.node.value
         if isinstance(value, dict) and value.get("name") in MODEL_KEYS:
             if set(value) != {"name", "value"} or not isinstance(value.get("value"), str):
                 raise SettingsError("VSCODE_UNSUPPORTED_TARGET: unexpected target entry shape")
-            selected.append(index)
-    if not selected:
-        return None
-    spans: list[tuple[int, int]] = []
-    for index in selected:
-        element = array.elements[index]
-        spans.append((element.node.start, element.node.end))
-        if element.comma_after is not None:
-            spans.append((element.comma_after.start, element.comma_after.end))
-        elif index > 0 and array.elements[index - 1].comma_after is not None:
-            comma = array.elements[index - 1].comma_after
-            spans.append((comma.start, comma.end))
-    output = delete_spans(source, spans)
-    _, after = parse_jsonc(output.encode("utf-8"))
-    expected = copy.deepcopy(root.value)
-    expected["claudeCode.environmentVariables"] = [
-        value for index, value in enumerate(array.value) if index not in selected
-    ]
-    if after.value != expected:
-        raise SettingsError("VSCODE_SEMANTIC_MISMATCH: proposed edit changed unexpected values")
-    return output.encode("utf-8")
+            found = True
+    return found
 
 
 def run_vscode(path: Path) -> str:
     try:
-        original, mode = read_regular(path)
+        original, _ = read_regular(path)
     except FileNotFoundError:
         return "VSCODE_ABSENT"
     except SettingsError as error:
         return f"VSCODE_UNSAFE_FILE: {error}"
     try:
-        replacement = vscode_replacement(original)
+        present = vscode_model_mappings(original)
     except JsoncError as error:
         return f"VSCODE_UNPARSEABLE: {error}"
     except SettingsError as error:
         return str(error)
-    if replacement is None:
-        return "VSCODE_PINS_NONE"
-    try:
-        guarded_replace(
-            path,
-            original,
-            replacement,
-            mode,
-            ".scout-bak",
-            lambda content: parse_jsonc(content),
-        )
-    except BackupFailure as error:
-        return f"VSCODE_BACKUP_FAILED: {error}"
-    except PostWriteFailure as error:
-        return f"VSCODE_POST_WRITE_FAILED: {error}"
-    except WriteFailure as error:
-        return f"VSCODE_WRITE_FAILED: {error}"
-    return "VSCODE_PINS_REMOVED"
+    return "VSCODE_PINS_PRESERVED" if present else "VSCODE_PINS_NONE"
 
 
 def json_bytes(value: dict[str, object]) -> bytes:
@@ -496,6 +454,8 @@ def run_json_pins(path: Path) -> str:
                 del environment[key]
                 removed.append(key)
     flags = ["modelOverrides"] if "modelOverrides" in data else []
+    if isinstance(environment, dict) and any(key in environment for key in MODEL_KEYS):
+        flags.append("modelMappings")
     tail = f" FLAGS[{','.join(flags)}]" if flags else ""
     if not removed:
         return f"PINS_NONE[{label}]{tail}"

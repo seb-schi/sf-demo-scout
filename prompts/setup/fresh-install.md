@@ -268,9 +268,9 @@ Surface inline:
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its procedure (the fragment carries the full "why"). Carry any `AISUITE_HOOKS_REMOVED` / `FLAGS` note into the closing message — a hook removal means a CC restart is pending.
 
-## g.8: Strip stale model pins across all surfaces (self-heal)
+## g.8: Preserve model routing and clean retired Scout settings
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure (the fragment carries the full "why"). Carry any `PINS_REMOVED[...]` / `VSCODE_PINS_REMOVED` / `LAUNCHCTL_PINS_CLEARED` / VS-Code-restore-or-warn note into the closing message — a restart, and possibly a manual VS Code edit, is pending.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure (the fragment carries the full "why"). Carry actual cleanup and preservation results into the closing message. Read-only mapping checks need no restart.
 
 ## g.5: Ensure marketplace autoUpdate is enabled
 

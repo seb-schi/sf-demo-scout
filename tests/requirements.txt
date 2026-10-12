@@ -1,0 +1,3 @@
+# The report repair itself uses only Python's standard library.
+# PyYAML is required by other existing repository tests.
+PyYAML>=6.0,<7

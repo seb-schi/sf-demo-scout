@@ -52,4 +52,7 @@ its required tools work before discovery and the first real use.
 
 **If STATE was REFRESH and `ZSHRC_MODIFIED` is true:** also append before the close:
 
-> "Heads-up: Scout no longer manages model selection. Any `ANTHROPIC_DEFAULT_*_MODEL` exports it previously set in your shell have been removed, and Scout no longer pins a default model in `~/.claude/settings.json` — pick whatever model you want with `/model` (the `/scout-sparring` and `/scout-building` commands will remind you to switch to Opus when you run them)."
+> "Scout refreshed its shell block and ensured `~/.local/bin` is on PATH, removing recognized retired Scout exports where present. For an existing file, the pre-edit backup is `~/.zshrc.scout-bak-zshrc` (beside the target if `.zshrc` is a symlink). Open a new shell to load the updated file; already-running processes keep their current environment."
+
+Only actual mapping-preservation flags from the setup helpers justify a separate
+model-routing note. `ZSHRC_MODIFIED` alone does not establish that mappings exist.

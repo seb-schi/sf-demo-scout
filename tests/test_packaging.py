@@ -40,6 +40,13 @@ class PackagingTests(unittest.TestCase):
         for name in ("scout-setup", "scout-building", "scout-sparring"):
             self.assertIn("prompts/host-runtime.md", (ROOT / "commands" / f"{name}.md").read_text())
 
+    def test_shell_refresh_message_does_not_infer_model_routing(self) -> None:
+        content = (ROOT / "prompts/setup/done.md").read_text()
+        refresh = content.split('**If STATE was REFRESH and `ZSHRC_MODIFIED` is true:**', 1)[1]
+        self.assertIn('~/.zshrc.scout-bak-zshrc', refresh)
+        self.assertIn('Open a new shell', refresh)
+        self.assertNotIn('Scout preserved your provider and user model settings', refresh)
+
     def test_manifest_json_and_required_setup_scripts(self) -> None:
         for relative in (".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"):
             with self.subTest(relative=relative):
