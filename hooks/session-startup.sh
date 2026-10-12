@@ -3,10 +3,13 @@
 # Runs via SessionStart. Host-specific checks never consult another host.
 
 # Client notices apply globally; org/status probes remain workspace-scoped.
-CLIENT_EVIDENCE="${SCOUT_STARTUP_EVIDENCE:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/startup-evidence.py}"
+CLIENT_HELPER_DIR="$(cd "${BASH_SOURCE[0]%/*}/../scripts" && pwd)"
+CLIENT_EVIDENCE="${SCOUT_STARTUP_EVIDENCE:-$CLIENT_HELPER_DIR/startup-evidence.py}"
+CLIENT_VERSION="$CLIENT_HELPER_DIR/client-version.py"
 SCOUT_CLIENT_FLOOR=""
-if command -v python3 >/dev/null 2>&1 && [ -f "$CLIENT_EVIDENCE" ]; then
-  SCOUT_CLIENT_FLOOR=$(python3 -B "$CLIENT_EVIDENCE" client-floor 2>/dev/null) || SCOUT_CLIENT_FLOOR=""
+source "${CLIENT_VERSION%/*}/client-cache.sh"
+if ! scout_current_client_cached && command -v python3 >/dev/null 2>&1 && [ -f "$CLIENT_EVIDENCE" ]; then
+  SCOUT_CLIENT_FLOOR=$(python3 -B "$CLIENT_VERSION" floor 2>/dev/null) || SCOUT_CLIENT_FLOOR=""
 fi
 scout_emit_context() {
   local rendered

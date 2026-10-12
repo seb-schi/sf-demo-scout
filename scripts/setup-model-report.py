@@ -112,8 +112,6 @@ def collect(home: Path, project: Path, managed: Path, vscode: Path, zshrc: Path)
             pass
         except Exception:
             failed = True  # Never print parser errors which might quote credentials.
-    for key, value in os.environ.items():
-        add('session environment (shell or launch source)', 'shell', key, value)
     try:
         for number, line in enumerate(read_text(zshrc).splitlines(), 1):
             match = re.match(r'^\s*(?:export\s+)?([A-Z_][A-Z_0-9]*)=(.*)$', line)
@@ -139,6 +137,12 @@ def collect(home: Path, project: Path, managed: Path, vscode: Path, zshrc: Path)
                     add('launchctl', 'shell', key, result.stdout.strip())
             except (OSError, UnicodeError, subprocess.SubprocessError):
                 failed = True
+    # Claude injects settings env into its process. A matching value is not a
+    # second source; wait until shell/launchctl sources have also been read.
+    for key, value in os.environ.items():
+        if not any(row['key'] == key and row['value'] == value for row in rows):
+            add('session environment, set outside the files Scout read (shell profile, launch agent or host app)',
+                'shell', key, value)
     effective = {}
     for env in environments:
         effective.update(env)
@@ -156,7 +160,7 @@ def fix(row: dict, provider: str, family: str) -> str:
              if kind in {'shell', 'vscode'} else 'Change this file/key; user-settings wizards do not override project/local settings or a specific model key. '
              if kind != 'user' or key == 'model' else '')
     if key == 'CLAUDE_CODE_SUBAGENT_MODEL':
-        advice = 'Remove this override at its source so workers use the session model.'
+        advice = 'Remove this override at its source to let agents use the session model.'
         if provider in {'bedrock', 'vertex'} and classify(row['value'])[0] == 'alias':
             advice += ' Alternatively reopen ' + ('/setup-bedrock' if provider == 'bedrock' else '/setup-vertex') + ' to configure that alias.'
         return where + advice
@@ -176,6 +180,7 @@ def fix(row: dict, provider: str, family: str) -> str:
 
 def report(rows: list[dict], provider: str, failed: bool = False) -> list[str]:
     lines, uncertain = [], failed
+    forced = any(row['key'] == 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE' and row['value'] == '1' for row in rows)
     pins = {row['key'] for row in rows if row['key'].startswith('ANTHROPIC_DEFAULT_') and row['value']
             and classify(row['value'], provider, pinned=True)[0] != 'alias'}
     for row in rows:
@@ -192,10 +197,18 @@ def report(rows: list[dict], provider: str, failed: bool = False) -> list[str]:
                 continue
         elif classification != 'pre-5.5':
             continue
-        impact = (f'Scout workers use {family.title()} {version} instead of the session model'
+        impact = (f'Scout workers use {family.title()} {version} instead of the session model when the forced override is effective'
+                  if key == 'CLAUDE_CODE_SUBAGENT_MODEL' and forced else
+                  f'other agents that set no model use {family.title()} {version}; Scout workers follow the session'
                   if key == 'CLAUDE_CODE_SUBAGENT_MODEL' else f'this setting selects {family.title()} {version} when effective')
         # Values are never echoed: this also prevents full ARN / arbitrary text leakage.
         lines.append(f"Model routing: {key} at {row['surface']}: {impact}. {fix(row, provider, family)}")
+    if provider in {'bedrock', 'vertex'} and not any(
+            row['key'] == 'ANTHROPIC_DEFAULT_SONNET_MODEL' and row['value'] for row in rows):
+        wizard = '/setup-bedrock' if provider == 'bedrock' else '/setup-vertex'
+        lines.append('Model routing advisory: with no Sonnet pin read, the sonnet alias resolves to Sonnet 4.5; '
+                     'anything that asks for it, including a host’s default worker, gets 4.5. '
+                     f'Reopen {wizard} to pin Sonnet 5.5.')
     return lines or [('Model routing preserved; some values or sources could not be assessed; no recognized below-5.5 routing found.'
                       if uncertain or provider == 'unknown' else 'Model routing preserved; no below-5.5 routing found in the inspected sources.')]
 

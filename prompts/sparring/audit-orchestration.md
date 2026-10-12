@@ -21,6 +21,8 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    contracts to every worker. Workers check their own tool exposure and may
    use the established `sf` fallback with that explicit org. Use the active
    host's delegation API; `Agent(...)` examples below are Claude-only.
+   Apply `prompts/host-runtime.md#worker-model-mirroring` to the prelude, all
+   three audit worker calls, and every redispatch below.
 
 1. Read `[PLUGIN_ROOT_ABS]/prompts/operation-safety.md` and follow it. Resolve
    `WORKSPACE_ROOT` from bootstrap and absolute `CUSTOMER_DIR` from the selected

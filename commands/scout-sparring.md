@@ -175,8 +175,8 @@ root cannot be resolved, report that source context is unavailable.
 1. Read `prompts/mcp-readiness.md` and discover the required session tools for
    the named source. A CLI listing is diagnostic only. If the capability is
    unavailable, report the observed reason and skip that lookup.
-2. Dispatch a foreground worker using the active host's delegation API (leave
-   the model unspecified, following the user's worker configuration). Pass the resolved plugin root,
+2. Apply `prompts/host-runtime.md#worker-model-mirroring`, then dispatch a
+   foreground worker using the active host's delegation API. Pass the resolved plugin root,
    host, source inputs, and discovered operations with their schemas:
    > Read `[PLUGIN_ROOT_ABS]/prompts/sparring/[FRAGMENT]` and execute it. The
    > caller discovered candidate tools; verify they are exposed in your own

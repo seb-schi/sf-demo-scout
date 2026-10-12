@@ -462,7 +462,8 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
    `PRIOR_PHASES_SUMMARY`; retain the parent project. The worker must still preserve
    its first `agent-preedit` original and record the original active version before
    any edit. Missing source or failed staging blocks only the affected work.
-5. Confirm no unresolved `{{PLACEHOLDER}}` remains, then spawn:
+5. Confirm no unresolved `{{PLACEHOLDER}}` remains. Apply
+   `prompts/host-runtime.md#worker-model-mirroring` to the call, including retries, then spawn:
    `Agent(description="[row's description]", prompt=[constructed prompt])`.
 6. Validate output (see Sub-Agent Output Validation above) before moving on.
    During return review, reject work outside BUILD_SCOPE, preserve it as a deviation,

@@ -6,7 +6,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 - **Your model routing stays yours.** Setup and refresh preserve model pins and report recognized older models with advice for your provider and settings source. Scout still retires only its own recognized historical shell exports.
 - **Older Claude clients get a notice.** Setup reports the identified running client, and session startup shows a notice below Claude Code 2.1.293, the client floor for the 5.5 models. Desktop and IDE clients are checked separately from the CLI on PATH when their executable is identifiable.
-- **Scout leaves worker model selection to your configuration.** Workers use your subagent setting when present, otherwise the session model. Scout no longer selects a model family or asks you to switch families for follow-up edits.
+- **Scout’s workers now run on the same model as your session in every Claude host, the desktop app included.** An explicit forced worker override still takes precedence; if the session cannot identify its model family, Scout uses the host default.
 
 ## 2026-09-23
 

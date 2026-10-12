@@ -35,3 +35,13 @@ Salesforce CLI (`sf`) is a machine installation, usable without Scout. The
 Salesforce DX MCP adapter (`@salesforce/mcp`) is a separate package launched by
 each host from Scout's plugin manifest using `npx`. Pre-caching the adapter does
 not register it globally or establish that any host connected successfully.
+
+## Worker model mirroring
+
+Before every Claude worker dispatch, set the per-call `model` to the alias of
+this orchestrator's own model family. The session's version pins its matching
+alias, so this mirrors the session instead of the host's default worker model.
+If this session cannot identify its own family, omit `model`; do not guess.
+The user's `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` can override this choice.
+Apply this on initial calls and every redispatch. Codex keeps the inherited
+model behavior described above.

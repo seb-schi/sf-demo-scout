@@ -113,6 +113,12 @@ class PolicyTests(unittest.TestCase):
                         if surface.startswith('zsh'):
                             subprocess.run(['/bin/bash', str(ROOT / 'scripts/setup-zshrc.sh')], env=env_for_shell, capture_output=True, check=True)
                         rows, provider, failed = self.collect(case)
+                        # A real Claude process also contains settings env.
+                        if key != 'model' and value is not None:
+                            with patch.dict(os.environ, {key: value}):
+                                injected, injected_provider, injected_failed = self.collect(case)
+                            self.assertEqual(injected, rows)
+                            self.assertEqual((injected_provider, injected_failed), (provider, failed))
                         matching = [r for r in rows if r['key'] == key]
                         if value is not None:
                             self.assertEqual(REPORT.classify(matching[0]['value'], provider)[0], classification)
@@ -170,7 +176,8 @@ class PolicyTests(unittest.TestCase):
                 rows = [dict(kind='user', surface='settings.json', key=k, value=v) for k, v in
                         [('CLAUDE_CODE_SUBAGENT_MODEL', value), ('CLAUDE_CODE_SUBAGENT_MODEL_FORCE', force)] if v is not None]
                 output = '\n'.join(REPORT.report(rows, 'bedrock'))
-                self.assertEqual('Scout workers use' in output, value in {'claude-sonnet-4-6', 'sonnet'})
+                self.assertEqual('Scout workers use' in output, force == '1' and value in {'claude-sonnet-4-6', 'sonnet'})
+                self.assertEqual('other agents that set no model' in output, force is None and value in {'claude-sonnet-4-6', 'sonnet'})
                 self.assertNotIn('_FORCE', output)
         alias = dict(kind='user', surface='settings.json', key='model', value='sonnet')
         self.assertIn('Sonnet 4.5', REPORT.report([alias], 'bedrock')[0])
