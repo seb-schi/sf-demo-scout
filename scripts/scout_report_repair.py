@@ -24,7 +24,7 @@ from scout_report_xml import LIMIT, RepairError, candidate, selected_value, sign
 
 ASSETS = Path(__file__).resolve().with_name("build-assets.py")
 ERRORS = (RepairError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError)
-RELEASED = {"applied", "already_satisfied", "not_applied"}
+RELEASED = {"applied", "already_satisfied", "not_applied", "released_unverified"}
 NO_LAUNCH_ERRORS = {"NothingToDeploy", "SourceConflictError"}
 
 
@@ -76,9 +76,12 @@ def write(file: Path, content: bytes, *, exclusive: bool = False) -> None:
             stream.flush()
             os.fsync(stream.fileno())
     else:
+        mode = stat.S_IMODE(file.stat().st_mode) if file.exists() else None
         descriptor, temporary = tempfile.mkstemp(prefix=".repair-", dir=file.parent)
         try:
             with os.fdopen(descriptor, "wb") as stream:
+                if mode is not None:
+                    os.fchmod(stream.fileno(), mode)
                 stream.write(content)
                 stream.flush()
                 os.fsync(stream.fileno())
@@ -244,7 +247,7 @@ def outcome(state):
     if acceptance == "passed":
         return "applied" if mutation == "succeeded" else "already_satisfied"
     if mutation != "not_attempted":
-        return "unverified"
+        return "released_unverified" if state.get("release_evidence") else "unverified"
     return "blocked" if state.get("error") else "ready"
 
 
@@ -302,6 +305,8 @@ class Repair:
         marker, end = f"<!-- scout-repair:{task.name} -->", f"<!-- /scout-repair:{task.name} -->"
         final = state["outcome"] in RELEASED or (state["outcome"] == "blocked" and not (task / "launch.json").exists())
         title = state["outcome"] if final else "PENDING — component repair"
+        if title == "released_unverified":
+            title = "unverified — released by operator"
         pin = state.get("original", {})
         relative = report_paths(contract["member"])[0]
         row = (f"{marker}\n### {title}\n"
@@ -311,6 +316,8 @@ class Repair:
                f"- **First pre-edit artifact / source / members:** {pin.get('artifact', state['recovery'])}; {pin.get('artifact', '')}/source/{relative}; {relative}; verification: {state['recovery']}\n"
                f"- **Outcome / read-back:** {'blocked — not_applied (confirmed unchanged)' if title == 'not_applied' else title}; mutation={state['mutation']}; acceptance={state['acceptance']}; {state.get('readback', 'pending')}\n"
                f"- **Receipts / remaining action:** {task}/result.json; {task}/deploy-start.json; {state.get('job_id')}; {state.get('error', 'verify or reconcile before replay')}\n"
+               + (f"- **Operator release evidence:** {state['release_evidence']}; result remains unverified\n"
+                  if state.get("release_evidence") else "") +
                f"- **Rollback:** verify the pinned component-preedit receipt, stage only {relative}, re-bind target and read back; never restore from a later retrieve\n"
                f"{end}\n")
         with locked(log.with_suffix(log.suffix + ".lock")):
@@ -389,6 +396,7 @@ class Repair:
         return contract, state
 
     def record_error(self, task, contract, state, error):
+        state.pop("release_evidence", None)  # a failed finalization has not released the guard
         state["error"] = diagnostic(error)
         if (task / "launch.json").exists() and state["mutation"] == "not_attempted":
             state["mutation"] = "attempted_unknown"
@@ -416,7 +424,7 @@ class Repair:
                     if (old / "launch.json").exists():
                         resolution = json_read(old / "resolution.json") if (old / "resolution.json").exists() else {}
                         if resolution.get("outcome") not in RELEASED:
-                            raise RepairError("another repair has an unresolved write; use reconcile-report")
+                            raise RepairError("another repair has an unresolved write; use reconcile-report, or its --release-evidence route after operator review")
             save(pointer, {"task": str(task)})
             yield
 
@@ -455,6 +463,7 @@ class Repair:
                     if already:
                         state.update(acceptance="passed", readback=current)
                         self.checkpoint(task, contract, state)
+                        self.resolve(task, expected, state)
                         return state
                     state.update(original=self.original(task, contract, create=True), recovery="verified")
                     owned = self.workspace(contract)
@@ -479,9 +488,35 @@ class Repair:
                     self.record_error(task, contract, state, error)
                     raise
 
-    def reconcile(self, task, expected, job=None, job_evidence=None):
+    def resolve(self, task, expected, state):
+        save(task / "resolution.json", {key: state.get(key) for key in
+             ("outcome", "mutation", "acceptance", "job_id", "readback", "release_evidence")}
+             | {"digest": expected}, exclusive=True)
+
+    def reconciliation_gate(self, task, expected, release_evidence):
+        contract, state = self.load(task, expected)
+        if (task / "resolution.json").exists():
+            resolution = json_read(task / "resolution.json")
+            raise RepairError(f"resolved ({resolution['outcome']}); start a new task"
+                              + ("; nothing to release" if release_evidence else ""))
+        if state.get("outcome") == "released_unverified":
+            # A host interruption can fall between checkpoint and resolution.
+            # Only resolution releases the guard; reconcile uncertainty again.
+            state.pop("release_evidence", None)
+            state["outcome"] = "unverified"
+        if release_evidence and state.get("outcome") != "unverified":
+            return contract, dict(state, action="nothing to release")
+        return contract, state
+
+    def reconcile(self, task, expected, job=None, job_evidence=None, release_evidence=None):
+        task = path(task)
+        _, state = self.reconciliation_gate(task, expected, release_evidence)
+        if state.get("action") == "nothing to release":
+            return state
         with locked(path(task) / ".lock"):
-            contract, state = self.load(task, expected)
+            contract, state = self.reconciliation_gate(task, expected, release_evidence)
+            if state.get("action") == "nothing to release":
+                return state
             with self.component_guard(task, contract):
                 try:
                     self.adapter.check_identity(contract["target"], Path(contract["workspace"]))
@@ -557,10 +592,21 @@ class Repair:
                             state["recovery"] = "blocked"
                             state["recovery_error"] = str(error) if isinstance(error, RepairError) else type(error).__name__
                     state.pop("error", None)
+                    if release_evidence and outcome(state) == "unverified":
+                        evidence = read(path(release_evidence))
+                        if not evidence.strip():
+                            raise RepairError("release evidence is empty")
+                        release = task / "release-evidence.md"
+                        if not release.exists():
+                            write(release, evidence, exclusive=True)
+                        elif read(release) != evidence:
+                            raise RepairError("release evidence changed")
+                        state["release_evidence"] = str(release)
                     self.checkpoint(task, contract, state)
                     if state["outcome"] in RELEASED:
-                        save(task / "resolution.json", {"outcome": state["outcome"], "digest": expected,
-                                                       "job_id": state.get("job_id"), "readback": current})
+                        self.resolve(task, expected, state)
+                    if release_evidence and state["outcome"] != "released_unverified":
+                        state = dict(state, action="nothing to release")
                     return state
                 except ERRORS as error:
                     self.record_error(task, contract, state, error)
@@ -586,6 +632,7 @@ def main():
         if operation == "reconcile-report":
             sub.add_argument("--job-id")
             sub.add_argument("--job-evidence")
+            sub.add_argument("--release-evidence")
     args = parser.parse_args()
     engine = None
     try:
@@ -600,7 +647,8 @@ def main():
                 result = json_read(task / "result.json")
             else:
                 method = engine.apply if args.command == "apply-report" else engine.reconcile
-                kwargs = {"job": args.job_id, "job_evidence": args.job_evidence} if args.command == "reconcile-report" else {}
+                kwargs = {"job": args.job_id, "job_evidence": args.job_evidence,
+                          "release_evidence": args.release_evidence} if args.command == "reconcile-report" else {}
                 result = method(path(args.task_dir), args.contract_digest, **kwargs)
         print(json.dumps(result, sort_keys=True))
         return 0
@@ -618,6 +666,8 @@ def main():
             except ERRORS:
                 pass
         result["action"] = "inspect the named evidence; use reconcile-report for an attempted write"
+        if isinstance(error, RepairError) and str(error).startswith("resolved ("):
+            result["action"] = "start a new task; the recorded resolution is unchanged"
         print(json.dumps(result, sort_keys=True))
         return 1
 

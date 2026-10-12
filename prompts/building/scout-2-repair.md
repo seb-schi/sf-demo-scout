@@ -62,6 +62,17 @@ Read-only CLI integration has been exercised; live repair/restore is not validat
    terminal result and current state, but cannot prove a human attribution. Never
    invent an ID, select a recent unrelated job, edit result.json or delete a lock
    pointer to resume. Poll nonterminal jobs with bounded waits; never redeploy.
+   If deployment history shows no job for this attempt after `launch.started_at`,
+   or the read-back difference has been reviewed, the operator may release a still
+   unverified attempt with `reconcile-report --task-dir [TASK]
+   --contract-digest [DIGEST] --release-evidence [ABS_EVIDENCE_FILE]`. Save that
+   review in a non-empty bounded regular file. The helper reconciles first, then
+   copies the evidence once to `release-evidence.md` and releases the component
+   guard only if the result is still unverified. Changed evidence is rejected.
+   The result is `released_unverified`, reported as unverified, never as applied
+   or not applied; retain its original, receipts and read-back. A new task may
+   now inspect the current state. Other outcomes have nothing to release.
+   Resolved tasks refuse further verify/reconcile; start a new task instead.
 8. Report the result, task/log paths and recovery status. The helper updates one
    marked checkpoint in the conventional log, including source, preservation,
    receipt and read-back pointers. A pending operation remains PENDING. Preserve

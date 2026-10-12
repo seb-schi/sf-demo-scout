@@ -30,6 +30,8 @@ elif args[:3] == ['project', 'retrieve', 'start']:
 elif args[:3] == ['project', 'deploy', 'start']:
     if mode == 'preflight':
         data = response('synthetic-deploy-error')
+    elif mode == 'no-job':
+        data = {'status': 1, 'name': 'NetworkError'}
     else:
         root = Path.cwd() / 'force-app/main/default'
         files = [p.relative_to(root).as_posix() for p in root.rglob('*.xml')]

@@ -72,6 +72,9 @@ class FakeSalesforce:
         if self.mode == 'preflight':
             receipt.write_text(json.dumps(fixture('synthetic-deploy-error')))
             raise repair.RepairError('SourceConflictError')
+        if self.mode == 'no-job':
+            receipt.write_text('{"status":1,"name":"NetworkError"}')
+            raise repair.RepairError('launch response unavailable')
         if self.mode != 'failed':
             self.source = (root / REPORT).read_bytes()
         if self.mode == 'lost':
@@ -218,6 +221,154 @@ class ReportRepairTests(unittest.TestCase):
         with self.assertRaises(TimeoutError): self.engine.apply(task, sha)
         self.assertIsNone(repair.json_read(task / 'result.json')['job_id'])
         self.assertEqual(self.engine.reconcile(task, sha)['outcome'], 'applied')
+        self.assertEqual(self.count('deploy'), 1)
+
+    def release_proof(self):
+        proof = self.customer / 'release-review.md'
+        proof.write_text('Operator reviewed deployment history after launch and the current report read-back.')
+        return str(proof)
+
+    def snapshot(self):
+        return {str(p.relative_to(self.workspace)): (p.read_bytes(), p.stat().st_mode & 0o7777)
+                for p in self.workspace.rglob('*') if p.is_file()}
+
+    def test_operator_release_retains_uncertainty_and_allows_one_new_deploy(self):
+        for mode in ('no-job', 'normalized'):
+            with self.subTest(mode=mode):
+                self.adapter.source = BEFORE
+                task, sha = self.inspect()
+                self.adapter.mode = 'no-job' if mode == 'no-job' else 'success'
+                if mode == 'no-job':
+                    with self.assertRaises(repair.RepairError):
+                        self.engine.apply(task, sha)
+                else:
+                    self.engine.apply(task, sha)
+                    self.adapter.source = GOLD.replace(b' untouched ', b'normalized')
+                unverified = self.engine.reconcile(task, sha)
+                self.assertEqual(unverified['outcome'], 'unverified')
+                before_deploys = self.count('deploy')
+                proof = self.release_proof()
+                result = self.engine.reconcile(task, sha, release_evidence=proof)
+                self.assertEqual(result['outcome'], 'released_unverified')
+                resolution = repair.json_read(task / 'resolution.json')
+                for key in ('mutation', 'acceptance', 'job_id'):
+                    self.assertEqual(resolution[key], unverified[key])
+                self.assertEqual(resolution['readback'], result['readback'])
+                self.assertEqual((task / 'release-evidence.md').read_bytes(), Path(proof).read_bytes())
+                self.assertIn('### unverified — released by operator', Path(result['log']).read_text())
+                self.assertIn(str(task / 'release-evidence.md'), Path(result['log']).read_text())
+                self.assertEqual(self.count('deploy'), before_deploys)
+                before = self.snapshot()
+                self.adapter.trace.clear()
+                with self.assertRaisesRegex(repair.RepairError, r'resolved \(released_unverified\); start a new task'):
+                    self.engine.verify(task, sha)
+                self.assertEqual(self.snapshot(), before)
+                self.assertEqual(self.adapter.trace, [])
+                # Propose a fresh delta from the observed normalized value.
+                self.adapter.mode = 'success'
+                delta = dict(DELTA, before='Prospecting' if mode == 'no-job' else 'Qualification', after='Negotiation')
+                second = self.engine.inspect(str(self.workspace), str(self.customer), 'maple-demo', MEMBER,
+                                             delta, self.request, 'follow-up instruction', previous_task=task)
+                second_sha = repair.json_read(second / 'result.json')['digest']
+                self.engine.apply(second, second_sha)
+                self.assertEqual(self.engine.verify(second, second_sha)['outcome'], 'applied')
+                self.assertEqual(self.count('deploy'), 1)
+
+    def test_release_requests_on_other_outcomes_and_terminal_rechecks_write_nothing(self):
+        proof = self.release_proof()
+        for kind in ('ready', 'applied', 'not_applied', 'already_satisfied'):
+            with self.subTest(kind=kind):
+                self.adapter.source = GOLD if kind == 'already_satisfied' else BEFORE
+                self.adapter.mode = 'failed' if kind == 'not_applied' else 'success'
+                self.adapter.status = fixture('synthetic-report-success')['result']
+                task, sha = self.inspect()
+                if kind != 'ready':
+                    result = self.engine.apply(task, sha)
+                    if kind != 'already_satisfied':
+                        result = self.engine.verify(task, sha)
+                    self.assertEqual(result['outcome'], kind)
+                    self.assertTrue((task / 'resolution.json').exists())
+                self.adapter.source = BEFORE.replace(b'100', b'777')  # later UI drift
+                self.adapter.trace.clear()
+                before = self.snapshot()
+                if kind == 'ready':
+                    result = self.engine.reconcile(task, sha, release_evidence=proof)
+                    self.assertEqual((result['outcome'], result['action']), ('ready', 'nothing to release'))
+                else:
+                    for method, kwargs in ((self.engine.verify, {}), (self.engine.reconcile, {}),
+                                           (self.engine.reconcile, {'release_evidence': proof})):
+                        with self.assertRaisesRegex(repair.RepairError, 'resolved .*start a new task'):
+                            method(task, sha, **kwargs)
+                self.assertEqual(self.snapshot(), before)
+                self.assertEqual(self.adapter.trace, [])
+
+    def test_release_reconciles_normally_before_deciding_and_validates_immutable_evidence(self):
+        task, sha = self.inspect(); self.engine.apply(task, sha)
+        # Fresh successful receipt wins; invalid release evidence is not consumed.
+        result = self.engine.reconcile(task, sha, release_evidence='/missing')
+        self.assertEqual((result['outcome'], result['action']), ('applied', 'nothing to release'))
+        self.assertFalse((task / 'release-evidence.md').exists())
+        self.adapter.source = BEFORE
+        task, sha = self.inspect(); self.adapter.mode = 'no-job'
+        with self.assertRaises(repair.RepairError): self.engine.apply(task, sha)
+        proof = Path(self.release_proof())
+        empty = self.customer / 'empty.md'; empty.write_text(' \n')
+        large = self.customer / 'large.md'; large.write_bytes(b'x' * (repair.LIMIT + 1))
+        link = self.customer / 'link.md'; link.symlink_to(proof)
+        for invalid in (empty, large, link, self.customer, Path('relative.md')):
+            with self.subTest(path=invalid), self.assertRaises(repair.RepairError):
+                self.engine.reconcile(task, sha, release_evidence=str(invalid))
+            self.assertFalse((task / 'resolution.json').exists())
+            self.assertFalse((task / 'release-evidence.md').exists())
+        # Simulate evidence copied before an interrupted checkpoint.
+        (task / 'release-evidence.md').write_text('earlier evidence')
+        with self.assertRaisesRegex(repair.RepairError, 'release evidence changed'):
+            self.engine.reconcile(task, sha, release_evidence=str(proof))
+        self.assertEqual((task / 'release-evidence.md').read_text(), 'earlier evidence')
+        self.assertFalse((task / 'resolution.json').exists())
+        proof.write_text('earlier evidence')
+        self.assertEqual(self.engine.reconcile(task, sha, release_evidence=str(proof))['outcome'], 'released_unverified')
+
+    def test_checkpoint_preserves_existing_change_log_mode(self):
+        log = self.customer / 'changes-2026-10-12-0900-maple.md'
+        log.write_text('# Existing log\n'); log.chmod(0o644)
+        task, sha = self.inspect()
+        self.assertEqual(log.stat().st_mode & 0o777, 0o644)
+        self.engine.apply(task, sha); self.engine.verify(task, sha)
+        self.assertEqual(log.stat().st_mode & 0o777, 0o644)
+        self.assertEqual((task / 'result.json').stat().st_mode & 0o777, 0o600)
+
+    def test_failed_release_finalization_stays_pending_and_retries_same_evidence(self):
+        task, sha = self.inspect(); self.adapter.mode = 'no-job'
+        with self.assertRaises(repair.RepairError): self.engine.apply(task, sha)
+        proof = self.release_proof()
+        with patch.object(self.engine, 'resolve', side_effect=OSError('injected resolution failure')):
+            with self.assertRaises(OSError):
+                self.engine.reconcile(task, sha, release_evidence=proof)
+        result = repair.json_read(task / 'result.json')
+        self.assertEqual(result['outcome'], 'unverified')
+        self.assertIn('PENDING — component repair', Path(result['log']).read_text())
+        self.assertFalse((task / 'resolution.json').exists())
+        second, second_sha = self.inspect()
+        with self.assertRaisesRegex(repair.RepairError, 'unresolved write'):
+            self.engine.apply(second, second_sha)
+        self.assertEqual(self.engine.reconcile(task, sha, release_evidence=proof)['outcome'], 'released_unverified')
+        self.assertEqual(self.count('deploy'), 1)
+
+    def test_host_interruption_between_release_checkpoint_and_resolution_is_recoverable(self):
+        task, sha = self.inspect(); self.adapter.mode = 'no-job'
+        with self.assertRaises(repair.RepairError): self.engine.apply(task, sha)
+        proof = self.release_proof()
+        with patch.object(self.engine, 'resolve', side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                self.engine.reconcile(task, sha, release_evidence=proof)
+        self.assertFalse((task / 'resolution.json').exists())
+        second, second_sha = self.inspect()
+        with self.assertRaisesRegex(repair.RepairError, 'unresolved write'):
+            self.engine.apply(second, second_sha)
+        result = self.engine.reconcile(task, sha, release_evidence=proof)
+        self.assertEqual(result['outcome'], 'released_unverified')
+        self.assertTrue((task / 'resolution.json').exists())
         self.assertEqual(self.count('deploy'), 1)
 
     def test_operator_attribution_is_recorded_and_old_job_is_rejected(self):
@@ -443,6 +594,24 @@ class ReportRepairTests(unittest.TestCase):
         self.assertEqual(result['outcome'], 'blocked')
         self.assertEqual(result['saved_outcome'], 'ready')
         self.assertIn('unresolved write', result['error'])
+
+    def test_cli_operator_release_and_terminal_refusal(self):
+        call, args, state_file = self.cli_fixture('no-job')
+        process, state = call(*args)
+        self.assertEqual(process.returncode, 0)
+        selectors = ['--task-dir', state['task'], '--contract-digest', state['digest']]
+        process, state = call('apply-report', *selectors)
+        self.assertEqual(process.returncode, 1)
+        process, state = call('reconcile-report', *selectors, '--release-evidence', self.release_proof())
+        self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+        self.assertEqual(state['outcome'], 'released_unverified')
+        before = self.snapshot()
+        process, state = call('verify-report', *selectors)
+        self.assertEqual(process.returncode, 1)
+        self.assertIn('resolved (released_unverified); start a new task', state['error'])
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(sum(c[:3] == ['project', 'deploy', 'start']
+                             for c in json.loads(state_file.read_text())['calls']), 1)
 
 
 if __name__ == '__main__':
