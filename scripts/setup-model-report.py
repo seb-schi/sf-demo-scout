@@ -203,13 +203,18 @@ def report(rows: list[dict], provider: str, failed: bool = False) -> list[str]:
                   if key == 'CLAUDE_CODE_SUBAGENT_MODEL' else f'this setting selects {family.title()} {version} when effective')
         # Values are never echoed: this also prevents full ARN / arbitrary text leakage.
         lines.append(f"Model routing: {key} at {row['surface']}: {impact}. {fix(row, provider, family)}")
+    sonnet_pins = [row for row in rows if row['key'] == 'ANTHROPIC_DEFAULT_SONNET_MODEL' and row['value']]
     if provider in {'bedrock', 'vertex'} and not any(
-            row['key'] == 'ANTHROPIC_DEFAULT_SONNET_MODEL' and row['value'] for row in rows):
+            row['kind'] in {'user', 'managed'} or row['surface'] == 'launchctl' for row in sonnet_pins):
         wizard = '/setup-bedrock' if provider == 'bedrock' else '/setup-vertex'
-        lines.append('Model routing advisory: with no Sonnet pin read, the sonnet alias resolves to Sonnet 4.5 '
+        sources = '; '.join(dict.fromkeys(row['surface'] for row in sonnet_pins))
+        limited = (f'A Sonnet pin was read at {sources}; sessions started without it can still resolve sonnet to 4.5. '
+                   if sources else '')
+        lines.append('Model routing advisory: with no Sonnet pin read in user settings, managed settings or launchctl, '
+                     'the sonnet alias resolves to Sonnet 4.5 '
                      'unless the session starts on a specific Sonnet version, so a host’s default worker '
                      'under an Opus session gets 4.5. '
-                     f'Reopen {wizard} to pin Sonnet 5.5.')
+                     f'{limited}Reopen {wizard} to pin Sonnet 5.5.')
     return lines or [('Model routing preserved; some values or sources could not be assessed; no recognized below-5.5 routing found.'
                       if uncertain or provider == 'unknown' else 'Model routing preserved; no below-5.5 routing found in the inspected sources.')]
 

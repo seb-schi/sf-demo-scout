@@ -98,8 +98,9 @@ on PATH can differ from the desktop/IDE client identified by its executable path
 - `SF_CLI_UPDATE_UNVERIFIED` / `CLAUDE_CLI_UPDATE_UNVERIFIED` — install exited 0 but the post-install version probe failed or returned no supported version. One-line note ("couldn't verify the [sf|claude] CLI version after the update — continuing"). Never report UPDATED off an unverified probe.
 - `SF_CLI_UPDATE_MISMATCH` / `CLAUDE_CLI_UPDATE_MISMATCH` — install exited 0 and a valid version was observed, but it is neither the prior version nor the resolved target. One-line note naming both ("[sf|claude] CLI now reports [observed], expected [target] — surfaced for you to check"). Don't imply the target was reached.
 - `SF_CLI_CHECK_FAILED` / `CLAUDE_CLI_CHECK_FAILED` — one-line note ("couldn't check [sf|claude] CLI version — kept the installed one"), proceed.
-- `SF_CLI_NOT_NPM_OWNED` / `CLAUDE_CLI_NOT_NPM_OWNED` — one-line note that the active executable belongs to another installation, so Scout left it to that installation's updater. Do not call this an error.
-- `SF_CLI_OWNERSHIP_UNVERIFIED` / `CLAUDE_CLI_OWNERSHIP_UNVERIFIED` — one-line note that npm ownership could not be proved, so Scout safely skipped the update. Do not imply which installer owns it.
+- `CLAUDE_CLI_NOT_NPM_OWNED (native install updates itself; Scout left it alone)` — "Claude Code uses the native install, which updates itself; Scout left it alone." The helper proves this from the active executable's real path inside `$HOME/.local/share/claude/versions/`.
+- Other `SF_CLI_NOT_NPM_OWNED` / `CLAUDE_CLI_NOT_NPM_OWNED` — one-line note that the active executable belongs to another installation, so Scout left it to that installation's updater. Do not call this an error.
+- `SF_CLI_OWNERSHIP_UNVERIFIED` / `CLAUDE_CLI_OWNERSHIP_UNVERIFIED` — one-line note that npm ownership could not be proved, so Scout safely skipped the update. Name an installer only for the proved native-path case above; otherwise do not imply which installer owns it.
 
 ## c: Slack MCP
 

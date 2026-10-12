@@ -73,7 +73,8 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(REPORT.classify('sonnet', 'foundry', pinned=True)[0], 'unknown')
 
     def test_surface_value_matrix_fresh_and_refresh_preserve_bytes(self):
-        surfaces = ('user', 'local', 'vscode', 'launchctl', 'zsh-inside', 'zsh-outside', 'model', 'managed')
+        surfaces = ('user', 'local', 'vscode', 'launchctl', 'zsh-inside', 'zsh-outside', 'model', 'managed',
+                    'session', 'project', 'project-local')
         count = 0
         cleanup = runpy.run_path(str(ROOT / 'scripts/setup-settings.py'))['run_json_pins']
         for surface in surfaces:
@@ -82,14 +83,21 @@ class PolicyTests(unittest.TestCase):
                     with self.subTest(surface=surface, classification=classification, mode=mode):
                         case = self.base / f'{surface}-{classification}-{mode}'
                         case.mkdir()
+                        if surface == 'session' and classification == '5.5+':
+                            value = 'us.anthropic.claude-sonnet-5-5'  # F7 replay.
                         paths = {'user': case / '.claude/settings.json', 'local': case / '.claude/settings.local.json',
+                                 'project': case / 'project/.claude/settings.json',
+                                 'project-local': case / 'project/.claude/settings.local.json',
                                  'model': case / '.claude/settings.json', 'managed': case / 'managed.json',
                                  'vscode': case / 'vscode.json', 'zsh-inside': case / '.zshrc', 'zsh-outside': case / '.zshrc'}
                         key = 'model' if surface == 'model' else PIN
                         env = {} if value is None else {PIN: value}
                         path = paths.get(surface)
+                        os.environ.pop(PIN, None)
                         self.script('launchctl', 'exit 0\n')
-                        if surface == 'launchctl':
+                        if surface == 'session':
+                            os.environ.update(env)
+                        elif surface == 'launchctl':
                             self.script('launchctl', f'if [ "$1 $2" = "getenv {PIN}" ]; then printf "%s\\n" {shlex_quote(value or "")}; fi\n')
                             path = self.bin / 'launchctl'
                         else:
@@ -105,7 +113,7 @@ class PolicyTests(unittest.TestCase):
                             else:
                                 body = json.dumps(({} if value is None else {'model': value}) if surface == 'model' else {'env': env})
                             path.write_text(body)
-                        before = path.read_bytes()
+                        before = path.read_bytes() if path else None
                         if surface in {'user', 'local', 'model'}:
                             cleanup(path)  # Both setup routes invoke the same cleanup operation.
                         if surface == 'vscode':
@@ -125,17 +133,42 @@ class PolicyTests(unittest.TestCase):
                         else:
                             self.assertEqual(matching, [])
                         output = '\n'.join(REPORT.report(rows, provider, failed))
-                        self.assertEqual(path.read_bytes(), before)
+                        self.assertEqual(path.read_bytes() if path else None, before)
                         self.assertNotIn(ARN, output)
+                        advisory = value is None or surface not in {'user', 'managed', 'launchctl'}
+                        self.assertEqual('Model routing advisory:' in output, advisory)
+                        if advisory and value is not None and key == PIN:
+                            self.assertIn('A Sonnet pin was read at '+matching[0]['surface'], output)
+                            self.assertIn('sessions started without it can still resolve sonnet to 4.5', output)
+                            self.assertIn('/setup-bedrock', output)
+                        if value is not None and classification != 'alias':
+                            self.assertNotIn(value, output)
                         if classification in {'pre-5.5', 'alias'}:
                             self.assertIn(key, output)
                             self.assertIn('Ask whoever manages', output) if surface == 'managed' else self.assertIn('/setup-bedrock', output)
-                            if surface in {'zsh-inside', 'zsh-outside', 'launchctl', 'vscode'}:
+                            if surface in {'zsh-inside', 'zsh-outside', 'launchctl', 'vscode', 'session'}:
                                 self.assertIn('source first', output)
                         else:
                             self.assertNotIn('Model routing:', output)
                         count += 1
-        self.assertEqual(count, 96)
+        self.assertEqual(count, 132)
+
+    def test_sonnet_advisory_multiple_sources_and_host_wide_pin(self):
+        value = 'us.anthropic.claude-sonnet-5-5'
+        rows = [dict(kind=kind, surface=surface, key=PIN, value=value) for kind, surface in
+                [('shell', 'session environment'), ('shell', '.zshrc:1'), ('vscode', 'vscode.json'),
+                 ('other', 'project/.claude/settings.json')]]
+        for provider in ('bedrock', 'vertex'):
+            output = '\n'.join(REPORT.report(rows, provider))
+            for row in rows:
+                self.assertIn(row['surface'], output)
+            self.assertIn('sessions started without it can still resolve sonnet to 4.5', output)
+            self.assertIn('/setup-'+provider, output)
+            self.assertNotIn(value, output)
+            for kind, surface in [('user', 'settings.json'), ('managed', 'managed.json'), ('shell', 'launchctl')]:
+                shared = dict(kind=kind, surface=surface, key=PIN, value=value)
+                self.assertEqual(REPORT.report(rows+[shared], provider),
+                                 ['Model routing preserved; no below-5.5 routing found in the inspected sources.'])
 
     def test_provider_remedies_and_foundry_deployment_names(self):
         for provider in (*REPORT.DEFAULTS, 'unknown'):

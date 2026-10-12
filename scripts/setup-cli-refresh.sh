@@ -25,6 +25,22 @@ report_running_client() {
 }
 # Report on every return path without changing ownership/update decisions.
 trap 'report_running_client "$1"' EXIT
+if [ "$1" = "claude" ] && [ -n "$PYTHON_EXE" ] && [ -n "$CLI_EXE" ] &&
+    "$PYTHON_EXE" - "$CLI_EXE" 2>/dev/null <<'SCOUT_NATIVE_CLAUDE'
+from pathlib import Path
+import sys
+try:
+    active = Path(sys.argv[1]).resolve(strict=True)
+    native = Path.home().resolve(strict=True) / ".local/share/claude/versions"
+    found = active.is_file() and native in active.parents
+except (OSError, RuntimeError, ValueError):
+    found = False
+sys.exit(0 if found else 1)
+SCOUT_NATIVE_CLAUDE
+then
+  echo "CLAUDE_CLI_NOT_NPM_OWNED (native install updates itself; Scout left it alone)"
+  exit 0
+fi
 if [ -z "$NPM_EXE" ] || [ -z "$PYTHON_EXE" ] || [ -z "$CLI_EXE" ] \
     || [ ! -f "$OWNER_HELPER" ]; then
   OWNER_RESULT=unavailable

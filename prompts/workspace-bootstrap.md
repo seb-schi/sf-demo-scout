@@ -16,7 +16,8 @@ zsh. This gate is read-only: it never creates the workspace or configuration.
 WORKSPACE="$HOME/claude-projects/sf-demo-scout"
 CONFIG="$HOME/.config/sf-demo-scout/config.json"
 WORKSPACE_HELPER="[PLUGIN_ROOT]/scripts/setup-workspace.py"
-PYTHON_EXE=$(type -P python3 2>/dev/null || true)
+PYTHON_EXE=$(/usr/bin/which python3 2>/dev/null || true)
+case "$PYTHON_EXE" in ""|/*) ;; *) PYTHON_EXE="$PWD/$PYTHON_EXE" ;; esac
 
 if [ -z "$PYTHON_EXE" ]; then
   echo "STATE=CHECK_FAILED"

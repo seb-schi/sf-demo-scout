@@ -38,7 +38,8 @@ untouched and are reported.
 ```bash
 /bin/bash <<'SCOUT_AISUITE_SCRUB_BASH'
 SETTINGS_HELPER="[PLUGIN_ROOT]/scripts/setup-settings.py"
-PYTHON_EXE=$(type -P python3 2>/dev/null || true)
+PYTHON_EXE=$(/usr/bin/which python3 2>/dev/null || true)
+case "$PYTHON_EXE" in ""|/*) ;; *) PYTHON_EXE="$PWD/$PYTHON_EXE" ;; esac
 if [ -z "$PYTHON_EXE" ] || [ ! -f "$SETTINGS_HELPER" ]; then
   echo "SETTINGS_HELPER_UNAVAILABLE"
 else

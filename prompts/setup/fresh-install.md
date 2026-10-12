@@ -132,7 +132,8 @@ It neither creates a global MCP connection nor proves a host can start it.
 ```bash
 /bin/bash <<'SCOUT_MCP_CACHE_BASH'
 echo "PRE_CACHING_MCP"
-NPX_EXE=$(type -P npx 2>/dev/null || true)
+NPX_EXE=$(/usr/bin/which npx 2>/dev/null || true)
+case "$NPX_EXE" in ""|/*) ;; *) NPX_EXE="$PWD/$NPX_EXE" ;; esac
 if [ -z "$NPX_EXE" ]; then
   echo "MCP_CACHE_UNAVAILABLE (npx missing)"
 elif "$NPX_EXE" -y @salesforce/mcp --help >/dev/null 2>&1; then
@@ -166,7 +167,8 @@ WORKSPACE="$HOME/claude-projects/sf-demo-scout"
 CONFIG="$HOME/.config/sf-demo-scout/config.json"
 WORKSPACE_HELPER="[PLUGIN_ROOT]/scripts/setup-workspace.py"
 SETTINGS_TEMPLATE="[PLUGIN_ROOT]/assets/workspace-settings.template.json"
-PYTHON_EXE=$(type -P python3 2>/dev/null || true)
+PYTHON_EXE=$(/usr/bin/which python3 2>/dev/null || true)
+case "$PYTHON_EXE" in ""|/*) ;; *) PYTHON_EXE="$PWD/$PYTHON_EXE" ;; esac
 if [ -z "$PYTHON_EXE" ] || [ ! -f "$WORKSPACE_HELPER" ]; then
   echo "WORKSPACE_SETUP_FAILED (verified Python or shipped helper missing)"
   exit 1
