@@ -12,7 +12,7 @@ session. Scout authors what it can prove at build time, then hands the runtime
 wiring to the SE with the exact steps below. This mirrors the `NeedsUICommit`
 pattern — author + validate, then a UI handoff.
 
-Source: Boehringer CareConnect4Me build (2026-08-04 → 08-07), docs-verified.
+Source: one customer's build (2026-08-04 → 08-07), docs-verified.
 
 ---
 

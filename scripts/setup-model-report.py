@@ -206,8 +206,9 @@ def report(rows: list[dict], provider: str, failed: bool = False) -> list[str]:
     if provider in {'bedrock', 'vertex'} and not any(
             row['key'] == 'ANTHROPIC_DEFAULT_SONNET_MODEL' and row['value'] for row in rows):
         wizard = '/setup-bedrock' if provider == 'bedrock' else '/setup-vertex'
-        lines.append('Model routing advisory: with no Sonnet pin read, the sonnet alias resolves to Sonnet 4.5; '
-                     'anything that asks for it, including a host’s default worker, gets 4.5. '
+        lines.append('Model routing advisory: with no Sonnet pin read, the sonnet alias resolves to Sonnet 4.5 '
+                     'unless the session starts on a specific Sonnet version, so a host’s default worker '
+                     'under an Opus session gets 4.5. '
                      f'Reopen {wizard} to pin Sonnet 5.5.')
     return lines or [('Model routing preserved; some values or sources could not be assessed; no recognized below-5.5 routing found.'
                       if uncertain or provider == 'unknown' else 'Model routing preserved; no below-5.5 routing found in the inspected sources.')]

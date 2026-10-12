@@ -51,7 +51,7 @@ scout_finish_context() {
           --workspace "$SCOUT_WORKSPACE" --slug "${ORG_SLUG:-}" 2>/dev/null && printf '\034'); then
         context=${bounded%$'\034'}
       else
-        context=""  # Preserve W2's output if the new renderer cannot run.
+        :  # Keep the qualified block first, then all legacy text, if rendering fails.
       fi
     fi
     if [ -n "$context" ]; then

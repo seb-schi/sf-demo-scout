@@ -1,7 +1,7 @@
 # Existing and New Component Rollback
 
 Use this contract for every supported component that this run may mutate. It does
-not authorize a new operation, widen `BUILD_SCOPE`, relax the NEVER tier, or replace
+not authorize a new operation, widen `BUILD_SCOPE`, relax the confirmation tier in Scout's `AGENTS.md`, or replace
 a component skill's authoring and validation rules.
 
 ## Before any mutation

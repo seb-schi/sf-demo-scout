@@ -7,7 +7,7 @@ Read by scout-sparring Stage 1 after the SE names a customer. Produces the deter
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/slug-rule.md` — it is the single source of truth for the slug transform AND for the `ORG_FOLDER` / raw-alias split. Apply its transform to **both** the org alias and the customer name. More examples there; the canonical few:
 - `Deutsche Fachpflege` → `deutsche-fachpflege`
 - `L'Oréal` → `l-oreal`
-- `Metro CPQ` → `metro-cpq`  (alias with caps + space — this is the case that previously produced duplicate folders)
+- `Example CPQ` → `example-cpq`  (alias with caps + space — this is the case that previously produced duplicate folders)
 - `Ben & Jerry's` → `ben-jerry-s`
 - `BD (Becton Dickinson)` → `bd-becton-dickinson`
 

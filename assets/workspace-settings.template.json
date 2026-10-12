@@ -1,5 +1,4 @@
 {
-  "model": "opus",
   "permissions": {
     "allow": [
       "mcp__plugin_sf-demo-scout_Salesforce_DX__*",

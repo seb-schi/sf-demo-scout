@@ -7,7 +7,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 - **Your model routing stays yours.** Setup and refresh preserve model pins and report recognized older models with advice for your provider and settings source. Scout still retires only its own recognized historical shell exports.
 - **Older Claude clients get a notice.** Setup reports the identified running client, and session startup shows a notice below Claude Code 2.1.293, the client floor for the 5.5 models. Desktop and IDE clients are checked separately from the CLI on PATH when their executable is identifiable.
 - **Scout’s workers now run on the same model as your session in every Claude host, the desktop app included.** An explicit forced worker override still takes precedence; if the session cannot identify its model family, Scout uses the host default.
-- **Scout’s build rules now load in every Claude Code session, the desktop app included.** The standing rules file is now `AGENTS.md`, and Scout carries its confirmation rules into workers.
+- **Scout’s confirmation rules now reach every Claude Code session, the desktop app included,** and tell it to read the full rules, now in `AGENTS.md`, before any org change. Scout carries them into its workers too.
 
 ## 2026-09-23
 
@@ -60,7 +60,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-09-16
 
-- **The startup banner finds your customer folders again.** When your org alias had uppercase or underscores (e.g. `CareConnect4Me_DPA`), the session banner matched folders against the raw alias while they're stored slugged (`careconnect4me-dpa-…`) — so it wrongly said "No customer folders" every session and mislabeled the customer even when it did find one. It now matches and labels by the canonical slug, and if it genuinely can't derive one it says "lookup unavailable" rather than falsely claiming you have no folders.
+- **The startup banner finds your customer folders again.** When your org alias had uppercase or underscores (e.g. `ExampleCare_DPA`), the session banner matched folders against the raw alias while they're stored slugged (`examplecare-dpa-…`) — so it wrongly said "No customer folders" every session and mislabeled the customer even when it did find one. It now matches and labels by the canonical slug, and if it genuinely can't derive one it says "lookup unavailable" rather than falsely claiming you have no folders.
 - **Pulling assets from another org no longer hijacks your active demo org.** When you connect a *new* source org during a cross-org extract, Scout used to log in with `--set-default`, silently switching your working default to the source. It now authenticates the source without touching your default; deliberate org switching (`switch`) is unchanged.
 - **`/scout-setup` is far more careful with your `~/.zshrc`.** The managed-block refresh is now transactional: it validates the block markers and syntax-checks both the original and the proposed result before writing, backs up and atomically replaces only a valid result, and preserves symlinks. If anything looks off (malformed markers, a pre-existing syntax error, a rewrite that wouldn't parse, a broken symlink), it leaves your file byte-for-byte untouched and tells you why — closing an edge case that could drop lines below a truncated block.
 - **CLI update messages now tell you what actually happened.** The `sf` / Claude Code update step used to report success purely from a version string, so a failed install or an unreadable version could still print "updated." It now checks the installer's real exit status and the post-update version independently — reporting updated, unchanged, failed, unverified, or mismatched honestly, and never claiming an update it can't confirm.
@@ -258,7 +258,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 ## 2026-05-18
 
 - **Skill sources repointed to Salesforce's renamed `forcedotcom/sf-skills` repo.** No content change today (the old `afv-library` URL was a byte-identical mirror), but Scout now pulls from the canonical name so future updates land cleanly.
-- **Audits don't trip over leftovers from the previous session anymore.** A crashed or interrupted prior audit used to leave stale working files in the customer folder and at the repo root; the next `/scout-sparring` would inherit them and silently hang at the parse step. Cleanup now runs at the *start* of every audit, sweeps everything (per-customer artifacts + repo-root drops), and uses zsh-safe shapes so an empty target never errors. Surfaced when a Sivantos audit hung after a clean LSDO session left files behind.
+- **Audits don't trip over leftovers from the previous session anymore.** A crashed or interrupted prior audit used to leave stale working files in the customer folder and at the repo root; the next `/scout-sparring` would inherit them and silently hang at the parse step. Cleanup now runs at the *start* of every audit, sweeps everything (per-customer artifacts + repo-root drops), and uses zsh-safe shapes so an empty target never errors. Surfaced when a customer audit hung after a clean LSDO session left files behind.
 
 ## 2026-05-11
 

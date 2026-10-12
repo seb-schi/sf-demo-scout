@@ -67,7 +67,14 @@ Applies whenever a sub-agent produces a reusable shell or language script as par
 1. The script MUST be idempotent — safe to re-run after partial success. Upserts or existence-check-then-insert over blind inserts; external-Id lookups over hardcoded Ids.
 2. The script MUST expose a `--pilot-only` flag that exercises **every distinct command/object path the bulk run uses** — one real guarded write per (CLI verb × target object) combination, against one target record each (or the minimum viable slice) — before the bulk path runs. A pilot that touches only one path while the bulk run uses several is structurally unable to catch a bug in the untested paths. Exit code 0 with expected counts on every exercised path = pass; anything else = fail.
 3. The orchestrator runs the script within the current session after SE confirmation (immediate verified state). The same script is the SE's re-run path for future re-spins or handoffs.
-4. If the script cannot be idempotent for a legitimate reason (single-shot schema migration, destructive cleanup), Pattern A applies: a resumable sub-agent invoked via SendMessage. Document the reason in `discovery_notes`. Pattern B is the default; Pattern A is the exception.
+4. If the script cannot be idempotent for a legitimate reason (single-shot schema migration, destructive cleanup), Pattern A applies: a resumable sub-agent invoked via SendMessage. Document the reason in `discovery_notes`. Pattern B is the default; Pattern A is the exception. If creating a new worker for Pattern A, prepend this block with the resolved absolute plugin root; a resumed worker keeps its original envelope:
+
+   > Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, read "[PLUGIN_ROOT_ABS]/AGENTS.md" and follow it.
+   > Get the SE's explicit confirmation before:
+   > - Delete existing metadata or records
+   > - Modify existing profiles or permission sets
+   > - Touch anything prefixed `sb_` or `managed__`
+
 
 **Mandatory self-test before returning the deliverable:**
 1. `bash -n [script]` — syntax check. Cheap insurance against later edits; will NOT catch runtime bugs (subshell exports, `declare -A` under Bash 3.2, JSON envelope unwrap, while-loop counter scope). Run it anyway.

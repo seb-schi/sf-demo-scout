@@ -25,7 +25,10 @@ class StandingRulesTests(unittest.TestCase):
     def fixture(self, name='startup'):
         case = self.base / name
         case.mkdir()
-        return fixtures.STARTUP.StartupFixture(case)
+        fx = fixtures.STARTUP.StartupFixture(case)
+        run = fx.run
+        fx.run = lambda **kwargs: run(plugin_root=os.environ.get('CLAUDE_PLUGIN_ROOT', ''), **kwargs)
+        return fx
 
     def assert_block(self, text, root=ROOT):
         self.assertTrue(text.startswith('Scout is installed.'))
@@ -48,7 +51,15 @@ class StandingRulesTests(unittest.TestCase):
                          'Authorable + no build-time signal', 'Docs-confirmed UI-only',
                          'Companion Permission Set', 'Object CRUD', 'Field Read + Edit',
                          'RecordTypeVisibility', 'TabVisibility', 'AppVisibility',
-                         'prompts/building/direct-repair.md', 'append-only', 'incumbent active Paths'):
+                         'prompts/building/direct-repair.md', 'append-only', 'incumbent active Paths',
+                         'When developing Scout itself in this repository', 'the SE requests',
+                         'Report every no-signal artifact as deployed, not as working',
+                         'This is the only hard decline', 'not capability gates',
+                         'have the SE confirm', 'manual/`BLOCKED` unless the SE explicitly approves',
+                         'folder that contains this file', 'assignment of new or existing',
+                         'Simple demo-specific LWC', 'never batch unrelated changes',
+                         'Before a multi-step loop', 'orgs/lessons/INDEX.md',
+                         'only explicitly enabled', 'App Builder provides a live preview'):
             self.assertIn(required, text)
         for name in ('scout-sparring', 'scout-building'):
             command = (ROOT / f'commands/{name}.md').read_text()
@@ -63,7 +74,8 @@ class StandingRulesTests(unittest.TestCase):
                     'read "[PLUGIN_ROOT_ABS]/AGENTS.md" and follow it.\n' + QUALIFIER + '\n' + '\n'.join(BULLETS))
         for name, copies in [('commands/scout-building.md', 1), ('commands/scout-sparring.md', 1),
                              ('prompts/sparring/audit-orchestration.md', 2),
-                             ('prompts/sparring/knowledge-cartridge.md', 1)]:
+                             ('prompts/sparring/knowledge-cartridge.md', 1),
+                             ('skills/demo-deployment-rules/SKILL.md', 1)]:
             with self.subTest(file=name):
                 text = (ROOT / name).read_text()
                 text = '\n'.join(re.sub(r'^\s*(?:> ?)?', '', line) for line in text.splitlines())
@@ -108,14 +120,24 @@ class StandingRulesTests(unittest.TestCase):
                     path = orgs / ('qa-a-' + str(n).zfill(3) + '-' + 'x'*235)
                     path.mkdir()
                     os.utime(path, (1700000000+n, 1700000000+n))
+                fx.run()  # Warm the evidence cache before byte comparisons.
+                legacy = fx.run().stdout
+                outside = self.base / f'outside-{count}'
+                outside.mkdir()
                 with patch.dict(os.environ, CLAUDE_PLUGIN_ROOT=str(ROOT)):
+                    block = fx.run(cwd=outside).stdout
                     text = fx.run().stdout
                     self.assert_block(text)
                     self.assertLessEqual(len(text), 10000)
-                    if 'more folders' in text:
+                    if count == 100:
+                        self.assertIn('more folders in `orgs/`', text)
                         rows = re.findall(r'^  - (\d{3})-', text, re.M)
                         self.assertEqual(list(map(int, rows)), list(range(count-1, count-len(rows)-1, -1)))
+                        self.assertGreater(len(rows), 0)
+                        self.assertLess(len(rows), count)
                         self.assertIn(f'…and {count-len(rows)} more folders in `orgs/`', text)
+                    else:
+                        self.assertEqual(text, block + legacy)
                     running = self.script('client', 'echo 2.1.280\n')
                     with patch.dict(os.environ, CLAUDE_CODE_EXECPATH=str(running), CLAUDE_CODE_ENTRYPOINT='claude-vscode'):
                         result = fx.run()
@@ -174,4 +196,16 @@ class StandingRulesTests(unittest.TestCase):
                           f'exec "{sys.executable}" "$@"\n')
         python.chmod(0o700)
         with patch.dict(os.environ, CLAUDE_PLUGIN_ROOT=str(ROOT)):
-            self.assertEqual(fx.run().stdout, legacy)
+            outside = self.base / 'renderer-outside'
+            outside.mkdir()
+            block = fx.run(cwd=outside).stdout
+            self.assertEqual(fx.run().stdout, block + legacy)
+
+    def test_renderer_emits_utf8_under_ascii_locale_and_singular_marker(self):
+        content = ('Scout rules first — ✅\n' + '🧪' * 7000).encode('utf-8')
+        result = subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/startup-rules.py'),
+                                 '--workspace', str(self.base), '--slug', 'qa-a'], input=content,
+                                capture_output=True, env=dict(os.environ, PYTHONIOENCODING='ascii'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.decode('utf-8').startswith('Scout rules first — ✅\n'))
+        self.assertEqual(RULES.folder_marker(1), '…and 1 more folder in `orgs/`\n')

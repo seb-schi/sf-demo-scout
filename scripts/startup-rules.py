@@ -16,6 +16,10 @@ def units(text: str) -> int:
     return len(text.encode('utf-16-le')) // 2
 
 
+def folder_marker(count: int) -> str:
+    return f'…and {count} more folder{"s" if count != 1 else ""} in `orgs/`\n' if count else ''
+
+
 def bound_context(context: str, workspace: Path, slug: str) -> str:
     if units(context) <= LIMIT:
         return context
@@ -36,11 +40,11 @@ def bound_context(context: str, workspace: Path, slug: str) -> str:
             kept = []
             for entry in entries:
                 omitted = len(entries) - len(kept) - 1
-                marker = f'…and {omitted} more folders in `orgs/`\n' if omitted else ''
+                marker = folder_marker(omitted)
                 if units(prefix + ''.join(kept) + entry + marker + suffix) > LIMIT:
                     break
                 kept.append(entry)
-            marker = f'…and {len(entries)-len(kept)} more folders in `orgs/`\n'
+            marker = folder_marker(len(entries)-len(kept))
             context = prefix + ''.join(kept) + marker + suffix
     if units(context) > LIMIT:
         # Bounded individual evidence fields can still exceed the combined limit.
@@ -57,7 +61,7 @@ def main() -> None:
     content = sys.stdin.buffer.read(4 * 1024 * 1024 + 1)
     if len(content) > 4 * 1024 * 1024:
         raise ValueError('startup context too large')
-    sys.stdout.write(bound_context(content.decode('utf-8'), args.workspace, args.slug))
+    sys.stdout.buffer.write(bound_context(content.decode('utf-8'), args.workspace, args.slug).encode('utf-8'))
 
 
 if __name__ == '__main__':

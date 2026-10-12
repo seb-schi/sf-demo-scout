@@ -184,6 +184,15 @@ class PolicyTests(unittest.TestCase):
         pin = dict(kind='user', surface='settings.json', key=PIN, value='claude-sonnet-5-5')
         self.assertNotIn('Sonnet 4.5', REPORT.report([alias, pin], 'bedrock')[0])
 
+    def test_sonnet_advisory_qualifies_session_pin_and_new_settings_do_not_pin(self):
+        session = dict(kind='user', surface='settings.json', key='model', value='claude-sonnet-5-5')
+        for provider in ('bedrock', 'vertex'):
+            output = '\n'.join(REPORT.report([session], provider))
+            self.assertIn('unless the session starts on a specific Sonnet version', output)
+            self.assertIn('under an Opus session gets 4.5', output)
+        settings = json.loads((ROOT / 'assets/workspace-settings.template.json').read_text())
+        self.assertNotIn('model', settings)
+
     def test_read_safety_jsonc_duplicates_dynamic_shell_and_codex(self):
         (self.home / 'vscode.json').write_text('{/*keep*/ "claudeCode.environmentVariables": ['
             '{"name":"'+PIN+'","value":"claude-sonnet-4-6"},'
