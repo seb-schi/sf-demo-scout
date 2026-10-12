@@ -1,0 +1,40 @@
+{
+  "status": 0,
+  "result": {
+    "done": true,
+    "fileProperties": [
+      {
+        "createdById": "005000000000001",
+        "createdByName": "Fixture User",
+        "createdDate": "2026-10-08T18:44:46.837Z",
+        "fileName": "unpackaged/package.xml",
+        "fullName": "unpackaged/package.xml",
+        "id": "",
+        "lastModifiedById": "005000000000001",
+        "lastModifiedByName": "Fixture User",
+        "lastModifiedDate": "2026-10-08T18:44:46.837Z",
+        "manageableState": "unmanaged",
+        "type": "Package"
+      }
+    ],
+    "id": "09S000000000001",
+    "messages": [
+      {
+        "fileName": "unpackaged/package.xml",
+        "problem": "Entity of type 'Report' named 'Sales_Reports/Missing' cannot be found"
+      }
+    ],
+    "status": "Succeeded",
+    "success": true,
+    "files": [
+      {
+        "fullName": "Sales_Reports/Missing",
+        "type": "Report",
+        "state": "Failed",
+        "error": "Entity of type 'Report' named 'Sales_Reports/Missing' cannot be found",
+        "problemType": "Error"
+      }
+    ]
+  },
+  "warnings": []
+}

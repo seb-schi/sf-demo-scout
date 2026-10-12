@@ -46,10 +46,34 @@ installs followed by missing, old, malformed, or failing probes; missing brew or
 npm; invalid selectors; and distinct missing-npx versus failed-cache outcomes.
 No fixture runs Homebrew, npm, npx, a registry request, or a real host runtime.
 
-Prerequisites are Python 3, PyYAML, Git, `/bin/bash`, standard POSIX/macOS shell
+Prerequisites are Python 3.9+, PyYAML, Git, `/bin/bash`, standard POSIX/macOS shell
 utilities, and a real `/bin/zsh`. The shell-repair tests execute `zsh -f -n`
-against both original and staged temporary files. Missing Git, zsh, or PyYAML
+against both original and staged temporary files. Missing Git, zsh or PyYAML
 fails clearly; no prerequisite is reported as a skipped pass.
+
+Install Python dependencies into a development virtual environment using
+`python -m pip install -r tests/requirements.txt`, then run the command above
+with that environment's Python. The report repair uses only the standard library,
+with bounded Expat parsing that rejects DOCTYPE/entity declarations and external
+references before resolution. Its CLI fixtures run with site packages disabled.
+
+## Scout 2 preview verification
+
+`test_report_repair.py` exercises the actual helper with a synthetic Salesforce
+adapter and the existing workspace/snapshot subprocesses. Independently authored
+final-state and operation-trace assertions cover exact targeting and scope,
+folder/default preservation, ambiguous predicates, corrupt recovery, stale state,
+unknown launches, no-op, linked tasks, task/component locking and cross-task replay
+prevention. Adapter tests check explicit CLI selectors and authenticated identity
+queries with credential-free persistence. An independent fake executable exercises
+the real CLI adapter, durable launch stdout, exit codes and main's error JSON.
+Sanitized read-only live CLI captures and clearly labeled synthetic fixtures live
+in `fixtures/report-repair/`; test runs themselves make no live org calls.
+
+Source coverage and reconciliation of legacy prose checkpoints remain caller
+judgments, not properties proved by a note. Read-only org/report integration is
+recorded separately from the fixtures. Actual report write/restore and one-report
+terminal receipts remain a live acceptance gate.
 
 ## Vendoring verification and recovery limits
 

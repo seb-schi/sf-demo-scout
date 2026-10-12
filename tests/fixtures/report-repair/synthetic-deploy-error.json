@@ -1,0 +1,7 @@
+{
+  "name": "SourceConflictError",
+  "message": "1 conflicts detected",
+  "exitCode": 1,
+  "status": 1,
+  "warnings": []
+}

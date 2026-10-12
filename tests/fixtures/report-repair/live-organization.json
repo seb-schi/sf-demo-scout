@@ -1,0 +1,17 @@
+{
+  "status": 0,
+  "result": {
+    "records": [
+      {
+        "attributes": {
+          "type": "Organization",
+          "url": "/services/data/v66.0/sobjects/Organization/00D000000000001EAA"
+        },
+        "Id": "00D000000000001EAA"
+      }
+    ],
+    "totalSize": 1,
+    "done": true
+  },
+  "warnings": []
+}

@@ -1,0 +1,66 @@
+{
+  "status": 0,
+  "result": {
+    "done": true,
+    "fileProperties": [
+      {
+        "createdById": "005000000000001",
+        "createdByName": "Fixture User",
+        "createdDate": "2026-06-05T13:40:22.000Z",
+        "fileName": "unpackaged/reports/Sales_Reports/Pipeline.report",
+        "fullName": "Sales_Reports/Pipeline",
+        "id": "00O000000000001",
+        "lastModifiedById": "005000000000001",
+        "lastModifiedByName": "Fixture User",
+        "lastModifiedDate": "2026-06-05T13:40:22.000Z",
+        "manageableState": "unmanaged",
+        "type": "Report"
+      },
+      {
+        "createdById": "005000000000001",
+        "createdByName": "Fixture User",
+        "createdDate": "2026-06-05T13:40:22.000Z",
+        "fileName": "unpackaged/reports/Sales_Reports",
+        "fullName": "Sales_Reports",
+        "id": "00l000000000001",
+        "lastModifiedById": "005000000000001",
+        "lastModifiedByName": "Fixture User",
+        "lastModifiedDate": "2026-06-05T13:40:22.000Z",
+        "manageableState": "unmanaged",
+        "type": "Report"
+      },
+      {
+        "createdById": "005000000000001",
+        "createdByName": "Fixture User",
+        "createdDate": "2026-10-08T18:38:57.003Z",
+        "fileName": "unpackaged/package.xml",
+        "fullName": "unpackaged/package.xml",
+        "id": "",
+        "lastModifiedById": "005000000000001",
+        "lastModifiedByName": "Fixture User",
+        "lastModifiedDate": "2026-10-08T18:38:57.003Z",
+        "manageableState": "unmanaged",
+        "type": "Package"
+      }
+    ],
+    "id": "09S000000000001",
+    "status": "Succeeded",
+    "success": true,
+    "messages": [],
+    "files": [
+      {
+        "fullName": "Sales_Reports",
+        "type": "ReportFolder",
+        "state": "Created",
+        "filePath": "/fixture/project/force-app/main/default/reports/Sales_Reports.reportFolder-meta.xml"
+      },
+      {
+        "fullName": "Sales_Reports/Pipeline",
+        "type": "Report",
+        "state": "Created",
+        "filePath": "/fixture/project/force-app/main/default/reports/Sales_Reports/Pipeline.report-meta.xml"
+      }
+    ]
+  },
+  "warnings": []
+}

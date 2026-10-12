@@ -37,7 +37,7 @@ class PackagingTests(unittest.TestCase):
                 with self.subTest(path=path):
                     self.assertNotIn("claude mcp list", path.read_text())
                     self.assertNotIn("~/.claude/plugins/installed_plugins.json", path.read_text())
-        for name in ("scout-setup", "scout-building", "scout-sparring"):
+        for name in ("scout-setup", "scout-building", "scout-sparring", "scout-repair"):
             self.assertIn("prompts/host-runtime.md", (ROOT / "commands" / f"{name}.md").read_text())
 
     def test_shell_refresh_message_does_not_infer_model_routing(self) -> None:

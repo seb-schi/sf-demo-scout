@@ -1,0 +1,31 @@
+{
+  "status": 0,
+  "result": {
+    "id": "0Af000000000001CAA",
+    "checkOnly": false,
+    "done": true,
+    "success": true,
+    "status": "Succeeded",
+    "numberComponentsTotal": 1,
+    "details": {
+      "componentSuccesses": [
+        {
+          "componentType": "Report",
+          "fullName": "Sales_Reports/Pipeline",
+          "created": false,
+          "deleted": false,
+          "success": true
+        },
+        {
+          "componentType": "",
+          "fullName": "package.xml",
+          "created": false,
+          "deleted": false,
+          "success": true
+        }
+      ]
+    },
+    "createdDate": "2026-09-22T19:50:12.000Z"
+  },
+  "warnings": []
+}

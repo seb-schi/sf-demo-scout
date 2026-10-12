@@ -1,0 +1,152 @@
+{
+  "status": 0,
+  "result": {
+    "checkOnly": false,
+    "completedDate": "2026-09-22T19:50:15.000Z",
+    "createdBy": "005000000000001",
+    "createdByName": "Fixture User",
+    "createdDate": "2026-09-22T19:50:12.000Z",
+    "details": {
+      "componentSuccesses": [
+        {
+          "changed": true,
+          "componentType": "FlowTest",
+          "created": true,
+          "createdDate": "2026-09-22T19:50:14.000Z",
+          "deleted": false,
+          "fileName": "flowtests/SER_Filtered_Excluded_Combined.flowtest",
+          "fullName": "SER_Filtered_Excluded_Combined",
+          "id": "320000000000001",
+          "success": true
+        },
+        {
+          "changed": true,
+          "componentType": "FlowTest",
+          "created": true,
+          "createdDate": "2026-09-22T19:50:14.000Z",
+          "deleted": false,
+          "fileName": "flowtests/SER_Filtered_Excluded_Fault.flowtest",
+          "fullName": "SER_Filtered_Excluded_Fault",
+          "id": "320000000000001",
+          "success": true
+        },
+        {
+          "changed": true,
+          "componentType": "FlowTest",
+          "created": true,
+          "createdDate": "2026-09-22T19:50:14.000Z",
+          "deleted": false,
+          "fileName": "flowtests/SER_Filtered_Excluded_Sentinel.flowtest",
+          "fullName": "SER_Filtered_Excluded_Sentinel",
+          "id": "320000000000001",
+          "success": true
+        },
+        {
+          "changed": true,
+          "componentType": "FlowTest",
+          "created": true,
+          "createdDate": "2026-09-22T19:50:14.000Z",
+          "deleted": false,
+          "fileName": "flowtests/SER_Filtered_Excluded_State.flowtest",
+          "fullName": "SER_Filtered_Excluded_State",
+          "id": "320000000000001",
+          "success": true
+        },
+        {
+          "changed": true,
+          "componentType": "",
+          "created": false,
+          "createdDate": "2026-09-22T19:50:14.000Z",
+          "deleted": false,
+          "fileName": "package.xml",
+          "fullName": "package.xml",
+          "success": true
+        },
+        {
+          "changed": true,
+          "componentType": "FlowTest",
+          "created": true,
+          "createdDate": "2026-09-22T19:50:14.000Z",
+          "deleted": false,
+          "fileName": "flowtests/SER_Filtered_Included_Fault.flowtest",
+          "fullName": "SER_Filtered_Included_Fault",
+          "id": "320000000000001",
+          "success": true
+        },
+        {
+          "changed": true,
+          "componentType": "FlowTest",
+          "created": true,
+          "createdDate": "2026-09-22T19:50:14.000Z",
+          "deleted": false,
+          "fileName": "flowtests/SER_Unfiltered_Excluded_Business.flowtest",
+          "fullName": "SER_Unfiltered_Excluded_Business",
+          "id": "320000000000001",
+          "success": true
+        },
+        {
+          "changed": true,
+          "componentType": "FlowTest",
+          "created": true,
+          "createdDate": "2026-09-22T19:50:14.000Z",
+          "deleted": false,
+          "fileName": "flowtests/SER_Unfiltered_Excluded_Sentinel.flowtest",
+          "fullName": "SER_Unfiltered_Excluded_Sentinel",
+          "id": "320000000000001",
+          "success": true
+        },
+        {
+          "changed": true,
+          "componentType": "FlowTest",
+          "created": true,
+          "createdDate": "2026-09-22T19:50:14.000Z",
+          "deleted": false,
+          "fileName": "flowtests/SER_Filtered_Included_Business.flowtest",
+          "fullName": "SER_Filtered_Included_Business",
+          "id": "320000000000001",
+          "success": true
+        }
+      ],
+      "runTestResult": {
+        "numFailures": 0,
+        "numTestsRun": 0,
+        "totalTime": 0,
+        "codeCoverage": [],
+        "codeCoverageWarnings": [],
+        "failures": [],
+        "flowCoverage": [],
+        "flowCoverageWarnings": [],
+        "successes": []
+      },
+      "componentFailures": []
+    },
+    "done": true,
+    "id": "0Af000000000001CAA",
+    "ignoreWarnings": false,
+    "lastModifiedDate": "2026-09-22T19:50:15.000Z",
+    "numberComponentErrors": 0,
+    "numberComponentsDeployed": 8,
+    "numberComponentsTotal": 8,
+    "numberFiles": "10",
+    "numberTestErrors": 0,
+    "numberTestsCompleted": 0,
+    "numberTestsTotal": 0,
+    "rollbackOnError": true,
+    "runTestsEnabled": false,
+    "startDate": "2026-09-22T19:50:12.000Z",
+    "status": "Succeeded",
+    "success": true,
+    "zipSize": "11644",
+    "files": []
+  },
+  "warnings": [
+    "FlowTest, SER_Filtered_Excluded_Combined, returned from org, but not found in the local project",
+    "FlowTest, SER_Filtered_Excluded_Fault, returned from org, but not found in the local project",
+    "FlowTest, SER_Filtered_Excluded_Sentinel, returned from org, but not found in the local project",
+    "FlowTest, SER_Filtered_Excluded_State, returned from org, but not found in the local project",
+    "FlowTest, SER_Filtered_Included_Fault, returned from org, but not found in the local project",
+    "FlowTest, SER_Unfiltered_Excluded_Business, returned from org, but not found in the local project",
+    "FlowTest, SER_Unfiltered_Excluded_Sentinel, returned from org, but not found in the local project",
+    "FlowTest, SER_Filtered_Included_Business, returned from org, but not found in the local project"
+  ]
+}

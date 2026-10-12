@@ -1,0 +1,9 @@
+{
+  "status": 0,
+  "result": {
+    "id": "00D000000000001EAA",
+    "username": "maple@example.test",
+    "apiVersion": "66.0",
+    "connectedStatus": "Connected"
+  }
+}
