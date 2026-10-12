@@ -125,7 +125,7 @@ class ScoutTargetTests(unittest.TestCase):
     def test_error_json_missing_fields_and_rows_are_unverified_without_secrets(self):
         cases = [dict(mode=m) for m in ('exit', 'invalid', 'duplicate', 'utf8', 'deep', 'oversize')]
         cases += [dict(status=1), dict(status=False), dict(display={}), dict(display={'id':ORG}),
-                  dict(query={}), dict(query={'records':[]}), dict(query={'records':[{}, {}]}),
+                  dict(query={}), dict(query={'records':[]}), dict(query={'records':[{'Id':ORG}, {'Id':ORG}]}),
                   dict(query={'records':[{'Id':'bad'}]})]
         for case in cases:
             with self.subTest(case=case):
@@ -140,6 +140,19 @@ class ScoutTargetTests(unittest.TestCase):
             self.assertEqual(self.check()[0], 4)
         with patch.dict(os.environ, PATH=str(self.root / 'absent')):
             self.assertEqual(self.check()[0], 4)
+        self.assertEqual(len(self.call_log()), 1)
+
+    def test_failed_import_and_surrogate_username_exit_four_without_traceback(self):
+        isolated = self.root / 'isolated-target.py'
+        isolated.write_text(Path(target.__file__).read_text())
+        result = subprocess.run([sys.executable, '-S', '-B', str(isolated), 'bind', '--selector', 'maple'],
+                                capture_output=True, text=True, env=os.environ.copy())
+        self.assertEqual(result.returncode, 4)
+        self.assertEqual(json.loads(result.stdout), {'reason': 'target helper dependencies unavailable'})
+        self.assertEqual(result.stderr, '')
+        self.assertEqual(self.call_log(), [])
+        self.configure(display={'id': ORG, 'username': '\ud800@example.test'})
+        self.assertEqual(self.run_target('bind', '--selector', 'maple')[0], 4)
         self.assertEqual(len(self.call_log()), 1)
 
     def test_usage_errors_do_not_call_cli(self):

@@ -31,10 +31,16 @@ class ScoutRouteTests(unittest.TestCase):
         self.assertIn('three qualified confirmation bullets above', self.command)
 
     def test_dispositions_are_defined_and_repair_uncertainty_is_retained(self):
-        for label in ('applied', 'already_satisfied', 'failed', 'blocked', 'unverified', 'omitted'):
+        meanings = {'applied': 'post-write read-back meets the criterion',
+                    'already_satisfied': 'Pre-write read-back met the criterion; nothing was written',
+                    'failed': 'name remaining state and whether rollback occurred',
+                    'blocked': 'Not attempted; name the gate or precondition',
+                    'unverified': 'A write happened or may have happened, and no read-back settles it',
+                    'omitted': 'docs-confirmed UI-only with citation and manual-checklist entry'}
+        for label, meaning in meanings.items():
             rows = re.findall(r'^\| `' + label + r'` \| (.+) \|$', self.command, re.M)
             self.assertEqual(len(rows), 1, label)
-            self.assertGreater(len(rows[0].split()), 5)
+            self.assertIn(meaning, rows[0])
         self.assertIn('both `unverified` and `released_unverified` to `unverified`', self.command)
         self.assertIn('Green deploy alone is not read-back', self.command)
         self.assertIn('metadata read-back only', self.command)
@@ -51,11 +57,26 @@ class ScoutRouteTests(unittest.TestCase):
         self.assertEqual(set(tools), {'Read','Grep','Glob','Write','Edit','Bash','Agent','AskUserQuestion',
             'mcp__salesforce-docs__salesforce_docs_search','mcp__salesforce-docs__salesforce_docs_fetch'})
 
+    def test_unconditional_cli_binding_fresh_evidence_and_folder_identity(self):
+        rule = ("Never call Salesforce DX MCP org tools, even when the bound org is the default. "
+                "Wherever a file says MCP, the active or default org, `sf config get target-org`, "
+                "or to omit `--target-org`, use `sf … --target-org [BOUND_USERNAME]`.")
+        self.assertEqual(self.command.count(rule), 2)
+        self.assertIn('rule copied verbatim into every worker brief', self.command)
+        for phrase in ('Every disposition rests on a read-back you ran yourself, after a passing `check`',
+                       'Audits and worker reports are leads, not evidence',
+                       'only if its change logs or task records name the bound username or org ID, otherwise ask',
+                       'across `orgs/*/` by the bound org ID',
+                       'including every checkpoint marker and attempt ID in the task record',
+                       'reconcile only the checkpoint markers and attempt IDs recorded in this task',
+                       'default-org confirmation names the bound username and org ID'):
+            self.assertIn(phrase, self.command)
+
     def test_target_resume_and_recovery_boundaries(self):
         for forbidden in ('switch-org.md', 'sf config set', 'sf alias set', 'sf org login', '--set-default'):
             self.assertNotIn(forbidden, self.command)
         for instruction in ('Before every write and every read-back supporting a disposition',
-                            'stop writing', 'write was in flight is `unverified`',
+                            'stop writing', 'any item with an attempted write is `unverified`, never `blocked`',
                             'never in `audit-*.md`', 'PENDING — component repair',
                             'without resolving, cleaning or relabelling',
                             'Record in-flight writes before dispatch',

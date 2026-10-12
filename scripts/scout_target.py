@@ -7,7 +7,11 @@ import json
 import shutil
 import subprocess
 
-from scout_report_repair import LIMIT, RepairError, decode, org_id, text
+try:
+    from scout_report_repair import LIMIT, RepairError, decode, org_id, text
+except ImportError:
+    print(json.dumps({"reason": "target helper dependencies unavailable"}))
+    raise SystemExit(4)
 
 TIMEOUT = 75
 
@@ -24,7 +28,7 @@ def query_cli(executable, args):
     try:
         result = subprocess.run([executable, *args, "--json"], stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=TIMEOUT)
-    except (OSError, subprocess.SubprocessError) as error:
+    except (OSError, UnicodeError, subprocess.SubprocessError) as error:
         raise Unverified("CLI unavailable or timed out") from error
     if result.returncode:
         raise Unverified("CLI operation failed")
