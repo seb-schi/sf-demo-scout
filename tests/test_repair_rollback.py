@@ -22,7 +22,7 @@ class RepairRollbackContractTests(unittest.TestCase):
         self.assertIn("does not create a full ledger", direct)
         self.assertIn("pending repair checkpoint", direct)
 
-        self.assertIn("prompts/building/direct-repair.md", self.read("CLAUDE.md"))
+        self.assertIn("prompts/building/direct-repair.md", self.read("AGENTS.md"))
         self.assertIn(
             "prompts/building/direct-repair.md", self.read("commands/scout-building.md")
         )

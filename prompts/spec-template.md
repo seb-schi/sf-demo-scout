@@ -231,7 +231,7 @@ Scope: appending existing fields into the field-bearing leaf Facet of an existin
 - ⚠️ If the audit's `columns` array for the named section contains a column with `facet_uuid: null` (opaque structure), this section is NOT eligible for autonomous deploy — route to the LRP SE Manual section below.
 
 ### Lightning Record Page — SE Manual (App Builder)
-Scope: anything beyond appending into an existing field section. Use when audit reports `composition_class: mixed` AND the field belongs in something other than a field section, OR `custom` / `unretrievable`, OR the spec needs new sections, repositioning, components, tabset edits, or dynamic-form regions, OR **an entire new-from-scratch `RecordPage`** (whole-page authoring is SE Manual — the `platform-flexipage-generate` deploy loop is non-convergent for new pages; see CLAUDE.md docs-gated disposition 2's named exception). Scout deploys the underlying metadata (LWC bundles, Path components, QuickActions); the SE composes the page in App Builder, where there is a live preview.
+Scope: anything beyond appending into an existing field section. Use when audit reports `composition_class: mixed` AND the field belongs in something other than a field section, OR `custom` / `unretrievable`, OR the spec needs new sections, repositioning, components, tabset edits, or dynamic-form regions, OR **an entire new-from-scratch `RecordPage`** (whole-page authoring is SE Manual — the `platform-flexipage-generate` deploy loop is non-convergent for new pages; see Scout's `AGENTS.md` docs-gated disposition 2's named exception). Scout deploys the underlying metadata (LWC bundles, Path components, QuickActions); the SE composes the page in App Builder, where there is a live preview.
 - [Object] — [LRP name] — Composition: [field_section | mixed | custom | unretrievable] — Why SE Manual: [section creation / reposition / new component / dynamic-form region / unretrievable composition]
 - Components / fields to add: [list]
 
@@ -362,7 +362,7 @@ these named components immediately before their phase, including on retry.
 
 ## SE Manual Checklist
 
-> Only **docs-confirmed UI-only** items belong here (disposition 3 — no Metadata API path; cite the doc). Do NOT list an artifact as manual on "complexity" or "visual" grounds: if it is metadata-authorable, Scout ATTEMPTS + deploys it (see CLAUDE.md §Build Boundaries → Docs-Gated). Artifacts Scout deployed but that carry no build-time signal (a rendered page, a layout arrangement, a UX) are **attempt-with-QA** — they surface in the handover brief's *Built — Needs Validation* section, NOT in this checklist.
+> Only **docs-confirmed UI-only** items belong here (disposition 3 — no Metadata API path; cite the doc). Do NOT list an artifact as manual on "complexity" or "visual" grounds: if it is metadata-authorable, Scout ATTEMPTS + deploys it (see Scout's `AGENTS.md` §Build Boundaries → Docs-Gated). Artifacts Scout deployed but that carry no build-time signal (a rendered page, a layout arrangement, a UX) are **attempt-with-QA** — they surface in the handover brief's *Built — Needs Validation* section, NOT in this checklist.
 
 ### Docs-confirmed UI-only Flow Steps
 - [Exact unsupported metadata operation, current source URL, affected flow, and SE action. Omit when none; keep authorable work and its QA in the Flow sections above.]

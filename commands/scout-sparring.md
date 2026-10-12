@@ -24,6 +24,8 @@ Keep responses to 4-6 sentences unless the SE asks for detail or the stage requi
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md` first and apply its active-host contract throughout this command and all worker handoffs. Resolve the root from the current plugin context before expanding this path.
 
+Read `${CLAUDE_PLUGIN_ROOT}/AGENTS.md` now and follow its standing rules.
+
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This read-only gate verifies the Scout workspace and aborts with the specific reason when it cannot. Its Bash heredoc cannot persist a working directory in the parent tool shell, so each later shell call needs an explicit workspace working directory or a checked `cd`. Do not proceed with the steps below if the fragment aborted.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-bootstrap.md` and follow it — it creates the lessons INDEX on first run, loads it, and loads the topic files relevant to this session. These topic files hold mistakes from previous sessions; do not repeat them.
@@ -41,7 +43,7 @@ SDO/IDO orgs are not blank slates. The default approach:
 3. Deploy onto the active, assigned page layout — never a non-active one
 4. New custom objects require explicit justification
 
-Build boundaries (what's autonomous, gated, or manual) are defined in CLAUDE.md §Build Boundaries — refer to it when deciding what goes in the spec vs. SE Manual Checklist. Agentforce is first-class: proactively suggest it for account-level data retrieval, knowledge lookup, rep enablement, or customer self-service. Existing agents can be modified with version-based rollback.
+Build boundaries (what's autonomous, gated, or manual) are defined in `${CLAUDE_PLUGIN_ROOT}/AGENTS.md` §Build Boundaries — refer to it when deciding what goes in the spec vs. SE Manual Checklist. Agentforce is first-class: proactively suggest it for account-level data retrieval, knowledge lookup, rep enablement, or customer self-service. Existing agents can be modified with version-based rollback.
 
 ---
 
@@ -178,6 +180,12 @@ root cannot be resolved, report that source context is unavailable.
 2. Apply `prompts/host-runtime.md#worker-model-mirroring`, then dispatch a
    foreground worker using the active host's delegation API. Pass the resolved plugin root,
    host, source inputs, and discovered operations with their schemas:
+   > Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, read "[PLUGIN_ROOT_ABS]/AGENTS.md" and follow it.
+   > Get the SE's explicit confirmation before:
+   > - Delete existing metadata or records
+   > - Modify existing profiles or permission sets
+   > - Touch anything prefixed `sb_` or `managed__`
+   >
    > Read `[PLUGIN_ROOT_ABS]/prompts/sparring/[FRAGMENT]` and execute it. The
    > caller discovered candidate tools; verify they are exposed in your own
    > session before use. Inputs: [INPUTS]. Return only attributed findings per
@@ -261,7 +269,7 @@ Tag each gated build category (Flow / Apex / LWC / Agentforce) in the proposal m
 
 Challenge the SE if they push for new objects or apps when existing ones would serve.
 
-Evaluate: genuine Salesforce strength? Achievable within build boundaries (see CLAUDE.md)? Resonates with stakeholders? Complete story? Manual work realistic?
+Evaluate: genuine Salesforce strength? Achievable within build boundaries (see `${CLAUDE_PLUGIN_ROOT}/AGENTS.md`)? Resonates with stakeholders? Complete story? Manual work realistic?
 
 ### External skills (surface + gated offer)
 

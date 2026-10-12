@@ -259,7 +259,7 @@ class PolicyTests(unittest.TestCase):
         outside = case / 'outside'; outside.mkdir()
         running = self.script('running', 'echo "2.1.292 (Claude Code)"\n')
         os.environ.update(CLAUDE_CODE_ENTRYPOINT='claude-desktop', CLAUDE_CODE_EXECPATH=str(running))
-        # More than the host's cap: W2 must still round-trip legacy text exactly.
+        # With no plugin root, W6 fails open to W2's exact legacy context.
         orgs = fixture.workspace / 'orgs'; orgs.mkdir()
         for index in range(100):
             (orgs / ('qa-a-' + str(index).zfill(3) + '-' + 'x'*200)).mkdir()

@@ -124,6 +124,17 @@ conforming cartridge that means:
    skill marks churny. (This is already Scout's named-source discipline from
    Stage 3 — the same subagent pattern.)
 
+For each delegated lookup, prepend this block to its worker prompt. Substitute
+the active host contract's resolved absolute root for `[PLUGIN_ROOT_ABS]`:
+
+```
+Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, read "[PLUGIN_ROOT_ABS]/AGENTS.md" and follow it.
+Get the SE's explicit confirmation before:
+- Delete existing metadata or records
+- Modify existing profiles or permission sets
+- Touch anything prefixed `sb_` or `managed__`
+```
+
 Announce the consult in one line so the SE sees it happen, e.g.:
 > "This org is [industry] and the [cartridge name] knowledge cartridge covers it
 > — consulting its playbook / recipes / [relevant skills] to ground the scenario."

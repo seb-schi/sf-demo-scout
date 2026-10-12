@@ -37,6 +37,8 @@ and staging procedure in Step 5 preserves this rule for same-run and fresh-run i
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md` first and apply its active-host contract throughout this command and all worker handoffs. Resolve the root from the current plugin context before expanding this path.
 
+Read `${CLAUDE_PLUGIN_ROOT}/AGENTS.md` now and follow its standing rules.
+
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This read-only gate verifies the Scout workspace and aborts with the specific reason when it cannot. Its Bash heredoc cannot persist a working directory in the parent tool shell, so each later shell call needs an explicit workspace working directory or a checked `cd`. Do not proceed with the steps below if the fragment aborted.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` for failure/refusal handling now; prepare projects only after resolving the selected customer.
@@ -462,7 +464,18 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
    `PRIOR_PHASES_SUMMARY`; retain the parent project. The worker must still preserve
    its first `agent-preedit` original and record the original active version before
    any edit. Missing source or failed staging blocks only the affected work.
-5. Confirm no unresolved `{{PLACEHOLDER}}` remains. Apply
+5. Prepend this block to every constructed worker prompt, including retries,
+   replacing `[PLUGIN_ROOT_ABS]` with the resolved absolute root:
+
+   ```
+   Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, read "[PLUGIN_ROOT_ABS]/AGENTS.md" and follow it.
+   Get the SE's explicit confirmation before:
+   - Delete existing metadata or records
+   - Modify existing profiles or permission sets
+   - Touch anything prefixed `sb_` or `managed__`
+   ```
+
+   Confirm no unresolved `{{PLACEHOLDER}}` remains. Apply
    `prompts/host-runtime.md#worker-model-mirroring` to the call, including retries, then spawn:
    `Agent(description="[row's description]", prompt=[constructed prompt])`.
 6. Validate output (see Sub-Agent Output Validation above) before moving on.

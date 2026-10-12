@@ -79,6 +79,12 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    Construct the dispatch envelope (do NOT read the prompt body — the sub-agent reads it itself). The envelope is the only string passed to `Agent()`. **Substitute the absolute `PLUGIN_ROOT_ABS` resolved in Pre-Spawn step 0 for `[PLUGIN_ROOT_ABS]` below — do NOT emit the literal `${CLAUDE_PLUGIN_ROOT}`, which the sub-agent cannot expand:**
 
    ```
+   Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, read "[PLUGIN_ROOT_ABS]/AGENTS.md" and follow it.
+   Get the SE's explicit confirmation before:
+   - Delete existing metadata or records
+   - Modify existing profiles or permission sets
+   - Touch anything prefixed `sb_` or `managed__`
+
    Read your prompt file at `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/prelude.md`. Also read `[PLUGIN_ROOT_ABS]/prompts/operation-safety.md` as `{{OPERATION_SAFETY}}` and `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
 
    {{ORG_ALIAS}} = [raw alias — for --target-org; NOT slugified]
@@ -127,6 +133,12 @@ Build a per-sub-agent envelope. Common placeholder values (computed by the orche
 Envelope template (substitute the prompt path and the placeholder block). `[PROMPT_PATH]` = `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/<sub-agent>.md`:
 
 ```
+Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, read "[PLUGIN_ROOT_ABS]/AGENTS.md" and follow it.
+Get the SE's explicit confirmation before:
+- Delete existing metadata or records
+- Modify existing profiles or permission sets
+- Touch anything prefixed `sb_` or `managed__`
+
 Read your prompt file at `[PROMPT_PATH]`. Also read `[PLUGIN_ROOT_ABS]/prompts/operation-safety.md` as `{{OPERATION_SAFETY}}` and `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
 
 {{ORG_ALIAS}} = [raw alias — for --target-org; NOT slugified]

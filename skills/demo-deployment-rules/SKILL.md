@@ -259,7 +259,7 @@ A failed test suite does NOT block deployment — the agent is already active. R
 
 ### Docs-confirmed UI-only (hard decline — skip with the doc citation)
 
-These Agentforce surfaces have no Metadata API / Agent Script path (docs-confirmed); skip with reason "UI-only — SE Manual Checklist [cite]". They are NOT complexity declines — everything else in a spec is attempted (see CLAUDE.md §Build Boundaries → Docs-Gated):
+These Agentforce surfaces have no Metadata API / Agent Script path (docs-confirmed); skip with reason "UI-only — SE Manual Checklist [cite]". They are NOT complexity declines — everything else in a spec is attempted (see Scout's `AGENTS.md` §Build Boundaries → Docs-Gated):
 - Multi-agent orchestration **connection wiring** (Beta, UI-only) — but Scout DOES author the sub-agent + the parent's `connected_subagent` metadata; only the live connection is UI. See `prompts/building/agentforce-advanced-capabilities.md`.
 - Custom model / LLM config
 - Channel assignment and configuration
