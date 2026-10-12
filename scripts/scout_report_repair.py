@@ -26,6 +26,7 @@ ASSETS = Path(__file__).resolve().with_name("build-assets.py")
 ERRORS = (RepairError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError)
 RELEASED = {"applied", "already_satisfied", "not_applied", "released_unverified"}
 NO_LAUNCH_ERRORS = {"NothingToDeploy", "SourceConflictError"}
+RELEASE_HOLD_SECONDS = 10 * 60
 
 
 def path(value: str | Path) -> Path:
@@ -40,9 +41,21 @@ def path(value: str | Path) -> Path:
 
 def read(file: Path) -> bytes:
     file = path(file)
-    if not stat.S_ISREG(file.stat().st_mode) or file.stat().st_size > LIMIT:
+    descriptor = os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > LIMIT:
+            raise RepairError("expected a bounded regular file")
+        chunks, size = [], 0
+        while size <= LIMIT:
+            chunk = os.read(descriptor, min(65536, LIMIT + 1 - size))
+            if not chunk:
+                return b"".join(chunks)
+            chunks.append(chunk)
+            size += len(chunk)
         raise RepairError("expected a bounded regular file")
-    return file.read_bytes()
+    finally:
+        os.close(descriptor)
 
 
 def digest(content: bytes) -> str:
@@ -69,26 +82,22 @@ def json_read(file: Path):
 
 def write(file: Path, content: bytes, *, exclusive: bool = False) -> None:
     file = path(file)
-    if exclusive:
-        descriptor = os.open(file, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    mode = stat.S_IMODE(file.stat().st_mode) if not exclusive and file.exists() else None
+    descriptor, temporary = tempfile.mkstemp(prefix=".repair-", dir=file.parent)
+    try:
         with os.fdopen(descriptor, "wb") as stream:
+            if mode is not None:
+                os.fchmod(stream.fileno(), mode)
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
-    else:
-        mode = stat.S_IMODE(file.stat().st_mode) if file.exists() else None
-        descriptor, temporary = tempfile.mkstemp(prefix=".repair-", dir=file.parent)
-        try:
-            with os.fdopen(descriptor, "wb") as stream:
-                if mode is not None:
-                    os.fchmod(stream.fileno(), mode)
-                stream.write(content)
-                stream.flush()
-                os.fsync(stream.fileno())
+        if exclusive:
+            os.link(temporary, file)  # Publish complete bytes atomically, never overwrite.
+        else:
             os.replace(temporary, file)
-        finally:
-            if os.path.exists(temporary):
-                os.unlink(temporary)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
     directory = os.open(file.parent, os.O_RDONLY)
     try:
         os.fsync(directory)
@@ -309,13 +318,18 @@ class Repair:
             title = "unverified — released by operator"
         pin = state.get("original", {})
         relative = report_paths(contract["member"])[0]
+        remaining = ("resolved; start a new task for further changes" if state["outcome"] in RELEASED
+                     else state.get("error", "verify or reconcile before deciding next steps; never replay blindly"))
+        target, delta = contract["target"], contract["delta"]
+        change = (f"{delta['column']} {delta['operator']}: "
+                  f"{json.dumps(delta['before'], ensure_ascii=False)} → {json.dumps(delta['after'], ensure_ascii=False)}")
         row = (f"{marker}\n### {title}\n"
-               f"- **Attempt / org / exact component:** {task.name}; {contract['target']}; Report:{contract['member']}\n"
-               f"- **Requested delta / exclusions:** {contract['delta']}; all other report metadata and folder sharing unchanged; no defaults writes\n"
+               f"- **Attempt / org / exact component:** {task.name}; {target['username']} ({target['org_id']}); Report:{contract['member']}\n"
+               f"- **Requested delta / exclusions:** {change}; all other report metadata and folder sharing unchanged; no defaults writes\n"
                f"- **Classification / source:** Report and ReportFolder: {'existing' if contract.get('baseline') else 'unknown'}; {contract.get('baseline', 'pending')}\n"
                f"- **First pre-edit artifact / source / members:** {pin.get('artifact', state['recovery'])}; {pin.get('artifact', '')}/source/{relative}; {relative}; verification: {state['recovery']}\n"
                f"- **Outcome / read-back:** {'blocked — not_applied (confirmed unchanged)' if title == 'not_applied' else title}; mutation={state['mutation']}; acceptance={state['acceptance']}; {state.get('readback', 'pending')}\n"
-               f"- **Receipts / remaining action:** {task}/result.json; {task}/deploy-start.json; {state.get('job_id')}; {state.get('error', 'verify or reconcile before replay')}\n"
+               f"- **Receipts / remaining action:** {task}/result.json; {task}/deploy-start.json; {state.get('job_id')}; {remaining}\n"
                + (f"- **Operator release evidence:** {state['release_evidence']}; result remains unverified\n"
                   if state.get("release_evidence") else "") +
                f"- **Rollback:** verify the pinned component-preedit receipt, stage only {relative}, re-bind target and read back; never restore from a later retrieve\n"
@@ -504,7 +518,7 @@ class Repair:
             # Only resolution releases the guard; reconcile uncertainty again.
             state.pop("release_evidence", None)
             state["outcome"] = "unverified"
-        if release_evidence and state.get("outcome") != "unverified":
+        if release_evidence and not (task / "launch.json").exists() and state.get("outcome") != "unverified":
             return contract, dict(state, action="nothing to release")
         return contract, state
 
@@ -519,10 +533,12 @@ class Repair:
                 return state
             with self.component_guard(task, contract):
                 try:
-                    self.adapter.check_identity(contract["target"], Path(contract["workspace"]))
                     launch = json_read(task / "launch.json") if (task / "launch.json").exists() else None
                     if launch and launch["digest"] != expected:
                         raise RepairError("launch belongs to another contract")
+                    if launch and state["mutation"] == "not_attempted":
+                        state["mutation"] = "attempted_unknown"
+                    self.adapter.check_identity(contract["target"], Path(contract["workspace"]))
                     try:
                         receipt = json_read(task / "deploy-start.json") if (task / "deploy-start.json").exists() else {}
                     except ValueError:
@@ -593,6 +609,12 @@ class Repair:
                             state["recovery_error"] = str(error) if isinstance(error, RepairError) else type(error).__name__
                     state.pop("error", None)
                     if release_evidence and outcome(state) == "unverified":
+                        if known and status.get("done") is not True:
+                            raise RepairError("cannot release a known job until done is true")
+                        if not known:
+                            started = datetime.fromisoformat(launch["started_at"])
+                            if started.tzinfo is None or (datetime.now(timezone.utc) - started).total_seconds() < RELEASE_HOLD_SECONDS:
+                                raise RepairError("cannot release without a job ID until 10 minutes after launch.started_at")
                         evidence = read(path(release_evidence))
                         if not evidence.strip():
                             raise RepairError("release evidence is empty")
@@ -654,6 +676,7 @@ def main():
         return 0
     except ERRORS as error:
         task = engine.task if engine else None
+        terminal_refusal = isinstance(error, RepairError) and str(error).startswith("resolved (")
         result = {"outcome": "blocked", "error": diagnostic(error)}
         if task:
             result["task"] = str(task)
@@ -661,12 +684,14 @@ def main():
                 saved = json_read(task / "result.json")
                 result.update({k: saved[k] for k in ("mutation", "acceptance", "recovery", "log") if k in saved})
                 result["saved_outcome"] = saved.get("outcome")
-                if (task / "launch.json").exists():
+                if terminal_refusal:
+                    result["outcome"] = json_read(task / "resolution.json")["outcome"]
+                elif (task / "launch.json").exists():
                     result["outcome"] = "unverified"
             except ERRORS:
                 pass
         result["action"] = "inspect the named evidence; use reconcile-report for an attempted write"
-        if isinstance(error, RepairError) and str(error).startswith("resolved ("):
+        if terminal_refusal:
             result["action"] = "start a new task; the recorded resolution is unchanged"
         print(json.dumps(result, sort_keys=True))
         return 1

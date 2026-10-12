@@ -62,11 +62,16 @@ Read-only CLI integration has been exercised; live repair/restore is not validat
    terminal result and current state, but cannot prove a human attribution. Never
    invent an ID, select a recent unrelated job, edit result.json or delete a lock
    pointer to resume. Poll nonterminal jobs with bounded waits; never redeploy.
+   A known job cannot be released until a fresh status says `done: true`. Without
+   a job ID, release is refused until at least 10 minutes after `launch.started_at`,
+   because an orphaned CLI may still submit. These holds apply even with operator evidence.
    If deployment history shows no job for this attempt after `launch.started_at`,
    or the read-back difference has been reviewed, the operator may release a still
    unverified attempt with `reconcile-report --task-dir [TASK]
    --contract-digest [DIGEST] --release-evidence [ABS_EVIDENCE_FILE]`. Save that
-   review in a non-empty bounded regular file. The helper reconciles first, then
+   review in a non-empty bounded regular file at an absolute path with no symlink
+   components; `/tmp` is rejected on macOS because it is a symlink (use `/private/tmp`
+   or another real directory). The helper reconciles every launched attempt first, then
    copies the evidence once to `release-evidence.md` and releases the component
    guard only if the result is still unverified. Changed evidence is rejected.
    The result is `released_unverified`, reported as unverified, never as applied

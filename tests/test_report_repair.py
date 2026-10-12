@@ -1,6 +1,8 @@
 """Report repair contracts checked against captured CLI schemas and fixed paths."""
 import copy
-from datetime import datetime, timezone
+import contextlib
+import io
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -228,8 +230,14 @@ class ReportRepairTests(unittest.TestCase):
         proof.write_text('Operator reviewed deployment history after launch and the current report read-back.')
         return str(proof)
 
+    def age_launch(self, task, seconds=600):
+        launch = repair.json_read(task / 'launch.json')
+        launch['started_at'] = (datetime.now(timezone.utc) - timedelta(seconds=seconds)).isoformat()
+        repair.save(task / 'launch.json', launch)
+
     def snapshot(self):
-        return {str(p.relative_to(self.workspace)): (p.read_bytes(), p.stat().st_mode & 0o7777)
+        return {str(p.relative_to(self.workspace)): (p.read_bytes(), p.stat().st_mode & 0o7777,
+                                                          p.stat().st_ino, p.stat().st_mtime_ns)
                 for p in self.workspace.rglob('*') if p.is_file()}
 
     def test_operator_release_retains_uncertainty_and_allows_one_new_deploy(self):
@@ -247,6 +255,7 @@ class ReportRepairTests(unittest.TestCase):
                 unverified = self.engine.reconcile(task, sha)
                 self.assertEqual(unverified['outcome'], 'unverified')
                 before_deploys = self.count('deploy')
+                self.age_launch(task)
                 proof = self.release_proof()
                 result = self.engine.reconcile(task, sha, release_evidence=proof)
                 self.assertEqual(result['outcome'], 'released_unverified')
@@ -311,6 +320,7 @@ class ReportRepairTests(unittest.TestCase):
         self.adapter.source = BEFORE
         task, sha = self.inspect(); self.adapter.mode = 'no-job'
         with self.assertRaises(repair.RepairError): self.engine.apply(task, sha)
+        self.age_launch(task)
         proof = Path(self.release_proof())
         empty = self.customer / 'empty.md'; empty.write_text(' \n')
         large = self.customer / 'large.md'; large.write_bytes(b'x' * (repair.LIMIT + 1))
@@ -341,6 +351,7 @@ class ReportRepairTests(unittest.TestCase):
     def test_failed_release_finalization_stays_pending_and_retries_same_evidence(self):
         task, sha = self.inspect(); self.adapter.mode = 'no-job'
         with self.assertRaises(repair.RepairError): self.engine.apply(task, sha)
+        self.age_launch(task)
         proof = self.release_proof()
         with patch.object(self.engine, 'resolve', side_effect=OSError('injected resolution failure')):
             with self.assertRaises(OSError):
@@ -358,6 +369,7 @@ class ReportRepairTests(unittest.TestCase):
     def test_host_interruption_between_release_checkpoint_and_resolution_is_recoverable(self):
         task, sha = self.inspect(); self.adapter.mode = 'no-job'
         with self.assertRaises(repair.RepairError): self.engine.apply(task, sha)
+        self.age_launch(task)
         proof = self.release_proof()
         with patch.object(self.engine, 'resolve', side_effect=KeyboardInterrupt):
             with self.assertRaises(KeyboardInterrupt):
@@ -370,6 +382,146 @@ class ReportRepairTests(unittest.TestCase):
         self.assertEqual(result['outcome'], 'released_unverified')
         self.assertTrue((task / 'resolution.json').exists())
         self.assertEqual(self.count('deploy'), 1)
+
+    def test_release_refuses_nonterminal_known_job_and_blocks_new_attempt(self):
+        task, sha = self.inspect()
+        self.engine.apply(task, sha)
+        self.age_launch(task, 3600)
+        proof = self.release_proof()
+        for done in (False, None, 'true', 1):
+            self.adapter.status = fixture('synthetic-report-queued')['result']
+            self.adapter.status['done'] = done
+            with self.assertRaisesRegex(repair.RepairError, 'until done is true'):
+                self.engine.reconcile(task, sha, release_evidence=proof)
+            self.assertFalse((task / 'resolution.json').exists())
+            self.assertFalse((task / 'release-evidence.md').exists())
+        second, second_sha = self.inspect()
+        with self.assertRaisesRegex(repair.RepairError, 'unresolved write'):
+            self.engine.apply(second, second_sha)
+        self.assertEqual(self.count('deploy'), 1)
+        self.adapter.status = fixture('synthetic-report-success')['result']
+        self.assertEqual(self.engine.reconcile(task, sha, release_evidence=proof)['outcome'], 'applied')
+
+    def test_no_job_release_waits_ten_minutes_and_rejects_future_launch(self):
+        task, sha = self.inspect()
+        self.adapter.mode = 'no-job'
+        with self.assertRaises(repair.RepairError):
+            self.engine.apply(task, sha)
+        proof = self.release_proof()
+        for age in (0, 599, -3600):
+            now = datetime.now(timezone.utc)
+            self.age_launch(task, age)
+            with patch.object(repair, 'datetime', wraps=datetime) as frozen:
+                frozen.now.return_value = now
+                with self.assertRaisesRegex(repair.RepairError, 'until 10 minutes'):
+                    self.engine.reconcile(task, sha, release_evidence=proof)
+            self.assertFalse((task / 'resolution.json').exists())
+            self.assertFalse((task / 'release-evidence.md').exists())
+        second, second_sha = self.inspect()
+        with self.assertRaisesRegex(repair.RepairError, 'unresolved write'):
+            self.engine.apply(second, second_sha)
+        self.age_launch(task, 600)
+        self.assertEqual(self.engine.reconcile(task, sha, release_evidence=proof)['outcome'], 'released_unverified')
+        self.assertEqual(self.count('deploy'), 1)
+
+    def test_launch_intent_and_keyboard_interrupt_windows_reconcile_from_disk(self):
+        for window in ('before-result', 'during-deploy'):
+            with self.subTest(window=window):
+                task, sha = self.inspect()
+                save = repair.save
+                def interrupt_result(file, value, **kwargs):
+                    if file == task / 'result.json' and (task / 'launch.json').exists():
+                        raise KeyboardInterrupt()
+                    return save(file, value, **kwargs)
+                context = (patch.object(repair, 'save', side_effect=interrupt_result)
+                           if window == 'before-result' else
+                           patch.object(self.adapter, 'deploy', side_effect=KeyboardInterrupt))
+                with context, self.assertRaises(KeyboardInterrupt):
+                    self.engine.apply(task, sha)
+                self.assertEqual(repair.json_read(task / 'result.json')['outcome'], 'ready')
+                if window == 'before-result':
+                    self.assertEqual(repair.json_read(task / 'result.json')['mutation'], 'not_attempted')
+                    result = self.engine.reconcile(task, sha)
+                    self.assertEqual((result['outcome'], result['mutation']), ('unverified', 'attempted_unknown'))
+                self.age_launch(task)
+                result = self.engine.reconcile(task, sha, release_evidence=self.release_proof())
+                self.assertEqual(result['outcome'], 'released_unverified')
+                self.assertTrue((task / 'resolution.json').exists())
+                self.assertEqual(self.count('deploy'), 0)
+
+    def test_terminal_cli_refusals_report_recorded_outcome_without_writes(self):
+        for kind in ('applied', 'not_applied', 'already_satisfied'):
+            self.adapter.source = GOLD if kind == 'already_satisfied' else BEFORE
+            self.adapter.mode = 'failed' if kind == 'not_applied' else 'success'
+            self.adapter.status = fixture('synthetic-report-success')['result']
+            task, sha = self.inspect()
+            self.engine.apply(task, sha)
+            if kind != 'already_satisfied':
+                self.engine.verify(task, sha)
+            before = self.snapshot()
+            self.adapter.trace.clear()
+            output = io.StringIO()
+            args = ['scout-repair.py', 'verify-report', '--task-dir', str(task), '--contract-digest', sha]
+            with patch.object(sys, 'argv', args), patch.object(repair, 'Salesforce', return_value=self.adapter), contextlib.redirect_stdout(output):
+                code = repair.main()
+            self.assertEqual(code, 1)
+            self.assertEqual(json.loads(output.getvalue())['outcome'], kind)
+            self.assertEqual(self.snapshot(), before)
+            self.assertEqual(self.adapter.trace, [])
+            log = Path(repair.json_read(task / 'result.json')['log']).read_text()
+            self.assertNotIn('verify or reconcile before replay', log)
+            self.assertIn('resolved; start a new task', log)
+
+    def test_read_rejects_leaf_swaps_and_bounds_growth_on_one_descriptor(self):
+        file = self.customer / 'race.md'
+        secret = self.customer / 'unread.md'
+        secret.write_bytes(b'unread data')
+        original_open = os.open
+        for kind in ('symlink', 'fifo'):
+            file.write_bytes(b'original')
+            def swapped(name, flags, *args, **kwargs):
+                self.assertTrue(flags & os.O_NOFOLLOW)
+                self.assertTrue(flags & os.O_NONBLOCK)
+                file.unlink()
+                file.symlink_to(secret) if kind == 'symlink' else os.mkfifo(file)
+                return original_open(name, flags, *args, **kwargs)
+            with patch.object(repair.os, 'open', side_effect=swapped):
+                with self.assertRaises((OSError, repair.RepairError)):
+                    repair.read(file)
+            file.unlink()
+        file.write_bytes(b'x')
+        original_stat, original_read = os.fstat, os.read
+        sizes = []
+        def grown(fd):
+            result = original_stat(fd)
+            with file.open('ab') as output:
+                output.write(b'x' * (repair.LIMIT + 100))
+            return result
+        def bounded(fd, amount):
+            data = original_read(fd, amount)
+            sizes.append(len(data))
+            return data
+        with patch.object(repair.os, 'fstat', side_effect=grown), patch.object(repair.os, 'read', side_effect=bounded):
+            with self.assertRaisesRegex(repair.RepairError, 'bounded regular'):
+                repair.read(file)
+        self.assertEqual(sum(sizes), repair.LIMIT + 1)
+
+    def test_exclusive_evidence_publication_cannot_leave_empty_destination(self):
+        destination = self.customer / 'release-evidence.md'
+        content = b'Complete operator evidence\n'
+        def interrupt(source, target):
+            self.assertEqual(Path(source).read_bytes(), content)
+            self.assertFalse(Path(target).exists())
+            raise KeyboardInterrupt()
+        with patch.object(repair.os, 'link', side_effect=interrupt), self.assertRaises(KeyboardInterrupt):
+            repair.write(destination, content, exclusive=True)
+        self.assertFalse(destination.exists())
+        self.assertEqual(list(self.customer.glob('.repair-*')), [])
+        repair.write(destination, content, exclusive=True)
+        with self.assertRaises(FileExistsError):
+            repair.write(destination, b'changed', exclusive=True)
+        self.assertEqual(destination.read_bytes(), content)
+        self.assertEqual(destination.stat().st_mode & 0o777, 0o600)
 
     def test_operator_attribution_is_recorded_and_old_job_is_rejected(self):
         task, sha = self.inspect()
@@ -441,6 +593,9 @@ class ReportRepairTests(unittest.TestCase):
                       'First pre-edit artifact / source / members', 'Outcome / read-back', 'Receipts / remaining action', 'Rollback'):
             self.assertIn(field, text)
         self.assertIn('/source/' + REPORT, text)
+        self.assertNotIn("{'org_id':", text)
+        self.assertNotIn("{'after':", text)
+        self.assertIn(' → ', text)
         self.assertEqual(list(self.customer.glob('changes-*.md')), [log])
 
     def test_noop_and_later_linked_task_need_no_amendment_engine(self):
@@ -602,6 +757,7 @@ class ReportRepairTests(unittest.TestCase):
         selectors = ['--task-dir', state['task'], '--contract-digest', state['digest']]
         process, state = call('apply-report', *selectors)
         self.assertEqual(process.returncode, 1)
+        self.age_launch(Path(state['task']))
         process, state = call('reconcile-report', *selectors, '--release-evidence', self.release_proof())
         self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
         self.assertEqual(state['outcome'], 'released_unverified')
@@ -609,6 +765,7 @@ class ReportRepairTests(unittest.TestCase):
         process, state = call('verify-report', *selectors)
         self.assertEqual(process.returncode, 1)
         self.assertIn('resolved (released_unverified); start a new task', state['error'])
+        self.assertEqual(state['outcome'], 'released_unverified')
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(sum(c[:3] == ['project', 'deploy', 'start']
                              for c in json.loads(state_file.read_text())['calls']), 1)
