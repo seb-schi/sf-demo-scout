@@ -6,7 +6,9 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 
+sys.dont_write_bytecode = True
 try:
     from scout_report_repair import LIMIT, RepairError, decode, org_id, text
 except ImportError:

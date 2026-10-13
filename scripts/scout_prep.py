@@ -4,9 +4,9 @@
 Subcommands:
   run      execute one allowlisted read-only check against the bound org (query, describe, retrieve)
   verdict  compute the readiness verdict from a results file
-  render   build the candidate demo-path.md from a results file and the folder's current file
+  render   write the candidate demo-path.md and its metadata as new files in scratch
   check    gate a candidate against its results and the bound identity (exit 0 before publishing)
-  publish  replace demo-path.md atomically, preserving every byte outside Scout's regions
+  publish  gate again, then replace demo-path.md without ever losing a concurrent save
 
 Standard library only, Python 3.9 or newer, safe under -S and -B. Exit codes: 0 pass, 2 usage,
 3 findings or refusal, 4 couldn't read or run.
@@ -21,6 +21,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -36,84 +37,385 @@ except ImportError:
     raise SystemExit(4)
 
 TIMEOUT = 120
+RECORDS = 2000
+SCRATCH_BASE = '/tmp'
+NAME = 'demo-path.md'
+MARKER = '<!-- scout:demo-path -->'
 STATES = ('passed', 'failed', 'unavailable', 'open', 'unknown', 'eye', 'visual_qa', 'persona')
-EXCEPTIONS = ('eye', 'visual_qa', 'persona')
+EXCEPTIONS = {'eye': ('claim', 'config', 'persona', 'visual_qa'), 'visual_qa': ('visual_qa',), 'persona': ('persona',)}
+LABELS = {'eye': 'check by eye', 'visual_qa': 'visual QA', 'persona': 'persona access'}
 KINDS = ('claim', 'item', 'flip', 'checkpoint', 'job', 'manual', 'config', 'persona', 'visual_qa')
-VERDICTS = ('ready', 'ready with exceptions', 'not ready')
+SOURCES = ('read', 'unrelated')
 REGIONS = ('drift', 'checklist', 'path', 'seams', 'runs')
+TEXT_FIELDS = ('text', 'was', 'now', 'fix', 'superseded_by', 'supersession_source', 'drop_source')
 BEGIN = re.compile(r'^<!-- scout:begin ([a-z]+) sha256=([0-9a-f]{64}) -->$')
 END = re.compile(r'^<!-- scout:end ([a-z]+) -->$')
+FENCE = re.compile(r' {0,3}(`{3,}|~{3,})')
+KEY = re.compile(r'[\w.-]+\.md#[\w/.-]+')
+BEAT = re.compile(r'[\w.-]+')
+DATE = re.compile(r'\d{4}-\d{2}-\d{2}', re.A)
+TIME = re.compile(r'(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(:\d{2}(?:\.\d{1,6})?)?(Z|[+-]\d{2}:?\d{2})', re.A)
+HEADER = re.compile(r'org-verified\s*:', re.I)
+RESERVED = re.compile(r'scout:(?:begin|end|demo-path)|org-verified\s*:', re.I)
+BREAKS = re.compile(r'[\r\n\x0b\x0c\x1c-\x1e\x85\u2028\u2029]+')
+SECRET = re.compile(r'00D[A-Za-z0-9]{12,15}![\w.-]+|\bBearer\s+[\w.-]+|\b(?:access_?token|refresh_?token|session_?id|sid|'
+                    r'password|client_secret)\b["\']?\s*[:=]\s*["\']?[^\s"\',;]+', re.I)
 IDENT = r'[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*'
-QUERY = re.compile(r'SELECT\s+(?P<fields>.+?)\s+FROM\s+(?P<object>' + IDENT + r')'
-                   r'(?:\s+WHERE\s+(?P<where>.+?))?(?:\s+GROUP\s+BY\s+(?P<group>.+?))?'
-                   r'(?:\s+ORDER\s+BY\s+(?P<order>.+?))?(?:\s+LIMIT\s+(?P<limit>\d{1,5}))?', re.I | re.S)
-FORBIDDEN = re.compile(r'\b(?:FOR\s+(?:VIEW|REFERENCE|UPDATE)|USING\s+SCOPE|ALL\s+ROWS)\b|[;`\\]|\$\(|&&|\|\|', re.I)
+TOKEN = re.compile(r"""(?P<space>[ \t\r\n]+)
+    | (?P<string>'(?:[^'\\]|\\.)*')
+    | (?P<datetime>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2}))
+    | (?P<date>\d{4}-\d{2}-\d{2})
+    | (?P<number>-?\d+(?:\.\d+)?)
+    | (?P<word>""" + IDENT + r""")
+    | (?P<op><=|>=|!=|<>|=|<|>)
+    | (?P<punct>[(),:])""", re.X | re.S | re.A)
+RESERVED_WORDS = {'SELECT', 'FROM', 'WHERE', 'GROUP', 'BY', 'ORDER', 'LIMIT', 'OFFSET', 'AND', 'OR', 'NOT', 'IN', 'LIKE',
+                  'INCLUDES', 'EXCLUDES', 'ASC', 'DESC', 'NULLS', 'FIRST', 'LAST', 'NULL', 'TRUE', 'FALSE', 'WITH', 'FOR',
+                  'UPDATE', 'USING', 'SCOPE', 'TYPEOF', 'WHEN', 'THEN', 'ELSE', 'END', 'HAVING', 'ALL', 'ROWS'}
+AGGREGATES = ('COUNT', 'COUNT_DISTINCT', 'SUM', 'MIN', 'MAX', 'AVG')
+UNITS = '(?:DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS)'
+DATE_WORD = re.compile(r'TODAY|YESTERDAY|TOMORROW|(?:LAST|THIS|NEXT)_(?:WEEK|MONTH|QUARTER|YEAR|FISCAL_QUARTER|FISCAL_YEAR)'
+                       r'|(?:LAST|NEXT)_90_DAYS', re.I)
+DATE_N = re.compile(r'(?:LAST|NEXT)_N_' + UNITS + '|N_' + UNITS + '_AGO', re.I)
 
 
 class Refused(Exception):
-    """A check, a gate or a publication that must not proceed."""
+    """A check, a gate or a publication that must not proceed; `error` keeps a CLI failure's name and message (F20)."""
+
+    def __init__(self, reason, error=None):
+        super().__init__(reason)
+        self.error = error
+
+
+class Soql:
+    """F06 and N2: SELECT … FROM one object [WHERE …] [GROUP BY …] [ORDER BY …] [LIMIT n] [OFFSET n], nothing else."""
+
+    def __init__(self, query):
+        self.items, self.at, self.count_only = tokens(query), 0, False
+
+    def refuse(self):
+        raise Refused('query outside the read-only grammar')
+
+    def peek(self, ahead=0):
+        index = self.at + ahead
+        return self.items[index] if index < len(self.items) else (None, None)
+
+    def keyword(self, *words):
+        kind, value = self.peek()
+        if kind == 'word' and value.upper() in words:
+            self.at += 1
+            return True
+        return False
+
+    def expect(self, *words):
+        if not self.keyword(*words):
+            self.refuse()
+
+    def punct(self, symbol):
+        if self.peek() == ('punct', symbol):
+            self.at += 1
+            return True
+        return False
+
+    def need(self, symbol):
+        if not self.punct(symbol):
+            self.refuse()
+
+    def take(self, kinds, test=lambda value: True):
+        kind, value = self.peek()
+        if kind not in kinds or not test(value):
+            self.refuse()
+        self.at += 1
+
+    def field(self):
+        self.take(('word',), lambda value: value.upper() not in RESERVED_WORDS)
+
+    def parse(self):
+        self.expect('SELECT')
+        self.select_list()
+        self.expect('FROM')
+        # Order and Group are standard objects, so only they may share a clause word.
+        self.take(('word',), lambda value: '.' not in value and value.upper() not in RESERVED_WORDS - {'ORDER', 'GROUP'})
+        if self.keyword('WHERE'):
+            self.condition()
+        if self.keyword('GROUP'):
+            self.expect('BY')
+            self.field()
+            while self.punct(','):
+                self.field()
+        if self.keyword('ORDER'):
+            self.expect('BY')
+            self.order_list()
+        for clause in ('LIMIT', 'OFFSET'):
+            if self.keyword(clause):
+                self.take(('number',), str.isdigit)
+        if self.at != len(self.items):
+            self.refuse()
+        return self
+
+    def select_list(self):
+        if self.peek()[0] == 'word' and self.peek()[1].upper() == 'COUNT' and self.peek(1) == ('punct', '(') \
+                and self.peek(2) == ('punct', ')'):
+            self.at += 3
+            self.count_only = True
+            return
+        while True:
+            if self.aggregate():
+                kind, value = self.peek()
+                if kind == 'word' and '.' not in value and value.upper() not in RESERVED_WORDS:
+                    self.at += 1  # the aggregate's alias
+            else:
+                self.field()
+            if not self.punct(','):
+                return
+
+    def aggregate(self):
+        kind, value = self.peek()
+        if kind == 'word' and value.upper() in AGGREGATES and self.peek(1) == ('punct', '('):
+            self.at += 2
+            self.field()
+            self.need(')')
+            return True
+        return False
+
+    def condition(self):
+        self.conjunction()
+        while self.keyword('OR'):
+            self.conjunction()
+
+    def conjunction(self):
+        self.negation()
+        while self.keyword('AND'):
+            self.negation()
+
+    def negation(self):
+        if self.keyword('NOT'):
+            self.negation()
+        elif self.punct('('):
+            self.condition()
+            self.need(')')
+        else:
+            self.comparison()
+
+    def comparison(self):
+        self.field()
+        if self.peek()[0] == 'op':
+            self.at += 1
+            self.literal()
+        elif self.keyword('NOT'):
+            self.expect('IN')
+            self.literal_list(self.literal)
+        elif self.keyword('IN'):
+            self.literal_list(self.literal)
+        elif self.keyword('LIKE'):
+            self.take(('string',))
+        elif self.keyword('INCLUDES', 'EXCLUDES'):
+            self.literal_list(lambda: self.take(('string',)))
+        else:
+            self.refuse()
+
+    def literal(self):
+        kind, value = self.peek()
+        if kind in ('string', 'number', 'date', 'datetime'):
+            self.at += 1
+        elif kind == 'word' and (value.upper() in ('NULL', 'TRUE', 'FALSE') or DATE_WORD.fullmatch(value)):
+            self.at += 1
+        elif kind == 'word' and DATE_N.fullmatch(value) and self.peek(1) == ('punct', ':') \
+                and self.peek(2)[0] == 'number' and self.peek(2)[1].isdigit():
+            self.at += 3
+        else:
+            self.refuse()
+
+    def literal_list(self, item):
+        self.need('(')
+        item()
+        while self.punct(','):
+            item()
+        self.need(')')
+
+    def order_list(self):
+        while True:
+            if not self.aggregate():
+                self.field()
+            self.keyword('ASC', 'DESC')
+            if self.keyword('NULLS'):
+                self.expect('FIRST', 'LAST')
+            if not self.punct(','):
+                return
+
+
+def tokens(query):
+    """F06: SOQL as tokens; any character outside the token set (comments, `;`, `$`, fullwidth letters) refuses it."""
+    found, position = [], 0
+    while position < len(query):
+        match = TOKEN.match(query, position)
+        if not match:
+            raise Refused('query outside the read-only grammar')
+        if match.lastgroup != 'space':
+            found.append((match.lastgroup, match.group()))
+        position = match.end()
+    return found
+
+
+def parse_query(query):
+    """N2 and F06: one read-only SELECT in the constrained grammar, at most 4,000 characters."""
+    if not isinstance(query, str) or not query or len(query) > 4000:
+        raise Refused('query outside the read-only grammar')
+    return Soql(query).parse()
 
 
 def validate_query(query):
-    """The constrained SOQL grammar (N2): one read-only SELECT, no stateful or locking clause."""
-    text = ' '.join(unicodedata.normalize('NFKC', query).split())
-    if FORBIDDEN.search(text) or not QUERY.fullmatch(text) or len(text) > 4000:
-        raise Refused('query outside the read-only grammar')
-    return text
+    """F07: validation reads tokens and passes the original text through unchanged, string literals included."""
+    parse_query(query)
+    return query
+
+
+def current_time():
+    return datetime.datetime.now().astimezone()
+
+
+def parse_time(value):
+    """X14 and F12: an ISO time with a timezone (Z, ±HH:MM or ±HHMM), read alike on every Python; otherwise None."""
+    match = TIME.fullmatch(value) if isinstance(value, str) else None
+    if not match:
+        return None
+    day, minutes, seconds, zone = match.groups()
+    seconds = seconds or ':00'
+    if '.' in seconds:
+        whole, fraction = seconds.split('.')
+        seconds = whole + '.' + fraction.ljust(6, '0')
+    zone = '+00:00' if zone == 'Z' else zone if ':' in zone else zone[:3] + ':' + zone[3:]
+    try:
+        return datetime.datetime.fromisoformat('%sT%s%s%s' % (day, minutes, seconds, zone))
+    except ValueError:
+        return None
+
+
+def parse_date(value):
+    try:
+        return datetime.date.fromisoformat(value) if isinstance(value, str) and DATE.fullmatch(value) else None
+    except ValueError:
+        return None
 
 
 def now(clock=None):
-    moment = datetime.datetime.fromisoformat(clock) if clock else datetime.datetime.now().astimezone()
-    if moment.tzinfo is None:
-        raise Refused('times need a timezone')
+    """X14 and F11: a given time, which needs a timezone; without one, the current local time."""
+    if clock is None:
+        return current_time()
+    moment = parse_time(clock)
+    if moment is None:
+        raise Refused('times need ISO format with a timezone')
     return moment
 
 
-def run_cli(args):
+def scratch_dir():
+    """F05: scratch lives under a vetted base (the system's root-owned, sticky /tmp), whatever TMPDIR says."""
+    base = os.path.realpath(SCRATCH_BASE)
+    try:
+        info = os.stat(base)
+    except OSError as error:
+        raise Refused('no vetted scratch base') from error
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or not info.st_mode & stat.S_ISVTX:
+        raise Refused('no vetted scratch base: %s must resolve to a root-owned, sticky directory' % SCRATCH_BASE)
+    path = os.path.realpath(tempfile.mkdtemp(prefix='scout-prep-', dir=base))
+    if os.path.dirname(path) != base:
+        raise Refused('scratch left its vetted base')
+    return Path(path)
+
+
+def redact(text, limit=2000):
+    return SECRET.sub('[redacted]', BREAKS.sub(' ', text))[:limit]
+
+
+def envelope_of(output):
+    if not output or len(output) > LIMIT:
+        return None
+    try:
+        return decode(output)
+    except (ValueError, UnicodeError, RecursionError):
+        return None
+
+
+def cli_error(*envelopes):
+    """F20: the CLI error's name and message, redacted, so K7 can search the error verbatim."""
+    for envelope in envelopes:
+        if isinstance(envelope, dict) and (isinstance(envelope.get('name'), str) or isinstance(envelope.get('message'), str)):
+            return {key: redact(envelope[key]) if isinstance(envelope.get(key), str) else '' for key in ('name', 'message')}
+    return None
+
+
+def run_cli(args, scratch=None):
+    """X7 and N3: one constructed CLI call whose cwd is a vetted scratch directory, never the folder."""
     executable = shutil.which('sf')
     if not executable:
         raise Refused('Salesforce CLI unavailable')
-    scratch = Path(tempfile.mkdtemp(prefix='scout-prep-'))
+    own = scratch is None
+    scratch = scratch or scratch_dir()
     try:
-        result = subprocess.run([executable, *args, '--json'], cwd=scratch, stdin=subprocess.DEVNULL,
-                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=TIMEOUT)
+        result = subprocess.run([executable, *args, '--json'], cwd=str(scratch), stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=TIMEOUT)
     except (OSError, subprocess.SubprocessError) as error:
         raise Refused('CLI unavailable or timed out') from error
-    if result.returncode or len(result.stdout) > LIMIT:
-        raise Refused('CLI operation failed')
-    try:
-        envelope = decode(result.stdout)
-    except (ValueError, UnicodeError, RecursionError) as error:
-        raise Refused('CLI returned unusable JSON') from error
-    if not isinstance(envelope, dict) or envelope.get('status') != 0:
-        raise Refused('CLI operation failed')
+    finally:
+        if own:
+            try:
+                os.rmdir(scratch)  # only if the CLI left it empty
+            except OSError:
+                pass
+    if len(result.stdout) > LIMIT:
+        raise Refused('CLI response exceeds the limit')
+    envelope = envelope_of(result.stdout)
+    status = envelope.get('status') if isinstance(envelope, dict) else None
+    if result.returncode or type(status) is not int or status != 0:
+        raise Refused('CLI operation failed', cli_error(envelope, envelope_of(result.stderr)))
     return envelope.get('result'), scratch
 
 
+def query_observation(result, count_only):
+    """F18 and F19: a usable result has a records list and an integer totalSize; at most 2,000 records come back."""
+    records = result.get('records') if isinstance(result, dict) else None
+    total = result.get('totalSize') if isinstance(result, dict) else None
+    if not isinstance(records, list) or not all(isinstance(r, dict) for r in records) or type(total) is not int or total < 0:
+        raise Refused('CLI returned an unusable query result')
+    complete = result.get('done', True) is not False and len(records) <= RECORDS and (count_only or len(records) == total)
+    return {'totalSize': total, 'records': records[:RECORDS], 'complete': complete}
+
+
 def run_check(kind, selector, username, org, query=None, sobject=None, metadata=None, clock=None):
-    """X6, X7, N3: bind first, then one constructed read-only call. Nothing stored is executed."""
+    """X6, X7, N3: validate, bind, then one constructed read-only call. Nothing stored is executed."""
+    if clock is not None:
+        now(clock)
+    if kind == 'query':
+        count_only = parse_query(query).count_only
+    elif kind == 'describe':
+        if not re.fullmatch(IDENT, sobject or ''):
+            raise Refused('invalid sObject name')
+    elif kind == 'retrieve':
+        if not re.fullmatch(r'[A-Za-z]+:[A-Za-z0-9_.\- ]+', metadata or ''):
+            raise Refused('invalid metadata member')
+    else:
+        raise Refused('unsupported check kind')
     try:
         scout_target.bind(selector, {'username': username, 'org_id': org})
     except (scout_target.Unverified, scout_target.Mismatch) as error:
         raise Refused('binding check failed: ' + str(error)) from error
     if kind == 'query':
-        result, _ = run_cli(['data', 'query', '--target-org', username, '--query', validate_query(query or '')])
-        observed = {'totalSize': result.get('totalSize') if isinstance(result, dict) else None,
-                    'records': (result or {}).get('records', [])[:200] if isinstance(result, dict) else []}
+        result, _ = run_cli(['data', 'query', '--target-org', username, '--query', query])
+        observed = query_observation(result, count_only)
     elif kind == 'describe':
-        if not re.fullmatch(IDENT, sobject or ''):
-            raise Refused('invalid sObject name')
         result, _ = run_cli(['sobject', 'describe', '--sobject', sobject, '--target-org', username])
-        observed = {'fields': sorted(f.get('name', '') for f in (result or {}).get('fields', []) if isinstance(f, dict))}
-    elif kind == 'retrieve':
-        if not re.fullmatch(r'[A-Za-z]+:[A-Za-z0-9_.\- ]+', metadata or ''):
-            raise Refused('invalid metadata member')
-        target = Path(tempfile.mkdtemp(prefix='scout-prep-retrieve-'))
-        result, _ = run_cli(['project', 'retrieve', 'start', '--metadata', metadata, '--target-metadata-dir', str(target),
-                             '--unzip', '--target-org', username])
-        observed = {'directory': str(target), 'files': sorted(str(p.relative_to(target)) for p in target.rglob('*') if p.is_file())[:200]}
+        fields = result.get('fields') if isinstance(result, dict) else None
+        if not isinstance(fields, list):
+            raise Refused('CLI returned an unusable describe result')
+        observed = {'fields': sorted(f['name'] for f in fields if isinstance(f, dict) and isinstance(f.get('name'), str))}
     else:
-        raise Refused('unsupported check kind')
+        scratch = scratch_dir()
+        target = scratch / 'metadata'
+        target.mkdir()
+        run_cli(['project', 'retrieve', 'start', '--metadata', metadata, '--target-metadata-dir', str(target),
+                 '--unzip', '--target-org', username], scratch)
+        files = sorted(str(p.relative_to(target)) for p in target.rglob('*') if p.is_file())
+        observed = {'directory': str(target), 'files': files[:RECORDS], 'complete': len(files) <= RECORDS}
     return {'kind': kind, 'observed': observed, 'at': now(clock).isoformat(timespec='seconds')}
 
 
@@ -123,117 +425,388 @@ def read_exact(path):
         return stream.read()
 
 
+def digest(content):
+    return hashlib.sha256(content).hexdigest()
+
+
+def stated(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
+def strings(value):
+    """Every string in a JSON value, keys included, walked without recursion."""
+    stack = [value]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, str):
+            yield item
+        elif isinstance(item, dict):
+            stack.extend(item)
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+
+
+def check_obligation(obligation):
+    """F14 and F21: a task-qualified key, and every field the verdict and renderer read has its type."""
+    if not isinstance(obligation, dict) or not isinstance(obligation.get('key'), str) or not KEY.fullmatch(obligation['key']):
+        raise Refused('every obligation needs a key of the form <task file>.md#<local id>')  # X4
+    beat = obligation.get('beat')
+    if not isinstance(obligation.get('kind'), str) or (beat is not None and not (
+            isinstance(beat, str) and (BEAT.fullmatch(beat) or KEY.fullmatch(beat)))):
+        raise Refused('%s needs a kind, and a beat that is null, a beat ID or a beat key' % obligation['key'])
+    if any(name in obligation and not isinstance(obligation[name], bool) for name in ('required', 'proof_moment')) \
+            or not isinstance(obligation.get('dropped'), (bool, type(None))) \
+            or any(not isinstance(obligation.get(name), (str, type(None))) for name in TEXT_FIELDS):
+        raise Refused('%s has a field of the wrong type' % obligation['key'])
+    if obligation.get('valid_until') is not None and parse_date(obligation['valid_until']) is None:
+        raise Refused('%s needs valid_until as YYYY-MM-DD or null' % obligation['key'])
+    result = obligation.get('result')
+    if result is not None and (not isinstance(result, dict) or not isinstance(result.get('status'), (str, type(None)))
+                               or not isinstance(result.get('at'), (str, type(None)))):
+        raise Refused('%s needs a result of the form {"status":…,"observed":…,"at":…} or null' % obligation['key'])
+
+
+def check_beat(entry, keys):
+    """F16 and F21: a beat carries C3's fields with their types, and every step's ref names an obligation."""
+    if not isinstance(entry, dict) or not isinstance(entry.get('key'), str) or not KEY.fullmatch(entry['key']):
+        raise Refused('every beat needs a key of the form <task file>.md#<beat id>')
+    steps, transitions, climax = entry.get('steps', []), entry.get('transitions', []), entry.get('climax')
+    if any(not isinstance(entry.get(name), (str, type(None))) for name in ('name', 'persona', 'login', 'start', 'fallback')) \
+            or not isinstance(steps, list) or not isinstance(transitions, list) \
+            or not all(isinstance(line, str) for line in transitions):
+        raise Refused('beat %s has a field of the wrong type' % entry['key'])
+    for step in steps:
+        ref = step.get('ref') if isinstance(step, dict) else None
+        if not isinstance(step, dict) or not isinstance(step.get('do'), str) \
+                or not isinstance(step.get('expect'), (str, type(None))) or not (ref is None or isinstance(ref, str) and ref in keys):
+            raise Refused('beat %s needs steps of the form {"do":…,"expect":…,"ref":<obligation key>|null}' % entry['key'])
+    if climax is not None and (type(climax) is not int or not 1 <= climax <= len(steps)):
+        raise Refused('beat %s needs climax as the number of one of its steps, or null' % entry['key'])
+
+
 def load_results(path):
-    data = json.loads(read_exact(path))
-    if not isinstance(data, dict) or data.get('schema') != 1:
+    """F21: every field the verdict, renderer and gate read is checked here; malformed input is refused, never raised."""
+    try:
+        data = decode(read_exact(path))
+    except (ValueError, UnicodeError, RecursionError) as error:
+        raise Refused('results are not valid JSON') from error
+    if not isinstance(data, dict) or type(data.get('schema')) is not int or data['schema'] != 1:
         raise Refused('results need schema 1')
-    for key in ('folder', 'org_id', 'username', 'observed_at'):
-        if not isinstance(data.get(key), str) or not data[key]:
+    for key in ('folder', 'org_id', 'username', 'started_at', 'observed_at'):
+        if not stated(data.get(key)):
             raise Refused('results need ' + key)
-    if not isinstance(data.get('obligations'), list) or not isinstance(data.get('sources', []), list):
-        raise Refused('results need obligations and sources lists')
+    started, observed = parse_time(data['started_at']), parse_time(data['observed_at'])
+    if started is None or observed is None or not started <= observed <= current_time():
+        raise Refused('started_at and observed_at need ISO times with a timezone, in order, and no later than now')  # F12
+    lists = [data.get(name, []) for name in ('sources', 'beats', 'constraints')] + [data.get('obligations')]
+    if not all(isinstance(value, list) for value in lists):
+        raise Refused('results need sources, obligations, beats and constraints as lists')
+    if not all(isinstance(s, dict) and stated(s.get('path')) and isinstance(s.get('state'), str) for s in data.get('sources', [])):
+        raise Refused('every source needs a path and a state')
     keys = set()
     for obligation in data['obligations']:
-        if not isinstance(obligation, dict) or not isinstance(obligation.get('key'), str) or '#' not in obligation['key']:
-            raise Refused('every obligation needs a task-qualified key')  # X4: task file plus local ID
+        check_obligation(obligation)
         if obligation['key'] in keys:
             raise Refused('duplicate obligation key ' + obligation['key'])
         keys.add(obligation['key'])
+    beats = set()
+    for entry in data.get('beats', []):
+        check_beat(entry, keys)
+        if entry['key'] in beats:
+            raise Refused('duplicate beat ' + entry['key'])
+        beats.add(entry['key'])
+    if not all(isinstance(line, str) for line in data.get('constraints', [])):
+        raise Refused('constraints need to be strings')
+    if any(RESERVED.search(unicodedata.normalize('NFKC', text)) for text in strings(data)):
+        raise Refused('results text may not contain a Scout marker or an Org-verified line')
     return data
 
 
-def normalized(obligation, demo_time):
-    """X1, round 2: every state maps to one class, and anything unrecognized fails closed."""
-    if obligation.get('superseded_by'):
-        return 'superseded', 'superseded by ' + str(obligation['superseded_by'])
-    result = obligation.get('result') if isinstance(obligation.get('result'), dict) else {}
-    status = result.get('status')
-    kind = obligation.get('kind')
+def history(obligation, keyed):
+    """F08 and F10: a superseded or deliberately dropped obligation leaves the verdict only with a named source."""
+    successor, dropped = obligation.get('superseded_by'), obligation.get('dropped')
+    if successor is None and dropped in (None, False):
+        return None
+    if successor is not None:
+        target = keyed.get(successor) if isinstance(successor, str) else None
+        if target is None or target is obligation or target.get('superseded_by') is not None \
+                or target.get('dropped') not in (None, False) or dropped not in (None, False) \
+                or not stated(obligation.get('supersession_source')):
+            return 'blocking', 'superseded_by must name another live obligation, with supersession_source'
+        return 'history', 'superseded by %s (%s)' % (successor, obligation['supersession_source'])
+    if dropped is not True or obligation.get('required', True) is not False or not stated(obligation.get('drop_source')):
+        return 'blocking', 'only an optional obligation can be dropped, with drop_source'
+    return 'history', 'dropped (%s)' % obligation['drop_source']
+
+
+def state_of(obligation, keyed, started, moment, demo):
+    """X1, F10–F12, C03: one state per obligation, and anything unrecognized fails closed."""
+    retired = history(obligation, keyed)
+    if retired:
+        return retired
+    result = obligation.get('result')
+    if not isinstance(result, dict):
+        return 'blocking', 'no result'
+    status, kind = result.get('status'), obligation.get('kind')
     if kind not in KINDS or status not in STATES:
         return 'blocking', 'unrecognized kind or state'
-    if status == 'passed':
-        until = obligation.get('valid_until')
-        if until and demo_time and datetime.date.fromisoformat(until) < demo_time.date():
-            return 'blocking', 'passes now but expires before the demo (%s)' % until
-        if not result.get('at'):
-            return 'blocking', 'a pass with no observation time'
-        return 'passed', ''
-    if status in EXCEPTIONS:
-        return 'exception', status.replace('_', ' ')
-    return 'blocking', status
+    if status in EXCEPTIONS and kind not in EXCEPTIONS[status]:
+        return 'blocking', 'unknown: %s is no result for a %s' % (status, kind)  # C03
+    if status != 'passed' and status not in EXCEPTIONS:
+        return 'blocking', status
+    until = obligation.get('valid_until')
+    if until is not None and (parse_date(until) is None or parse_date(until) < demo.date()):
+        return 'blocking', 'expires before the demo (%s)' % until  # F11
+    at = parse_time(result.get('at'))
+    if at is None or started is None or not started <= at <= moment:
+        return 'blocking', 'observation time missing, or outside this prep run'  # F12
+    return ('passed', '') if status == 'passed' else ('exception', LABELS[status])
 
 
-def verdict(data, demo_time=None):
-    """The ordered, total table: not ready, then ready with exceptions, then ready."""
-    reasons, exceptions, passed, total = [], [], 0, 0
-    for source in data.get('sources', []):
-        if source.get('state') in ('unreadable', 'quarantined', 'malformed') and source.get('required', True):
-            reasons.append('source %s is %s' % (source.get('path'), source.get('state')))  # N1
-    required = [o for o in data['obligations'] if o.get('required', True)]
-    if not [o for o in required if normalized(o, demo_time)[0] != 'superseded']:
+def classify(data, demo_time=None):
+    """Every obligation with its state, in results order. Expiry runs through the demo, and never before now (F11)."""
+    moment = current_time()
+    demo = max(moment, demo_time) if isinstance(demo_time, datetime.datetime) and demo_time.tzinfo else moment
+    obligations = data.get('obligations') if isinstance(data.get('obligations'), list) else []
+    entries = [o for o in obligations if isinstance(o, dict)]
+    keyed = {o['key']: o for o in entries if isinstance(o.get('key'), str)}
+    started = parse_time(data.get('started_at'))
+    return [(o,) + state_of(o, keyed, started, moment, demo) for o in entries]
+
+
+def key_of(obligation):
+    return clean(obligation.get('key')) or 'an unkeyed obligation'
+
+
+def beats_of(data):
+    beats = data.get('beats')
+    return [b for b in beats if isinstance(b, dict) and isinstance(b.get('key'), str)] if isinstance(beats, list) else []
+
+
+def beat_of(obligation):
+    """F15: a beat belongs to its task; a bare beat ID takes the task file from the obligation's key."""
+    beat = obligation.get('beat')
+    if not isinstance(beat, str) or not beat:
+        return None
+    return beat if '#' in beat else str(obligation.get('key', '')).split('#', 1)[0] + '#' + beat
+
+
+def gaps(data, rows):
+    """N1, F09, X13: what blocks before any single obligation does."""
+    reasons = []
+    sources = data.get('sources', [])
+    for source in sources if isinstance(sources, list) else [None]:
+        state = source.get('state') if isinstance(source, dict) else None
+        if state not in SOURCES:
+            path = clean(source.get('path')) if isinstance(source, dict) else ''
+            reasons.append('source %s is %s' % (path or 'unnamed', clean(state) or 'of unknown state'))
+    obligations = data.get('obligations')
+    if not isinstance(obligations, list) or len(rows) != len(obligations):
+        reasons.append('malformed obligations')
+    live = [o for o, state, _ in rows if state != 'history']
+    required = [o for o in live if o.get('required', True) is not False]
+    if not required:
         reasons.append('no recoverable story or proof moment')
-    elif not any(o.get('proof_moment') for o in required if normalized(o, demo_time)[0] != 'superseded'):
+    elif not any(o.get('proof_moment') is True for o in required):
         reasons.append('no proof-moment obligation')
-    for obligation in data['obligations']:
-        state, why = normalized(obligation, demo_time)
-        if state == 'superseded':
+    checked = {beat_of(o) for o in live}
+    reasons += ['%s has no checks' % clean(b['key']) for b in beats_of(data) if b['key'] not in checked]
+    return reasons
+
+
+def verdict_from(data, rows):
+    """X1: the ordered, total table: not ready, then ready with exceptions, then ready."""
+    reasons, exceptions, passed, total = gaps(data, rows), [], 0, 0
+    for obligation, state, why in rows:
+        if state == 'history':
             continue
         total += 1
         if state == 'passed':
             passed += 1
-        elif state == 'exception' or not obligation.get('required', True):
-            exceptions.append('%s: %s' % (obligation['key'], why or 'optional and not passed'))
+        elif state == 'exception':
+            exceptions.append('%s: %s' % (key_of(obligation), why))
         else:
-            reasons.append('%s: %s' % (obligation['key'], why))
+            reasons.append('%s: %s' % (key_of(obligation), why))
     result = 'not ready' if reasons else 'ready with exceptions' if exceptions else 'ready'
     return {'verdict': result, 'passed': passed, 'total': total, 'blocking': reasons, 'exceptions': exceptions}
 
 
+def verdict(data, demo_time=None):
+    return verdict_from(data, classify(data, demo_time))
+
+
+def clean(value):
+    """Rendered text stays on one line, so it can never forge a marker, a fence or a header line."""
+    if value is None:
+        return ''
+    text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    return BREAKS.sub(' ', text).strip()
+
+
+def label(obligation):
+    text = clean(obligation.get('text'))
+    return '%s (%s)' % (text, key_of(obligation)) if text else key_of(obligation)
+
+
+def status_of(obligation):
+    result = obligation.get('result')
+    return result.get('status') if isinstance(result, dict) else None
+
+
+def at_of(obligation):
+    result = obligation.get('result')
+    return (clean(result.get('at')) if isinstance(result, dict) else '') or 'not observed'
+
+
+def now_of(obligation):
+    """F16: a drift entry's now, as the results state it, or else what the check observed."""
+    if obligation.get('now') is not None:
+        return clean(obligation['now'])
+    result = obligation.get('result')
+    observed = clean(result.get('observed')) if isinstance(result, dict) else ''
+    return (observed[:199] + '…' if len(observed) > 200 else observed) or 'not observed'
+
+
 def header(data, outcome):
     return 'Org-verified: %s against %s (%s) — %s — %d of %d checks passed' % (
-        data['observed_at'], data['org_id'], data['username'], outcome['verdict'], outcome['passed'], outcome['total'])
+        clean(data.get('observed_at')), clean(data.get('org_id')), clean(data.get('username')),
+        outcome['verdict'], outcome['passed'], outcome['total'])
+
+
+def block(lines, heading=1):
+    return '\n'.join(lines + (['None.'] if len(lines) == heading else [])) + '\n'
+
+
+def beat_label(key, entry):
+    name = clean(entry.get('name'))
+    return clean(key) + (' · ' + name if name else '')
+
+
+def beat_status(rows):
+    states = [state for _, state, _ in rows]
+    if not states:
+        return 'not ready (no checks)'
+    return 'not ready' if 'blocking' in states else 'ready with exceptions' if 'exception' in states else 'ready'
+
+
+def step_mark(ref, states):
+    if ref is None:
+        return ''
+    state = states.get(ref) if isinstance(ref, str) else None
+    return {'passed': ' ✓', 'exception': ' (check by eye)', 'blocking': ' ✗'}.get(state, ' (unverified)')
+
+
+def drift_section(data, outcome, live):
+    """C3 section 1 and F16: each failed check, what it was, what it is now, and the fix."""
+    lines = [header(data, outcome), '', '## Drift since the build']
+    for obligation, state, _ in live:
+        if state == 'blocking' and status_of(obligation) == 'failed':
+            lines.append('- ✗ %s — was: %s; now: %s; fix: %s' % (label(obligation), clean(obligation.get('was')) or 'not recorded',
+                                                                 now_of(obligation), clean(obligation.get('fix')) or 'none offered yet'))
+    return block(lines, 3)
+
+
+def checklist_section(data, rows, live):
+    """C3 section 2: every blocking gap, with its fix where the results name one."""
+    lines = ['## Pre-demo checklist'] + ['- ' + reason for reason in gaps(data, rows)]
+    for obligation, state, why in live:
+        if state == 'blocking':
+            fix = clean(obligation.get('fix'))
+            lines.append('- %s — %s%s' % (label(obligation), clean(why), '; fix: ' + fix if fix else ''))
+    return block(lines)
+
+
+def beat_lines(entry, rows, states):
+    """C3 section 3: who and where, Do and Expect rows with ✓ on verified values, ★ on the climax, transitions, then
+    the verified claim lines to say out loud and the beat's other checks."""
+    lines, who = [], [entry.get(name) for name in ('persona', 'login', 'start')]
+    if any(stated(value) for value in who):
+        lines.append('- Persona: %s · Login: %s · Start: %s' % tuple(clean(value) or 'not recorded' for value in who))
+    steps, climax = entry.get('steps'), entry.get('climax')
+    for number, step in enumerate(steps if isinstance(steps, list) else [], 1):
+        if isinstance(step, dict):
+            star = '★ ' if type(climax) is int and climax == number else ''
+            expect = clean(step.get('expect'))
+            lines.append('- %sDo: %s%s%s' % (star, clean(step.get('do')), ' → Expect: ' + expect if expect else '',
+                                             step_mark(step.get('ref'), states)))
+    transitions = entry.get('transitions')
+    lines += ['- Transition: ' + clean(line) for line in (transitions if isinstance(transitions, list) else [])]
+    for obligation, state, why in rows:
+        proof = ' (proof moment)' if obligation.get('proof_moment') is True else ''
+        if state == 'passed' and obligation.get('kind') == 'claim':
+            lines.append('- Say: %s%s ✓ (%s)' % (clean(obligation.get('text')) or key_of(obligation), proof, at_of(obligation)))
+        elif state == 'passed':
+            lines.append('- Check: ✓ %s%s (%s)' % (label(obligation), proof, at_of(obligation)))
+        elif state == 'exception':
+            lines.append('- Check: %s — %s%s (%s)' % (why, label(obligation), proof, at_of(obligation)))
+        else:
+            lines.append('- Check: ✗ %s%s — %s' % (label(obligation), proof, clean(why)))
+    return lines
+
+
+def path_section(data, live):
+    """C3 section 3, F13, F15: beats in story order (first appearance), per task; beatless obligations under General."""
+    entries = {b['key']: b for b in beats_of(data)}
+    states = {o['key']: state for o, state, _ in live if isinstance(o.get('key'), str)}
+    order = [b['key'] for b in beats_of(data)]
+    order += [k for k in dict.fromkeys(beat_of(o) for o, _, _ in live) if k is not None and k not in order]
+    if any(beat_of(o) is None for o, _, _ in live):
+        order.append(None)
+    lines = ['## The path']
+    for key in order:
+        rows = [row for row in live if beat_of(row[0]) == key]
+        lines.append('### %s — %s' % (beat_label(key, entries.get(key, {})) if key else 'General', beat_status(rows)))
+        lines += beat_lines(entries.get(key, {}), rows, states)
+    return block(lines)
+
+
+def seams_section(data, live):
+    """C3 section 4: check-by-eye, visual-QA and persona-access items, each beat's fallback, and org constraints."""
+    lines = ['## Known seams']
+    lines += ['- %s: %s (%s)' % (why[0].upper() + why[1:], label(o), at_of(o)) for o, state, why in live if state == 'exception']
+    lines += ['- Fallback for %s: %s' % (beat_label(b['key'], b), clean(b['fallback'])) for b in beats_of(data) if stated(b.get('fallback'))]
+    constraints = data.get('constraints')
+    lines += ['- Org constraint: ' + clean(line) for line in (constraints if isinstance(constraints, list) else [])]
+    return block(lines)
+
+
+def runs_section(data, outcome, previous):
+    """C3 section 5 and F17: earlier run lines are kept and this run's line is appended."""
+    current = '- %s — %s — %d of %d checks passed' % (clean(data.get('observed_at')), outcome['verdict'], outcome['passed'],
+                                                      outcome['total'])
+    return '\n'.join(['## Prep runs'] + list(previous) + [current]) + '\n'
+
+
+def run_lines(body):
+    return [line for line in body.split('\n')[1:] if line.startswith('- ')]
+
+
+def region_bodies(data, demo_time, previous):
+    """C3, F13–F17: the five sections come from the results alone, so the gate can render them again."""
+    rows = classify(data, demo_time)
+    outcome = verdict_from(data, rows)
+    live = [row for row in rows if row[1] != 'history']
+    return {'drift': drift_section(data, outcome, live), 'checklist': checklist_section(data, rows, live),
+            'path': path_section(data, live), 'seams': seams_section(data, live),
+            'runs': runs_section(data, outcome, previous)}, outcome
 
 
 def region(name, body):
     body = body if body.endswith('\n') else body + '\n'
-    return '<!-- scout:begin %s sha256=%s -->\n%s<!-- scout:end %s -->\n' % (name, hashlib.sha256(body.encode()).hexdigest(), body, name)
+    return '<!-- scout:begin %s sha256=%s -->\n%s<!-- scout:end %s -->\n' % (name, digest(body.encode()), body, name)
 
 
-def mark(obligation, demo_time):
-    state = normalized(obligation, demo_time)[0]
-    status = (obligation.get('result') or {}).get('status')
-    return '✓' if state == 'passed' else 'check by eye' if status in EXCEPTIONS else '✗'
-
-
-def regions_for(data, demo_time):
-    outcome = verdict(data, demo_time)
-    live = [o for o in data['obligations'] if normalized(o, demo_time)[0] != 'superseded']
-    drift = [o for o in live if mark(o, demo_time) == '✗']
-    beats = sorted({o.get('beat') for o in live if o.get('beat')}, key=lambda b: (len(b), b))
-    path = [header(data, outcome), '']
-    for beat in beats:
-        rows = [o for o in live if o.get('beat') == beat]
-        status = 'not ready' if any(mark(o, demo_time) == '✗' for o in rows) else (
-            'ready with exceptions' if any(mark(o, demo_time) != '✓' for o in rows) else 'ready')
-        path.append('### %s — %s' % (beat, status))
-        for o in rows:
-            star = ' ★' if o.get('proof_moment') else ''
-            path.append('- %s %s%s (%s)' % (mark(o, demo_time), o.get('text') or o['key'], star, (o.get('result') or {}).get('at', 'not observed')))
-        path.append('')
-    return {
-        'drift': '\n'.join(['## Drift since the build'] + ['- %s: %s' % (o['key'], (o.get('result') or {}).get('observed', 'not observed')) for o in drift] + (['None.'] if not drift else [])),
-        'checklist': '\n'.join(['## Pre-demo checklist'] + ['- ' + r for r in outcome['blocking']] + (['None.'] if not outcome['blocking'] else [])),
-        'path': '\n'.join(['## The path'] + path),
-        'seams': '\n'.join(['## Known seams'] + ['- ' + e for e in outcome['exceptions']] + (['None.'] if not outcome['exceptions'] else [])),
-        'runs': '\n'.join(['## Prep runs', '- %s: %s' % (data['observed_at'], outcome['verdict'])]),
-    }, outcome
+def lines_of(text):
+    """Lines end at LF (CRLF included); no other Unicode separator splits a line."""
+    pieces = text.split('\n')
+    return [piece + '\n' for piece in pieces[:-1]] + ([pieces[-1]] if pieces[-1] else [])
 
 
 def parse_regions(text):
     """Scout's regions in file order; refuses malformed, nested or duplicated markers (X10)."""
-    found, current, start, lines = {}, None, None, text.splitlines(keepends=True)
-    offset = 0
-    for line in lines:
+    found, current, start, content_start, recorded, offset = {}, None, None, None, None, 0
+    for line in lines_of(text):
         bare = line.rstrip('\r\n')
         begin, end = BEGIN.match(bare), END.match(bare)
         if 'scout:begin' in bare and not begin or 'scout:end' in bare and not end:
@@ -241,8 +814,7 @@ def parse_regions(text):
         if begin:
             if current is not None or begin[1] in found:
                 raise Refused('nested or duplicate Scout region')
-            current, start, recorded = begin[1], offset, begin[2]
-            content_start = offset + len(line)
+            current, start, recorded, content_start = begin[1], offset, begin[2], offset + len(line)
         elif end:
             if current != end[1]:
                 raise Refused('unmatched Scout region end')
@@ -254,75 +826,246 @@ def parse_regions(text):
     return found
 
 
-def render(folder, data, demo_time):
-    path = Path(folder) / 'demo-path.md'
-    contents, outcome = regions_for(data, demo_time)
-    if not path.exists():
-        return '# Demo path\n\n' + ''.join(region(n, contents[n]) + '\n' for n in REGIONS), outcome
-    text = read_exact(path)
+def fenced(lines):
+    """F03: indexes of lines inside a Markdown code fence; an unclosed fence runs to the end of the file."""
+    inside, fence = [], None
+    for number, line in enumerate(lines):
+        bare = line.rstrip('\r\n')
+        match = FENCE.match(bare)
+        if fence is None:
+            if match:
+                fence = match.group(1)
+                inside.append(number)
+        else:
+            inside.append(number)
+            if match and match.group(1)[0] == fence[0] and len(match.group(1)) >= len(fence) \
+                    and not bare.strip().strip(fence[0]):
+                fence = None
+    return inside
+
+
+def owned_regions(text):
+    """F03: Scout owns a file only with its marker on line 1 and all five regions, once each, in order, outside fences."""
+    lines = lines_of(text)
+    if not lines or lines[0].rstrip('\r\n') != MARKER or any(line.rstrip('\r\n') == MARKER for line in lines[1:]):
+        raise Refused('hand-made demo-path.md (no single Scout marker on line 1): leaving it untouched; offer a new file name')
     regions = parse_regions(text)
-    if not regions:
-        raise Refused('hand-made demo-path.md: leaving it untouched; the assessment goes inline')  # X11
-    for name, found in regions.items():
-        if hashlib.sha256(found['body'].encode()).hexdigest() != found['sha']:
-            raise Refused('the SE edited Scout region "%s"; offer a new file instead' % name)  # X10
+    if list(regions) != list(REGIONS):
+        raise Refused("demo-path.md lacks Scout's five regions in order: leaving it untouched; offer a new file name")
+    if any(BEGIN.match(lines[number].rstrip('\r\n')) or END.match(lines[number].rstrip('\r\n')) for number in fenced(lines)):
+        raise Refused('Scout markers inside a code fence: leaving demo-path.md untouched; offer a new file name')
+    return regions
+
+
+def compose(existing, data, demo_time):
+    """X10, F03, F17: regenerate Scout's five regions in place, keeping every other byte; a new file gets the skeleton."""
+    if existing is None:
+        bodies, outcome = region_bodies(data, demo_time, [])
+        return MARKER + '\n# Demo path\n\n' + '\n'.join(region(name, bodies[name]) for name in REGIONS), outcome
+    regions = owned_regions(existing)
+    edited = [name for name in REGIONS if digest(regions[name]['body'].encode()) != regions[name]['sha']]
+    if edited:
+        raise Refused('the SE edited Scout region "%s"; offer a new file instead' % edited[0])  # X10
+    bodies, outcome = region_bodies(data, demo_time, run_lines(regions['runs']['body']))
     pieces, cursor = [], 0
-    for name, found in sorted(regions.items(), key=lambda item: item[1]['start']):
-        pieces.append(text[cursor:found['start']])
-        pieces.append(region(name, contents[name]) if name in contents else text[found['start']:found['end']])
-        cursor = found['end']
-    pieces.append(text[cursor:])
-    missing = [n for n in REGIONS if n not in regions]
-    return ''.join(pieces) + ''.join('\n' + region(n, contents[n]) for n in missing), outcome
+    for name in REGIONS:
+        pieces += [existing[cursor:regions[name]['start']], region(name, bodies[name])]
+        cursor = regions[name]['end']
+    return ''.join(pieces) + existing[cursor:], outcome
+
+
+def checked_folder(folder):
+    """C02: prep never creates a folder; the folder must already be a real directory, not a symlink."""
+    path = Path(folder)
+    if path.is_symlink() or not path.is_dir():
+        raise Refused('no such customer folder; prep never creates one')
+    return path.resolve()
+
+
+def read_nofollow(path):
+    """F04: read a file without following a symlink."""
+    with open(os.open(str(path), os.O_RDONLY | os.O_NOFOLLOW), 'rb') as stream:
+        return stream.read()
+
+
+def read_destination(path):
+    """F04: the destination is a regular file or absent."""
+    try:
+        info = os.lstat(str(path))
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(info.st_mode):
+        raise Refused('demo-path.md is not a regular file: leaving it untouched')
+    return read_nofollow(path)
+
+
+def text_of(content):
+    try:
+        return None if content is None else content.decode('utf-8')
+    except UnicodeError as error:
+        raise Refused('demo-path.md is not UTF-8 text: leaving it untouched') from error
+
+
+def render(folder, data, demo_time):
+    """X11, F01, F03: the candidate text, plus the sha256 (or 'absent') of the destination it was rendered from."""
+    destination = checked_folder(folder) / NAME
+    current = read_destination(destination)
+    text, outcome = compose(text_of(current), data, demo_time)
+    return text, dict(outcome, base='absent' if current is None else digest(current), destination=str(destination))
+
+
+def meta_path(candidate):
+    return Path(str(candidate) + '.meta.json')
+
+
+def create(path, text):
+    """F04: exclusive create, never through a symlink."""
+    try:
+        descriptor = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    except FileExistsError as error:
+        raise Refused('--out must name a new file; %s exists' % path) from error
+    with open(descriptor, 'w', encoding='utf-8', newline='') as stream:
+        stream.write(text)
+
+
+def discard(path):
+    try:
+        os.unlink(str(path))
+    except OSError:
+        pass
+
+
+def write_candidate(out, folder, text, outcome):
+    """F01 and F04: the candidate and its metadata are new files in scratch, outside every customer folder."""
+    orgs, parent = Path(folder).resolve().parent, Path(out).parent.resolve()
+    if parent == orgs or orgs in parent.parents:
+        raise Refused('--out must be a new file in scratch, outside every customer folder')
+    create(meta_path(out), json.dumps({'schema': 1, 'destination': outcome['destination'], 'base': outcome['base']}))
+    try:
+        create(out, text)
+    except BaseException:
+        discard(meta_path(out))
+        raise
+
+
+def candidate_base(candidate, destination):
+    """F01: the destination's sha256, or 'absent', exactly as render recorded it beside the candidate."""
+    try:
+        meta = decode(read_exact(meta_path(candidate)))
+    except (OSError, ValueError, UnicodeError, RecursionError) as error:
+        raise Refused('the candidate has no render metadata; render it again') from error
+    base = meta.get('base') if isinstance(meta, dict) else None
+    if not isinstance(meta, dict) or meta.get('schema') != 1 or meta.get('destination') != str(destination) \
+            or not isinstance(base, str) or not (base == 'absent' or re.fullmatch(r'[0-9a-f]{64}', base)):
+        raise Refused('the candidate was rendered for another destination; render it again')
+    return base
 
 
 def gate(candidate, data, org, username, demo_time):
-    """C4 and X6: the candidate's stamp and verdict must match its results and the bound identity."""
-    outcome = verdict(data, demo_time)
+    """C4, X6, F13: the candidate must be exactly what these results render, for the bound identity."""
     problems = []
-    if data['org_id'] != org or data['username'] != username:
+    if data.get('org_id') != org or data.get('username') != username:
         problems.append('results name another org or user than the binding')
-    if header(data, outcome) not in candidate:
-        problems.append('header missing, or its verdict or counts differ from the results')
-    regions = parse_regions(candidate)
-    for name in REGIONS:
-        if name not in regions:
-            problems.append('missing Scout region ' + name)
-        elif hashlib.sha256(regions[name]['body'].encode()).hexdigest() != regions[name]['sha']:
-            problems.append('region %s changed after rendering' % name)
-    for obligation in data['obligations']:
-        result = obligation.get('result')
-        if normalized(obligation, demo_time)[0] != 'superseded' and not (isinstance(result, dict) and result.get('status')):
-            problems.append(obligation['key'] + ' has no result')
+    try:
+        regions = owned_regions(candidate)
+    except Refused as error:
+        regions = None
+        problems.append(str(error))
+    if regions:
+        problems += ['region %s changed after rendering' % name for name in REGIONS
+                     if digest(regions[name]['body'].encode()) != regions[name]['sha']]
+        bodies, outcome = region_bodies(data, demo_time, run_lines(regions['runs']['body'])[:-1])
+        problems += ['region %s does not match the results' % name for name in REGIONS if regions[name]['body'] != bodies[name]]
+    else:
+        outcome = verdict(data, demo_time)
+    stamps = [line.rstrip('\r\n') for line in lines_of(candidate) if HEADER.search(unicodedata.normalize('NFKC', line))]
+    if stamps != [header(data, outcome)]:
+        problems.append('the Org-verified header must appear exactly once and match the results')
+    problems += [key_of(o) + ' has no result' for o, state, _ in classify(data, demo_time)
+                 if state != 'history' and not (isinstance(o.get('result'), dict) and o['result'].get('status'))]
     return problems
 
 
-def publish(folder, candidate_path):
-    """X12, X10, N6: back up, re-check, stage on the destination filesystem, replace atomically."""
-    folder = Path(folder)
-    destination = folder / 'demo-path.md'
-    candidate = read_exact(candidate_path)
-    before = destination.read_bytes() if destination.exists() else None
-    if before is not None:
-        parse_regions(before.decode('utf-8'))
-        backups = folder / '.scout-work' / 'prep'
-        backups.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
-        (backups / ('demo-path.%s.md' % stamp)).write_bytes(before)
-    handle, staged = tempfile.mkstemp(prefix='demo-path.md.tmp-', dir=folder)
+def backup_dir(folder):
+    """F04: .scout-work/prep inside this folder, with no symlinked component, checked before anything moves."""
+    path = folder
+    for part in ('.scout-work', 'prep'):
+        path = path / part
+        try:
+            os.mkdir(str(path), 0o700)
+        except FileExistsError:
+            pass
+        info = os.lstat(str(path))
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+            raise Refused('%s is not a plain directory: nothing was replaced' % path)
+    return path
+
+
+def stage(folder, candidate):
+    """N6: the staged copy lives in the destination's own folder, so linking it into place is atomic."""
+    handle, staged = tempfile.mkstemp(prefix=NAME + '.tmp-', dir=str(folder))
+    with os.fdopen(handle, 'wb') as stream:
+        stream.write(candidate.encode('utf-8'))
+        stream.flush()
+        os.fsync(stream.fileno())
+    return staged
+
+
+def restore(backup, destination):
+    """F01: put the moved file back without clobbering a newer save; if one exists, keep both and name them."""
     try:
-        with os.fdopen(handle, 'wb') as stream:
-            stream.write(candidate.encode('utf-8'))
-            stream.flush()
-            os.fsync(stream.fileno())
-        current = destination.read_bytes() if destination.exists() else None
-        if current != before:
-            raise Refused('demo-path.md changed during prep; the previous copy is in .scout-work/prep')
-        os.replace(staged, destination)
+        os.link(str(backup), str(destination))
+    except OSError as error:
+        if os.path.lexists(str(destination)):
+            raise Refused('kept both files: the newest demo-path.md at %s, and the one moved aside at %s'
+                          % (destination, backup)) from error
+        raise Refused('could not put demo-path.md back; its bytes are at %s' % backup) from error
+    discard(backup)
+
+
+def publish(folder, candidate_path, data, org, username, demo_time):
+    """X10–X12, F01, F02, F04, N6: gate again, then replace without ever losing a concurrent save."""
+    destination = checked_folder(folder) / NAME
+    candidate = read_exact(candidate_path)
+    base = candidate_base(candidate_path, destination)
+    problems = gate(candidate, data, org, username, demo_time)
+    if problems:
+        raise Refused('the candidate fails the gate: ' + '; '.join(problems))  # F02
+    current = read_destination(destination)
+    if (current is None) != (base == 'absent') or (current is not None and digest(current) != base):
+        raise Refused('demo-path.md changed after render; nothing was replaced, so render again')  # F01
+    if compose(text_of(current), data, demo_time)[0] != candidate:
+        raise Refused('the candidate is not a fresh render of demo-path.md and these results')
+    backups = backup_dir(destination.parent) if current is not None else None
+    staged = stage(destination.parent, candidate)
+    probe = staged + '.link'
+    try:
+        os.link(staged, probe)  # N6: without hard links nothing moves
+        if current is None:
+            try:
+                os.link(staged, str(destination))
+            except FileExistsError as error:
+                raise Refused('a demo-path.md appeared during prep; kept it, and the candidate at %s' % candidate_path) from error
+            return {'published': str(destination), 'backup': None}
+        backup = backups / ('demo-path.%s.md' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+        if os.path.lexists(str(backup)):
+            raise Refused('backup name taken; nothing was replaced, so publish again')
+        os.rename(str(destination), str(backup))  # F01: whatever was saved last moves, whole, to the backup
+        if digest(read_nofollow(backup)) != base:
+            restore(backup, destination)
+            raise Refused('demo-path.md was saved during publication; it is back at %s and nothing was replaced' % destination)
+        try:
+            os.link(staged, str(destination))  # F01: no clobber
+        except FileExistsError as error:
+            raise Refused('a new demo-path.md was saved during publication; kept it at %s, and the previous one at %s'
+                          % (destination, backup)) from error
+        except OSError:
+            restore(backup, destination)
+            raise
+        return {'published': str(destination), 'backup': str(backup)}
     finally:
-        if os.path.exists(staged):
-            os.unlink(staged)
-    return str(destination)
+        discard(probe)
+        discard(staged)
 
 
 def main(argv=None):
@@ -336,47 +1079,44 @@ def main(argv=None):
     run.add_argument('--sobject')
     run.add_argument('--metadata')
     run.add_argument('--clock')
-    for name in ('verdict', 'render', 'check'):
+    for name in ('verdict', 'render', 'check', 'publish'):
         sub = commands.add_parser(name)
         sub.add_argument('--results', required=True)
         sub.add_argument('--demo-time')
-        if name == 'render':
+        if name in ('render', 'publish'):
             sub.add_argument('--folder', required=True)
+        if name == 'render':
             sub.add_argument('--out', required=True)
-        if name == 'check':
+        if name in ('check', 'publish'):
             sub.add_argument('--candidate', required=True)
             sub.add_argument('--org-id', required=True)
             sub.add_argument('--username', required=True)
-    pub = commands.add_parser('publish')
-    pub.add_argument('--folder', required=True)
-    pub.add_argument('--candidate', required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == 'run':
             print(json.dumps(run_check(args.kind, args.selector, args.username, args.org_id, args.query,
                                        args.sobject, args.metadata, args.clock)))
             return 0
-        if args.command == 'publish':
-            print(json.dumps({'published': publish(args.folder, args.candidate)}))
-            return 0
         data = load_results(args.results)
-        demo_time = now(args.demo_time) if args.demo_time else None
+        demo_time = now(args.demo_time)
         if args.command == 'verdict':
             print(json.dumps(verdict(data, demo_time)))
             return 0
         if args.command == 'render':
             text, outcome = render(args.folder, data, demo_time)
-            with open(args.out, 'w', encoding='utf-8', newline='') as stream:
-                stream.write(text)
-            print(json.dumps({'candidate': args.out, 'verdict': outcome['verdict']}))
+            write_candidate(args.out, args.folder, text, outcome)
+            print(json.dumps({'candidate': args.out, 'verdict': outcome['verdict'], 'base': outcome['base']}))
+            return 0
+        if args.command == 'publish':
+            print(json.dumps(publish(args.folder, args.candidate, data, args.org_id, args.username, demo_time)))
             return 0
         problems = gate(read_exact(args.candidate), data, args.org_id, args.username, demo_time)
         print('\n'.join('prep: ' + p for p in problems) or 'prep: check pass')
         return 3 if problems else 0
     except Refused as error:
-        print(json.dumps({'refused': str(error)}))
+        print(json.dumps(dict({'refused': str(error)}, **({'error': error.error} if error.error else {}))))
         return 3
-    except (OSError, UnicodeError, ValueError) as error:
+    except (OSError, UnicodeError, ValueError, RecursionError) as error:
         print(json.dumps({'reason': 'could not read or run (%s)' % type(error).__name__}))
         return 4
 
