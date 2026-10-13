@@ -8,6 +8,9 @@ COMMAND = ROOT / 'commands/scout.md'
 
 
 class ScoutRouteTests(unittest.TestCase):
+    def test_r8_f6_business_pending_values_use_backticks(self):
+        self.phrases(self.history, 'Write business values containing the word pending in backticks')
+
     def setUp(self):
         self.command = COMMAND.read_text()
         self.discovery = (ROOT / 'prompts/scout/discovery.md').read_text()

@@ -105,22 +105,31 @@ def markdown(text):
 
 
 def headings(text):
-    """Inventory ATX and setext headings, including quote/list containers."""
+    """Inventory ATX/setext headings and their complete title spans, including containers."""
     visible, _ = markdown(text)
-    lines = visible.splitlines(keepends=True)
-    matches, offset, consumed = [], 0, -1
-    container = r'^(?:\ufeff)? {0,3}(?:(?:>[ \t]*|[-+*][ \t]+|\d+[.)][ \t]+))*'
-    for n, line in enumerate(lines):
-        clean = re.sub(container, '', line).rstrip('\r\n')
-        atx = re.fullmatch(r'(#{1,6})[ \t]+(.+)', clean)
-        underline = (re.sub(container, '', lines[n + 1]).strip()
-                     if n + 1 < len(lines) else '')
-        if n > consumed and atx:
-            matches.append((atx[2], len(atx[1]), offset, offset + len(line)))
-        elif n > consumed and clean.strip() and re.fullmatch(r'=+|-+', underline):
-            matches.append((clean, 1 if underline[0] == '=' else 2, offset,
-                            offset + len(line) + len(lines[n + 1])))
-            consumed = n + 1
+    matches, paragraph, offset, list_indent = [], [], 0, 0
+    for line in visible.splitlines(keepends=True):
+        clean = re.sub(r'^(?:\ufeff)?(?: {0,3}>[ \t]*)*', '', line).rstrip('\r\n')
+        item = re.match(r'^( *)(?:[-+*]|\d+[.)])[ \t]+', clean)
+        if item:
+            list_indent = item.end()
+            clean = clean[item.end():]
+        elif list_indent and len(clean) - len(clean.lstrip()) >= list_indent:
+            clean = clean[list_indent:].lstrip()
+        elif clean.strip():
+            list_indent = 0
+        atx = re.fullmatch(r' {0,3}(#{1,6})(?:[ \t]+(.*))?', clean)
+        if atx:
+            matches.append((atx[2] or '', len(atx[1]), offset, offset + len(line)))
+            paragraph = []
+        elif paragraph and re.fullmatch(r'=+|-+', clean.strip()):
+            matches.append(('\n'.join(title for title, _ in paragraph),
+                            1 if clean.strip()[0] == '=' else 2, paragraph[0][1], offset + len(line)))
+            paragraph = []
+        elif clean.strip():
+            paragraph.append((clean, offset))
+        else:
+            paragraph = []
         offset += len(line)
     result = []
     for n, (title, level, start, body) in enumerate(matches):
@@ -131,8 +140,8 @@ def headings(text):
 
 def document_header(text):
     visible, _ = markdown(text)
-    for n, (_, level, start, _, _) in enumerate(headings(text)):
-        if n or level != 1 or visible[:start].strip('\ufeff \t\r\n'):
+    for n, (title, level, start, _, _) in enumerate(headings(text)):
+        if not title.strip() or n or level != 1 or visible[:start].strip('\ufeff \t\r\n'):
             return visible[:start]
     return visible
 
@@ -283,14 +292,14 @@ def unmark(text, offsets=False):
                   lambda m: ' ' * len(m[0]) if offsets else '', text)
 
 
-def fields(body, offsets=False):
-    """Unfenced fields, including qualified labels and compound field lines.
+def fields(body, offsets=False, masked=True):
+    """Qualified/compound fields, fence-masked by default.
 
-    Delimiters end the WHOLE value. Offsets refer to the original bytes-as-text;
+    Delimiters end the WHOLE value. Offsets refer to the original characters;
     inline presentation is removed only for interpreting labels and values.
     """
     offset = 0
-    for line in markdown(body)[0].splitlines(keepends=True):
+    for line in (markdown(body)[0] if masked else body).splitlines(keepends=True):
         clean = unmark(line, offsets).rstrip('\r\n')
         value = r'([^;|\r\n]*?)(?= · |[;|]|$)'
         pattern = (r'(?:^[ \t]*(?:>[ \t]*)*(?:[-+][ \t]+|\d+[.)][ \t]+)?|[;|]| · )'
@@ -319,40 +328,11 @@ def own_outcome(body):
 
 
 def status_fields(body, nested=False):
-    """Pending status lint: colon values, whole list/continuation values or cells.
-
-    Quoted business evidence is exempt. Quoting a known status field's pending
-    value cannot hide it. Actual marked receipts are checked even inside fences.
-    """
-    labels = {'outcome', 'classification', 'classificationsource', 'preeditsnapshot', 'preeditsnapshotstatus',
-              'rollback', 'rollbackreceipt', 'verification', 'cleanup', 'artifact', 'artifacts',
-              'preeditartifactsource', 'preeditartifactsourcemembers', 'firstpreeditartifactsource',
-              'firstpreeditartifactsourcemembers', 'originalflowactivation', 'preservation', 'exactbundlemembers'}
-    sources = [body, *marked_receipts(body)] if nested else [own_body(body)]
-    for source in sources:
-        visible = markdown(source)[0]
-        for label, value, start, offset, _ in fields(source):
-            if label not in labels:
-                continue
-            for line in visible[offset:].splitlines()[1:]:
-                if not line.strip() or not line.startswith((' ', '\t', '>')):
-                    break
-                value += '\n' + unmark(line)
-            if re.search(r"(?im)^[ \t>+\-'\"\d.)]*pending\b", value):
-                yield label, start, start + len(value)
-        for line in unmark(visible).splitlines():
-            cells = [cell.strip() for cell in line.strip().strip('|').split('|')]
-            if (len(cells) > 1 and re.sub(r'[\s/._-]', '', cells[0]).lower() in labels and
-                    any(cell.strip("'\"").lower() == 'pending' for cell in cells[1:])):
-                yield 'pending', 0, 0
-        # A quote or code span exempts its content, never the surrounding line.
-        visible = re.sub(r"(?<!\w)(`+)[^\r\n]*?\1(?!\w)|\"[^\"\r\n]*\"|'[^'\r\n]*'", '', visible)
-        for line in unmark(visible).splitlines():
-            plain = re.sub(r'^[ \t]*(?:>[ \t]*)*(?:(?:[-+]|\d+[.)])[ \t]+)?', '', line).strip()
-            if (re.search(r':[^;|]*\bpending\b', plain, re.I) or
-                    re.fullmatch(r'pending', plain, re.I) or
-                    ('|' in plain and any(cell.strip().lower() == 'pending' for cell in plain.split('|')))):
-                yield 'pending', 0, 0
+    """Lexical pending lint over the raw body. Only single-line backtick spans exempt."""
+    # Equal-length backtick runs delimit a span; triple fence lines have no closer.
+    visible = re.sub(r'(?<!`)(`+)(?!`)[^\r\n]*?(?<!`)\1(?!`)', '', body)
+    if re.search(r'\bpending\b', visible, re.I) or re.search(r'\bpending\b', unmark(visible), re.I):
+        yield 'pending', 0, 0
 
 
 def marked_receipts(text):
@@ -361,24 +341,32 @@ def marked_receipts(text):
 
 
 def existing_classification(text):
-    # The whole classification value, including continuations/table cells, counts.
-    # Only paired receipt markers unmask fenced helper evidence.
+    # Keep only the classification value, through its continuations or delimiter.
     for source in [text, *marked_receipts(text)]:
         visible = markdown(source)[0]
         values = []
-        for label, value, start, offset, _ in fields(source, offsets=True):
+        for label, value, start, offset, _ in fields(source):
             if label not in ('classification', 'classificationsource'):
                 continue
-            value = unmark(visible[start:].splitlines()[0])
-            for line in visible[offset:].splitlines()[1:]:
-                if not line.strip() or not line.startswith((' ', '\t')):
+            tail = visible[offset:].splitlines()[1:]
+            # A delimiter on the first line ends the value before any continuation.
+            first = visible[offset:].splitlines()[0]
+            ended = bool(re.search(r' · |[;|]', first[start - offset + len(value):]))
+            for line in tail:
+                if ended or not line.strip() or not line.startswith((' ', '\t', '>')):
                     break
-                value += '\n' + re.sub(r'^(?:[-+]|\d+[.)])[ \t]+', '', unmark(line).strip())
+                value += '\n' + re.split(r' · |[;|]', unmark(line), maxsplit=1)[0]
+                ended = bool(re.search(r' · |[;|]', line))
+            if not value.strip(' \t\r\n>+-'):
+                raise BlockError('empty classification value')
             values.append(value)
+            # Separate component classifications in the adapter's compound label.
+            if label == 'classificationsource':
+                values.extend(re.findall(r'(?:^|;)\s*(?:Report|ReportFolder):\s*(existing|new|unknown)\b', unmark(first), re.I))
         for line in unmark(visible).splitlines():
             cells = [cell.strip() for cell in line.strip().strip('|').split('|')]
             if len(cells) > 1 and re.sub(r'[\s/._-]', '', cells[0]).lower() in ('classification', 'classificationsource'):
-                values.extend(cells[1:])
+                values.append(cells[1])
         if any(re.search(r'\bexisting\b', value, re.I) for value in values):
             return True
     return False
@@ -408,7 +396,7 @@ def resolve(task, record):
             continue
         body = section_body(original, section)
         outcome = own_outcome(body)
-        if outcome is None or checkpoint_state(match[0], section[0], body) != 'resolved':
+        if outcome is None or (match[1] != 'PENDING' and match[1] != outcome):
             continue
         start, end = section[2:4]
         block = original[start:end]
@@ -558,7 +546,7 @@ def check(task, record):
         if any(i['attempts'] for i in items.values()):
             required.append((2, 'Checkpoints'))
         if any(CHECKPOINT.fullmatch(text[s[2]:].splitlines()[0]) and
-               own_outcome(s[4]) in ('applied', 'failed', 'unverified') and
+               own_outcome(section_body(text, s)) in ('applied', 'failed', 'unverified') and
                existing_classification(text[s[2]:s[3]]) for s in sections):
             required.append((2, 'Existing Component Before-State and Direct Repairs'))
         for section in sections:
@@ -605,8 +593,7 @@ def check(task, record):
                     section = candidates[0]
                     match = CHECKPOINT.fullmatch(text[section[2]:].splitlines()[0])
                     body = section_body(text, section)
-                    outcome = (own_outcome(body) if
-                               checkpoint_state(match[0], section[0], body) == 'resolved' else None)
+                    outcome = own_outcome(body)
                     if ((attempted and attempt == item['attempts'][-1]) or item['disposition'] in ('already_satisfied', 'blocked')) and outcome != item['disposition']:
                         issue('checkpoint', item['id'] + ' attempt outcome disagrees with disposition', log)
                     valid = (bool(checkpoint_sections) and checkpoint_sections[0][2] < section[2] < checkpoint_sections[0][3]
@@ -636,7 +623,9 @@ def check(task, record):
             map_sections = headings(map_text)
             lines = map_text.splitlines()
             visible_lines = markdown(map_text)[0].splitlines()
-            heading_lines = {map_text[:section[2]].count('\n') for section in map_sections}
+            heading_lines = {n for section in map_sections
+                             for n in range(map_text[:section[2]].count('\n'),
+                                            len(map_text[:section[3] - len(section[4])].splitlines()))}
             owned = set(range(len(header.splitlines()))) if created else {
                 n for n, line in enumerate(header.splitlines())
                 if re.match(r'^(?:# Demo Architecture|Last reconciled:|Target Org:|Reconciled through:)', line)}
@@ -683,7 +672,7 @@ def check(task, record):
 def checkpoint_heading(title):
     return bool('PENDING' in title or 'PENDING' in unmark(title) or
                 (re.search(r'\bpending\b', unmark(title), re.I) and
-                 re.search(r'\bcomponent repair\b', unmark(title), re.I)) or
+                 re.search(r'\bcomponent\s+repair\b', unmark(title), re.I)) or
                 re.match(r'^(?:' + '|'.join(DISPOSITIONS) + r') — component repair · attempt ', title))
 
 
@@ -745,55 +734,86 @@ def pending(directory, org, username):
 
 
 def checkpoint_state(heading, title, body):
-    """The single checkpoint rule set (shared agreement for discovery/resolve/check).
+    """Discovery only: the exact owned FINAL heading is the sole resolved evidence.
 
-    Positive evidence for resolved exists ONLY in these two exact owned forms:
-    1. A final CHECKPOINT heading supplies the outcome, with full-body agreement.
-    2. A PENDING CHECKPOINT has exactly one own canonical OUTCOME line and that
-       same agreement. No canonical line is unresolved; conflicts are unclear.
-    Agreement permits own stale pending status fields (resolve replaces them),
-    never nested pending. Each other outcome mention must be a field giving that
-    same final value. Canonical lines explicitly separate evidence. Marked helper
-    receipts are actual evidence even inside fences; other fenced examples are not.
-    Legacy candidates NEVER resolve: any raw body line mentioning outcome makes
-    them unclear; no mention makes them unresolved. Nested/fenced examples cannot
-    prove completion. All uppercase PENDING and case-insensitive pending component
-    repair headings are candidates, including quote/list/setext headings.
+    Every other candidate (owned PENDING included) is unclear if its full raw
+    body mentions outcome, otherwise unresolved. Discovery never judges agreement.
     """
     own = CHECKPOINT.fullmatch(heading)
-    if not own:
-        return 'unclear' if re.search('outcome', body, re.I) else 'unresolved'
-    if own[1] == 'PENDING':
-        if not OUTCOME.search(own_body(body).replace('\r\n', '\n')):
-            return 'unresolved'
-        return 'resolved' if own_outcome(body) else 'unclear'
-    return 'resolved' if scout_agreement(body, own[1]) else 'unclear'
+    if own and own[1] != 'PENDING':
+        return 'resolved'
+    return 'unclear' if re.search('outcome', body, re.I) else 'unresolved'
+
+
+def receipt_outcome(value):
+    """Map the report adapter's Outcome / read-back by the route's table."""
+    value = value.strip().lower()
+    if value in ('applied', 'already_satisfied', 'blocked'):
+        return value
+    if re.match(r'blocked — not_applied\b', value):
+        return 'failed'
+    if re.match(r'unverified\b', value) or value == 'released by operator':
+        return 'unverified'
+    if re.match(r'pending\b', value):
+        return 'pending'
+    return None
 
 
 def scout_agreement(body, outcome):
-    """Every outcome mention outside fences must have positive, complete evidence."""
-    boundary = len(own_body(body))
-    visible = markdown(body)[0] + '\n' + '\n'.join(marked_receipts(body))
+    """Resolve/check ONLY: one own canonical line plus strict full-body agreement.
+
+    No fences are masked. Paired report receipts map their Outcome / read-back
+    field; the remaining content gets the lexical pending lint. Elsewhere each outcome value,
+    labelled disposition and disposition-bearing continuation must agree exactly.
+    Only own pending outcome fields that resolve can rewrite exactly are allowed.
+    Unknown values/conflicts/unrewritable fields cannot authorize a final heading.
+    """
+    writable_lines = {offset for label, _, _, offset, _ in fields(own_body(body), offsets=True) if label == 'outcome'}
+    receipts = list(re.finditer(r'<!-- scout-repair:([^\r\n]+?) -->(.*?)<!-- /scout-repair:\1 -->', body, re.S))
     offset = 0
-    for line in visible.splitlines(keepends=True):
-        if re.search('outcome', line, re.I) or re.search('outcome', unmark(line), re.I):
-            canonical = OUTCOME.fullmatch(line.rstrip('\r\n'))
-            if canonical:
-                if canonical[1] != outcome:
+    normal = lambda value: value.translate(str.maketrans('', '', '*_`'))
+    final = normal(outcome)
+    words = r'\b(?:' + '|'.join(normal(value) for value in DISPOSITIONS) + r')\b'
+    for line in body.splitlines(keepends=True):
+        raw = line.rstrip('\r\n')
+        canonical = OUTCOME.fullmatch(raw)
+        if canonical and canonical[1] != outcome:
+            return False
+        source = canonical[2] if canonical else raw
+        receipt = any(m.start(2) <= offset < m.end(2) for m in receipts)
+        entries = list(fields(source if receipt else normal(source), masked=False))
+        outcome_fields = [(value.strip(), start) for label, value, start, _, _ in entries if label == 'outcome']
+        mentions = max(len(re.findall('outcome', source, re.I)), len(re.findall('outcome', normal(source), re.I)))
+        if mentions != len(outcome_fields):
+            return False
+        mapped = receipt and re.match(r'^- Outcome / read-back:', unmark(source))
+        if receipt:
+            if outcome_fields and (not mapped or any(receipt_outcome(value) != outcome for value, _ in outcome_fields)):
+                return False
+            offset += len(line)
+            continue
+        for value, _ in outcome_fields:
+            if re.match(r'pending\b', value, re.I):
+                writable = [v for label, v, _, _, _ in fields(source, offsets=True) if label == 'outcome']
+                if canonical or offset not in writable_lines or len(writable) != len(outcome_fields):
                     return False
-            else:
-                entries = list(fields(line))
-                outcomes = [value.strip() for label, value, _, _, _ in entries if label == 'outcome']
-                # Unknown prose, qualifiers or extra mentions never supply evidence.
-                mentions = max(len(re.findall('outcome', line, re.I)),
-                               len(re.findall('outcome', unmark(line), re.I)))
-                if not outcomes or mentions != len(outcomes):
+            elif value.lower() not in (final, final + '.'):
+                return False
+        # Read labelled values and indented/list continuations, including evidence
+        # after a canonical line. Outcome fields above have their own exact rule.
+        plain = normal(source)
+        if outcome_fields:
+            plain = re.sub(r'\b(?:final\s+)?outcome(?:\s*/\s*read-back)?\s*(?:\([^)]*\)\s*)?:[^;|]*?(?= · |[;|]|$)', '', plain, flags=re.I)
+        labelled = ':' in plain or '|' in plain
+        continuation = bool(re.match(r'^(?:[ \t]+|>[ \t]*|[-+][ \t]+|\d+[.)][ \t]+)', plain))
+        if labelled or continuation:
+            for n, value in enumerate(re.split(r' · |[;|]', plain)):
+                if n and ':' not in value and '|' not in plain and not re.fullmatch(words, value.strip(), re.I):
+                    continue
+                value = value.split(':', 1)[-1].strip(' \t>+-.')
+                found = re.findall(words, value, re.I)
+                if found and value.lower().rstrip('.') != final:
                     return False
-                for value in outcomes:
-                    if offset < boundary and re.match(r'pending\b', value, re.I):
-                        continue
-                    if value.lower() not in (outcome, outcome + '.'):
-                        return False
         offset += len(line)
     return True
 

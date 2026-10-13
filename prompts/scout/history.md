@@ -1,12 +1,12 @@
 # Finish this task's history
 
-Read only after the last disposition, including on resume. Use `python3 [PLUGIN_ROOT_ABS]/scripts/scout_history.py` with safely quoted absolute paths. Only `resolve` edits files; no org queries.
+Read after the last disposition, including resume. Use `python3 [PLUGIN_ROOT_ABS]/scripts/scout_history.py` with safely quoted absolute paths. `resolve` alone edits files; no queries.
 
 ## Consolidate and check
 
 Consolidate above final `## Checkpoints`; preserve checkpoints, before-state and evidence. Follow `${CLAUDE_PLUGIN_ROOT}/prompts/building/change-log-template.md`'s whole SE-facing shape: header, Achieved State, What Was Deployed, What Was Skipped, Completion Reconciliation (four subsections), Companion Permission Set, applicable before-state/type/script sections, Issues Encountered, Docs Consulted, SE Must Do Next, How to Verify and Open Questions. Replace Spec with `Task record: [task filename]`; omit Spec SHA-256 and Build ID. `Audit used:` names the full audit or `scoped (task record)`. Include every Docs URL/question/verdict, grouped by item. Give seed pilot, refresh and reset commands in How to Verify and Script Deliverables.
 
-Run `render --task [T]`. Use its `Grounding:` header and reconciliation/skipped sections; counts are items with each source, so one item can count under several sources. Keep free evidence text after each `- I<n>`:
+Run `render --task [T]`. Use `Grounding:` and reconciliation/skipped sections; counts are items with each source, so one item can count under several sources. Keep evidence after each `- I<n>`:
 
 - `applied` → Verified — Applied This Build; visual QA instead → Accounted-for Exceptions as AWAITING_QA, with metadata evidence.
 - `already_satisfied` → Verified — Already Satisfied Before This Build.
@@ -15,7 +15,7 @@ Run `render --task [T]`. Use its `Grounding:` header and reconciliation/skipped 
 
 Overall: any unresolved item → UNRESOLVED; otherwise any exception → FINISHED_WITH_EXCEPTIONS; otherwise FULLY_VERIFIED. Visual QA never earns FULLY_VERIFIED.
 
-Run `resolve --task [T]`, then `check --task [T]`. Applied/failed/unverified require attempts whose last outcome matches; `already_satisfied`/`blocked` allow attempts only when every outcome matches; omitted requires none. Record every checkpoint as an attempt. Resolve touches only owned attempt IDs in the named log whose header names T. Each settled attempt's heading comes from its own `- **Outcome: <disposition>.** <evidence>` line, never the item's eventual disposition. Missing/conflicting outcomes stay PENDING and are findings. Resolve replaces whole `outcome:` values; settle other pending fields yourself. Quote business values like `"Pending"` in evidence. Never invent evidence.
+Run `resolve --task [T]`, then `check --task [T]`. Applied/failed/unverified require attempts whose last outcome matches; `already_satisfied`/`blocked` allow attempts only when every outcome matches; omitted requires none. Record every checkpoint as an attempt. Resolve touches only owned attempt IDs in the named log whose header names T. Each settled attempt's heading comes from its own `- **Outcome: <disposition>.** <evidence>` line, never the item's eventual disposition. Missing/conflicting outcomes stay PENDING and are findings. Resolve replaces whole `outcome:` values; settle other pending fields yourself. Write business values containing the word pending in backticks. Elsewhere, pending is a finding. Never fabricate evidence.
 
 Exit 0 permits handover; warnings disclose Docs-unavailable grounding or a map over budget only because of SE sections. Exit 2 means fix usage; exit 3 lists findings: fix and recheck up to twice. If still failing, or exit 4 (couldn't read), record why history is incomplete in the task and make the handover's first line **History incomplete: [reason]**. Never present incomplete history as complete.
 
