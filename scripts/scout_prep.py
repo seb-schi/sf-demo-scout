@@ -824,6 +824,9 @@ def seams_section(data, live, rows=()):
               if stated(b.get('fallback')) and b['key'] not in retired]  # C02
     constraints = data.get('constraints')
     lines += ['- Org constraint: ' + clean(line) for line in (constraints if isinstance(constraints, list) else [])]
+    sources = data.get('sources')
+    lines += ['- Excluded as unrelated: ' + clean(s.get('path')) for s in (sources if isinstance(sources, list) else [])
+              if isinstance(s, dict) and s.get('state') == 'unrelated']  # C1 and N1: excluded and listed
     return block(lines)
 
 
@@ -951,7 +954,7 @@ def same_folder(data, folder):
     """R13 and Q06: the results were collected for this folder: their `folder` is its name, its path relative to the
     workspace (`orgs/<folder>`), or its absolute path."""
     named = Path(data['folder'])
-    if len(named.parts) == 1 and not named.is_absolute():
+    if not re.search(r'[/\\]', data['folder']):  # F1: decide on the spelling, before Path drops a leading ./
         same = named.name == folder.name
     else:  # Q06: a path, relative to the workspace (orgs/<folder>), or absolute
         same = (named if named.is_absolute() else folder.parent.parent / named).resolve() == folder

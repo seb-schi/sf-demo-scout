@@ -1189,11 +1189,29 @@ class Round4Tests(FakeCli):
         self.assertEqual(self.staged(), [])
         self.assertEqual(sorted(p.name for p in self.folder.iterdir()), ['.scout-work', 'demo-path.md'])
 
-    def test_q11_render_never_blocks_on_a_fifo(self):
-        os.mkfifo(str(self.destination))
-        code, output, _ = self.render(results(obligation()))  # would hang without O_NONBLOCK
+    def test_q11_the_destination_read_never_blocks_and_checks_the_descriptor(self):
+        """F2 changed this pin: call read_nofollow itself on a FIFO. Without O_NONBLOCK it hangs past the timeout; without
+        the descriptor check it returns empty bytes. Either way it fails."""
+        fifo = self.root / 'fifo'
+        os.mkfifo(str(fifo))
+        probe = ('import sys; sys.path.insert(0, %r); import scout_prep as p\n'
+                 'try:\n    p.read_nofollow(%r)\nexcept p.Refused as error:\n    print("REFUSED", error)\n') % (
+                     str(Path(prep.__file__).parent), str(fifo))
+        result = subprocess.run([sys.executable, '-S', '-B', '-c', probe], capture_output=True, text=True, timeout=10)
+        self.assertIn('REFUSED', result.stdout, result.stderr)
+        self.assertIn('not a regular file', result.stdout)
+
+    def test_f1_a_dot_relative_folder_is_a_path(self):
+        good = results(obligation())
+        code, output, _ = self.render(dict(good, folder='./example'))
         self.assertEqual(code, 3, output)
-        self.assertIn('not a regular file', output)
+        self.assertEqual(self.render(dict(good, folder='example'))[0], 0)
+
+    def test_c1_unrelated_sources_are_listed_where_the_se_reads(self):
+        data = results(obligation(), sources=[dict(path='old-customer-task.md', state='unrelated')])
+        code, output, candidate = self.render(data)
+        self.assertEqual(code, 0, output)
+        self.assertIn('- Excluded as unrelated: old-customer-task.md', self.regions(candidate.read_text())['seams'])
 
     def test_c02_a_retired_beat_s_fallback_leaves_the_seams(self):
         old = obligation('old.md#B1/c1', 'failed', beat='old.md#B1', superseded_by=KEY, supersession_source='old.md § Amendments')
