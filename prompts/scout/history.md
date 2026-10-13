@@ -29,7 +29,11 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/demo-architecture-template.md` §"T
 
 After the outcome and Demo Story, show the log path, proposed entries and condensed arc (beats only), then proposed lessons and one **yes / edit / skip** question. Save proposed entries in the block before asking. No answer means write nothing; decisions remain `proposed`, for `pending` to re-offer next run.
 
-On yes/edit, write only the confirmed entries and arc. On skip, write the arc and stamps without new entries; record `skipped`. Stamp `Last reconciled: YYYY-MM-DD HHmm by /scout` and `Reconciled through: [this log]`. Set architecture `created`/`reconciled`, keeping beats at most 320 characters each and decisions in the dated template form, one line at most 320 characters. Compact template sections only, keeping rejected/superseded decisions. Aim for 350 lines and 3,750 words; disclose remaining excess. Update the block, rerun `check`, then send one truthful receipt line.
+On yes/edit, write only the confirmed entries and arc; decisions become `confirmed`/`edited`. On skip, write the arc and stamps without new entries; record `skipped`. Stamp `Last reconciled: YYYY-MM-DD HHmm by /scout` and `Reconciled through: [this log]`. Set architecture `created`/`reconciled`, keeping beats at most 320 characters each and decisions in the dated template form, one line at most 320 characters. Compact template sections only, keeping rejected/superseded decisions. Aim for 350 lines and 3,750 words; disclose remaining excess. Update the block, rerun `check`, then send one truthful receipt line.
+
+## Lessons need the SE's yes
+
+For a repeatable trap, propose 1–3 lessons in the history block using `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-maintenance.md` §"Propose Lessons (building)": yes, edit or skip. Write only on yes or edit, following §"Append Format" and §"Routing — which topic file"; on excess length, run §"Per-Topic Review (replaces the old global 25-line trim)" with its separate approval for pruning. If absent, that yes also covers `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-bootstrap.md` §"Step 1: Ensure the lessons directory + INDEX exist (idempotent)". Record lessons as `proposed`, `written` or `skipped`. Skip Slack Upstream and Legacy Drain offers.
 
 ## Precedence
 

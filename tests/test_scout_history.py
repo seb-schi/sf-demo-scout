@@ -145,6 +145,10 @@ class ScoutHistoryTests(unittest.TestCase):
         self.data['items'][0]['visual_qa'] = True
         self.save()
         self.assert_rule('disposition')
+        self.data['items'] = [item()]
+        self.data['items'][0]['evidence'] = ''
+        self.save()
+        self.assert_rule('disposition')
 
     def story(self):
         self.data['path'] = 'open-ended'
@@ -295,7 +299,8 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assertEqual(after, self.hashes())
 
     def test_resolve_missing_conflicting_outcomes_stay_pending(self):
-        for body in (checkpoint(outcome=None), checkpoint() + '- **Outcome: failed.** second claim\n'):
+        for body in (checkpoint(outcome=None), checkpoint() + '- **Outcome: failed.** second claim\n',
+                     checkpoint() + '- **Outcome: not_applied.** unsupported second claim\n'):
             self.data['items'][0]['attempts'] = ['A1']
             self.save(body)
             before = self.log.read_bytes()

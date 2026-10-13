@@ -207,7 +207,8 @@ def header_matches(text, task):
 
 def own_outcome(body):
     outcomes = OUTCOME.findall(body)
-    return outcomes[0][0] if len(outcomes) == 1 else None
+    markers = re.findall(r'^- \*\*Outcome:', body, re.M)
+    return outcomes[0][0] if len(outcomes) == len(markers) == 1 else None
 
 
 def docs_url(reference):
@@ -286,6 +287,8 @@ def check(task, record):
         identifier, disposition = item['id'], item['disposition']
         if disposition not in DISPOSITIONS:
             issue('disposition', identifier + ' needs one of the six dispositions')
+        if disposition in ('applied', 'already_satisfied') and not item['evidence'].strip():
+            issue('disposition', identifier + ' verified disposition needs evidence')
         if disposition == 'omitted' and not item['reason'].strip():
             issue('disposition', identifier + ' omitted without reason/decision source')
         if disposition == 'failed' and not (re.search(r'State left:\s*\S', item['reason'], re.I) and

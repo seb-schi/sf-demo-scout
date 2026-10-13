@@ -10,6 +10,12 @@ COMMAND = ROOT / 'commands/scout.md'
 class ScoutRouteTests(unittest.TestCase):
     def setUp(self):
         self.command = COMMAND.read_text()
+        self.discovery = (ROOT / 'prompts/scout/discovery.md').read_text()
+        self.history = (ROOT / 'prompts/scout/history.md').read_text()
+
+    def phrases(self, text, *phrases):
+        for phrase in phrases:
+            self.assertIn(phrase, text)
 
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
@@ -69,6 +75,111 @@ class ScoutRouteTests(unittest.TestCase):
         self.assertIn('`demo-architecture.md` first', self.command)
         self.assertIn('reconcile-plan --folder', self.command)
         self.assertIn('read every `unclear` checkpoint', self.command)
+
+    def test_k1_spine_beats_proof_challenge_and_merged_confirmation(self):
+        self.phrases(self.discovery, 'at most two discovery rounds', 'Draft, not a questionnaire',
+                     'name, persona, stated pain and climax', 'where KP3 contrasts visibly with KP1',
+                     'record or list opened', 'never invent a KP2 metric or pain',
+                     '`Proves: KP[n]` or `Supports: I[n]`', "X doesn't prove KP1–3 — keep or cut?",
+                     'Record a kept exception', '`[REJECTED]` decision for a cut',
+                     'Merge the spine and proposal into one message', '“Just build it” still gets proposed defaults',
+                     'proof moment is required before the first write', '`se-stated` or `se-confirmed`',
+                     '“Go” accepts that proposal, not an unstated moment')
+
+    def test_k2_demo_day_data_and_claim_acceptance(self):
+        self.phrases(self.command, 'Before seeding, describe every object', 'required fields, picklists, record-type DeveloperNames',
+                     '§"Procedure per object"', 'Capture `errorCode` on failure', 'dates relative to seed day',
+                     'state the validity window', 'at-risk/stale/overdue records',
+                     'Dress each hero record with contacts and relative-dated activities',
+                     'Stage live flips in before-state with a reset', 'idempotent, re-runnable script that never deletes',
+                     '`--pilot-only` against the bound org', 'Every on-screen claim is an acceptance criterion',
+                     'exact `readback` query: verify it yourself, including the proof moment',
+                     'Drop unbacked claims from Demo Story', 'missed post-write claim is `failed`')
+        self.phrases(self.history, 'seed pilot, refresh and reset commands', 'How to Verify and Script Deliverables')
+
+    def test_k3_baseline_cartridge_and_preflight(self):
+        self.phrases(self.discovery, 'installed managed namespaces and industry cloud',
+                     'apps/objects matching the domain nouns', 'Account record types and folder history',
+                     'Step 1 — Discover enabled, selected cartridges (cheap; always runs)',
+                     "Step 2 — Match the audited industry against each cartridge's Coverage",
+                     'Step 3 — Consult the matched cartridge (proactive, read-only)',
+                     'Announce the consult in one line', '`skill` grounding in the task and proposal',
+                     "hub worker follows the command's model-mirroring rule")
+        self.phrases(self.command, 'full audit runs only on request', 'Step 0 — Object Capability Pre-Flight',
+                     'Step 0b — Docs Follow-Up for Restricted Objects')
+
+    def test_k4_delta_conflict_and_conditional_demo_moment(self):
+        self.phrases(self.discovery, 'Delta Conflict Check', 'Agent source evidence gate',
+                     'flows sharing an object, field-name collisions, layout crowding, permission overlaps',
+                     'weak foundation', 'revived `[REJECTED]` decisions',
+                     'only when adding a demo-facing capability and neither request nor map names its moment',
+                     'Ask inside confirmation; pure repairs skip it',
+                     'keeps the item without a moment, build it and propose a decision entry',
+                     'exact error text and when it fires')
+        self.phrases(self.command, 'In folders with history', '§"Delta Conflict Check"', '§"Symptom Follow-up (fix intent only)"')
+
+    def test_k5_demo_story_follows_outcome_with_verified_claims(self):
+        self.phrases(self.discovery, 'After the outcome sections', '§"Demo Story"',
+                     'persona, click path, record, KP, verified claims and climax',
+                     'mark the proof moment', 'Label unfulfilled beats planned/unverified',
+                     "map's Narrative Arc")
+        self.phrases(self.command, 'Send one outcome-first message',
+                     'Then the Demo Story (bounded: one line naming the beat served) and history block')
+
+    def test_k6_lessons_require_yes_and_skip_extra_offers(self):
+        self.phrases(self.history, 'propose 1–3 lessons', 'yes, edit or skip', 'Write only on yes or edit',
+                     '§"Propose Lessons (building)"', '§"Append Format"', '§"Routing — which topic file"',
+                     '§"Per-Topic Review (replaces the old global 25-line trim)"',
+                     'Step 1: Ensure the lessons directory + INDEX exist (idempotent)',
+                     'Skip Slack Upstream and Legacy Drain offers')
+        self.assertNotIn('Afterward, if a repeatable trap occurred, append', self.command)
+
+    def test_k7_docs_floor_both_halves_fetch_errors_and_degraded_mode(self):
+        self.phrases(self.command, 'Every item records grounding', 'Gated/Docs-gated types',
+                     'flows, Apex, LWC, Agentforce, Email-to-Case, dashboards and unknown types',
+                     'Claim mechanisms require Docs unless plain field values',
+                     '§"When to Consult — YES"', '§"When to Consult — NO"', '§"How to Cite"', '§"Degraded Mode"',
+                     "Fetch before deciding; snippets aren't evidence", 'Before proposals: industry model',
+                     'While building: consult Docs before first writes', 'new metadata types and ungrounded assumptions',
+                     'Agentforce always', 'search the verbatim error before retry or `failed`',
+                     'Workers return grounding; fetch disposition-deciding pages yourself',
+                     'if unavailable, say so in this first SE-facing message',
+                     'ask once on open-ended work whether to proceed ungrounded',
+                     'record `Docs unavailable` entries and handover risks, never fake URLs')
+        self.phrases(self.discovery, "release-gated features against this org's release",
+                     'Name every Docs finding that changed the design')
+        self.phrases(self.history, 'every Docs URL/question/verdict, grouped by item')
+
+    def test_k8_presales_lens_and_corrected_label_scope(self):
+        self.phrases(self.discovery, 'Apply what a top SE would; at minimum', 'building the end state',
+                     'person who must say yes', 'Every beat answers a stated pain and names a persona',
+                     'vision demo emphasizes breadth and story', 'proof demo uses their scenario and language',
+                     'at least one live flip', 'working session favors fewer, deeper beats',
+                     'one beat per three to four minutes, 2–6 total', 'leaving room for questions',
+                     'Ask slot length or demo type only if it changes beat count', 'Say only what verified data shows',
+                     'automate the hand-off into it', 'object, tab and field labels as org-wide',
+                     'surface and its scope grounded in Docs', "wider relabel needs the SE's explicit yes",
+                     'Use their named stages', "audience's existing app", 'ground that limitation in Docs',
+                     'Record the app choice as a decision', 'customer appetite and trusted data', 'human-in-the-loop')
+        for path in [COMMAND, *(ROOT / 'prompts/scout').glob('*.md')]:
+            self.assertNotRegex(path.read_text(), r'(?i)tab label[^.\n]*(?:app-local|for (?:one|that) app only)')
+
+    def test_k9_structured_inputs_and_fragment_read_order(self):
+        self.phrases(self.command, 'Treat a supplied demo plan, requirements or discovery notes as the brief',
+                     'beats, personas, cuts, hero records and on-screen claims become items, criteria and story fields',
+                     'inputs are leads, not evidence; confirmation still applies', 'Write no spec',
+                     'Before the first SE-facing question', 'on open-ended work',
+                     'when adding a demo-facing capability to a folder with history',
+                     'Neither discovery.md nor history.md loads before the first message on a complete brief')
+        self.assertGreater(self.command.index('/prompts/scout/history.md'), self.command.index('After the last disposition'))
+        self.phrases(self.discovery, 'Read the referenced sections only as needed',
+                     'not their stage numbers, questionnaires, acknowledgement stops, audit modes, spec writes or model choices')
+
+    def test_complete_brief_startup_budget_and_report_checkpoint_adapter(self):
+        startup = [COMMAND, ROOT / 'prompts/host-runtime.md', ROOT / 'prompts/workspace-bootstrap.md']
+        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3000)
+        self.phrases(self.command, 'log explicitly as `--change-log`',
+                     'marked receipt block fenced and its evidence unchanged')
 
     def test_never_bullets_remain_qualified_and_byte_identical(self):
         bullets = ['- Delete existing metadata or records',
