@@ -74,6 +74,96 @@ class ScoutHistoryTests(unittest.TestCase):
         from scout_report_repair import checkpoint_marker
         self.task.write_text(self.task.read_text() + '\n' + checkpoint_marker(Path(name)) + '\n')
 
+    def real_report_receipt(self, *, before='Prospecting', after='Qualification',
+                            column='STAGE_NAME', suffix=None):
+        """Inspect, apply and reconcile with the actual writer and offline adapter."""
+        import html
+        from scout_report_repair import Repair, checkpoint_marker, json_read
+        from test_report_repair import FakeSalesforce, MEMBER, DELTA
+        if suffix:
+            self.root = self.root / suffix
+            self.folder = self.root / 'orgs' / 'example'
+            self.folder.mkdir(parents=True)
+            self.task = self.folder / self.task.name
+        self.save(checkpoint())
+        (self.root / 'sfdx-project.json').write_text(json.dumps({
+            'packageDirectories': [{'path': 'force-app', 'default': True}],
+            'sourceApiVersion': '66.0'}))
+        request = self.folder / 'request.md'
+        request.write_text('Repair one report filter, retaining all other metadata.')
+        adapter = FakeSalesforce()
+        adapter.source = adapter.source.replace(b'Prospecting', html.escape(before).encode()).replace(
+            b'STAGE_NAME', html.escape(column).encode())
+        engine = Repair(adapter)
+        task = engine.inspect(str(self.root), str(self.folder), 'example', MEMBER,
+                              dict(DELTA, before=before, after=after, column=column),
+                              request, 'R1', change_log=self.log)
+        marker = checkpoint_marker(task)
+        self.task.write_text(self.task.read_text() + '\n' + marker + '\n')
+        text = self.log.read_text()
+        pos = text.index(marker)
+        self.log.write_text(text[:pos] + '```text\n' + text[pos:] + '```\n')
+        digest = json_read(task / 'result.json')['digest']
+        engine.apply(task, digest)
+        self.assertEqual(engine.reconcile(task, digest)['outcome'], 'applied')
+        receipt = self.log.read_text().split('```text\n', 1)[1].rsplit('```', 1)[0]
+        self.run_cli('resolve')
+        self.assertIn(receipt, self.log.read_text())
+        return marker
+
+    def test_r12_f1_real_writer_inline_markers_are_data(self):
+        for args in (dict(after='<!-- scout-repair:foreign -->'),
+                     dict(suffix='<!-- scout-repair:foreign -->'),
+                     dict(after='<!-- scout-repair:foreign -->\nPending\n<!-- /scout-repair:foreign -->')):
+            with self.subTest(args=args):
+                self.real_report_receipt(**args)
+                code, output = self.run_cli()
+                self.assertEqual(code, 0, output)
+                self.assertEqual(len(history.task_receipts(self.task)), 1)
+
+    def test_r12_f1_whole_line_registration_and_pairing(self):
+        marker = '<!-- scout-repair:repair-example -->'
+        closer = '<!-- /scout-repair:repair-example -->'
+        for recorded, expected in ((marker, 0), ('`' + marker + '`', 0),
+                                   ('Example: ' + marker, 3),
+                                   ('Example: `' + marker + '`', 3)):
+            self.save(checkpoint() + '```text\n' + marker +
+                      '\n- **Outcome / read-back:** applied\n' + closer + '\n```\n')
+            self.task.write_text(self.task.read_text() + '\n' + recorded + '\n')
+            self.run_cli('resolve')
+            code, output = self.run_cli()
+            self.assertEqual(code, expected, output)
+            if expected:
+                self.assertIn('record the exact line ' + marker, output)
+                self.assertIn(self.task.name, output)
+        for start, end in ((marker, closer), ('data ' + marker, closer),
+                           (marker, 'data ' + closer)):
+            text = start + '\nClassification: existing\n' + end + '\n'
+            self.assertEqual(bool(history.marked_receipts(text)), start == marker and end == closer)
+
+    def test_r12_f2_real_writer_spanned_labels_and_paths_are_data(self):
+        for args in (dict(suffix='outcome: failed'),
+                     dict(column='ACCOUNT:STATUS', before='Pending'),
+                     dict(column='outcome: failed', before='Pending'),
+                     dict(column='a`b;|: outcome: failed', before='Pending')):
+            with self.subTest(args=args):
+                self.real_report_receipt(**args)
+                code, output = self.run_cli()
+                self.assertEqual(code, 0, output)
+
+    def test_r12_f2_code_spans_do_not_supply_fields_or_agreement(self):
+        for extra in ('- Path: `outcome: failed`\n', '- Verification: applied `failed`\n',
+                      '- Verification: applied\n  `outcome: failed`\n',
+                      '- Detail: ``outcome: `failed` | blocked``\n',
+                      '- `Outcome: failed`\n', '- Outcome: `failed` applied\n'):
+            with self.subTest(extra=extra):
+                self.save(checkpoint() + extra)
+                self.run_cli('resolve')
+                self.assertIn(extra, self.log.read_text())
+                self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        for span in ('`Outcome: failed`', '`x\u2028outcome: failed`'):
+            self.assertEqual(list(history.fields(span, masked=False)), [])
+
     def test_r11_f1_real_writer_quotes_pending_report_folder_and_paths(self):
         from scout_report_repair import Repair
         for member, slug in (('Example/Pending', 'example'), ('Pending/Report', 'example'),
@@ -198,9 +288,9 @@ class ScoutHistoryTests(unittest.TestCase):
                        '- **Requested delta / exclusions:** STATUS equals: "Pending" → "Closed"; unchanged\n'
                        '<!-- /scout-repair:' + name + ' -->\n```\n')
             self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') + receipt)
-            self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
+            self.task.write_text(self.task.read_text() + '\n<!-- scout-repair:example -->\n')
             self.assertEqual(self.run_cli()[0], 0 if name == 'example' else 3)
-            self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:' + name + ' -->\n')
+            self.task.write_text(self.task.read_text() + '\n<!-- scout-repair:' + name + ' -->\n')
             self.assertEqual(self.run_cli()[0], 0)
 
     def test_r10_f5_agreement_crosses_noncheckpoint_headings(self):
@@ -309,7 +399,7 @@ class ScoutHistoryTests(unittest.TestCase):
                 Repair(None).checkpoint(task, contract, state, first=True)
                 receipt = receipt_log.read_text()
                 self.save(checkpoint() + '```text\n' + receipt + '```\n')
-                self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
+                self.task.write_text(self.task.read_text() + '\n<!-- scout-repair:example -->\n')
                 self.run_cli('resolve')
                 self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
                 self.assertIn(receipt, self.log.read_text())
@@ -322,7 +412,7 @@ class ScoutHistoryTests(unittest.TestCase):
                     self.assertNotEqual(replacement, receipt)
                     self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') +
                               '```text\n' + replacement + '```\n')
-                    self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
+                    self.task.write_text(self.task.read_text() + '\n<!-- scout-repair:example -->\n')
                     self.assert_rule('checkpoint')
 
     def test_r9_f4_classification_offsets_survive_link_and_markup_prefix(self):
@@ -1495,7 +1585,7 @@ class ScoutHistoryTests(unittest.TestCase):
                 self.assertEqual(self.run_cli()[0], 0 if '`pending`' in field else 3)
         self.save(checkpoint().replace('outcome: pending', 'outcome: `pending`'))
         self.assertEqual(self.run_cli('resolve')[0], 0)
-        self.assertIn('outcome: `applied`', self.log.read_text())
+        self.assertIn('outcome: `pending`', self.log.read_text())  # Code spans are data (R12 F2).
         self.assertEqual(self.run_cli()[0], 0)
 
     def test_r5_f3_component_classification_requires_before_state(self):
@@ -1960,7 +2050,7 @@ class ScoutHistoryTests(unittest.TestCase):
         for field in ('- verification: **pen**ding', '- outcome: pen`ding`', '> * verification: pending'):
             self.save()
             self.log.write_text(self.log.read_text() + field + '\n')
-            self.assertEqual(self.run_cli()[0], 0 if 'pen`ding`' in field else 3)
+            self.assertEqual(self.run_cli()[0], 3)  # F2 leaves a noncanonical outcome value: pen.
 
     def test_r6_attack_pending_status_indented_value(self):
         for field in ('- verification:\n  **pending**', '- **Outcome (A1):**\n  - pending'):

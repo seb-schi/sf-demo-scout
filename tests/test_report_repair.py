@@ -116,6 +116,23 @@ class ReportRepairTests(unittest.TestCase):
     def count(self, operation):
         return sum(row[0] == operation for row in self.adapter.trace)
 
+    def test_r12_f1_writer_ignores_inline_boundary_data(self):
+        task, sha = self.inspect()
+        contract = repair.json_read(task / 'contract.json')
+        state = repair.json_read(task / 'result.json')
+        marker, closer = repair.checkpoint_marker(task), f'<!-- /scout-repair:{task.name} -->'
+        contract['delta']['after'] = marker + ' and ' + closer
+        self.engine.checkpoint(task, contract, state)
+        log = Path(state['log'])
+        first = log.read_text()
+        self.engine.checkpoint(task, contract, state)
+        self.assertEqual(log.read_text(), first)
+        # An inline example isn't a replaceable checkpoint, even with both tokens.
+        log.write_text('Example: ' + marker + ' ' + closer + '\n')
+        with self.assertRaisesRegex(repair.RepairError, 'checkpoint missing'):
+            self.engine.checkpoint(task, contract, state)
+        self.assertEqual(log.read_text(), 'Example: ' + marker + ' ' + closer + '\n')
+
     def test_r11_inspect_cli_names_exact_marker_and_recording_requirement(self):
         args = ['scout-repair.py', 'inspect-report', '--workspace-root', str(self.workspace),
                 '--customer-dir', str(self.customer), '--target-org', 'example', '--report', MEMBER,

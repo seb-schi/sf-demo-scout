@@ -32,6 +32,10 @@ CHECKPOINT = re.compile(r'^### (PENDING|' + '|'.join(DISPOSITIONS) +
                         r') — component repair · attempt ([\w.-]+) · (\d{4}-\d\d-\d\d \d\d:\d\d)$')
 OUTCOME = re.compile(r'^- \*\*Outcome: (' + '|'.join(DISPOSITIONS) + r')\.\*\* (\S.*)$', re.M)
 
+CODE_SPAN = re.compile(r'(?<!`)(`+)(?!`)[^\r\n]*?(?<!`)\1(?!`)')
+RECEIPT = re.compile(r'^<!-- scout-repair:([\w.-]+) -->\r?\n(.*?)'
+                     r'^<!-- /scout-repair:\1 -->\r?$', re.M | re.S)
+
 
 class BlockError(ValueError):
     pass
@@ -311,9 +315,15 @@ def unmark(text, offsets=False):
                   lambda m: ' ' * len(m[0]) if offsets else '', text)
 
 
+def mask_code_spans(text):
+    """Code-span data cannot supply labels or agreement; retain character offsets."""
+    return CODE_SPAN.sub(lambda m: ' ' * len(m[0]), text)
+
+
 def evidence_spans(line):
     """Links and path/URL tokens are evidence, never sources of field labels."""
-    spans = [m.span() for m in re.finditer(r'!?\[[^\]\r\n]*\](?:\([^\r\n)]*\)|\[[^\]\r\n]*\])|<[^\s<>]+:[^<>]*>', line)]
+    spans = [m.span() for m in CODE_SPAN.finditer(line)]
+    spans += [m.span() for m in re.finditer(r'!?\[[^\]\r\n]*\](?:\([^\r\n)]*\)|\[[^\]\r\n]*\])|<[^\s<>]+:[^<>]*>', line)]
     for match in re.finditer(r'\S+', line):
         token = match[0].strip('`*_<>"\'(),;')
         if (len(token) > 1 and not token.endswith(':') and
@@ -341,7 +351,8 @@ def fields(body, offsets=False, masked=True):
     inline presentation is removed only for interpreting labels and values.
     """
     offset = 0
-    for line in (markdown(body)[0] if masked else body).splitlines(keepends=True):
+    source = markdown(body)[0] if masked else body
+    for line in mask_code_spans(source).splitlines(keepends=True):
         clean = field_text(line).rstrip('\r\n')
         value = r'([^;|\r\n]*?)(?= · |[;|]|$)'
         pattern = (r'(?:^[ \t]*(?:>[ \t]*)*(?:[-+][ \t]+|\d+[.)][ \t]+)?|[;|]| · )'
@@ -358,7 +369,7 @@ def fields(body, offsets=False, masked=True):
         entries.extend(('outcome', m.start(1), m.end(1)) for m in re.finditer(outcome, clean, re.I))
         for label, start, end in sorted(entries, key=lambda entry: entry[1]):
             value = unmark(line[start:end], offsets=offsets)
-            yield label, value, offset + start, offset, line.rstrip('\r\n')
+            yield label, value, offset + start, offset, source[offset:offset + len(line)].rstrip('\r\n')
         offset += len(line)
 
 
@@ -373,20 +384,19 @@ def own_outcome(body, receipt_ids=()):
 def status_fields(body, nested=False, receipt_ids=()):
     """Lexical pending lint: backtick spans and the writer's JSON delta strings exempt."""
     # Equal-length backtick runs delimit a span; triple fence lines have no closer.
-    visible = re.sub(r'(?<!`)(`+)(?!`)[^\r\n]*?(?<!`)\1(?!`)', '', mask_receipt_delta(body, receipt_ids))
+    visible = CODE_SPAN.sub('', mask_receipt_delta(body, receipt_ids))
     if re.search(r'\bpending\b', visible, re.I) or re.search(r'\bpending\b', unmark(visible), re.I):
         yield 'pending', 0, 0
 
 
 def marked_receipts(text):
-    return [body for _, body in re.findall(
-        r'<!-- scout-repair:([^\r\n]+?) -->(.*?)<!-- /scout-repair:\1 -->', text, re.S)]
+    return [match[2] for match in RECEIPT.finditer(text)]
 
 
 def task_receipts(task):
     # Repair IDs are generated independently; never infer them from a filename.
     # The route requires every checkpoint marker to be recorded in this task.
-    return set(re.findall(r'<!-- scout-repair:([\w.-]+) -->', read(task)))
+    return {m[2] for m in re.finditer(r'^(`?)<!-- scout-repair:([\w.-]+) -->\1\r?$', read(task), re.M)}
 
 
 def owned_receipt(match, receipt_ids):
@@ -401,27 +411,30 @@ def mask_receipt_delta(text, receipt_ids=()):
     values and pending placeholders. No receipt or delta is edited on disk.
     """
     string = r'"(?:[^"\\\x00-\x1f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*"'
-    delta = re.compile(r'^- \*\*Requested delta / exclusions:\*\* [^\r\n:]+: (' + string +
-                       r') → (' + string + r')(?=;)', re.M)
+    # Current writer labels are code spans, with arbitrary data inside each.
+    labels = (r'(?P<column>`+)(?!`)[^\r\n]*?(?<!`)(?P=column)(?!`) '
+              r'(?P<operator>`+)(?!`)[^\r\n]*?(?<!`)(?P=operator)(?!`)')
+    delta = re.compile(r'^- \*\*Requested delta / exclusions:\*\* (?:' + labels +
+                       r'|[^`\r\n:]+): (?P<before>' + string + r') → (?P<after>' + string + r')(?=;)', re.M)
 
     def receipt(match):
         if not owned_receipt(match, receipt_ids):
             return match[0]
         def values(row):
             value = row[0]
-            for group in (2, 1):
+            for group in ('after', 'before'):
                 start, end = row.start(group) - row.start(), row.end(group) - row.start()
                 value = value[:start] + ' ' * (end - start) + value[end:]
             return value
         return delta.sub(values, match[0])
 
-    return re.sub(r'<!-- scout-repair:([^\r\n]+?) -->(.*?)<!-- /scout-repair:\1 -->', receipt, text, flags=re.S)
+    return RECEIPT.sub(receipt, text)
 
 
 def existing_classification(text):
     # Keep only the classification value, through its continuations or delimiter.
     for source in [text, *marked_receipts(text)]:
-        visible = markdown(source)[0]
+        visible = mask_code_spans(markdown(source)[0])
         values = []
         for label, value, start, offset, _ in fields(source, offsets=True):
             if label not in ('classification', 'classificationsource'):
@@ -430,6 +443,7 @@ def existing_classification(text):
             # A delimiter on the first line ends the value before any continuation.
             first = visible[offset:].splitlines()[0]
             ended = bool(re.search(r' · |[;|]', first[start - offset + len(value):]))
+            coded_value = CODE_SPAN.search(source[start:start + len(value)])
             value = unmark(first[start - offset:start - offset + len(value)])
             for line in tail:
                 if ended or not line.strip() or not line.startswith((' ', '\t', '>')):
@@ -438,6 +452,8 @@ def existing_classification(text):
                 value += '\n' + re.split(r' · |[;|]', clean, maxsplit=1)[0]
                 ended = bool(re.search(r' · |[;|]', clean))
             if not value.strip(' \t\r\n>+-'):
+                if coded_value:
+                    continue
                 raise BlockError('empty classification value')
             values.append(value)
             # Separate component classifications in the adapter's compound label.
@@ -690,9 +706,11 @@ def check(task, record):
                         valid &= match[1] == 'PENDING'
                 if not valid:
                     issue('checkpoint', attempt + ' missing, duplicate, misplaced or unsettled outcome/fields', log)
-        for marker in re.finditer(r'<!-- scout-repair:([^\r\n]+?) -->', text):
-            if not owned_receipt(marker, receipt_ids):
-                issue('checkpoint', 'unrecorded report marker; record the exact line ' + marker[0] +
+        # Inspect each opener so a nested foreign pair still gets its diagnostic.
+        for start in re.finditer(r'^<!-- scout-repair:[\w.-]+ -->\r?$', text, re.M):
+            marker = RECEIPT.match(text, start.start())
+            if marker and not owned_receipt(marker, receipt_ids):
+                issue('checkpoint', 'unrecorded report marker; record the exact line <!-- scout-repair:' + marker[1] + ' -->' +
                       ' in task record ' + str(task) + ' (required before apply-report)', log,
                       line=text[:marker.start()].count('\n') + 1)
     if record['history']['architecture'] in ('created', 'reconciled'):
@@ -897,16 +915,18 @@ def scout_agreement(body, outcome, receipt_ids=()):
     word there agrees. Outcome values are stricter: every word, item labels aside,
     is the canonical outcome. Only a single-line pending field at an exact writable
     own offset is exempt. Evidence links/paths are never field labels or rewrite
-    targets. Paired report outcomes map by the route; only task-recorded markers
-    authorize both receipt exemptions. Discovery has its separate fixed rule.
+    targets; code spans supply no fields or agreement words. Report marker pairs
+    occupy whole lines; task registration is a whole literal/backticked marker line.
+    Only owned pairs exempt delta strings and map read-back outcomes by the route.
+    Discovery has its separate fixed rule.
     """
     writable_lines = {offset for label, _, _, offset, _ in fields(own_body(body), offsets=True) if label == 'outcome'}
-    receipts = [m for m in re.finditer(r'<!-- scout-repair:([^\r\n]+?) -->(.*?)<!-- /scout-repair:\1 -->', body, re.S)
+    receipts = [m for m in RECEIPT.finditer(body)
                 if owned_receipt(m, receipt_ids)]
     normal = lambda value: value.translate(str.maketrans('', '', '*_`'))
     final = normal(outcome)
     words = r'\b(?:' + '|'.join(normal(value) for value in DISPOSITIONS) + r')\b'
-    lines = mask_receipt_delta(body, receipt_ids).splitlines(keepends=True)
+    lines = mask_code_spans(mask_receipt_delta(body, receipt_ids)).splitlines(keepends=True)
     offset = 0
     for n, line in enumerate(lines):
         raw = line.rstrip('\r\n')

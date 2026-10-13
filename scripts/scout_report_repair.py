@@ -349,10 +349,12 @@ class Repair:
                f"{end}\n")
         with locked(log.with_suffix(log.suffix + ".lock")):
             old = read(log).decode()  # missing/moved log blocks before any launch
-            if marker in old:
-                if old.count(marker) != 1 or old.count(end) != 1:
+            starts = list(re.finditer(r'^' + re.escape(marker) + r'\r?$', old, re.M))
+            ends = list(re.finditer(r'^' + re.escape(end) + r'\r?$', old, re.M))
+            if starts:
+                if len(starts) != 1 or len(ends) != 1 or ends[0].start() < starts[0].end():
                     raise RepairError("ambiguous repair checkpoint in change log")
-                start, finish = old.index(marker), old.index(end) + len(end)
+                start, finish = starts[0].start(), ends[0].end()
                 updated = old[:start] + row.rstrip("\n") + old[finish:]
             elif first:
                 updated = old + "\n" + row
