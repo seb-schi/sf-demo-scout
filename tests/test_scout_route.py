@@ -8,6 +8,13 @@ COMMAND = ROOT / 'commands/scout.md'
 
 
 class ScoutRouteTests(unittest.TestCase):
+    def test_r9_f3_report_delta_exemption_is_narrow(self):
+        self.phrases(self.history, 'Only this task’s recorded report markers exempt delta JSON before/after strings',
+                     'elsewhere, pending is a finding', 'Never fabricate evidence')
+
+    def test_r8_f6_business_pending_values_use_backticks(self):
+        self.phrases(self.history, 'Write business values containing the word pending in backticks')
+
     def setUp(self):
         self.command = COMMAND.read_text()
         self.discovery = (ROOT / 'prompts/scout/discovery.md').read_text()
@@ -150,6 +157,9 @@ class ScoutRouteTests(unittest.TestCase):
                      'Name every Docs finding that changed the design')
         self.phrases(self.history, 'every Docs URL/question/verdict, grouped by item')
 
+    def test_r7_f9_blocked_attempts_match_and_omitted_has_none(self):
+        self.assertIn('`already_satisfied`/`blocked` allow attempts only when every outcome matches; omitted requires none.', self.history)
+
     def test_k8_presales_lens_and_corrected_label_scope(self):
         self.phrases(self.discovery, 'Apply what a top SE would; at minimum', 'building the end state',
                      'person who must say yes', 'Every beat answers a stated pain and names a persona',
@@ -289,7 +299,7 @@ class ScoutRouteTests(unittest.TestCase):
         self.phrases(self.command, "Re-offer only the chosen folder's proposals")
 
     def test_r5_f16_route_limits_legacy_final_outcomes_to_component_repair(self):
-        self.phrases(self.command, 'A legacy component repair heading with a final outcome is resolved')
+        self.phrases(self.command, 'Legacy checkpoints with outcome mentions are unclear; without them, unresolved')
 
 
 class BuildRouteTests(unittest.TestCase):

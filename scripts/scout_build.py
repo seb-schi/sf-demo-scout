@@ -218,6 +218,10 @@ def checkpoint_state(checkpoint, item):
                     job[key] = line[key]
     for match in JOB_ID.finditer(checkpoint['raw']):
         entry(match[0][:15], match[0], match[0][:3])
+    for key, outcome in (checkpoint.get('receipt_jobs') or {}).items():  # RC: a report receipt settles its own deploy
+        job = jobs.get(key)
+        if job is not None and not job['explicit']:
+            job.update(receipt=True, status='receipt: %s' % outcome)
     for key in ('launched', 'settled'):
         for job in jobs.values():
             job[key] = job[key] or level.get(key)
@@ -228,6 +232,12 @@ def checkpoint_state(checkpoint, item):
         if text and _moment(text) is None:
             problems.append('%s: %s: "%s" is not an ISO time with seconds' % (checkpoint['attempt'], key, text))
     for job in jobs.values():
+        if job.get('receipt'):  # the helper waited and read back; its outcome settles the job, and it keeps its own times
+            job.update(terminal=job['status'] in ('receipt: applied', 'receipt: already_satisfied', 'receipt: failed', 'receipt: blocked'),
+                       launched_at=None, settled_at=None)
+            if not job['terminal']:
+                job['why'] = 'the report receipt is %s' % job['status'][9:]
+            continue
         name, words = VOCABULARY.get(job['vocabulary'], (None, ()))
         if item is None and name is None and job['explicit']:  # R4-F5: no owner to name the family, so any terminal word
             name, words = 'submission', tuple(w for _, family_words in VOCABULARY.values() for w in family_words)

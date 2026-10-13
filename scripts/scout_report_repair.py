@@ -29,6 +29,17 @@ NO_LAUNCH_ERRORS = {"NothingToDeploy", "SourceConflictError"}
 RELEASE_HOLD_SECONDS = 10 * 60
 
 
+def code_span(value):
+    """Keep interpolated receipt data in one code span, even with backticks/newlines."""
+    value = str(value).replace('\r', r'\r').replace('\n', r'\n')
+    delimiter = '`' * (1 + max((len(run) for run in re.findall(r'`+', value)), default=0))
+    return delimiter + ' ' + value + ' ' + delimiter
+
+
+def checkpoint_marker(task):
+    return f"<!-- scout-repair:{task.name} -->"
+
+
 def path(value: str | Path) -> Path:
     candidate = Path(value)
     if not candidate.is_absolute() or ".." in candidate.parts:
@@ -311,7 +322,7 @@ class Repair:
         log = path(state["log"])
         if log.parent != task.parent.parent:
             raise RepairError("change log escaped customer directory")
-        marker, end = f"<!-- scout-repair:{task.name} -->", f"<!-- /scout-repair:{task.name} -->"
+        marker, end = checkpoint_marker(task), f"<!-- /scout-repair:{task.name} -->"
         final = state["outcome"] in RELEASED or (state["outcome"] == "blocked" and not (task / "launch.json").exists())
         title = state["outcome"] if final else "PENDING — component repair"
         if title == "released_unverified":
@@ -321,25 +332,29 @@ class Repair:
         remaining = ("resolved; start a new task for further changes" if state["outcome"] in RELEASED
                      else state.get("error", "verify or reconcile before deciding next steps; never replay blindly"))
         target, delta = contract["target"], contract["delta"]
-        change = (f"{delta['column']} {delta['operator']}: "
+        change = (f"{code_span(delta['column'])} {code_span(delta['operator'])}: "
                   f"{json.dumps(delta['before'], ensure_ascii=False)} → {json.dumps(delta['after'], ensure_ascii=False)}")
+        # Status grammar is helper-owned; its pending placeholders must stay visible.
+        status = lambda value: value if value == 'pending' else code_span(value)
         row = (f"{marker}\n### {title}\n"
-               f"- **Attempt / org / exact component:** {task.name}; {target['username']} ({target['org_id']}); Report:{contract['member']}\n"
+               f"- **Attempt / org / exact component:** {code_span(task.name)}; {code_span(target['username'])} ({code_span(target['org_id'])}); {code_span('Report:' + contract['member'])}\n"
                f"- **Requested delta / exclusions:** {change}; all other report metadata and folder sharing unchanged; no defaults writes\n"
-               f"- **Classification / source:** Report and ReportFolder: {'existing' if contract.get('baseline') else 'unknown'}; {contract.get('baseline', 'pending')}\n"
-               f"- **First pre-edit artifact / source / members:** {pin.get('artifact', state['recovery'])}; {pin.get('artifact', '')}/source/{relative}; {relative}; verification: {state['recovery']}\n"
-               f"- **Outcome / read-back:** {'blocked — not_applied (confirmed unchanged)' if title == 'not_applied' else title}; mutation={state['mutation']}; acceptance={state['acceptance']}; {state.get('readback', 'pending')}\n"
-               f"- **Receipts / remaining action:** {task}/result.json; {task}/deploy-start.json; {state.get('job_id')}; {remaining}\n"
-               + (f"- **Operator release evidence:** {state['release_evidence']}; result remains unverified\n"
+               f"- **Classification / source:** Report and ReportFolder: {'existing' if contract.get('baseline') else 'unknown'}; {code_span(contract['baseline']) if 'baseline' in contract else 'pending'}\n"
+               f"- **First pre-edit artifact / source / members:** {code_span(pin['artifact']) if 'artifact' in pin else status(state['recovery'])}; {code_span(str(pin.get('artifact', '')) + '/source/' + relative)}; {code_span(relative)}; verification: {status(state['recovery'])}\n"
+               f"- **Outcome / read-back:** {'blocked — not_applied (confirmed unchanged)' if title == 'not_applied' else title}; mutation={status(state['mutation'])}; acceptance={status(state['acceptance'])}; {code_span(state['readback']) if 'readback' in state else 'pending'}\n"
+               f"- **Receipts / remaining action:** {code_span(task / 'result.json')}; {code_span(task / 'deploy-start.json')}; {code_span(state.get('job_id'))}; {code_span(remaining)}\n"
+               + (f"- **Operator release evidence:** {code_span(state['release_evidence'])}; result remains unverified\n"
                   if state.get("release_evidence") else "") +
-               f"- **Rollback:** verify the pinned component-preedit receipt, stage only {relative}, re-bind target and read back; never restore from a later retrieve\n"
+               f"- **Rollback:** verify the pinned component-preedit receipt, stage only {code_span(relative)}, re-bind target and read back; never restore from a later retrieve\n"
                f"{end}\n")
         with locked(log.with_suffix(log.suffix + ".lock")):
             old = read(log).decode()  # missing/moved log blocks before any launch
-            if marker in old:
-                if old.count(marker) != 1 or old.count(end) != 1:
+            starts = list(re.finditer(r'^' + re.escape(marker) + r'\r?$', old, re.M))
+            ends = list(re.finditer(r'^' + re.escape(end) + r'\r?$', old, re.M))
+            if starts:
+                if len(starts) != 1 or len(ends) != 1 or ends[0].start() < starts[0].end():
                     raise RepairError("ambiguous repair checkpoint in change log")
-                start, finish = old.index(marker), old.index(end) + len(end)
+                start, finish = starts[0].start(), ends[0].end()
                 updated = old[:start] + row.rstrip("\n") + old[finish:]
             elif first:
                 updated = old + "\n" + row
@@ -378,6 +393,8 @@ class Repair:
             write(log, ("# Change Log — " + customer.name + "\n").encode(), exclusive=True)
         state = {"task": str(task), "log": str(log), "mutation": "not_attempted",
                  "acceptance": "pending", "recovery": "not_needed", "job_id": None}
+        state['checkpoint_marker'] = checkpoint_marker(task)
+        state['requirements'] = [f"Record the exact line {checkpoint_marker(task)} in the Scout task record before apply-report."]
         write(task / "request.md", source, exclusive=True)
         save(task / "result.json", state)
         try:
@@ -682,7 +699,7 @@ def main():
             result["task"] = str(task)
             try:
                 saved = json_read(task / "result.json")
-                result.update({k: saved[k] for k in ("mutation", "acceptance", "recovery", "log") if k in saved})
+                result.update({k: saved[k] for k in ("mutation", "acceptance", "recovery", "log", "checkpoint_marker", "requirements") if k in saved})
                 result["saved_outcome"] = saved.get("outcome")
                 if terminal_refusal:
                     result["outcome"] = json_read(task / "resolution.json")["outcome"]

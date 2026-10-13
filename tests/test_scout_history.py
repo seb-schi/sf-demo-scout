@@ -70,6 +70,768 @@ def checkpoint(attempt='A1', outcome='applied', heading='PENDING'):
 
 
 class ScoutHistoryTests(unittest.TestCase):
+    def record_report_marker(self, name='example'):
+        from scout_report_repair import checkpoint_marker
+        self.task.write_text(self.task.read_text() + '\n' + checkpoint_marker(Path(name)) + '\n')
+
+    def real_report_receipt(self, *, before='Prospecting', after='Qualification',
+                            column='STAGE_NAME', suffix=None):
+        """Inspect, apply and reconcile with the actual writer and offline adapter."""
+        import html
+        from scout_report_repair import Repair, checkpoint_marker, json_read
+        from test_report_repair import FakeSalesforce, MEMBER, DELTA
+        if suffix:
+            self.root = self.root / suffix
+            self.folder = self.root / 'orgs' / 'example'
+            self.folder.mkdir(parents=True)
+            self.task = self.folder / self.task.name
+        self.save(checkpoint())
+        (self.root / 'sfdx-project.json').write_text(json.dumps({
+            'packageDirectories': [{'path': 'force-app', 'default': True}],
+            'sourceApiVersion': '66.0'}))
+        request = self.folder / 'request.md'
+        request.write_text('Repair one report filter, retaining all other metadata.')
+        adapter = FakeSalesforce()
+        adapter.source = adapter.source.replace(b'Prospecting', html.escape(before).encode()).replace(
+            b'STAGE_NAME', html.escape(column).encode())
+        engine = Repair(adapter)
+        task = engine.inspect(str(self.root), str(self.folder), 'example', MEMBER,
+                              dict(DELTA, before=before, after=after, column=column),
+                              request, 'R1', change_log=self.log)
+        marker = checkpoint_marker(task)
+        self.task.write_text(self.task.read_text() + '\n' + marker + '\n')
+        text = self.log.read_text()
+        pos = text.index(marker)
+        self.log.write_text(text[:pos] + '```text\n' + text[pos:] + '```\n')
+        digest = json_read(task / 'result.json')['digest']
+        engine.apply(task, digest)
+        self.assertEqual(engine.reconcile(task, digest)['outcome'], 'applied')
+        receipt = self.log.read_text().split('```text\n', 1)[1].rsplit('```', 1)[0]
+        self.run_cli('resolve')
+        self.assertIn(receipt, self.log.read_text())
+        return marker
+
+    def test_r12_f1_real_writer_inline_markers_are_data(self):
+        for args in (dict(after='<!-- scout-repair:foreign -->'),
+                     dict(suffix='<!-- scout-repair:foreign -->'),
+                     dict(after='<!-- scout-repair:foreign -->\nPending\n<!-- /scout-repair:foreign -->')):
+            with self.subTest(args=args):
+                self.real_report_receipt(**args)
+                code, output = self.run_cli()
+                self.assertEqual(code, 0, output)
+                self.assertEqual(len(history.task_receipts(self.task)), 1)
+
+    def test_r13_f1_registration_anywhere_keeps_whole_line_receipt_pairs(self):
+        marker = self.real_report_receipt(before='Pending')
+        closer = marker.replace('scout-repair:', '/scout-repair:')
+        task_text = self.task.read_text().replace(marker, '')
+        log_bytes = self.log.read_bytes()
+        marker_id = marker.removeprefix('<!-- scout-repair:').removesuffix(' -->')
+        for recorded, expected in ((marker, 0), ('`' + marker + '`', 0),
+                                   ('Report marker: ' + marker, 0),
+                                   ('Report marker: `' + marker + '`', 0),
+                                   ('- ' + marker, 0), ('- Marker: `' + marker + '` saved', 0),
+                                   ('', 3), ('Report marker: ' + marker_id, 3),
+                                   ('Report marker: `' + marker_id + '`', 3)):
+            with self.subTest(recorded=recorded):
+                self.task.write_text(task_text + '\n' + recorded + '\n')
+                code, output = self.run_cli()
+                self.assertEqual(code, expected, output)
+                if expected:
+                    self.assertIn('copy the marker ' + marker, output)
+                    self.assertIn(self.task.name, output)
+        self.assertEqual(self.log.read_bytes(), log_bytes)
+        for start, end in ((marker, closer), ('data ' + marker, closer),
+                           (marker, 'data ' + closer)):
+            text = start + '\nClassification: existing\n' + end + '\n'
+            self.assertEqual(bool(history.marked_receipts(text)), start == marker and end == closer)
+
+    def test_r12_f2_real_writer_spanned_labels_and_paths_are_data(self):
+        for args in (dict(suffix='outcome: failed'),
+                     dict(column='ACCOUNT:STATUS', before='Pending'),
+                     dict(column='outcome: failed', before='Pending'),
+                     dict(column='a`b;|: outcome: failed', before='Pending')):
+            with self.subTest(args=args):
+                self.real_report_receipt(**args)
+                code, output = self.run_cli()
+                self.assertEqual(code, 0, output)
+
+    def test_r12_f2_code_spans_do_not_supply_fields_or_agreement(self):
+        for extra in ('- Path: `outcome: failed`\n', '- Verification: applied `failed`\n',
+                      '- Verification: applied\n  `outcome: failed`\n',
+                      '- Detail: ``outcome: `failed` | blocked``\n',
+                      '- `Outcome: failed`\n', '- Outcome: `failed` applied\n'):
+            with self.subTest(extra=extra):
+                self.save(checkpoint() + extra)
+                self.run_cli('resolve')
+                self.assertIn(extra, self.log.read_text())
+                self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        for span in ('`Outcome: failed`', '`x\u2028outcome: failed`'):
+            self.assertEqual(list(history.fields(span, masked=False)), [])
+
+    def test_r11_f1_real_writer_quotes_pending_report_folder_and_paths(self):
+        from scout_report_repair import Repair
+        for member, slug in (('Example/Pending', 'example'), ('Pending/Report', 'example'),
+                             ('Example/Report', 'pending-example')):
+            with self.subTest(member=member, slug=slug):
+                self.folder = self.folder.parent / slug
+                self.folder.mkdir(exist_ok=True)
+                self.task = self.folder / self.task.name
+                self.log = self.folder / self.data['change_log']
+                repair_task = self.folder / '.scout-tasks' / 'repair-example'
+                repair_task.mkdir(parents=True, exist_ok=True)
+                receipt_log = self.folder / 'receipt.txt'
+                receipt_log.write_text('')
+                contract = dict(target=dict(username='pending@example.test', org_id=ORG), member=member,
+                                baseline='pending/source.json', delta=dict(column='STATUS', operator='equals',
+                                before='Pending', after='Closed'))
+                state = dict(log=str(receipt_log), mutation='succeeded', acceptance='passed', recovery='verified',
+                             original=dict(artifact=str(self.folder / 'pending-artifact')),
+                             readback=str(repair_task / 'pending-readback.json'), job_id='pending-job')
+                Repair(None).checkpoint(repair_task, contract, state, first=True)
+                receipt = receipt_log.read_text()
+                self.save(checkpoint() + '```text\n' + receipt + '```\n')
+                self.task.write_text(self.task.read_text() + '\n<!-- scout-repair:repair-example -->\n')
+                self.run_cli('resolve')
+                self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+                self.assertIn(receipt, self.log.read_text())
+
+    def test_r11_f2_unrecorded_marker_names_exact_line_and_task_fix(self):
+        marker = '<!-- scout-repair:repair-example -->'
+        receipt = '```text\n' + marker + '\n- **Outcome / read-back:** applied\n<!-- /scout-repair:repair-example -->\n```\n'
+        for record in ('', 'Report marker: repair-example', 'Report marker: `repair-example`', marker, '`'+marker+'`'):
+            with self.subTest(record=record):
+                self.save(checkpoint() + receipt)
+                self.task.write_text(self.task.read_text() + '\n' + record + '\n')
+                self.run_cli('resolve')
+                code, output = self.run_cli()
+                if marker in record:
+                    self.assertEqual(code, 0, output)
+                else:
+                    self.assertEqual(code, 3, output)
+                    self.assertIn(marker, output)
+                    self.assertIn(self.task.name, output)
+                    self.assertIn('record', output.lower())
+
+    def test_r11_f2_foreign_receipts_do_not_skip_agreement(self):
+        body = '```text\n<!-- scout-repair:foreign -->\n- Verification: failed\n<!-- /scout-repair:foreign -->\n```\n'
+        for final in (False, True):
+            self.save((checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') if final else checkpoint()) + body)
+            before = self.log.read_bytes()
+            self.run_cli('resolve')
+            self.assertEqual(self.log.read_bytes(), before)
+            self.assert_rule('checkpoint')
+
+    def test_r10_attack_shortcut_references_preserve_link_bytes(self):
+        extra = '- Evidence: [outcome: pending]\n\n[outcome: pending]: saved.json\n'
+        self.save(checkpoint() + extra)
+        self.run_cli('resolve')
+        self.assertIn(extra, self.log.read_text())
+        self.assert_rule('checkpoint')
+
+    def test_r10_attack_paragraph_and_checkpoint_boundaries(self):
+        for boundary in ('\n', '#### Notes\n', '```text\n', '- A separate note\n'):
+            self.save(checkpoint() + '- Verification: applied\n' + boundary + 'failed is prose outside that value\n')
+            self.run_cli('resolve')
+            self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        self.data['items'][0].update(disposition='failed', attempts=['A1', 'A2'],
+                                     reason='State left: unchanged; rollback: retained')
+        self.save(checkpoint() + '### Read-back\n- Verification: applied\n' + checkpoint('A2', 'failed'))
+        self.run_cli('resolve')
+        self.assertIn('### applied — component repair · attempt A1', self.log.read_text())
+        self.assertIn('### failed — component repair · attempt A2', self.log.read_text())
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+
+    def test_r10_f1_labelled_paragraphs_include_lazy_continuations(self):
+        for extra in ('- Verification: applied;\nfailed on refresh\n',
+                      '- Verification: applied\nfailed\n',
+                      '- Verification: applied\nalready_satisfied\n',
+                      '> Verification: applied;\nfailed on refresh\n',
+                      '```text\n- Verification: applied;\nfailed on refresh\n```\n',
+                      '- Verification: applied\n  refresh receipt\nfailed\n'):
+            for final in (False, True):
+                with self.subTest(extra=extra, final=final):
+                    source = checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') if final else checkpoint()
+                    self.save(source + extra)
+                    before = self.log.read_bytes()
+                    self.run_cli('resolve')
+                    self.assertEqual(self.log.read_bytes(), before)
+                    self.assert_rule('checkpoint')
+
+    def test_r10_f2_outcome_owns_deeper_labelled_subvalues(self):
+        for extra in ('- Outcome:\n  I1: unknown\n', '- Outcome:\n  I1: applied\n  I2: waiting\n',
+                      '- Outcome: applied\n  I1: applied\n  I2: unknown\n',
+                      '- Outcome: pending\n  I1: applied\n'):
+            for final in (False, True):
+                with self.subTest(extra=extra, final=final):
+                    source = checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') if final else checkpoint()
+                    self.save(source + extra)
+                    before = self.log.read_bytes()
+                    self.run_cli('resolve')
+                    self.assertEqual(self.log.read_bytes(), before)
+                    self.assert_rule('checkpoint')
+        self.save(checkpoint() + '- Outcome:\n  I1: applied\n  I2: applied\n')
+        self.run_cli('resolve')
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+
+    def test_r10_f3_links_urls_and_filenames_are_not_outcome_fields(self):
+        for extra, expected in (('- Evidence: [outcome: read-back](saved.json)\n', 0),
+                                ('- Evidence: [outcome: pending](saved.json)\n', 3),
+                                ('- File: my-outcome:report.md\n', 0),
+                                ('- URL: https://example.test/outcome:report\n', 0),
+                                ('- Outcome:\n  [applied](saved.json)\n', 0),
+                                ('- Outcome: [applied](saved.json)\n', 0)):
+            with self.subTest(extra=extra):
+                self.save(checkpoint() + extra)
+                self.run_cli('resolve')
+                self.assertIn(extra, self.log.read_text())
+                self.assertEqual(self.run_cli()[0], expected, self.run_cli()[1])
+
+    def test_r10_f4_only_recorded_report_markers_exempt_delta_values(self):
+        for name in ('example', 'repair-unrelated'):
+            receipt = ('```text\n<!-- scout-repair:' + name + ' -->\n'
+                       '- **Requested delta / exclusions:** STATUS equals: "Pending" → "Closed"; unchanged\n'
+                       '<!-- /scout-repair:' + name + ' -->\n```\n')
+            self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') + receipt)
+            self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
+            self.assertEqual(self.run_cli()[0], 0 if name == 'example' else 3)
+            self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:' + name + ' -->\n')
+            self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r10_f5_agreement_crosses_noncheckpoint_headings(self):
+        for extra in ('- [ ] ```text\n  ### Read-back\n  Outcome: failed\n  ```\n',
+                      '> - [ ] ```text\n>   ### Read-back\n>   Outcome: failed\n>   ```\n',
+                      '### Read-back\nOutcome: failed\n', '### Read-back\nVerification: pending\n',
+                      'Read-back\n----------\nOutcome: failed\n'):
+            for final in (False, True):
+                with self.subTest(extra=extra, final=final):
+                    source = checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') if final else checkpoint()
+                    self.save(source + extra)
+                    self.run_cli('resolve')
+                    self.assert_rule('checkpoint')
+                    if 'Outcome: failed' in extra:
+                        self.assertIn('### applied' if final else '### PENDING', self.log.read_text())
+
+    def test_r9_attack_compound_dispositions_include_segment_labels(self):
+        for extra in ('- Verification: applied; failed: stale read-back\n',
+                      '- Detail:\n  failed: refresh; applied\n',
+                      '- outcome: pending (failed on refresh)\n'):
+            self.save(checkpoint() + extra)
+            before = self.log.read_bytes()
+            self.run_cli('resolve')
+            self.assertEqual(self.log.read_bytes(), before)
+            self.assert_rule('checkpoint')
+
+    def test_r9_attack_outcome_table_values_remain_strict(self):
+        for label in ('Outcome', 'Outcome (attempt: A1)'):
+            for value in ('unknown', 'pending', 'failed'):
+                self.save(checkpoint() + '| ' + label + ' | ' + value + ' |\n')
+                before = self.log.read_bytes()
+                self.run_cli('resolve')
+                self.assertEqual(self.log.read_bytes(), before)
+                self.assert_rule('checkpoint')
+        self.save(checkpoint() + '| Outcome | applied |\n')
+        self.run_cli('resolve')
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+
+    def test_r9_attack_classification_presentation_keeps_raw_value(self):
+        for field in ('- [receipt](saved.json) · classification: exi**sting\n',
+                      '- classification: new\n  [receipt](saved.json;section)\n  existing\n'):
+            self.save()
+            self.log.write_text(self.log.read_text().replace(
+                '## Existing Component Before-State and Direct Repairs\nPreserved.\n', '') + field)
+            self.assertIn('Existing Component Before-State', self.assert_rule('log-section'))
+
+    def test_r9_f1_all_compound_dispositions_and_continuations_agree(self):
+        for extra in ('- Verification: applied; failed on refresh\n',
+                      '- I1: applied · I2 failed\n', '- I1: applied | I2 failed\n',
+                      '- Detail:\n  applied; failed on refresh\n',
+                      '```text\nVerification: applied; failed on refresh\n```\n'):
+            with self.subTest(extra=extra):
+                self.save(checkpoint() + extra)
+                before = self.log.read_bytes()
+                self.assertEqual(self.run_cli('resolve')[0], 0)
+                self.assertEqual(self.log.read_bytes(), before)
+                self.assert_rule('checkpoint')
+                self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') + extra)
+                self.assert_rule('checkpoint')
+        for extra in ('- Verification: applied; applied on refresh\n',
+                      '- I1: applied · I2 applied\n', '- Detail:\n  applied; applied on refresh\n'):
+            self.save(checkpoint() + extra)
+            self.run_cli('resolve')
+            self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+
+    def test_r9_f2_container_fences_precede_boundaries_and_inventory(self):
+        for prefix in ('> ', '> > ', '- ', '  - ', '1. ', '> - ', '    > '):
+            for delimiter in ('```', '~~~~'):
+                with self.subTest(prefix=prefix, delimiter=delimiter):
+                    for field in ('Outcome: failed', 'Verification: pending'):
+                        extra = (prefix + delimiter + 'text\n' + prefix + '### Read-back\n' +
+                                 prefix + field + '\n' + prefix + delimiter + '\n')
+                        self.save(checkpoint() + extra)
+                        self.run_cli('resolve')
+                        self.assert_rule('checkpoint')
+                        if field == 'Outcome: failed':
+                            self.assertIn('### PENDING — component repair', self.log.read_text())
+                        self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') + extra)
+                        self.assert_rule('checkpoint')
+                    self.log.write_text('Org: ' + ORG + '\n' + prefix + delimiter + 'text\n' +
+                                        prefix + '## PENDING — component repair\n' + prefix + delimiter + '\n')
+                    self.assertEqual(self.pending_rows(), [])
+
+    def test_r9_f2_fence_closes_only_with_same_container_prefix(self):
+        for opening, wrong in (('> ', ''), ('> ', '> > '), ('- ', '  '), ('> - ', '> ')):
+            text = ('Org: ' + ORG + '\n' + opening + '```text\n' + wrong + '```\n' +
+                    '## PENDING — hidden\n' + opening + '```\n## PENDING — visible\n')
+            self.log.write_text(text)
+            rows = self.pending_rows()
+            self.assertEqual([r['heading'] for r in rows], ['PENDING — visible'])
+
+    def test_r9_f3_real_writer_exempts_only_delta_json_business_values(self):
+        from scout_report_repair import Repair, code_span
+        task = self.folder / '.report-repairs' / 'example'
+        task.mkdir(parents=True)
+        receipt_log = self.folder / 'receipt.txt'
+        for prior, after in (('Open', 'Pending'), ('Pending', 'Closed'),
+                             ('Pending "review"', 'Still Pending; outcome: failed'),
+                             ('Pending\\review', 'Pending\nreview')):
+            with self.subTest(prior=prior, after=after):
+                receipt_log.write_text('')
+                contract = dict(target=dict(username=USER, org_id=ORG), member='Example/Report', baseline='saved.json',
+                                delta=dict(column='STATUS', operator='equals', before=prior, after=after))
+                state = dict(log=str(receipt_log), mutation='succeeded', acceptance='passed', recovery='complete',
+                             original=dict(artifact=str(self.folder / 'preedit')), readback=str(task / 'readback.json'))
+                Repair(None).checkpoint(task, contract, state, first=True)
+                receipt = receipt_log.read_text()
+                self.save(checkpoint() + '```text\n' + receipt + '```\n')
+                self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
+                self.run_cli('resolve')
+                self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+                self.assertIn(receipt, self.log.read_text())
+                # Real writer placeholders elsewhere must remain findings.
+                for replacement in (receipt.replace('existing; ' + code_span('saved.json'), 'unknown; pending'),
+                                    receipt.replace('acceptance=' + code_span('passed') + ';', 'acceptance=passed; pending;'),
+                                    receipt.replace('all other report metadata', 'pending; all other report metadata'),
+                                    receipt.replace('<!-- /scout-repair:example -->', '<!-- /scout-repair:other -->'),
+                                    receipt.replace('Requested delta / exclusions', 'Evidence')):
+                    self.assertNotEqual(replacement, receipt)
+                    self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') +
+                              '```text\n' + replacement + '```\n')
+                    self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
+                    self.assert_rule('checkpoint')
+
+    def test_r9_f4_classification_offsets_survive_link_and_markup_prefix(self):
+        for prefix in ('', '- [receipt](evidence/component-describe.json) · ', '- **receipt**: saved · '):
+            for label in ('classification', '**classification**'):
+                with self.subTest(prefix=prefix, label=label):
+                    self.save()
+                    self.log.write_text(self.log.read_text().replace(
+                        '## Existing Component Before-State and Direct Repairs\nPreserved.\n', '') +
+                        prefix + label + ': Report: new\n  ReportFolder: existing\n')
+                    self.assertIn('Existing Component Before-State', self.assert_rule('log-section'))
+
+    def test_r9_f5_only_valued_outcome_fields_are_mentions(self):
+        for extra in ('#### Outcome\nSaved read-back.\n', '- Outcome:\n  applied\n',
+                      '- Outcome:\n  > applied\n', '- Outcome:\n',
+                      '- Evidence: [read-back](outcome.json)\n', '- File: outcome.json\n'):
+            with self.subTest(extra=extra):
+                self.save(checkpoint() + extra)
+                self.run_cli('resolve')
+                self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        for extra in ('- Outcome:\n  failed\n', '- Outcome:\n  unknown\n', '- Outcome:\n  pending\n',
+                      '- Outcome:\n  applied; failed on refresh\n', '- Outcome:\n  applied\n  unknown\n',
+                      '- Outcome: applied\n  unknown\n'):
+            self.save(checkpoint() + extra)
+            before = self.log.read_bytes()
+            self.run_cli('resolve')
+            self.assertEqual(self.log.read_bytes(), before)
+            self.assert_rule('checkpoint')
+
+    def test_r9_f6_unplaced_checkpoint_headings_fail_closed_with_line(self):
+        for title in ('- step\n    - nested\n\n    ## PENDING — component repair',
+                      '- step\n    > ## PENDING — component repair',
+                      '            > - > 1. ## PENDING — component repair',
+                      '\t\t## PENDING — component repair'):
+            self.log.write_text('Org: ' + ORG + '\n\n' + title + '\nNo write yet.\n')
+            rows = self.pending_rows()
+            self.assertEqual(len(rows), 1, rows)
+            self.assertEqual(rows[0]['state'], 'unclear', rows)
+            self.assertEqual(rows[0]['line'], 3 + title.count('\n'), rows)
+
+    def test_r8_attack_pending_only_backticks_exempt_content(self):
+        for field in ('<!-- pending verification -->', '<span title="pending">read-back</span>',
+                      '- Receipt: [saved](evidence/pending/result.json)'):
+            for before_state in (False, True):
+                self.save()
+                text = self.log.read_text()
+                self.log.write_text(text.replace('Preserved.', field) if before_state else text + field + '\n')
+                self.assert_rule('checkpoint')
+
+    def test_r8_attack_strict_agreement_strips_internal_presentation(self):
+        for field in ('- out_come: failed', '- I2: fa_iled', '- I2: alrea_dy_satisfied',
+                      '- I2: **failed**', '- outcome: applied\n  > failed',
+                      '- I2: failed: saved.json', '- I2: applied; failed',
+                      '- out_come: pending', '- I2: <!-- failed --> applied'):
+            with self.subTest(field=field):
+                self.save(checkpoint() + field + '\n')
+                before = self.log.read_bytes()
+                self.run_cli('resolve')
+                self.assertEqual(self.log.read_bytes(), before)
+                self.assert_rule('checkpoint')
+
+    def test_r8_attack_receipt_mapping_and_disposition_continuation_controls(self):
+        for receipt_value, outcome in (('already_satisfied', 'already_satisfied'),
+                                       ('unverified (read-back missing)', 'unverified'),
+                                       ('released by operator', 'unverified'),
+                                       ('blocked — not_applied (confirmed unchanged)', 'failed')):
+            self.data['items'][0].update(disposition=outcome, reason='State left: unchanged; rollback: retained')
+            receipt = ('```text\n<!-- scout-repair:example -->\n- **Outcome / read-back:** ' + receipt_value +
+                       '; receipt.json\n<!-- /scout-repair:example -->\n```\n')
+            self.save(checkpoint(outcome=outcome) + '- Detail:\n  - I1: ' + outcome + '\n' + receipt)
+            self.record_report_marker()
+            self.run_cli('resolve')
+            self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+            self.save(checkpoint(outcome='applied') + receipt)
+            self.record_report_marker()
+            before = self.log.read_bytes()
+            self.run_cli('resolve')
+            self.assertEqual(self.log.read_bytes(), before)
+
+    def test_r8_f1_discovery_only_owned_final_headings_resolve(self):
+        for body, expected in (('No write yet.', 'unresolved'),
+                               ('- outcome: pending', 'unclear'),
+                               ('```text\nOUTCOME: failed\n```', 'unclear')):
+            self.save(checkpoint(outcome=None).split('\n')[0] + '\n' + body)
+            self.assertEqual(self.pending_rows()[0]['state'], expected)
+        self.save(checkpoint())
+        self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
+        for body in ('outcome: applied (pilot write in flight)', 'outcome: failed', ''):
+            self.save(checkpoint(heading='applied', outcome=None).split('\n')[0] + '\n' + body)
+            self.assertEqual(self.pending_rows()[0]['state'], 'resolved')
+            self.assert_rule('checkpoint')
+
+    def test_r8_f2_agreement_reads_continuations_fences_and_canonical_evidence(self):
+        for extra in ('- outcome: applied\n  - I2: failed\n',
+                      '- outcome: applied\n  failed\n',
+                      '```text\noutcome: failed\n```\n',
+                      '- Receipt: failed\n', '#### Read-back\n- I2: failed\n'):
+            for heading in ('PENDING', 'applied'):
+                with self.subTest(extra=extra, heading=heading):
+                    self.save(checkpoint(heading=heading).replace('outcome: pending', 'outcome: applied') + extra)
+                    before = self.log.read_bytes()
+                    self.run_cli('resolve')
+                    self.assertEqual(self.log.read_bytes(), before)
+                    self.assert_rule('checkpoint')
+        self.save(checkpoint().replace('read-back receipt', 'read-back receipt; outcome: failed'))
+        before = self.log.read_bytes()
+        self.run_cli('resolve')
+        self.assertEqual(self.log.read_bytes(), before)
+        self.assert_rule('checkpoint')
+
+    def test_r8_f2_unrewritable_pending_outcome_refuses(self):
+        self.save(checkpoint().replace('outcome: pending', 'out**come**: pending (pilot write in flight)'))
+        before = self.log.read_bytes()
+        self.assertEqual(self.run_cli('resolve')[0], 0)
+        self.assertEqual(self.log.read_bytes(), before)
+        self.assert_rule('checkpoint')
+
+    def test_r8_f2_actual_report_receipts_map_to_route_dispositions(self):
+        from scout_report_repair import Repair
+        task = self.folder / '.report-repairs' / 'example'
+        task.mkdir(parents=True)
+        receipt_log = self.folder / 'receipt.txt'
+        contract = dict(target=dict(username=USER, org_id=ORG), member='Example/Report', baseline='saved.json',
+                        delta=dict(column='STATUS', operator='equals', before='Open', after='Closed'))
+        for mutation, acceptance, disposition, release in (
+                ('not_applied', 'failed', 'failed', False), ('unknown', 'unknown', 'unverified', True),
+                ('succeeded', 'passed', 'applied', False), ('not_attempted', 'passed', 'already_satisfied', False),
+                ('not_attempted', 'failed', 'blocked', False)):
+            with self.subTest(disposition=disposition):
+                receipt_log.write_text('')
+                state = dict(log=str(receipt_log), mutation=mutation, acceptance=acceptance, recovery='complete',
+                             original=dict(artifact=str(self.folder / 'preedit')), readback=str(task / 'readback.json'))
+                if release:
+                    state['release_evidence'] = 'operator confirmed recovery retained'
+                if disposition == 'blocked':
+                    state['error'] = 'precondition refused before launch'
+                Repair(None).checkpoint(task, contract, state, first=True)
+                receipt = '```text\n' + receipt_log.read_text() + '```\n'
+                self.data['items'][0]['disposition'] = disposition
+                self.data['items'][0]['reason'] = 'State left: unchanged; rollback: retained'
+                self.save(checkpoint(outcome=disposition) + receipt)
+                self.record_report_marker()
+                self.run_cli('resolve')
+                self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+                self.assertIn(receipt, self.log.read_text())
+
+    def test_r8_f3_lexical_pending_in_full_body_and_before_state(self):
+        for field in ("- Verification: user isn't verified: pending; don't proceed",
+                      '- Artifact: saved.json; pending', '| verification | "pending (read-back)" |',
+                      '- Evidence: Status: “Pending”', 'Business status is Pending.',
+                      '```text\nverification: pending\n```'):
+            for location in ('checkpoint', 'before-state', 'receipt'):
+                with self.subTest(field=field, location=location):
+                    self.save()
+                    text = self.log.read_text()
+                    if location == 'before-state':
+                        text = text.replace('Preserved.', field)
+                    elif location == 'receipt':
+                        text += '<!-- scout-repair:example -->\n' + field + '\n<!-- /scout-repair:example -->\n'
+                    else:
+                        text += field + '\n'
+                    self.log.write_text(text)
+                    self.assert_rule('checkpoint')
+        for field in ('- Evidence: Status: `Pending`', '| verification | `pending (read-back)` |',
+                      '- verification: ``pending``'):
+            self.save()
+            self.log.write_text(self.log.read_text() + field + '\n')
+            self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r8_f4_heading_inventory_and_empty_boundary(self):
+        for heading in ('PENDING — component repair\ncontinued title\n---',
+                        '- step\n    ### PENDING — component repair',
+                        '## pending — component\t repair'):
+            self.log.write_text('Org: ' + ORG + '\n' + heading + '\nOutcome: failed\n')
+            self.assertEqual([r['state'] for r in self.pending_rows()], ['unclear'])
+        for boundary in ('##', '##   ', '> ##'):
+            self.log.write_text('# Change Log — Example\n' + boundary + '\nTask record: ' + self.task.name + '\n' + checkpoint())
+            before = self.log.read_bytes()
+            self.assertEqual(self.run_cli('resolve')[0], 4)
+            self.assertEqual(self.log.read_bytes(), before)
+        self.log.write_text('#\nTask record: ' + self.task.name + '\n' + checkpoint())
+        before = self.log.read_bytes()
+        self.assertEqual(self.run_cli('resolve')[0], 4)
+        self.assertEqual(self.log.read_bytes(), before)
+
+    def test_r8_f5_classification_boundaries_continuations_and_eof(self):
+        for field, expected in (('> classification:\n> existing\n', 3),
+                                ('- classification: new · evidence: no existing component\n', 0),
+                                ('- classification: new; evidence: existing elsewhere\n', 0),
+                                ('- classification: new | evidence: existing elsewhere\n', 0),
+                                ('- classification:', 3)):
+            with self.subTest(field=field):
+                self.save()
+                self.log.write_text(self.log.read_text().replace(
+                    '## Existing Component Before-State and Direct Repairs\nPreserved.\n', '') + field)
+                self.assertEqual(self.run_cli()[0], expected)
+
+    def test_r8_f7_setext_heading_underline_is_exempt_from_map_cap(self):
+        self.data['history']['architecture'] = 'created'
+        self.save()
+        for ending in ('\n', ''):
+            arch = self.architecture()
+            arch.write_text(arch.read_text() + '\nNotes\n' + '=' * 321 + ending)
+            self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+
+    def test_r7_f1_legacy_never_resolves_and_reads_full_raw_body(self):
+        for body in ('**Outcome:** applied', '**Outcome:**\n  - I1: pending\n  - **Outcome:** applied',
+                     '    **Outcome:** applied', '```text\nOutcome: applied\n```',
+                     '### Evidence\nAn OUTCOME is recorded', 'No writes yet.'):
+            with self.subTest(body=body):
+                self.log.write_text(f'Org: {ORG}\n## PENDING — component repair\n{body}\n')
+                expected = 'unclear' if 'outcome' in body.lower() else 'unresolved'
+                self.assertEqual(self.pending_rows()[0]['state'], expected)
+
+    def test_r7_f2_one_agreement_rule_for_discovery_resolve_and_check(self):
+        for extra in ('- **Outcome (attempt: A1):** failed\n',
+                      '#### Read-back\n**Outcome:** failed\n',
+                      '#### Read-back\n- **Outcome (attempt: A1):** pending\n',
+                      'The outcome is still unknown.\n',
+                      '| Outcome | failed |\n', '    - **Outcome: applied.** example\n'):
+            with self.subTest(extra=extra):
+                self.save(checkpoint() + extra)
+                self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
+                before = self.log.read_bytes()
+                self.assertEqual(self.run_cli('resolve')[0], 0)
+                if extra == 'The outcome is still unknown.\n':
+                    # Round-8 F5: prose with no valued outcome field is not a mention.
+                    self.assertNotEqual(self.log.read_bytes(), before)
+                    self.assertEqual(self.run_cli()[0], 0)
+                    continue
+                self.assertEqual(self.log.read_bytes(), before)
+                self.assert_rule('checkpoint')
+                self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') + extra)
+                self.assertEqual(self.pending_rows()[0]['state'], 'resolved')
+                self.assert_rule('checkpoint')
+
+    def test_r7_f3_o5_replay_replaces_whole_compound_outcome_values(self):
+        for status in ('- outcome: pending (pilot write in flight)',
+                       '- Classification: new (seed) · preedit_snapshot.status: not_needed · outcome: pending (deploy in flight)',
+                       '- outcome: pending (first); outcome: pending (second) | verification: complete',
+                       '- outcome: **pending (deploy in flight)**',
+                       '- **Outcome (attempt: A1):** pending (deploy in flight)'):
+            with self.subTest(status=status):
+                self.save(checkpoint().replace('- outcome: pending', status))
+                self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
+                self.assertEqual(self.run_cli('resolve')[0], 0)
+                after = self.log.read_text()
+                self.assertIn('### applied — component repair', after)
+                self.assertNotIn('in flight', after)
+                self.assertNotIn('(first)', after)
+                self.assertNotIn('(second)', after)
+                self.assertIn('- **Outcome: applied.** read-back receipt', after)
+                if status.startswith('- **Outcome ('):
+                    self.assertIn('- **Outcome (attempt: A1):** applied', after)
+                if 'outcome: **pending' in status:
+                    self.assertIn('outcome: **applied**', after)
+                self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+                self.assertEqual(self.run_cli('resolve')[0], 0)
+                self.assertEqual(self.log.read_text(), after)
+
+    def test_r7_f3_f4_pending_values_in_full_sections_and_receipts(self):
+        for field in ('- verification: complete\n  - pending', '- verification:\n  - I1: pending',
+                      '> verification:\n>   pending', '- verification:\n  - [ ] pending',
+                      '- **Classification / source:** Report: existing; ReportFolder: pending',
+                      '- Receipt: saved.json; verification: **pen**ding',
+                      '- Receipt: saved.json; readback: pen`ding`',
+                      'Field | Value\n--- | ---\nRead-back | pending',
+                      '| Field | Value |\n| --- | --- |\n| verification | **pending** |'):
+            for location in ('own', 'nested', 'before-state', 'receipt'):
+                with self.subTest(field=field, location=location):
+                    self.save()
+                    text = self.log.read_text()
+                    if location == 'before-state':
+                        text = text.replace('Preserved.', field)
+                    elif location == 'receipt':
+                        text += '```text\n<!-- scout-repair:example -->\n' + field + '\n<!-- /scout-repair:example -->\n```\n'
+                        self.record_report_marker()
+                    else:
+                        text += ('#### Read-back\n' if location == 'nested' else '') + field + '\n'
+                    self.log.write_text(text)
+                    self.assertEqual(self.run_cli()[0], 0 if 'pen`ding`' in field else 3)
+
+    def test_r7_f3_business_values_require_quotes_but_status_quotes_do_not_hide_pending(self):
+        for quote in ('`', '"', "'"):
+            self.save()
+            self.log.write_text(self.log.read_text() + '- Evidence: Status: ' + quote + 'Pending' + quote + '\n')
+            self.assertEqual(self.run_cli()[0], 0 if quote == '`' else 3)
+        self.log.write_text(self.log.read_text() + '- Evidence: Status: Pending\n')
+        self.assert_rule('checkpoint')
+
+    def test_r7_f5_container_and_setext_headings_and_ownership_boundary(self):
+        for title in ('> ## PENDING — component repair', '- ### PENDING — component repair',
+                      'PENDING — component repair\n--------------------------'):
+            with self.subTest(title=title):
+                self.log.write_text(f'Org: {ORG}\n{title}\nOutcome: applied\n')
+                self.assertEqual([r['state'] for r in self.pending_rows()], ['unclear'])
+        self.log.write_text('# Change Log — Example\nNotes\n-----\nTask record: ' + self.task.name + '\n' + checkpoint())
+        before = self.log.read_bytes()
+        self.assertEqual(self.run_cli('resolve')[0], 4)
+        self.assertEqual(self.log.read_bytes(), before)
+
+    def test_r7_f6_classification_continuation_requires_before_state_only_after_attempt(self):
+        for disposition in ('applied', 'already_satisfied', 'blocked'):
+            with self.subTest(disposition=disposition):
+                self.data['items'] = [item(disposition=disposition)]
+                self.data['items'][0]['attempts'] = ['A1']
+                self.save()
+                self.log.write_text(self.log.read_text().replace(
+                    '## Existing Component Before-State and Direct Repairs\nPreserved.\n', '') + '- classification:\n  existing\n')
+                self.assertEqual(self.run_cli()[0], 3 if disposition == 'applied' else 0)
+
+    def test_r7_f7_only_recognized_headings_escape_created_map_line_cap(self):
+        self.data['history']['architecture'] = 'created'
+        self.save()
+        for prefix in ('#tag', '####### '):
+            arch = self.architecture()
+            arch.write_text(arch.read_text() + '\n## Notes\n' + prefix + 'x' * 321 + '\n')
+            self.assert_rule('arch')
+
+    def test_r7_f8_valid_recorded_settled_checkpoint_before_final_section(self):
+        self.assertEqual(self.run_cli()[0], 0)
+        text = self.log.read_text()
+        prefix, body = text.split('## Checkpoints\n')
+        self.log.write_text(prefix + body + '## Checkpoints\n')
+        self.assert_rule('checkpoint')
+
+    def test_r7_f10_created_map_line_budget_independent_of_word_budget(self):
+        self.data['history']['architecture'] = 'created'
+        self.save()
+        arch = self.architecture()
+        arch.write_text(arch.read_text() + '\n## Notes\n' + 'x\n' * 351)
+        self.assertLess(len(arch.read_text().split()), 3750)
+        self.assert_rule('arch')
+
+    def test_r7_f11_lowercase_repair_candidate_but_not_business_prose(self):
+        for title in ('pending — component repair', 'Component Repair: pending', 'Pending Approval'):
+            self.log.write_text(f'Org: {ORG}\n## {title}\nNo writes yet.\n')
+            self.assertEqual([r['state'] for r in self.pending_rows()], [] if title == 'Pending Approval' else ['unresolved'])
+
+    def test_r7_attack_final_heading_conflict_cannot_be_rewritten(self):
+        self.save(checkpoint(outcome='applied', heading='failed').replace('outcome: pending', 'outcome: applied'))
+        self.assertEqual(self.pending_rows()[0]['state'], 'resolved')
+        before = self.log.read_bytes()
+        self.run_cli('resolve')
+        self.assertEqual(self.log.read_bytes(), before)
+        self.assert_rule('checkpoint')
+
+    def test_r7_attack_hidden_outcome_mentions_fail_closed(self):
+        for extra in ('<!-- outcome: failed -->', '<span title="outcome: failed">receipt</span>'):
+            self.save(checkpoint() + extra + '\n')
+            self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
+            before = self.log.read_bytes()
+            self.run_cli('resolve')
+            self.assertEqual(self.log.read_bytes(), before)
+
+    def test_r7_attack_outcome_field_anywhere_in_line(self):
+        for status in ('- Receipt saved; status notes outcome: pending (in flight)',
+                       '- Attempt A1 recorded outcome: pending (in flight) · verification: complete'):
+            self.save(checkpoint().replace('- outcome: pending', status))
+            self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
+            self.run_cli('resolve')
+            self.assertNotIn('in flight', self.log.read_text())
+            self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+
+    def test_r7_attack_quotes_exempt_business_values_only(self):
+        for field in ('- verification:\n  `pending`', '| verification | `pending` |',
+                      '| preedit_snapshot.status | "pending" |'):
+            self.save()
+            self.log.write_text(self.log.read_text() + field + '\n')
+            self.assertEqual(self.run_cli()[0], 0 if '`pending`' in field else 3)
+        self.save()
+        self.log.write_text(self.log.read_text() + '| Status | `Pending` |\n')
+        self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r7_attack_classification_list_value_and_raw_pending_heading(self):
+        self.log.write_text(self.log.read_text().replace(
+            '## Existing Component Before-State and Direct Repairs\nPreserved.\n', '') +
+            '- classification:\n  - existing\n')
+        with self.subTest(shape='classification list'):
+            self.assert_rule('log-section')
+        with self.subTest(shape='raw heading'):
+            self.log.write_text(f'Org: {ORG}\n## <!-- PENDING --> component repair\nNo writes yet.\n')
+            self.assertEqual([r['state'] for r in self.pending_rows()], ['unresolved'])
+
+    def test_r7_attack_marked_receipt_outcomes_share_full_body_agreement(self):
+        for receipt_outcome, expected in (('applied', 'resolved'), ('failed', 'unclear'), ('pending', 'unclear')):
+            with self.subTest(receipt_outcome=receipt_outcome):
+                receipt = ('```text\n<!-- scout-repair:example -->\n'
+                           '- **Outcome / read-back:** ' + receipt_outcome + '; receipt.json\n'
+                           '<!-- /scout-repair:example -->\n```\n')
+                self.save(checkpoint() + receipt)
+                self.record_report_marker()
+                before = self.log.read_bytes()
+                self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
+                self.run_cli('resolve')
+                self.assertIn(receipt, self.log.read_text())
+                if expected == 'unclear':
+                    self.assertEqual(self.log.read_bytes(), before)
+                    self.assert_rule('checkpoint')
+                else:
+                    self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r7_attack_whole_classification_value_including_table(self):
+        for field in ('- classification: Report — existing',
+                      '| Classification / source | Report: existing |'):
+            for disposition in ('applied', 'already_satisfied', 'blocked'):
+                with self.subTest(field=field, disposition=disposition):
+                    self.data['items'] = [item(disposition=disposition)]
+                    self.data['items'][0]['attempts'] = ['A1']
+                    self.save()
+                    self.log.write_text(self.log.read_text().replace(
+                        '## Existing Component Before-State and Direct Repairs\nPreserved.\n', '') + field + '\n')
+                    self.assertEqual(self.run_cli()[0], 3 if disposition == 'applied' else 0)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -452,8 +1214,8 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assertEqual(code, 0)
         states = [json.loads(line)['state'] for line in output.splitlines()]
         self.assertEqual(states.count('unresolved'), 1)
-        self.assertEqual(states.count('unclear'), 1)
-        self.assertEqual(states.count('resolved'), 6)  # five historical plus current task
+        self.assertEqual(states.count('unclear'), 4)
+        self.assertEqual(states.count('resolved'), 3)  # two owned historical plus current task
         code, output = self.run_cli('reconcile-plan', '--folder', str(self.folder))
         rows = [json.loads(line) for line in output.splitlines()]
         self.assertEqual(code, 0)
@@ -487,7 +1249,7 @@ class ScoutHistoryTests(unittest.TestCase):
         self.task.unlink()  # Match by username, not the org ID in a neighboring task.
         code, output = self.run_cli('pending', '--orgs-dir', str(self.folder.parent), '--org-id', ORG, '--username', USER)
         self.assertEqual(code, 0)
-        self.assertEqual([json.loads(s)['state'] for s in output.splitlines()], ['resolved', 'unclear'])  # R5 F16: unknown kinds need manual interpretation.
+        self.assertEqual([json.loads(s)['state'] for s in output.splitlines()], ['unclear', 'unclear'])  # R7 F1: legacy never resolves.
 
     def test_fenced_examples_do_not_supply_outcomes_or_headers(self):
         self.data['items'][0]['attempts'] = ['A1']
@@ -538,10 +1300,10 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assertEqual(self.run_cli('reconcile-plan', '--folder', str(self.folder)), (0, ''))
 
     def test_legacy_per_item_outcome_continuations_and_no_partial_match(self):
-        for value in ('**\n  - I1: applied\n  - I2: blocked', '** APPLIED — receipt', '\n  already_satisfied'):
-            self.assertTrue(history.legacy_final(value), value)
+        for value in ('**\n  - I1: applied\n  - I2: blocked', '** APPLIED — receipt', 'APPLIED — deployed', '\n  already_satisfied'):
+            self.assertEqual(history.checkpoint_state('## PENDING — component repair', 'PENDING — component repair', 'Outcome: ' + value), 'unclear')
         for value in ('PARTIALLY APPLIED', '**\n  - I1: applied\n  - I2: pending', 'not_applied'):
-            self.assertFalse(history.legacy_final(value), value)
+            self.assertEqual(history.checkpoint_state('## PENDING — component repair', 'PENDING — component repair', 'Outcome: ' + value), 'unclear')
 
     def test_reconciliation_rejects_unknown_or_wrongly_skipped_item(self):
         for text in ('### Unresolved Work\n- I99 — FAILED', '## What Was Skipped\n- I1 — SKIPPED'):
@@ -565,10 +1327,10 @@ class ScoutHistoryTests(unittest.TestCase):
 
     def test_r4_f6_eleven_history_shapes_and_marker_boundaries(self):
         # Structural reconstructions only; no source customer text or names.
-        bodies = [('- outcome: pending (in flight)\n- **Outcome: applied.** receipt', 'resolved')] * 5
-        bodies += [('- outcome: pending', 'unresolved'),
-                   ('FINAL OUTCOME (attempt EX): applied', 'resolved'),
-                   ('**Outcome (EX):**\n  - (a) applied\n  - (b) already_satisfied\n  - (c) applied\n  - Companion: NEW PermissionSet Example', 'resolved'),
+        bodies = [('- outcome: pending (in flight)\n- **Outcome: applied.** receipt', 'unclear')] * 5
+        bodies += [('- outcome: pending', 'unclear'),
+                   ('FINAL OUTCOME (attempt EX): applied', 'unclear'),
+                   ('**Outcome (EX):**\n  - (a) applied\n  - (b) already_satisfied\n  - (c) applied\n  - Companion: NEW PermissionSet Example', 'unclear'),
                    ('**Outcome:** PARTIALLY APPLIED', 'unclear')]
         text = f'Org: {ORG}\n'
         for n, (body, _) in enumerate(bodies):
@@ -581,24 +1343,24 @@ class ScoutHistoryTests(unittest.TestCase):
                       '**Outcome (EX):**\n  - **I1:** applied\n  - I2: blocked\n  Receipt: saved.json',
                       '- outcome: pending\n**Outcome:** applied'):
             self.log.write_text(f'Org: {ORG}\n## PENDING — component repair\n' + value + '\n')
-            self.assertEqual(self.pending_rows()[0]['state'], 'resolved')
+            self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
         self.log.write_text(f'Org: {ORG}\n## Pending questions\n## Not pending work\n')
         self.assertEqual(self.pending_rows(), [])
 
     def test_r4_f7_scout_pending_without_final_is_unresolved(self):
         for body in ('- outcome: pending\n', '- **Outcome / read-back:** pending\n', 'No marker\n'):
             self.save(checkpoint(outcome=None) + body)
-            self.assertEqual(self.pending_rows()[0]['state'], 'unresolved')
+            self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
 
     def test_r4_f8_resolve_edits_only_owned_unfenced_status_lines(self):
         receipt = '```text\n- outcome: pending\n```\n'
-        foreign = '#### PENDING — component repair · attempt FOREIGN · 2026-10-13 12:00\n- outcome: pending\n'
+        foreign = '#### PENDING — component repair · attempt FOREIGN · 2026-10-13 12:00\n- verification: pending\n'
         self.save(checkpoint() + receipt + foreign)
         self.assertEqual(self.run_cli('resolve')[0], 0)
         text = self.log.read_text()
         self.assertIn(receipt, text)
         self.assertIn(foreign, text)
-        self.assertIn('### applied — component repair · attempt A1', text)
+        self.assertIn('### PENDING — component repair · attempt A1', text)
         self.assert_rule('checkpoint')  # Foreign checkpoint cannot disappear from the inventory.
         self.save(checkpoint() + '- **Outcome / read-back:** failed — rejected\n')
         before = self.log.read_bytes()
@@ -606,8 +1368,8 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assertEqual(before, self.log.read_bytes())
 
     def test_r4_f9_pending_business_values_are_not_status_fields(self):
-        self.save(checkpoint().replace('read-back receipt', 'Status__c is Pending; readback confirms three rows') +
-                  '- Notes: Status: Pending\n- classification: new — Status: Pending is the intended value\n')
+        self.save(checkpoint().replace('read-back receipt', 'Status__c is `Pending`; readback confirms three rows') +
+                  '- Notes: Status: `Pending`\n- classification: new — Status: `Pending` is the intended value\n')
         self.run_cli('resolve')
         self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
         for key in ('classification', 'preedit_snapshot', 'outcome'):
@@ -634,9 +1396,9 @@ class ScoutHistoryTests(unittest.TestCase):
 
     def test_r4_f11_workspace_symlink_accepted_but_child_links_refused(self):
         alias = self.root / 'alias'
-        alias.symlink_to(self.root / 'orgs', target_is_directory=True)
+        alias.symlink_to(self.root, target_is_directory=True)
         for command in ('check', 'resolve'):
-            code, out = self.run_cli(command, '--task', str(alias / 'example' / self.task.name))
+            code, out = self.run_cli(command, '--task', str(alias / 'orgs' / 'example' / self.task.name))
             self.assertEqual(code, 0, out)
         log = self.log.read_text()
         self.log.unlink()
@@ -678,19 +1440,19 @@ class ScoutHistoryTests(unittest.TestCase):
         self.save(checkpoint(outcome=None))
         sibling = self.folder.parent / 'aaa-other'
         sibling.mkdir()
-        (sibling / 'task-other.md').write_text('Org: other@example.test\n')
+        (sibling / 'changes-identity.md').write_text('Org: other@example.test\n')
         (sibling / 'changes-bad.md').write_bytes(b'Other\n\xff')
         (sibling / 'changes-link.md').symlink_to(self.log)
         errors = io.StringIO()
         with contextlib.redirect_stderr(errors):
             rows = self.pending_rows()
-        self.assertEqual([r['state'] for r in rows if r['file'] == str(self.log)], ['unresolved'])
+        self.assertEqual([r['state'] for r in rows if r['file'] == str(self.log)], ['unclear'])
         self.assertIn('changes-bad.md', errors.getvalue())
         self.assertIn('changes-link.md', errors.getvalue())
         (self.folder / 'changes-bad.md').write_bytes(b'Example\n\xff')
         self.task.write_text('```scout-items\n{"history":{"decisions":"proposed"},}\n```\n')
         rows = self.pending_rows()
-        self.assertEqual(sum(r['state'] == 'unclear' for r in rows), 2)
+        self.assertEqual(sum(r['state'] == 'unclear' for r in rows), 3)
 
     def test_r4_f15_independent_mapping_oracle_and_valid_guard_pins(self):
         self.assertEqual(history.render(self.data), expected_render(self.data))
@@ -810,9 +1572,9 @@ class ScoutHistoryTests(unittest.TestCase):
     def test_r5_f1_legacy_outcomes_include_nested_sections_only_until_peer(self):
         for body, state in (
             ('**Outcome:** applied\n### Read-back\n**Outcome:** pending\n', 'unclear'),
-            ('### Verification\n**Outcome:** applied\n', 'resolved'),
-            ('**Outcome:** applied\n## Later notes\n**Outcome:** pending\n', 'resolved'),
-            ('**Outcome:** applied\n### Evidence\n```text\n**Outcome:** pending\n```\n', 'resolved'),
+            ('### Verification\n**Outcome:** applied\n', 'unclear'),
+            ('**Outcome:** applied\n## Later notes\n**Outcome:** pending\n', 'unclear'),
+            ('**Outcome:** applied\n### Evidence\n```text\n**Outcome:** pending\n```\n', 'unclear'),
         ):
             with self.subTest(body=body):
                 self.log.write_text(f'Org: {ORG}\n## PENDING — component repair\n' + body)
@@ -827,10 +1589,10 @@ class ScoutHistoryTests(unittest.TestCase):
             with self.subTest(field=field):
                 self.save()
                 self.log.write_text(self.log.read_text() + '- ' + field + '\n')
-                self.assert_rule('checkpoint')
+                self.assertEqual(self.run_cli()[0], 0 if '`pending`' in field else 3)
         self.save(checkpoint().replace('outcome: pending', 'outcome: `pending`'))
         self.assertEqual(self.run_cli('resolve')[0], 0)
-        self.assertIn('outcome: `applied`', self.log.read_text())
+        self.assertIn('outcome: `pending`', self.log.read_text())  # Code spans are data (R12 F2).
         self.assertEqual(self.run_cli()[0], 0)
 
     def test_r5_f3_component_classification_requires_before_state(self):
@@ -918,7 +1680,7 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assertEqual([Path(r['file']).name for r in proposed], [second])
 
     def test_r5_f8_labelled_evidence_is_not_a_disposition(self):
-        for tail, state in (('I1: receipt saved.json', 'resolved'), ('(a) Evidence: saved.json', 'resolved'),
+        for tail, state in (('I1: receipt saved.json', 'unclear'), ('(a) Evidence: saved.json', 'unclear'),
                             ('I2: pending', 'unclear'), ('I2: PARTIALLY APPLIED', 'unclear'),
                             ('I2: not applied', 'unclear'), ('I2: omitted', 'unclear')):
             with self.subTest(tail=tail):
@@ -934,18 +1696,18 @@ class ScoutHistoryTests(unittest.TestCase):
 
     def test_r5_f10_seed_and_task_share_workspace_alias(self):
         alias = self.root / 'alias'
-        alias.symlink_to(self.folder.parent, target_is_directory=True)
+        alias.symlink_to(self.root, target_is_directory=True)
         seed = self.folder / 'seed.sh'
         seed.write_text('# synthetic\n')
-        self.data['items'][0]['seed_asset'] = str(alias / self.folder.name / seed.name)
+        self.data['items'][0]['seed_asset'] = str(alias / 'orgs' / self.folder.name / seed.name)
         self.save()
-        code, out = self.run_cli('check', '--task', str(alias / self.folder.name / self.task.name))
+        code, out = self.run_cli('check', '--task', str(alias / 'orgs' / self.folder.name / self.task.name))
         self.assertEqual(code, 0, out)
         seed.unlink()
         target = self.root / 'other.sh'
         target.write_text('# synthetic\n')
         seed.symlink_to(target)
-        self.assertEqual(self.run_cli('check', '--task', str(alias / self.folder.name / self.task.name))[0], 4)
+        self.assertEqual(self.run_cli('check', '--task', str(alias / 'orgs' / self.folder.name / self.task.name))[0], 4)
 
     def test_r5_f11_task_symlink_loop_is_unreadable(self):
         loop = self.folder / 'task-loop.md'
@@ -1039,12 +1801,12 @@ class ScoutHistoryTests(unittest.TestCase):
 
     def test_r5_attack_labelled_unknown_status_cannot_hide_among_receipts(self):
         for tail, state in (('I2: waiting', 'unclear'), ('I2: in_progress', 'unclear'),
-                            ('I2: deferred', 'unclear'), ('I1: evidence saved.json', 'resolved')):
+                            ('I2: deferred', 'unclear'), ('I1: evidence saved.json', 'unclear')):
             with self.subTest(tail=tail):
                 self.log.write_text(f'Org: {ORG}\n## PENDING — component repair\n**Outcome:**\n  - I1: applied\n  - {tail}\n')
                 self.assertEqual(self.pending_rows()[0]['state'], state)
 
-    def test_r5_attack_kind_must_be_component_repair_not_a_trailing_mention(self):
+    def test_r6_f3_component_repair_anywhere_in_pending_heading(self):
         self.log.write_text(f'Org: {ORG}\n## PENDING — data seed for component repair\n**Outcome:** applied\n')
         self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
 
@@ -1103,10 +1865,225 @@ class ScoutHistoryTests(unittest.TestCase):
         self.save(checkpoint() + nested)
         self.assertEqual(self.run_cli('resolve')[0], 0)
         self.assertTrue(self.log.read_text().endswith(nested))
-        self.assert_rule('checkpoint')
+        self.assertEqual(self.run_cli()[0], 0)
         self.save()
         self.log.write_text(self.log.read_text() + '#### Read-back\n```text\n- verification: pending\n```\nBusiness Status is Pending.\n')
+        self.assert_rule('checkpoint')
+
+
+    def test_r6_f1_every_legacy_value_part_requires_positive_evidence(self):
+        for body in ('applied\n  - I2: pending', '\n  - applied\n  - waiting',
+                     'applied\n  unexplained prose', 'applied; I2: pending',
+                     'applied and waiting', 'applied, blocked', 'applied\n  - I2: omitted'):
+            with self.subTest(body=body):
+                self.assertEqual(history.checkpoint_state('## PENDING — component repair', 'PENDING — component repair', 'Outcome: ' + body), 'unclear')
+        for body in ('applied\n  - Receipt: saved.json', '\n  - I1: applied\n  - I2: blocked',
+                     'APPLIED — receipt\n  Evidence: saved.json'):
+            self.assertEqual(history.checkpoint_state('## PENDING — component repair', 'PENDING — component repair', 'Outcome: ' + body), 'unclear')
+
+    def test_r6_f2_scout_discovery_requires_complete_agreement(self):
+        title = checkpoint(outcome=None).splitlines()[0]
+        for extra, expected in (('#### Read-back\n**Outcome:** pending', 'unclear'),
+                                ('#### Read-back\n**Outcome:** failed', 'unclear'),
+                                ('#### Read-back\n**Outcome:** applied', 'resolved'),
+                                ('- outcome: pending', 'resolved')):
+            self.log.write_text(f'Org: {ORG}\n{title}\n- **Outcome: applied.** receipt\n{extra}\n')
+            self.assertEqual(self.pending_rows()[0]['state'], 'unclear', extra)
+        self.log.write_text(f'Org: {ORG}\n{title}\n**Outcome:** applied\n')
+        self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
+
+    def test_r6_f3_all_uppercase_pending_atx_candidates_are_reported(self):
+        for title in (' ## PENDING — component repair', '   ## **PENDING** — component repair',
+                      '## `PENDING` — COMPONENT REPAIR', '### Attempt 2 — PENDING — component repair',
+                      '### PENDING: component repair, attempt 3', '## Checkpoint (PENDING) — component repair',
+                      '## PENDING — unknown kind'):
+            self.log.write_text(f'Org: {ORG}\n{title}\nNo outcome yet.\n')
+            rows = self.pending_rows()
+            self.assertEqual(len(rows), 1, title)
+            self.assertEqual(rows[0]['state'], 'unclear')
+        self.log.write_text(f'Org: {ORG}\n## Pending Approval\nNo checkpoint\n')
+        self.assertEqual(self.pending_rows(), [])
+
+    def test_r6_f4_status_fields_ignore_presentation_not_status(self):
+        for bullet in ('', '- ', '* ', '+ ', '1. ', '2) '):
+            for label in ('verification', '**Outcome (A1)**', '`FINAL OUTCOME (attempt A1)`',
+                          '__Classification / source__', 'preedit_snapshot.status'):
+                for value in ('pending', '**pending**', '`pending`', '__pending__', '~~pending~~', '<em>pending</em>'):
+                    with self.subTest(bullet=bullet,label=label,value=value):
+                        self.save()
+                        self.log.write_text(self.log.read_text() + bullet + label + ': ' + value + '\n')
+                        self.assertEqual(self.run_cli()[0], 0 if value == '`pending`' else 3)
+        self.save()
+        self.log.write_text(self.log.read_text() + '* Evidence: Status__c is `Pending`\n')
         self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r6_f5_only_marked_report_receipt_exposes_classification(self):
+        self.save()
+        body = ('<!-- scout-repair:report-a1 -->\n### applied\n'
+                '- **Attempt / org / exact component:** report-a1; demo@example.test; Report:Example/Report\n'
+                '- **Classification / source:** Report and ReportFolder: existing; saved.json\n'
+                '- **Outcome / read-back:** applied; mutation=confirmed; acceptance=met; saved.json\n'
+                '<!-- /scout-repair:report-a1 -->\n')
+        base = self.log.read_text().replace('## Existing Component Before-State and Direct Repairs\nPreserved.\n', '')
+        self.log.write_text(base + '```text\n' + body + '```\n')
+        self.assert_rule('log-section')
+        self.log.write_text(base + '```text\n' + body.replace('scout-repair:', 'example:') + '```\n')
+        self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r6_f6_before_state_only_for_changed_existing_attempt(self):
+        for outcome in ('already_satisfied', 'blocked', 'applied', 'failed', 'unverified'):
+            with self.subTest(outcome=outcome):
+                self.data['items'] = [item(disposition=outcome)]
+                self.data['items'][0]['attempts'] = ['A1']
+                self.save()
+                self.log.write_text(self.log.read_text().replace(
+                    '## Existing Component Before-State and Direct Repairs\nPreserved.\n', '') +
+                    '* **Classification / source:** Report: existing; saved.json\n')
+                if outcome in ('already_satisfied','blocked'):
+                    self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+                else:
+                    self.assert_rule('log-section')
+
+    def test_r6_f7_log_ownership_must_be_in_real_header(self):
+        for heading in ('### Notes',' ## Notes','### **Notes**'):
+            self.log.write_text('# Change Log — Example\n' + heading + '\n' +
+                                f'Task record: {self.task.name}\n' + checkpoint())
+            before = self.log.read_bytes()
+            self.assertEqual(self.run_cli('resolve')[0], 4)
+            self.assertEqual(self.log.read_bytes(), before)
+
+    def test_r6_f8_checkpoint_inventory_covers_entire_log(self):
+        self.log.write_text(self.log.read_text().replace('## Checkpoints\n', checkpoint('LOST',outcome=None)+'## Checkpoints\n'))
+        self.assert_rule('checkpoint')
+        self.data['items'] = [item(disposition='already_satisfied')]
+        self.save()
+        self.log.write_text(self.log.read_text() + '## **PENDING** — component repair\n')
+        self.assert_rule('checkpoint')
+
+    def test_r6_f9_arch_caps_and_continuations_follow_ownership(self):
+        self.data['history']['architecture'] = 'created'
+        self.save()
+        arch = self.architecture()
+        arch.write_text(arch.read_text() + '\n## Custom section\n' + 'x' * 321 + '\n')
+        self.assert_rule('arch')
+        self.data['history']['architecture'] = 'reconciled'
+        self.save()
+        arch = self.architecture()
+        arch.write_text(arch.read_text() + f'## Beats\n- Show the beat (see `{self.log.name}`)\n')
+        self.assertEqual(self.run_cli()[0], 0)  # No dated form outside Decision Log.
+        arch.write_text(arch.read_text() + '  continuation\n')
+        self.assert_rule('arch')
+
+    def test_r6_f10_unrelated_identity_requires_authoritative_fields(self):
+        self.task.unlink()
+        self.log.write_bytes(f'Org: {ORG}\n'.encode() + b'\xff')
+        note = self.folder / 'changes-note.md'
+        other_id = ORG.replace('001', '002')
+        for text in ('```text\nOrg: other@example.test\n```\n',
+                     '## Examples\nOrg: other@example.test\n',
+                     f'An unrelated example ID: {other_id}\n'):
+            note.write_text(text)
+            code, out = self.run_cli('pending','--orgs-dir',str(self.folder.parent),'--org-id',ORG)
+            self.assertEqual(code, 3, out)
+            self.assertEqual(json.loads(out)['state'], 'incomplete')
+        note.write_text('# Change Log\nOrg: other@example.test\n')
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(self.run_cli('pending','--orgs-dir',str(self.folder.parent),'--org-id',ORG), (0,''))
+
+    def test_r6_f11_header_allows_bom_and_leading_blank_lines(self):
+        for prefix in ('\n',' \n','\ufeff','\ufeff\n\n'):
+            arch = self.architecture()
+            arch.write_text(prefix + arch.read_text())
+            self.assertEqual(self.run_cli('reconcile-plan','--folder',str(self.folder)),(0,''))
+        self.save(checkpoint())
+        self.log.write_text('\ufeff\n' + self.log.read_text())
+        self.assertEqual(self.run_cli('resolve')[0], 0)
+        self.assertIn('### applied', self.log.read_text())
+
+    def test_r6_f12_parent_loop_exercises_runtimeerror_mapping_on_python39(self):
+        loop = self.root / 'loop'
+        loop.symlink_to(loop.name)
+        script = Path(history.__file__)
+        for path in (loop/'child/task.md', loop/'child/orgs/example/task.md'):
+            result = subprocess.run(['/usr/bin/python3','-S',str(script),'check','--task',str(path)],
+                                    capture_output=True,text=True)
+            self.assertEqual(result.returncode,4,result.stdout+result.stderr)
+            self.assertIn('(RuntimeError)',result.stdout)
+
+    def test_r6_f13_consolidated_before_state_status_is_validated(self):
+        for field in ('- **First pre-edit artifact / source / members:** `pending`',
+                      '* **Outcome (A1):** pending', '+ rollback: __pending__'):
+            self.save()
+            self.log.write_text(self.log.read_text().replace('Preserved.\n',field+'\n'))
+            self.assertEqual(self.run_cli()[0], 0 if '`pending`' in field else 3)
+
+    def test_r6_f14_blocked_checkpoint_records_no_write_flow(self):
+        self.data['items'] = [item(disposition='blocked')]
+        self.data['items'][0]['attempts'] = ['A1','A2']
+        self.save()
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        self.log.write_text(self.log.read_text() + '- classification: unknown; retrieve failed\n')
+        # Round-8 F1: the compound segment's failed conflicts with canonical blocked.
+        self.assert_rule('checkpoint')
+        for earlier in ('applied','failed','unverified','already_satisfied'):
+            self.save(checkpoint('A1',earlier,earlier).replace('outcome: pending','outcome: '+earlier)+
+                      checkpoint('A2','blocked','blocked').replace('outcome: pending','outcome: blocked'))
+            self.assert_rule('checkpoint')
+
+    def test_r6_f15_reject_orgs_alias_nested_task_and_folder_alias(self):
+        workspace = self.root / 'other-workspace'
+        workspace.mkdir()
+        (workspace/'orgs').symlink_to(self.folder.parent,target_is_directory=True)
+        self.save(checkpoint())
+        before = self.log.read_bytes()
+        self.assertEqual(self.run_cli('resolve','--task',str(workspace/'orgs/example'/self.task.name))[0],4)
+        self.assertEqual(self.log.read_bytes(),before)
+        nested = self.folder/'session'
+        nested.mkdir()
+        self.task = nested/self.task.name
+        self.folder = nested
+        self.save(checkpoint())
+        before = self.log.read_bytes()
+        self.assertEqual(self.run_cli('resolve')[0],4)
+        self.assertEqual(self.log.read_bytes(),before)
+        alias = nested.parent.parent/'alias-org'
+        alias.symlink_to(nested.parent,target_is_directory=True)
+        self.assertEqual(self.run_cli('reconcile-plan','--folder',str(alias))[0],4)
+
+
+    def test_r6_attack_inline_markup_cannot_split_pending_tokens(self):
+        self.log.write_text(f'Org: {ORG}\n## **PEN**DING — component **repair**\n**Outcome:** applied\n')
+        self.assertEqual([r['state'] for r in self.pending_rows()], ['unclear'])
+        for field in ('- verification: **pen**ding', '- outcome: pen`ding`', '> * verification: pending'):
+            self.save()
+            self.log.write_text(self.log.read_text() + field + '\n')
+            self.assertEqual(self.run_cli()[0], 3)  # F2 leaves a noncanonical outcome value: pen.
+
+    def test_r6_attack_pending_status_indented_value(self):
+        for field in ('- verification:\n  **pending**', '- **Outcome (A1):**\n  - pending'):
+            self.save()
+            self.log.write_text(self.log.read_text() + field + '\n')
+            self.assert_rule('checkpoint')
+
+    def test_r6_attack_marked_receipt_pending_field_is_real_evidence(self):
+        self.save()
+        self.record_report_marker()
+        receipt = '<!-- scout-repair:example -->\n- verification: `pending`\n<!-- /scout-repair:example -->\n'
+        self.log.write_text(self.log.read_text() + '```text\n' + receipt + '```\n')
+        self.assertEqual(self.run_cli()[0], 0)
+        self.save()
+        self.log.write_text(self.log.read_text() + '```text\n' + receipt.replace('scout-repair:', 'example:') + '```\n')
+        self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r6_attack_created_cap_counts_trailing_spaces_but_ignores_fences(self):
+        self.data['history']['architecture'] = 'created'
+        self.save()
+        arch = self.architecture()
+        arch.write_text(arch.read_text() + '\n## Notes\nA note' + ' ' * 321 + '\n')
+        self.assert_rule('arch')
+        arch = self.architecture()
+        arch.write_text(arch.read_text().replace('## Demo Flow / Narrative Arc\n', '## Demo Flow / Narrative Arc\n```text\n' + 'x' * 500 + '\n```\n'))
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
 
 
 if __name__ == '__main__':

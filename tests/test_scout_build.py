@@ -1033,8 +1033,9 @@ class Round4Tests(Harness):
         self.data['items'][0].update(disposition='unverified', reason='Timed out; never terminal')
         self.save(cp('A1', 'unverified', '- Receipts: deploy %s submitted.\n' % DEPLOY))
         self.assertEqual([r.get('open_jobs') for r in rows()], [[DEPLOY]])
-        self.save('### PENDING — component repair\n- Deploy %s submitted; outcome: unverified (job still queued)\n' % DEPLOY)
-        self.assertEqual([r.get('open_jobs') for r in rows()], [[DEPLOY]])  # legacy: its final outcome is unverified
+        # The RC merge changed this case to W3's discovery: legacy is unresolved without an outcome mention, unclear with one.
+        self.save('### PENDING — component repair\n- Deploy %s submitted.\n' % DEPLOY)
+        self.assertEqual([r.get('open_jobs') for r in rows()], [[DEPLOY]])  # legacy, unresolved: no result recorded
 
 
 class Round5Tests(Harness):
@@ -1082,10 +1083,12 @@ class Round5Tests(Harness):
         rows = [r for r in base.ScoutHistoryTests.pending_rows(self) if r.get('file') == str(self.log)]
         self.assertEqual([r.get('open_jobs') for r in rows], [['apply script']])
 
-    def test_r4_f6_a_resolved_legacy_unverified_checkpoint_keeps_its_job(self):
+    def test_r4_f6_a_legacy_checkpoint_with_an_outcome_is_read_not_settled(self):
+        """The RC merge changed this test: under W3's discovery a legacy checkpoint that mentions an outcome is unclear, and
+        the route has Scout read and interpret it, so `pending` adds no open_jobs that could block the org's every task."""
         self.save('### PENDING — component repair\n- Deploy %s submitted.\n- Outcome: unverified\n' % DEPLOY)
         rows = [r for r in base.ScoutHistoryTests.pending_rows(self) if r.get('file') == str(self.log)]
-        self.assertEqual([(r['state'], r.get('open_jobs')) for r in rows], [('resolved', [DEPLOY])])
+        self.assertEqual([(r['state'], r.get('open_jobs')) for r in rows], [('unclear', None)])
 
     def test_r4_f7_an_earlier_already_satisfied_attempt_never_submits(self):
         self.data['items'][0]['attempts'] = ['A1', 'A2']
@@ -1108,6 +1111,22 @@ class Round5Tests(Harness):
                   cp('A2', body=job('agent publish', 'Active', '2026-10-13T12:10:00', '2026-10-13T12:11:00'), at='2026-10-13 12:10'))
         self.add_sections('Agentforce Deployed (if any)', 'Agentforce Current-Test Evidence (if any)')
         self.assertIn('"Agent Not Live"', self.assert_rule('log-type-sections'))
+
+
+class ReleaseCandidateTests(Harness):
+    """The RC merge of W3 and W10: a report receipt settles its own deploy."""
+
+    def receipt(self, outcome):
+        return ('```text\n<!-- scout-repair:repair-k3x9q2ab -->\n### %s\n- **Outcome / read-back:** %s; mutation=`succeeded`; acceptance=`passed`; '
+                '`x/readback.json`\n- **Receipts / remaining action:** `x/result.json`; `x/deploy-start.json`; `%s`; `resolved`\n'
+                '<!-- /scout-repair:repair-k3x9q2ab -->\n```\n') % (outcome, outcome, DEPLOY)
+
+    def test_a_read_back_receipt_releases_its_job_and_an_unverified_one_holds_it(self):
+        self.save(cp('A1', body=self.receipt('applied')))
+        self.assertEqual(json.loads(self.run_cli('plan')[1])['open_jobs'], [])
+        self.data['items'][0].update(disposition='unverified', reason='Released by operator; result unverified')
+        self.save(cp('A1', 'unverified', self.receipt('unverified — released by operator')))
+        self.assertEqual([j['job'] for j in json.loads(self.run_cli('plan')[1])['open_jobs']], [DEPLOY])
 
 
 if __name__ == '__main__':
