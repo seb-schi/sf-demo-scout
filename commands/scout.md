@@ -46,7 +46,7 @@ Prep mode (`/scout prep`, or rehearsing or checking an existing demo): follow `$
 
 Treat a supplied demo plan, requirements or discovery notes as the brief: beats, personas, cuts, hero records and on-screen claims become items, criteria and story fields. These inputs are leads, not evidence; confirmation still applies.
 
-After the first message, read the category and companion rules in `${CLAUDE_PLUGIN_ROOT}/CLAUDE.md`. Keep its technical safety rules; this command governs targeting, orchestration and dispositions. The later Docs-Gated tier governs dashboards/complex LWC. CLI-only applies even to deliberately loaded companion rules.
+After the first message, read the category and companion rules in `${CLAUDE_PLUGIN_ROOT}/AGENTS.md`. Keep its technical safety rules; this command governs targeting, orchestration and dispositions. The later Docs-Gated tier governs dashboards/complex LWC. CLI-only applies even to deliberately loaded companion rules.
 
 Before the first write, bundle one confirmation if the org came from the default, Scout proposed an item the SE didn't state, or a gated category wasn't explicitly requested. The default-org confirmation names the bound username and org ID. An explicit SE request naming the item and action counts as its confirmation, except for deletes; carry it to workers. Ask again only for an amendment adding an unapproved target or action, never for routine progress.
 

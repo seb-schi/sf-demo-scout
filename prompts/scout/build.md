@@ -45,7 +45,7 @@ Flow | `sf-flow`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` §"Flow Rul
 Apex | `platform-apex-generate`, `platform-apex-test-generate`, `platform-apex-test-run`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` §"Apex Rules" | passing tests, bounded fix loop
 LWC | `experience-lwc-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` §"LWC Rules" | read-back, then visual QA
 Agentforce | `agentforce-generate`, `agentforce-test`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` §"New Agent (Agent Script path)", §"Modify Existing Agent (version-safe path)", §"Smoke Test + Validation Gate (after activate — both paths)"; `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` §"Validation Gate — REQUIRED before reporting an agent working" | smoke test and gate; preview gaps to visual QA
-Anything else | `${CLAUDE_PLUGIN_ROOT}/CLAUDE.md` §"Docs-Gated — attempt everything metadata-authorable (there is no capability ceiling)" | its Docs-cited disposition
+Anything else | `${CLAUDE_PLUGIN_ROOT}/AGENTS.md` §"Docs-Gated: attempt metadata-authorable work" | its Docs-cited disposition
 
 A Flow item records its frozen validation mode and every required test. An Agentforce item references the evaluator's evidence file, with one obligation per required action and assertion, each with its own inputs. An `unavailable` test or invocation is visual QA, never a pass.
 

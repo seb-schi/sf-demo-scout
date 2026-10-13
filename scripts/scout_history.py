@@ -31,7 +31,8 @@ KNOWN_TYPES = set('customobject customfield recordtype permissionset permissions
                  'data dataseeding record validationrule listview sharingrules sharingrule report '
                  'reportfolder reporttype customreporttype customsetting custommetadata '
                  'custommetadatatype globalvalueset standardvalueset'.split())
-TYPE_ALIASES = {'pagelayout': 'layout', 'lightningapp': 'customapplication', 'path': 'pathassistant',
+TYPE_ALIASES = {'pagelayout': 'layout', 'lightningapp': 'customapplication', 'path': 'pathassistant', 'paths': 'pathassistant',
+                'businessprocesses': 'businessprocess',  # W10 R5-C3: plural spellings keep their canonical type
                 'records': 'record', 'picklistvalues': 'standardvalueset'}
 BUILD.KNOWN_TYPES, BUILD.TYPE_ALIASES = KNOWN_TYPES, TYPE_ALIASES  # W10 F7: complexity is derived from these
 CHECKPOINT = re.compile(r'^### (PENDING|' + '|'.join(DISPOSITIONS) +

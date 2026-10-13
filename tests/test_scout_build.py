@@ -1129,5 +1129,69 @@ class ReleaseCandidateTests(Harness):
         self.assertEqual([j['job'] for j in json.loads(self.run_cli('plan')[1])['open_jobs']], [DEPLOY])
 
 
+class FinalRoundTests(Harness):
+    """W10's final round (review rule 10): Astra's last-pass findings R5-F1 to R5-F3 and candidates C1 to C5, all in scope."""
+
+    def test_r5_f1_an_incomparable_amendment_keeps_the_certain_order(self):
+        self.data['items'] = items(('I1', 'applied', ()), ('I2', 'applied', ('I1',)))
+        self.data['items'][0]['attempts'] = ['A1', 'A3']
+        self.save(cp('A1', body=job(BULK, 'JobComplete', '2026-10-13T12:09:00Z', '2026-10-13T12:10:00Z')) +
+                  cp('A2', body=job(DEPLOY, 'Succeeded', '2026-10-13T12:05:00Z', '2026-10-13T12:06:00Z')) + cp('A3', at='2026-10-14 12:30'))
+        self.assertIn('I2 was attempted before its prerequisite I1 settled', self.assert_rule('plan'))
+
+    def test_r5_f2_a_contradictory_active_version_fails_even_under_visual_qa(self):
+        EvidenceTests.flow(self, evidence={'flow_tests': [EvidenceTests.row(self)]})
+        self.data['items'][0].update(visual_qa=True)
+        self.data['items'][0]['flow_validation']['active_version'] = 2
+        complex_story(self.data, 'visual_qa')
+        self.save()
+        self.add_sections('Flows Deployed (if any)', 'Execution Order Check')
+        self.assertIn('active_version', self.assert_rule('evidence-ref'))
+
+    def test_r5_f3_a_later_top_level_heading_ends_the_binding_scope(self):
+        EvidenceTests.flow(self, evidence={'flow_tests': [EvidenceTests.row(self)]})
+        self.task.write_text(self.task.read_text() + '\n## Target\n- Selector `demo`\n\n# Request verbatim\nOrg: 00D000000000999EAA\n')
+        self.passes()  # the old ticket's org never binds
+
+    def test_r5_c1_an_attempt_in_flight_holds_the_slot(self):
+        self.data['items'] = items(('I1', None, ()), ('I2', None, ()))
+        self.data['items'][0]['attempts'] = ['A1']
+        self.save('### PENDING — component repair · attempt A1 · 2026-10-13 12:00\n- launched: 2026-10-13T12:00:00\n')
+        plan = json.loads(self.run_cli('plan')[1])
+        self.assertEqual(plan['ready'], [])
+        self.assertEqual([j['attempt'] for j in plan['open_jobs']], ['A1'])
+
+    def test_r5_c2_an_item_only_a_dropped_claim_names_is_history(self):
+        complex_story(self.data)
+        self.data['items'][0]['grounding'] = [dict(DOCS)]
+        self.data['story']['beats'][0]['claims'].append(dict(text='Withdrawn extra', item='I2', result='dropped', required=False))
+        self.data['items'].append(item('I2', 'omitted'))
+        self.data['items'][1].update(reason='SE withdrew the optional field', beat='B1')  # keeps its beat link
+        self.save()
+        self.passes()
+
+    def test_r5_c3_a_plural_spelling_keeps_its_canonical_type(self):
+        self.data['items'][0]['type'] = 'Paths'
+        self.save()
+        self.add_sections('Paths Deployed (if any)')
+        self.passes()  # autonomous: no Docs grounding owed, and not complex
+
+    def test_r5_c4_a_qualified_business_process_name_needs_its_section(self):
+        complex_story(self.data)
+        self.data['items'][0].update(type='Support Business Process', grounding=[dict(DOCS)])
+        self.save()
+        self.assertIn('"Business Processes Deployed"', self.assert_rule('log-type-sections'))
+
+    def test_r5_c5_a_flip_that_cannot_be_rehearsed_states_why(self):
+        complex_story(self.data, 'visual_qa')
+        self.data['story']['beats'][0]['flips'] = ['FL1']
+        self.data['rehearsals'] = [dict(flip='FL1', result='not_rehearsable', evidence='')]
+        self.save()
+        self.assertIn('Overall: UNRESOLVED', self.run_cli('render')[1])
+        self.data['rehearsals'][0]['evidence'] = 'publishes a Publish Immediately event'
+        self.save()
+        self.assertIn('Overall: FINISHED_WITH_EXCEPTIONS', self.run_cli('render')[1])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -34,7 +34,7 @@ class ScoutRouteTests(unittest.TestCase):
         self.assertGreater(len(paths), 10)
         for relative in paths:
             self.assertTrue((ROOT / relative).exists(), relative)
-        self.assertEqual(self.command.count('/CLAUDE.md'), 1)
+        self.assertEqual(self.command.count('/AGENTS.md'), 1)  # RC: main renamed the standing rules file
 
     def test_every_quoted_section_exists(self):
         count = 0
@@ -196,7 +196,7 @@ class ScoutRouteTests(unittest.TestCase):
                    '- Modify existing profiles or permission sets',
                    '- Touch anything prefixed `sb_` or `managed__`']
         for bullet in bullets:
-            self.assertIn(bullet, (ROOT / 'CLAUDE.md').read_text())
+            self.assertIn(bullet, (ROOT / 'AGENTS.md').read_text())
         self.assertIn('Get explicit SE confirmation before any of these actions:\n' + '\n'.join(bullets), self.command)
         self.assertIn('An explicit SE request naming the item and action counts', self.command)
         self.assertIn('three qualified confirmation bullets above', self.command)
