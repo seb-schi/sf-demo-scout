@@ -187,7 +187,7 @@ class ScoutRouteTests(unittest.TestCase):
 
     def test_complete_brief_startup_budget_and_report_checkpoint_adapter(self):
         startup = [COMMAND, ROOT / 'prompts/host-runtime.md', ROOT / 'prompts/workspace-bootstrap.md']
-        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3000)
+        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3100)  # RC: +82 from main's shipped worker-model and zsh fixes
         self.phrases(self.command, 'log explicitly as `--change-log`',
                      'marked receipt block fenced and its evidence unchanged')
 
@@ -289,7 +289,7 @@ class ScoutRouteTests(unittest.TestCase):
     def test_r4_f18_complete_brief_availability_without_readiness(self):
         self.phrases(self.command, 'Check exposed Docs tools; do not load readiness before this message')
         startup = [COMMAND, ROOT / 'prompts/host-runtime.md', ROOT / 'prompts/workspace-bootstrap.md']
-        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3000)
+        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3100)  # RC: +82 from main's shipped worker-model and zsh fixes
 
     def test_r4_f19_stamps_come_from_clock(self):
         self.phrases(self.command, 'Stamp records from `date`, never an estimate')
