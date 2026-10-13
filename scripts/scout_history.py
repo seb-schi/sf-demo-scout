@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,10 @@ import stat
 import sys
 import tempfile
 from urllib.parse import urlsplit
+
+_BUILD_SPEC = importlib.util.spec_from_file_location('scout_build', Path(__file__).with_name('scout_build.py'))
+BUILD = importlib.util.module_from_spec(_BUILD_SPEC)
+_BUILD_SPEC.loader.exec_module(BUILD)  # W10: complex-plan rules live in scout_build.py
 
 DISPOSITIONS = ('applied', 'already_satisfied', 'failed', 'blocked', 'unverified', 'omitted')
 SECTIONS = ('Verified — Applied This Build', 'Verified — Already Satisfied Before This Build',
@@ -179,6 +184,10 @@ def schema(record):
             beat_ids.add(beat['id'])
             for claim in beat['claims']:
                 fields(claim, ('text', 'item'))
+    try:
+        BUILD.validate(record)
+    except ValueError as error:
+        raise BlockError(str(error)) from error
     return record
 
 
@@ -203,7 +212,8 @@ def bucket(item):
 
 def overall(record):
     buckets = [bucket(i)[0] for i in record['items']]
-    return 'UNRESOLVED' if 3 in buckets else 'FINISHED_WITH_EXCEPTIONS' if 2 in buckets else 'FULLY_VERIFIED'
+    base = 'UNRESOLVED' if 3 in buckets else 'FINISHED_WITH_EXCEPTIONS' if 2 in buckets else 'FULLY_VERIFIED'
+    return BUILD.overall(record, base)
 
 
 def grounding_line(record):
@@ -221,6 +231,8 @@ def render(record):
     output = [grounding_line(record), '', '## What Was Skipped',
               *rows(i for i in record['items'] if i['disposition'] == 'omitted'),
               '', '## Completion Reconciliation', 'Overall: ' + overall(record)]
+    if BUILD.beats_line(record):
+        output.append(BUILD.beats_line(record))
     for n, section in enumerate(SECTIONS):
         output += ['', '### ' + section, *rows(i for i in record['items'] if bucket(i)[0] == n)]
     return '\n'.join(output) + '\n'
@@ -395,7 +407,7 @@ def check(task, record):
         for dependency in item['depends_on']:
             if dependency not in items:
                 issue('dependency', identifier + ' has unknown dependency ' + dependency)
-            elif disposition in ('applied', 'already_satisfied') and items[dependency]['disposition'] in ('failed', 'blocked', 'unverified', None):
+            elif disposition in ('applied', 'already_satisfied') and items[dependency]['disposition'] in ('failed', 'blocked', 'unverified', 'omitted', None):
                 issue('dependency', identifier + ' depends on unresolved ' + dependency)
         grounded, docs, unavailable = item['grounding'], False, False
         for entry in grounded:
@@ -561,6 +573,14 @@ def check(task, record):
             if over(text):
                 issue('arch', 'map exceeds 350 lines / 3750 words' + (' only due to SE sections' if not over(template) else ''),
                       arch, warning=not over(template))
+    positions = {}
+    if log.exists():
+        for section in headings(read(log)):
+            match = CHECKPOINT.fullmatch(read(log)[section[2]:].splitlines()[0])
+            if match:
+                positions.setdefault(match[2], section[2])
+    for rule, message in BUILD.check_findings(record, task.parent, positions):
+        issue(rule, message)
     print('\n'.join(findings + warnings) or f'{task}:1: check: pass')
     return 3 if findings else 0
 
@@ -683,7 +703,7 @@ def reconcile_plan(folder):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
-    for name in ('render', 'resolve', 'check'):
+    for name in ('render', 'resolve', 'check', 'plan'):
         commands.add_parser(name).add_argument('--task', required=True, type=Path)
     sub = commands.add_parser('pending')
     sub.add_argument('--orgs-dir', required=True, type=Path)
@@ -703,6 +723,12 @@ def main(argv=None):
             record = task_record(task)
             if args.command == 'render':
                 print(render(record), end='')
+            elif args.command == 'plan':
+                try:
+                    print(json.dumps(BUILD.plan(record)))
+                except BUILD.CycleError as error:
+                    print(f'{task}:1: plan: {error}')
+                    return 3
             elif args.command == 'resolve':
                 resolve(task, record)
             else:
