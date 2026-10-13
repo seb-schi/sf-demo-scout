@@ -118,10 +118,22 @@ conforming cartridge that means:
    authored to be more current and correct on its industry than a general model.
 3. **Honor the one hard retrieval rule.** Index/hybrid-disposition skills point at
    large external hubs (Slack canvases, Google decks, product repos). NEVER read
-   a hub into this sparring context — dispatch a Sonnet subagent that returns only
+   a hub into this sparring context — apply
+   `prompts/host-runtime.md#worker-model-mirroring` and dispatch a subagent that returns only
    the distilled answer, and never cache release/competitive/setup figures the
    skill marks churny. (This is already Scout's named-source discipline from
    Stage 3 — the same subagent pattern.)
+
+For each delegated lookup, prepend this block to its worker prompt. Substitute
+the active host contract's resolved absolute root for `[PLUGIN_ROOT_ABS]`:
+
+```
+Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, read "[PLUGIN_ROOT_ABS]/AGENTS.md" and follow it.
+Get the SE's explicit confirmation before:
+- Delete existing metadata or records
+- Modify existing profiles or permission sets
+- Touch anything prefixed `sb_` or `managed__`
+```
 
 Announce the consult in one line so the SE sees it happen, e.g.:
 > "This org is [industry] and the [cartridge name] knowledge cartridge covers it

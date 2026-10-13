@@ -58,7 +58,7 @@ For each named reference (cap at 3):
    - **Doc** → `mcp__google-workspace__get_doc_as_markdown` (clean Markdown,
      preserves tables/headings).
 3. Extract requirements, capability rows, open questions, embedded links —
-   whatever the document actually contains. Surface to Opus for scenario
+   whatever the document actually contains. Surface to the main conversation for scenario
    integration, attributed per the framing above.
 
 ## Read-only by intent
@@ -71,7 +71,7 @@ to a customer document is out of scope for sparring.
 
 ## Output
 
-**Sub-agent return contract.** This procedure is normally dispatched as a Sonnet sub-agent (see scout-sparring.md "Slack & Google Workspace lookup handling"). Return ONLY the compact attributed findings — never the raw sheet rows or doc markdown. Format each finding as `[<doc/sheet title>], [tab/range]: "[quoted requirement]".` Hold any solution-fit/capability claim as the SE's working hypothesis, not fact. If a named source could not be located or read, return a one-line note saying so. The caller (Opus) keeps your return as Stage 5 context; the raw payloads must die in your context, not the caller's.
+**Sub-agent return contract.** This procedure is normally dispatched as a sub-agent (see scout-sparring.md "Slack & Google Workspace lookup handling"). Return ONLY the compact attributed findings — never the raw sheet rows or doc markdown. Format each finding as `[<doc/sheet title>], [tab/range]: "[quoted requirement]".` Hold any solution-fit/capability claim as the SE's working hypothesis, not fact. If a named source could not be located or read, return a one-line note saying so. The caller (the orchestrator) keeps your return as Stage 5 context; the raw payloads must die in your context, not the caller's.
 
 Findings feed Stage 5 scenario proposal as **context** — attributed, with
 fit-claims held as hypotheses. They also get a 1-line synthesis per source in

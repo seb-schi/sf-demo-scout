@@ -12,6 +12,35 @@ OWNER_HELPER="$SCRIPT_DIR/setup-cli-owner.py"
 NPM_EXE=$(type -P npm 2>/dev/null || true)
 PYTHON_EXE=$(type -P python3 2>/dev/null || true)
 CLI_EXE=$(type -P "$1" 2>/dev/null || true)
+report_running_client() {
+  if [ "$1" = "claude" ] && [ -n "$PYTHON_EXE" ]; then
+    local owned="" updated=""
+    [ "${OWNER_RESULT:-}" = "owned" ] && owned="$CLI_EXE"
+    [ "${SCOUT_CLAUDE_UPDATED:-}" = "1" ] && updated="$CLI_EXE"
+    "$PYTHON_EXE" -B "$SCRIPT_DIR/client-version.py" setup \
+      --npm-owned "$owned" --updated "$updated" 2>/dev/null || true
+  elif [ "$1" = "claude" ] && [ "${SCOUT_HOST:-}" = "claude" ]; then
+    echo "Running Claude client binary: unverified — Python unavailable"
+  fi
+}
+# Report on every return path without changing ownership/update decisions.
+trap 'report_running_client "$1"' EXIT
+if [ "$1" = "claude" ] && [ -n "$PYTHON_EXE" ] && [ -n "$CLI_EXE" ] &&
+    "$PYTHON_EXE" - "$CLI_EXE" 2>/dev/null <<'SCOUT_NATIVE_CLAUDE'
+from pathlib import Path
+import sys
+try:
+    active = Path(sys.argv[1]).resolve(strict=True)
+    native = Path.home().resolve(strict=True) / ".local/share/claude/versions"
+    found = active.is_file() and native in active.parents
+except (OSError, RuntimeError, ValueError):
+    found = False
+sys.exit(0 if found else 1)
+SCOUT_NATIVE_CLAUDE
+then
+  echo "CLAUDE_CLI_NOT_NPM_OWNED (native install updates itself; Scout left it alone)"
+  exit 0
+fi
 if [ -z "$NPM_EXE" ] || [ -z "$PYTHON_EXE" ] || [ -z "$CLI_EXE" ] \
     || [ ! -f "$OWNER_HELPER" ]; then
   OWNER_RESULT=unavailable
@@ -179,6 +208,7 @@ else
     elif [ "$CC_VER_RC" -ne 0 ] || [ -z "$CC_AFTER" ]; then
       echo "CLAUDE_CLI_UPDATE_UNVERIFIED (install exit 0 but the version probe failed or returned no supported version)"
     elif [ "$CC_AFTER" = "$CC_RESOLVED" ]; then
+      SCOUT_CLAUDE_UPDATED=1
       echo "CLAUDE_CLI_UPDATED ($CC_INSTALLED -> $CC_AFTER)"
     elif [ "$CC_AFTER" = "$CC_INSTALLED" ]; then
       echo "CLAUDE_CLI_UPDATE_NOOP (install exit 0 but version unchanged — still $CC_AFTER)"

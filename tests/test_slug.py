@@ -29,9 +29,9 @@ class SlugTests(unittest.TestCase):
             ("Deutsche Fachpflege", "deutsche-fachpflege"),
             ("L'Oréal", "l-oreal"),
             ("AT&T", "at-t"),
-            ("Metro CPQ", "metro-cpq"),
+            ("Example CPQ", "example-cpq"),
             ("3M", "3m"),
-            ("CareConnect4Me_DPA", "careconnect4me-dpa"),
+            ("ExampleCare_DPA", "examplecare-dpa"),
             ("Müller", "muller"),
             ("Straße", "strasse"),
             ("Søren", "soren"),
@@ -73,16 +73,16 @@ class CustomerFolderHookTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="scout-folder-hook-test-")
         self.addCleanup(self.temp.cleanup)
         self.fx = StartupFixture(Path(self.temp.name).resolve())
-        self.fx.write_config("CareConnect4Me_DPA")
+        self.fx.write_config("ExampleCare_DPA")
         self.fx.write_list(
-            [{"alias": "CareConnect4Me_DPA", "username": "u@example.invalid"}]
+            [{"alias": "ExampleCare_DPA", "username": "u@example.invalid"}]
         )
         self.fx.write_display(
-            "CareConnect4Me_DPA", username="u@example.invalid"
+            "ExampleCare_DPA", username="u@example.invalid"
         )
 
     def seed_folder(self, suffix: str, *, audit: bool = False) -> None:
-        folder = self.fx.workspace / "orgs" / f"careconnect4me-dpa-{suffix}"
+        folder = self.fx.workspace / "orgs" / f"examplecare-dpa-{suffix}"
         folder.mkdir(parents=True)
         if audit:
             (folder / "audit-2026-09-16.md").write_text("# audit")
@@ -123,9 +123,9 @@ class CustomerFolderHookTests(unittest.TestCase):
     def test_folder_labels_alias_and_audit_association(self) -> None:
         self.seed_folder("acme", audit=True)
         output = self.run_hook()
-        self.assertIn("1 customer folder(s) for CareConnect4Me_DPA", output)
+        self.assertIn("1 customer folder(s) for ExampleCare_DPA", output)
         self.assertIn("- acme:", output)
-        self.assertIn("**Alias:** CareConnect4Me_DPA", output)
+        self.assertIn("**Alias:** ExampleCare_DPA", output)
         self.assertTrue(
             "audit-2026-09-16.md" in output
             and "Last change log: changes-2026-09-16.md" in output
@@ -135,12 +135,12 @@ class CustomerFolderHookTests(unittest.TestCase):
         self.seed_folder("acme")
         self.seed_folder("globex")
         output = self.run_hook()
-        self.assertIn("2 customer folder(s) for CareConnect4Me_DPA", output)
+        self.assertIn("2 customer folder(s) for ExampleCare_DPA", output)
         self.assertTrue("- acme:" in output and "- globex:" in output)
 
     def test_no_folder_and_unavailable_helper_are_distinct(self) -> None:
         no_folder = self.run_hook()
-        self.assertIn("No customer folders for CareConnect4Me_DPA", no_folder)
+        self.assertIn("No customer folders for ExampleCare_DPA", no_folder)
         self.assertNotIn("lookup unavailable", no_folder)
 
         self.seed_folder("acme")

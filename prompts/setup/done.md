@@ -42,7 +42,8 @@ The fixed Claude wording below applies only to Claude.
 > - Any `*_UPDATE_FAILED` — "The [Salesforce CLI / Claude Code] update didn't complete (installer error) — it'll retry on a future refresh." (If a version was observed, add "It currently reports [version]."; otherwise add "Its current version couldn't be verified." — do NOT claim the prior install is intact.)
 > - Any `*_UPDATE_UNVERIFIED` — "Couldn't verify the [Salesforce CLI / Claude Code] version after the update — continuing; it'll re-check on a future refresh."
 > - Any `*_UPDATE_MISMATCH` — "Heads-up: [Salesforce CLI / Claude Code] now reports [observed], but [target] was expected — worth a quick check."
-> - Any `*_NOT_NPM_OWNED` — "Scout left [Salesforce CLI / Claude Code] unchanged because the active executable belongs to another installation; use that installation's updater."
+> - `CLAUDE_CLI_NOT_NPM_OWNED (native install updates itself; Scout left it alone)` — "Claude Code uses the native install, which updates itself; Scout left it alone."
+> - Other `*_NOT_NPM_OWNED` — "Scout left [Salesforce CLI / Claude Code] unchanged because the active executable belongs to another installation; use that installation's updater."
 > - Any `*_OWNERSHIP_UNVERIFIED` — "Scout couldn't prove that npm owns the active [Salesforce CLI / Claude Code], so it safely skipped the update."
 
 If an MCP status was not `registration=registered transport=connected`, append
@@ -54,5 +55,7 @@ its required tools work before discovery and the first real use.
 
 > "Scout refreshed its shell block and ensured `~/.local/bin` is on PATH, removing recognized retired Scout exports where present. For an existing file, the pre-edit backup is `~/.zshrc.scout-bak-zshrc` (beside the target if `.zshrc` is a symlink). Open a new shell to load the updated file; already-running processes keep their current environment."
 
-Only actual mapping-preservation flags from the setup helpers justify a separate
-model-routing note. `ZSHRC_MODIFIED` alone does not establish that mappings exist.
+Include the Claude running-client version (or unverified reason), any floor
+notice and the read-only model report from setup. Keep its provider/source-specific
+advice; a CLI update on PATH does not establish that the desktop or IDE updated.
+`ZSHRC_MODIFIED` alone does not establish that model mappings exist.

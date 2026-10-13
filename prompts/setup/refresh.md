@@ -24,7 +24,7 @@ command -v npm >/dev/null 2>&1 && echo "NPM_PRESENT" || echo "NPM_ABSENT"
 command -v npx >/dev/null 2>&1 && echo "NPX_PRESENT" || echo "NPX_ABSENT"
 ```
 
-- `NPM_ABSENT` — **skip steps a and b entirely**. Surface: "npm isn't on your
+- `NPM_ABSENT` — **skip step a**; still run b for the read-only running-client report. Surface: "npm isn't on your
   PATH, so Scout cannot prove npm owns either active CLI and will not run npm
   update checks. This does not identify how either CLI was installed; use each
   installation's own updater. Not an error."
@@ -67,7 +67,9 @@ fi
 
 ## b: Update Claude Code CLI (only if behind latest)
 
-**Skip this step if a.0 reported `NPM_ABSENT`.**
+Run even if a.0 reported `NPM_ABSENT`: the helper skips updates when ownership
+cannot be proved and still reports the running client. Set `SCOUT_HOST=claude`
+for this helper call after resolving the host through `host-runtime.md`.
 
 Same ownership and version-gate rationale as step a. Native, standalone,
 shadowed, malformed, or unverifiable installations are left to their own
@@ -78,13 +80,16 @@ SCOUT_CLI_REFRESH_SCRIPT="/absolute/path/of/active/sf-demo-scout/scripts/setup-c
 if [ ! -f "$SCOUT_CLI_REFRESH_SCRIPT" ]; then
   echo "CLI_REFRESH_UNAVAILABLE: shipped script not found at $SCOUT_CLI_REFRESH_SCRIPT"
 else
-  /bin/bash "$SCOUT_CLI_REFRESH_SCRIPT" claude
+  SCOUT_HOST=claude /bin/bash "$SCOUT_CLI_REFRESH_SCRIPT" claude
 fi
 ```
 
 Surface inline (report the OBSERVED outcome token, never the `->` target — the
 token is computed from the actual post-install version, so it is the source of
 truth; do not infer "updated" from the fact that an install command ran):
+Carry the running-client version (or its unverified reason) and any Scout floor
+line into the setup message on every outcome, including current. The CLI updated
+on PATH can differ from the desktop/IDE client identified by its executable path.
 - `SF_CLI_CURRENT` / `CLAUDE_CLI_CURRENT` — silent (already on the newest installable version; the common case).
 - `SF_CLI_UPDATED (X -> Y)` / `CLAUDE_CLI_UPDATED (X -> Y)` — one-line note that the CLI was updated, using the observed `Y`.
 - `SF_CLI_HELD` / `CLAUDE_CLI_HELD` — one-line note: a newer version exists in the registry but the SE's npm `min-release-age` policy is intentionally holding it back; this is NOT an error — it will install on a future refresh once the release ages past the policy window. Name the installed version that was kept.
@@ -93,8 +98,9 @@ truth; do not infer "updated" from the fact that an install command ran):
 - `SF_CLI_UPDATE_UNVERIFIED` / `CLAUDE_CLI_UPDATE_UNVERIFIED` — install exited 0 but the post-install version probe failed or returned no supported version. One-line note ("couldn't verify the [sf|claude] CLI version after the update — continuing"). Never report UPDATED off an unverified probe.
 - `SF_CLI_UPDATE_MISMATCH` / `CLAUDE_CLI_UPDATE_MISMATCH` — install exited 0 and a valid version was observed, but it is neither the prior version nor the resolved target. One-line note naming both ("[sf|claude] CLI now reports [observed], expected [target] — surfaced for you to check"). Don't imply the target was reached.
 - `SF_CLI_CHECK_FAILED` / `CLAUDE_CLI_CHECK_FAILED` — one-line note ("couldn't check [sf|claude] CLI version — kept the installed one"), proceed.
-- `SF_CLI_NOT_NPM_OWNED` / `CLAUDE_CLI_NOT_NPM_OWNED` — one-line note that the active executable belongs to another installation, so Scout left it to that installation's updater. Do not call this an error.
-- `SF_CLI_OWNERSHIP_UNVERIFIED` / `CLAUDE_CLI_OWNERSHIP_UNVERIFIED` — one-line note that npm ownership could not be proved, so Scout safely skipped the update. Do not imply which installer owns it.
+- `CLAUDE_CLI_NOT_NPM_OWNED (native install updates itself; Scout left it alone)` — "Claude Code uses the native install, which updates itself; Scout left it alone." The helper proves this from the active executable's real path inside `$HOME/.local/share/claude/versions/`.
+- Other `SF_CLI_NOT_NPM_OWNED` / `CLAUDE_CLI_NOT_NPM_OWNED` — one-line note that the active executable belongs to another installation, so Scout left it to that installation's updater. Do not call this an error.
+- `SF_CLI_OWNERSHIP_UNVERIFIED` / `CLAUDE_CLI_OWNERSHIP_UNVERIFIED` — one-line note that npm ownership could not be proved, so Scout safely skipped the update. Name an installer only for the proved native-path case above; otherwise do not imply which installer owns it.
 
 ## c: Slack MCP
 

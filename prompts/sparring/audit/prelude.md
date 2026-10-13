@@ -57,7 +57,7 @@ For each object in scope (`DEFAULT_APP_TABS` ∪ core-6), the active LRP is dete
 Output shape for `ACTIVE_LRP_MAP`:
 ```json
 [
-  {"object": "Case", "record_type": null, "lrp": "Case_Record_Page_Zeiss", "resolution_level": "app_default", "source": "CustomApplication:SDO_Service_Console"},
+  {"object": "Case", "record_type": null, "lrp": "Case_Record_Page_Example", "resolution_level": "app_default", "source": "CustomApplication:SDO_Service_Console"},
   {"object": "Account", "record_type": "VIP", "lrp": "VIP_Account_Page", "resolution_level": "profile_recordtype", "source": "Profile:Admin"},
   {"object": "Lead", "record_type": null, "lrp": null, "resolution_level": "system_default", "source": null}
 ]

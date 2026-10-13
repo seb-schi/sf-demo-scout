@@ -20,7 +20,8 @@ Resolve the active plugin root to `[PLUGIN_ROOT]`, then run:
 ```bash
 /bin/bash <<'SCOUT_JSON_PINS_BASH'
 SETTINGS_HELPER="[PLUGIN_ROOT]/scripts/setup-settings.py"
-PYTHON_EXE=$(type -P python3 2>/dev/null || true)
+PYTHON_EXE=$(/usr/bin/which python3 2>/dev/null || true)
+case "$PYTHON_EXE" in ""|/*) ;; *) PYTHON_EXE="$PWD/$PYTHON_EXE" ;; esac
 if [ -z "$PYTHON_EXE" ] || [ ! -f "$SETTINGS_HELPER" ]; then
   echo "SETTINGS_HELPER_UNAVAILABLE"
 else
@@ -41,7 +42,8 @@ mappings merely because the inspector cannot parse the file.
 ```bash
 /bin/bash <<'SCOUT_VSCODE_PINS_BASH'
 SETTINGS_HELPER="[PLUGIN_ROOT]/scripts/setup-settings.py"
-PYTHON_EXE=$(type -P python3 2>/dev/null || true)
+PYTHON_EXE=$(/usr/bin/which python3 2>/dev/null || true)
+case "$PYTHON_EXE" in ""|/*) ;; *) PYTHON_EXE="$PWD/$PYTHON_EXE" ;; esac
 if [ -z "$PYTHON_EXE" ] || [ ! -f "$SETTINGS_HELPER" ]; then
   echo "SETTINGS_HELPER_UNAVAILABLE"
 else
@@ -65,19 +67,34 @@ done
 
 ## Result
 
-Return all helper tokens to the caller and compose at most one concise note:
+On Claude only, run the read-only report after the cleanup checks:
+
+```bash
+SCOUT_HOST=claude python3 -B "[PLUGIN_ROOT]/scripts/setup-model-report.py"
+```
+
+It inspects user/project/local settings, the managed settings file, the session
+environment, literal `.zshrc` assignments, VS Code and read-only launchctl values.
+It never sources shell files or changes a model setting. Managed policy supplied
+through MDM/server/embedding APIs may not be visible in the local file; the report
+does not certify effective routing or account access. Carry each reported older
+model's source and provider-specific fix verbatim; do not invent model IDs or
+add an update-prompt recommendation. Unknown/deployment-name values are unassessed.
+
+Return all helper tokens to the caller. Use the report as the model-routing note;
+also describe any actual cleanup or limitation:
 
 - `FLAGS[...]` containing `modelMappings` or `modelOverrides`,
   `VSCODE_PINS_PRESERVED`, or `LAUNCHCTL_PINS_PRESERVED`: provider/user model
-  routing is present and preserved. Do not claim which model an alias resolves
-  to. Confirm the effective model in the actual host when testing it.
+  routing is present and preserved. The report separately assesses recognized
+  values and documented alias defaults; it does not verify the effective model.
 - `PINS_REMOVED[...]`: only retired Scout tuning settings were removed. Explain
   which settings surface changed; a new Claude session picks up the change.
 - `PINS_POST_WRITE_FAILED`: replacement happened but read-back failed. Keep the
   `.scout-bak-modelpins` recovery copy and do not claim the file is unchanged.
 - Parse, unsafe-path, backup, write, or helper-unavailable results: report the
   actual limitation; do not invent a cleanup success or manually remove mappings.
-- All absent/none with no flags: no model-routing note is needed.
+- All absent/none with no flags: use only the report's single summary line.
 
 This is setup compatibility, not an inference test or permission to change a
 managed model policy. A host refusing a model is not a reason to try a new route.

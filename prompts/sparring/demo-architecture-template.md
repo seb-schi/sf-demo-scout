@@ -10,7 +10,7 @@ A map that costs as much to read as the territory has failed. This doc exists so
 
 - **Whole-doc budget: ~350 lines / ~5k tokens.** If a reconcile pushes it past that, you are logging, not mapping — compact harder (fold resolved decisions into the Narrative Arc, drop them from the log). A doc over budget is a bug to fix that session, not a state to accept.
 - **Every Decision Log entry is ONE line.** Decision + one-clause Why + date + change-log citation. If you are writing a second line, that detail belongs in the change log, not here — cite it, don't copy it.
-- **No running-narrative banner.** The header is exactly the three fixed lines in the template. Current state lives ONLY in the present-tense Narrative Arc (rewritten each reconcile). Never accrete a prose "here's where we are" blob in the header or above the sections — that is duplication of the arc + the log, and it is what ballooned the Boehringer doc.
+- **No running-narrative banner.** The header is exactly the three fixed lines in the template. Current state lives ONLY in the present-tense Narrative Arc (rewritten each reconcile). Never accrete a prose "here's where we are" blob in the header or above the sections — that is duplication of the arc + the log, and it is what ballooned one customer's document.
 - **The change logs ARE the deep archive.** Do not create a separate archive file and do not preserve full history here. Compaction drops detail *because* the change logs still hold it — that is the trade, by design.
 
 ## Template

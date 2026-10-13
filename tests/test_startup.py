@@ -136,12 +136,14 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
         helper: Path = HELPER,
         default_runtime: bool = False,
         host: str = "claude",
+        plugin_root: str = "",
     ) -> subprocess.CompletedProcess[str]:
         workdir = cwd or self.workspace
         env = dict(os.environ)
         env.update(
             PATH=f"{self.bin}:/usr/bin:/bin:/usr/sbin:/sbin",
             PYTHONDONTWRITEBYTECODE="1",
+            CLAUDE_PLUGIN_ROOT=plugin_root,
             SCOUT_HOST=host,
             SCOUT_WORKSPACE=str(self.workspace),
             SCOUT_CACHE_DIR=str(self.cache),
@@ -484,15 +486,15 @@ class StartupEvidenceTests(unittest.TestCase):
         self.assertNotIn("mcp", calls)
 
     def test_canonical_slug_folder_lookup_uses_shipped_slugifier(self) -> None:
-        self.fx.write_config("CareConnect4Me_DPA")
-        self.fx.write_list([{"alias": "CareConnect4Me_DPA"}])
+        self.fx.write_config("ExampleCare_DPA")
+        self.fx.write_list([{"alias": "ExampleCare_DPA"}])
         self.fx.write_display(
-            "CareConnect4Me_DPA", username="care@example.invalid"
+            "ExampleCare_DPA", username="care@example.invalid"
         )
-        folder = self.fx.workspace / "orgs" / "careconnect4me-dpa-acme"
+        folder = self.fx.workspace / "orgs" / "examplecare-dpa-acme"
         folder.mkdir(parents=True)
         output = self.fx.run(nocache=True).stdout
-        self.assertIn("1 customer folder(s) for CareConnect4Me_DPA", output)
+        self.assertIn("1 customer folder(s) for ExampleCare_DPA", output)
         self.assertIn("acme: no audit found", output)
 
     def test_slack_status_distinguishes_fresh_and_cached_evidence(self) -> None:

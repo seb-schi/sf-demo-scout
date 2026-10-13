@@ -20,7 +20,9 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    Pass the active host, selected org, resolved root, and discovered DX tool
    contracts to every worker. Workers check their own tool exposure and may
    use the established `sf` fallback with that explicit org. Use the active
-   host's delegation API; `Agent(...)`/Sonnet examples below are Claude-only.
+   host's delegation API; `Agent(...)` examples below are Claude-only.
+   Apply `prompts/host-runtime.md#worker-model-mirroring` to the prelude, all
+   three audit worker calls, and every redispatch below.
 
 1. Read `[PLUGIN_ROOT_ABS]/prompts/operation-safety.md` and follow it. Resolve
    `WORKSPACE_ROOT` from bootstrap and absolute `CUSTOMER_DIR` from the selected
@@ -72,16 +74,22 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
    The heartbeat exists because SE-facing silence is expensive — minutes of sub-agent runtime with no signal reads as "is Scout stuck?" Do not skip it. Do not paraphrase it. Do not bundle it into a later message. **If you find yourself about to call a tool here, stop — the heartbeat goes first.**
 
-6. **Dispatch the audit-prelude sub-agent** to retrieve and parse the heavy metadata. This keeps CustomApplication/CustomObject/Profile XML out of Opus context.
+6. **Dispatch the audit-prelude sub-agent** to retrieve and parse the heavy metadata. This keeps CustomApplication/CustomObject/Profile XML out of the orchestrator context.
 
    Construct the dispatch envelope (do NOT read the prompt body — the sub-agent reads it itself). The envelope is the only string passed to `Agent()`. **Substitute the absolute `PLUGIN_ROOT_ABS` resolved in Pre-Spawn step 0 for `[PLUGIN_ROOT_ABS]` below — do NOT emit the literal `${CLAUDE_PLUGIN_ROOT}`, which the sub-agent cannot expand:**
 
    ```
+   Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, read "[PLUGIN_ROOT_ABS]/AGENTS.md" and follow it.
+   Get the SE's explicit confirmation before:
+   - Delete existing metadata or records
+   - Modify existing profiles or permission sets
+   - Touch anything prefixed `sb_` or `managed__`
+
    Read your prompt file at `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/prelude.md`. Also read `[PLUGIN_ROOT_ABS]/prompts/operation-safety.md` as `{{OPERATION_SAFETY}}` and `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
 
    {{ORG_ALIAS}} = [raw alias — for --target-org; NOT slugified]
    {{ORG_USERNAME}} = [username]
-   {{ORG_FOLDER}} = [resolved ORG_FOLDER path, e.g. orgs/metro-cpq-metro]
+   {{ORG_FOLDER}} = [resolved ORG_FOLDER path, e.g. orgs/example-cpq-example]
    {{CANDIDATE_APP_FULL_NAME}} = [computed value]
    {{CANDIDATE_APP}} = [label]
    {{CANDIDATE_APP_DEVELOPER_NAME}} = [developer name]
@@ -95,7 +103,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    ```
 
    Spawn in the BACKGROUND (this ends Phase A — return control to the caller immediately after this spawn; do NOT block):
-   - `Agent(description="Org audit: prelude (LRP resolution)", model="sonnet", prompt=[envelope above], run_in_background=true)`
+   - `Agent(description="Org audit: prelude (LRP resolution)", prompt=[envelope above], run_in_background=true)`
 
    **End of Phase A.** Return to the caller (scout-sparring.md Stage 3 / showtime.md S1b) so the SE can begin answering discovery questions. The steps below (parse prelude, slice, launch parallel) execute as **Phase B** when the prelude's background completion notification arrives — which may be while an SE discovery answer is still pending. Do NOT wait synchronously here.
 
@@ -105,7 +113,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
 
    Record: `DEFAULT_APP` = `CANDIDATE_APP`, `DEFAULT_APP_DEVELOPER_NAME` = `CANDIDATE_APP_DEVELOPER_NAME`. For `SUCCESS`/`PARTIAL`, record validated `DEFAULT_APP_TABS` and `ACTIVE_LRP_MAP` from the prelude JSON. For the failed/missing/malformed branch, retain the fallback values already assigned (`DEFAULT_APP_TABS` = core-6 and `ACTIVE_LRP_MAP` = `[]`); do not overwrite them from the invalid return.
 
-   Then **slice `ACTIVE_LRP_MAP` into two per-sub-agent views** so each Sonnet only sees entries it owns:
+   Then **slice `ACTIVE_LRP_MAP` into two per-sub-agent views** so each worker only sees entries it owns:
    - `ACTIVE_LRP_MAP_STANDARD` = entries where `object` does NOT end in `__c` (standard objects — Account, Contact, Opportunity, Case, Lead, Order, MessagingSession, ServiceResource, etc.). Goes to the standard-objects sub-agent.
    - `ACTIVE_LRP_MAP_CUSTOM` = entries where `object` ends in `__c` (unmanaged custom objects). Goes to the custom-objects sub-agent.
 
@@ -125,11 +133,17 @@ Build a per-sub-agent envelope. Common placeholder values (computed by the orche
 Envelope template (substitute the prompt path and the placeholder block). `[PROMPT_PATH]` = `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/<sub-agent>.md`:
 
 ```
+Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, read "[PLUGIN_ROOT_ABS]/AGENTS.md" and follow it.
+Get the SE's explicit confirmation before:
+- Delete existing metadata or records
+- Modify existing profiles or permission sets
+- Touch anything prefixed `sb_` or `managed__`
+
 Read your prompt file at `[PROMPT_PATH]`. Also read `[PLUGIN_ROOT_ABS]/prompts/operation-safety.md` as `{{OPERATION_SAFETY}}` and `[PLUGIN_ROOT_ABS]/prompts/sparring/audit/shared.md` — its content substitutes for `{{AUDIT_SHARED_RULES}}`. Apply these placeholder substitutions verbatim before executing:
 
 {{ORG_ALIAS}} = [raw alias — for --target-org; NOT slugified]
 {{ORG_USERNAME}} = [username]
-{{ORG_FOLDER}} = [resolved ORG_FOLDER path, e.g. orgs/metro-cpq-metro]
+{{ORG_FOLDER}} = [resolved ORG_FOLDER path, e.g. orgs/example-cpq-example]
 {{CUSTOMER}} = [raw customer name — for object name-matching only, NOT paths]
 {{YYYY-MM-DD}} = [date]
 {{HHMM}} = [time]
@@ -147,9 +161,9 @@ Execute the prompt and return the JSON block per its Output Format section.
 Each entry in the sliced map carries `record_type`, `resolution_level`, and `source`. The sub-agent treats each entry as an independent LRP retrieval target — multiple record types on the same object mean multiple retrievals.
 
 Spawn all 3 in the BACKGROUND (`[PLUGIN_ROOT_ABS]` = the absolute path from Pre-Spawn step 0):
-- `Agent(description="Org audit: standard objects", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/standard-objects.md], run_in_background=true)`
-- `Agent(description="Org audit: apps/flows/agents", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/apps-flows-agents.md], run_in_background=true)`
-- `Agent(description="Org audit: custom objects", model="sonnet", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/custom-objects.md], run_in_background=true)`
+- `Agent(description="Org audit: standard objects", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/standard-objects.md], run_in_background=true)`
+- `Agent(description="Org audit: apps/flows/agents", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/apps-flows-agents.md], run_in_background=true)`
+- `Agent(description="Org audit: custom objects", prompt=[envelope with PROMPT_PATH=[PLUGIN_ROOT_ABS]/prompts/sparring/audit/custom-objects.md], run_in_background=true)`
 
 After spawning, append ONE progress-log line (`echo "[$(date +%H:%M:%S)] [orchestrator] prelude done — 3 parallel audit agents launched" >> [AUDIT_RUN_DIR]/.audit-progress.log`) and emit **NO chat message** — a discovery ask may be pending. The live-status heartbeat was already emitted in step 5a. **This ends Phase B.** Do not block waiting for the 3 agents here; their completions will push notifications. As each arrives, you MAY collect it eagerly (hold the parsed JSON), but do NOT begin consolidation until Phase C is invoked by the caller — consolidation emits the SE-facing star summary, which must not compete with a pending discovery ask.
 
@@ -223,7 +237,7 @@ cat [AUDIT_RUN_DIR]/audit-fragment-standard-objects.md \
 
 If any required fragment is missing or concatenation/write fails, set the barrier outcome to `not-ready`, retain the available fragments and progress log for diagnosis, and stop for retry-or-explicit-skip. Never publish or return the candidate as a valid audit.
 
-Append the Notable Gaps section (written by Opus from the JSON summaries) to the candidate file. Include `PRELUDE_LIMITATIONS`, failed-section details, worker `degradations`, `SPOT_CHECK_LIMITATIONS`, and count mismatches as applicable.
+Append the Notable Gaps section (written by the orchestrator from the JSON summaries) to the candidate file. Include `PRELUDE_LIMITATIONS`, failed-section details, worker `degradations`, `SPOT_CHECK_LIMITATIONS`, and count mismatches as applicable.
 
 ## Cleanup & Validation
 

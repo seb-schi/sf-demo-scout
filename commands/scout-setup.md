@@ -11,6 +11,8 @@ allowed-tools: Read, Write, Edit, Bash
 
 You are the setup orchestrator. This command is idempotent and state-driven: detect what needs doing, dispatch to the matching prompt, then hand off to the done prompt. Each state's procedure is in its own file so this command stays small and reliable. Read each prompt fully and execute its procedure end-to-end before returning here.
 
+Run each bash fence in this command and every setup prompt it dispatches in its own Bash call, exactly as written once placeholders are substituted. Keep any `/bin/bash <<'…'` wrapper; don't merge fences or retype their bodies, because the tool shell may be zsh.
+
 ## Step 1: Detect State
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md` first and apply its active-host contract throughout this command and all worker handoffs. Resolve the root from the current plugin context before expanding this path.
@@ -34,7 +36,8 @@ if [ ! -f "$WORKSPACE_HELPER" ]; then
   echo "SETUP_ABORTED (shipped workspace helper missing)"
   exit 1
 fi
-PYTHON_EXE=$(type -P python3 2>/dev/null || true)
+PYTHON_EXE=$(/usr/bin/which python3 2>/dev/null || true)
+case "$PYTHON_EXE" in ""|/*) ;; *) PYTHON_EXE="$PWD/$PYTHON_EXE" ;; esac
 if [ -z "$PYTHON_EXE" ]; then
   echo "STATE=FRESH"
 else

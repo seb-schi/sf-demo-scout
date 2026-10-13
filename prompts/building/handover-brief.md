@@ -37,7 +37,7 @@ following are VERIFIED in the change log:
 - Calibration applied (only if `discovery_notes` carries a `"Calibration applied:"` entry): [directive — reference query returned X, seed value computed as Y, spec literal was Z]
 - Agentforce smoke test: [pass/fail count from change log]
 
-**Built — Validate in Sonnet (Scout attempted these; finish them in this session)**
+**Built — Needs Validation (Scout attempted these; finish them in this session)**
 For approved metadata-authorable work within Scout's build boundaries, separate deployment from validation. Apex tests and supported, exact-version Flow tests may validate logic; visual surfaces still need UI confirmation. Include an artifact as deployed-but-unconfirmed only when deployment evidence supports that description and reconciliation reports AWAITING_QA. Failed, blocked or incomplete deployment is not a built artifact. Preserve the named full-new-RecordPage exception in the build boundaries; do not imply Scout deployed an excluded page. Missing automated coverage does not itself establish an API limitation. Include only what applies:
 - [ ] **Every reconciler AWAITING_QA item:** [ledger item id] — [remaining test,
   visual, or live-runtime confirmation].

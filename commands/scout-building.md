@@ -3,12 +3,12 @@ name: scout-building
 description: >
   Orchestrator for SF Demo Prep deployment.
   Parses a completed spec from /scout-sparring, delegates deployment to
-  Sonnet sub-agents in phases, and writes a consolidated change log.
+  sub-agents in phases, and writes a consolidated change log.
   Activate with /scout-building.
 allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, AskUserQuestion, mcp__plugin_sf-demo-scout_Salesforce_DX__retrieve_metadata, mcp__plugin_sf-demo-scout_Salesforce_DX__deploy_metadata, mcp__plugin_sf-demo-scout_Salesforce_DX__run_soql_query, mcp__plugin_sf-demo-scout_Salesforce_DX__assign_permission_set, mcp__plugin_sf-demo-scout_Salesforce_DX__list_all_orgs, mcp__plugin_sf-demo-scout_Salesforce_DX__run_code_analyzer, mcp__salesforce-docs__salesforce_docs_search, mcp__salesforce-docs__salesforce_docs_fetch, mcp__slack__slack_create_canvas
 ---
 
-# Scout Building — Opus Orchestrator
+# Scout Building — Orchestrator
 
 You are the orchestrator. You do NOT deploy metadata directly. You parse the spec,
 construct sub-agent prompts from templates, spawn sub-agents, validate their results,
@@ -37,6 +37,8 @@ and staging procedure in Step 5 preserves this rule for same-run and fresh-run i
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md` first and apply its active-host contract throughout this command and all worker handoffs. Resolve the root from the current plugin context before expanding this path.
 
+Read `${CLAUDE_PLUGIN_ROOT}/AGENTS.md` now and follow its standing rules.
+
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md` and follow it. This read-only gate verifies the Scout workspace and aborts with the specific reason when it cannot. Its Bash heredoc cannot persist a working directory in the parent tool shell, so each later shell call needs an explicit workspace working directory or a checked `cd`. Do not proceed with the steps below if the fragment aborted.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` for failure/refusal handling now; prepare projects only after resolving the selected customer.
@@ -49,16 +51,14 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-bootstrap.md` and follow it — it c
 
 ## Step 1: Confirm Org & Identify Customer
 
-Run `sf config get target-org --json` and `sf org display --json`. Extract the raw alias and username. The raw alias (e.g. `Metro CPQ`) is for `--target-org`. To find the customer folder, slugify the alias first — read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/slug-rule.md` and apply its transform to the alias (sparring names folders by the slugified alias, so a raw caps/space alias would not match).
+Run `sf config get target-org --json` and `sf org display --json`. Extract the raw alias and username. The raw alias (e.g. `Example CPQ`) is for `--target-org`. To find the customer folder, slugify the alias first — read `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/slug-rule.md` and apply its transform to the alias (sparring names folders by the slugified alias, so a raw caps/space alias would not match).
 
-List org folders: `ls -d orgs/<slug(alias)>-*/`. Once the SE confirms the customer, set `ORG_FOLDER` = the matched folder (e.g. `orgs/metro-cpq-metro`) and use `[ORG_FOLDER]` for every path below.
+List org folders: `ls -d orgs/<slug(alias)>-*/`. Once the SE confirms the customer, set `ORG_FOLDER` = the matched folder (e.g. `orgs/example-cpq-example`) and use `[ORG_FOLDER]` for every path below.
 
-Present both in a single message. On Claude, prepend the model-gate warning as
-the first line, then a blank line and the active-org sentence. On Codex omit
-that warning and retain the org confirmation in each branch:
-- No folders -> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.\n\nActive org: [alias] ([username]). No customer folders found — run /scout-sparring first." Stop.
-- One folder -> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.\n\nActive org: [alias] ([username]). Customer: [customer]. Deploying here. Type 'switch' to change, or confirm."
-- Multiple folders -> "⚠️ This command is designed for Opus. Please run `/model` to switch if not on Opus.\n\nActive org: [alias] ([username]). Multiple customers found: [list]. Which one?" Wait.
+Present both in a single message. On Claude, only when the actual session model is a Claude model older than 5.5, start the message with "Scout is built for the 5.5 models. Run `/model` to switch." Omit this notice on Codex or when the model version is unknown. Retain the org confirmation in each branch:
+- No folders -> "Active org: [alias] ([username]). No customer folders found — run /scout-sparring first." Stop.
+- One folder -> "Active org: [alias] ([username]). Customer: [customer]. Deploying here. Type 'switch' to change, or confirm."
+- Multiple folders -> "Active org: [alias] ([username]). Multiple customers found: [list]. Which one?" Wait.
 
 Wait for confirmation. **If the SE wants to switch orgs:** read `${CLAUDE_PLUGIN_ROOT}/prompts/switch-org.md` and follow it end-to-end — it lists connected orgs, offers to authenticate a new one, sets the chosen org as default, and returns the active alias + username. Then re-derive `ORG_FOLDER` (re-run the alias / slug-rule / `ls -d orgs/<slug(alias)>-*/` steps above) for the newly-selected org and re-present the confirmation before proceeding. **If the SE wants to pull an asset from a DIFFERENT org into this build (reuse a flow, component, or data sample from another org):** read `${CLAUDE_PLUGIN_ROOT}/prompts/cross-org-extract.md` and follow it end-to-end — it documents the extraction to `[ORG_FOLDER]/cross-org-extracts.md` before pulling, targets the source org by alias WITHOUT changing the active target-org, and returns what landed. `ORG_FOLDER` and the active target-org are unchanged; re-present the confirmation and proceed.
 
@@ -464,8 +464,20 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
    `PRIOR_PHASES_SUMMARY`; retain the parent project. The worker must still preserve
    its first `agent-preedit` original and record the original active version before
    any edit. Missing source or failed staging blocks only the affected work.
-5. Confirm no unresolved `{{PLACEHOLDER}}` remains, then spawn:
-   `Agent(description="[row's description]", model="sonnet", prompt=[constructed prompt])`.
+5. Prepend this block to every constructed worker prompt, including retries,
+   replacing `[PLUGIN_ROOT_ABS]` with the resolved absolute root:
+
+   ```
+   Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, read "[PLUGIN_ROOT_ABS]/AGENTS.md" and follow it.
+   Get the SE's explicit confirmation before:
+   - Delete existing metadata or records
+   - Modify existing profiles or permission sets
+   - Touch anything prefixed `sb_` or `managed__`
+   ```
+
+   Confirm no unresolved `{{PLACEHOLDER}}` remains. Apply
+   `prompts/host-runtime.md#worker-model-mirroring` to the call, including retries, then spawn:
+   `Agent(description="[row's description]", prompt=[constructed prompt])`.
 6. Validate output (see Sub-Agent Output Validation above) before moving on.
    During return review, reject work outside BUILD_SCOPE, preserve it as a deviation,
    and never count it as completion. A retry uses the same frozen BUILD_SCOPE and
@@ -736,7 +748,7 @@ osascript -e 'display notification "Build reconciled — review verified work an
 
 ## Step 7: Closing Note — The Demo Is Yours to Tinker With
 
-After the notification fires, emit this as the FINAL message of the session — a standalone, prominent beat (not folded into the brief above). Any repair request that follows uses `${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md`. On Claude output this note verbatim. On Codex omit the Opus/Sonnet model-switch tip; retain the repair and change-log guidance:
+After the notification fires, emit this as the FINAL message of the session — a standalone, prominent beat (not folded into the brief above). Any repair request that follows uses `${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md`. Output this note verbatim on either host:
 
 > ---
 > 💡 **This demo isn't locked — you can change it right now.**
@@ -745,10 +757,10 @@ After the notification fires, emit this as the FINAL message of the session — 
 >
 > 📝 **Each repair is logged automatically** — I'll append the attempt and outcome to this org's change log so your next `/scout-sparring` session picks it up automatically (that's where the running demo picture is kept current).
 >
-> 💨 **Tip:** the heavy planning is done, so you don't need Opus for this part — run `/model` and switch to **Sonnet** for quicker, cheaper tinkering. (Bigger changes — a new agent, a story rebuild, anything you want captured in a clean spec — are the other door: open a fresh session and run `/scout-sparring`. That one stays on Opus.)
+> 💨 **Bigger changes** — a new agent, a story rebuild, anything you want captured in a clean spec — are the other door: open a fresh session and run `/scout-sparring`.
 > ---
 
-This closing note is deliberately command-level (the SE's last beat), separate from the handover brief's own "Want to Change Something?" section — it makes the quick-tweak door impossible to miss and is the only place the Sonnet `/model` nudge appears.
+This closing note is deliberately command-level (the SE's last beat), separate from the handover brief's own "Want to Change Something?" section — it makes the quick-tweak door impossible to miss.
 
 ## Step 8: Cartridge Contribution Nudge (conditional, silent by default)
 

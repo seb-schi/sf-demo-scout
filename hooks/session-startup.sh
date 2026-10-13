@@ -2,9 +2,68 @@
 # SF Demo Prep — Session Startup Script
 # Runs via SessionStart. Host-specific checks never consult another host.
 
-# The plugin loads globally. Stay completely silent outside Scout's workspace.
+# Client notices apply globally; org/status probes remain workspace-scoped.
+CLIENT_HELPER_DIR="$(cd "${BASH_SOURCE[0]%/*}/../scripts" && pwd)"
+CLIENT_EVIDENCE="${SCOUT_STARTUP_EVIDENCE:-$CLIENT_HELPER_DIR/startup-evidence.py}"
+CLIENT_VERSION="$CLIENT_HELPER_DIR/client-version.py"
+SCOUT_CLIENT_FLOOR=""
+source "${CLIENT_VERSION%/*}/client-cache.sh"
+if ! scout_current_client_cached && command -v python3 >/dev/null 2>&1 && [ -f "$CLIENT_EVIDENCE" ]; then
+  SCOUT_CLIENT_FLOOR=$(python3 -B "$CLIENT_VERSION" floor 2>/dev/null) || SCOUT_CLIENT_FLOOR=""
+fi
+scout_emit_context() {
+  local rendered
+  if [ -n "$SCOUT_CLIENT_FLOOR" ]; then
+    if rendered=$(python3 -B "$CLIENT_EVIDENCE" hook-output --floor-line "$SCOUT_CLIENT_FLOOR" 2>/dev/null); then
+      printf '%s\n' "$rendered"
+      return
+    fi
+    return 1
+  fi
+  return 1
+}
+# The expanded path is data, quoted for the reader rather than evaluated.
+SCOUT_RULES_BLOCK=""
+SCOUT_RULES_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+case "$SCOUT_RULES_ROOT" in
+  /*)
+    if [[ "$SCOUT_RULES_ROOT" != *$'\n'* && "$SCOUT_RULES_ROOT" != *$'\r'* ]]; then
+      SCOUT_RULES_PATH="${SCOUT_RULES_ROOT%/}/AGENTS.md"
+      SCOUT_RULES_PATH="${SCOUT_RULES_PATH//\\/\\\\}"
+      SCOUT_RULES_PATH="${SCOUT_RULES_PATH//\"/\\\"}"
+      printf -v SCOUT_RULES_BLOCK 'Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, read "%s" and follow it.\nGet the SE'\''s explicit confirmation before:\n- Delete existing metadata or records\n- Modify existing profiles or permission sets\n- Touch anything prefixed `sb_` or `managed__`' "$SCOUT_RULES_PATH"
+      [ $((${#SCOUT_RULES_BLOCK} + 2)) -le 600 ] || SCOUT_RULES_BLOCK=""
+    fi ;;
+esac
+
+scout_legacy_context() {
+  [ "$1" != inside ] || printf '%b\n' "$OUTPUT"
+}
+scout_finish_context() {
+  local scope="$1" context bounded
+  local LC_ALL=C  # Byte count is a conservative trigger for the Unicode-aware bound.
+  if [ -n "$SCOUT_RULES_BLOCK" ]; then
+    # A sentinel preserves the legacy trailing newlines through command substitution.
+    context=$(printf '%s\n\n' "$SCOUT_RULES_BLOCK"; scout_legacy_context "$scope"; printf '\034')
+    context=${context%$'\034'}
+    if [ "${#context}" -gt 10000 ]; then
+      if bounded=$(printf '%s' "$context" | python3 -B "$CLIENT_HELPER_DIR/startup-rules.py" \
+          --workspace "$SCOUT_WORKSPACE" --slug "${ORG_SLUG:-}" 2>/dev/null && printf '\034'); then
+        context=${bounded%$'\034'}
+      else
+        :  # Keep the qualified block first, then all legacy text, if rendering fails.
+      fi
+    fi
+    if [ -n "$context" ]; then
+      printf '%s' "$context" | scout_emit_context || printf '%s' "$context"
+      return
+    fi
+  fi
+  scout_legacy_context "$scope" | scout_emit_context || scout_legacy_context "$scope"
+}
 SCOUT_WORKSPACE="${SCOUT_WORKSPACE:-$HOME/claude-projects/sf-demo-scout}"
 if [ "$PWD" != "$SCOUT_WORKSPACE" ]; then
+  scout_finish_context outside
   exit 0
 fi
 
@@ -479,4 +538,4 @@ else
 fi
 OUTPUT+="  /scout-setup     — install, refresh, or repair Scout\n"
 
-printf '%b\n' "$OUTPUT"
+scout_finish_context inside

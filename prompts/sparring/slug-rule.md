@@ -23,7 +23,7 @@ Worked examples — follow exactly:
 - `Deutsche Fachpflege` → `deutsche-fachpflege`
 - `L'Oréal` → `l-oreal`
 - `AT&T` → `at-t`
-- `Metro CPQ` → `metro-cpq`
+- `Example CPQ` → `example-cpq`
 - `3M` → `3m`
 
 ## ORG_FOLDER
@@ -36,11 +36,11 @@ ORG_FOLDER = orgs/<slug(alias)>-<slug(customer)>/
 
 Resolve `ORG_FOLDER` **once** per session and pass it verbatim wherever a
 customer-folder path is needed. Never reconstruct it from alias + customer
-downstream — a second derivation is how divergent folders (`Metro CPQ-metro`
-vs `metro-cpq-metro`) get created.
+downstream — a second derivation is how divergent folders (`Example CPQ-example`
+vs `example-cpq-example`) get created.
 
 **The raw alias is a separate value.** `sf` identifies an org by its real
-alias (e.g. `Metro CPQ`), so anything passed to `--target-org`, or shown as
+alias (e.g. `Example CPQ`), so anything passed to `--target-org`, or shown as
 `Target org:`, uses the RAW alias — never the slug. Only *folder paths* use
 the slug.
 
