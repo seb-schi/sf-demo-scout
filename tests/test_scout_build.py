@@ -36,6 +36,12 @@ class Harness(unittest.TestCase):
     run_cli = base.ScoutHistoryTests.run_cli
     assert_rule = base.ScoutHistoryTests.assert_rule
 
+    def add_sections(self, *names):
+        """Insert per-type log sections ahead of the final Checkpoints section."""
+        text = self.log.read_text()
+        block = ''.join('## %s\nRecorded.\n' % name for name in names)
+        self.log.write_text(text.replace('## Checkpoints\n', block + '## Checkpoints\n', 1) if '## Checkpoints\n' in text else text + block)
+
 
 def beat(identifier='B1', claims=(), flips=(), proof=True, verification=None):
     value = dict(id=identifier, name='Overdue list', persona='Manager', pain='Lost', climax='Two rows',
@@ -211,6 +217,7 @@ class EvidenceTests(Harness):
             (self.folder / 'flow-evidence.json').write_text(json.dumps(evidence))
             flow_item['evidence_ref'] = 'flow-evidence.json'
         self.save()
+        self.add_sections('Flows Deployed (if any)', 'Execution Order Check')
 
     def test_flow_needs_frozen_validation_and_passing_required_tests(self):
         passing = {'flow_tests': [dict(test='Overdue_Flip_Test', outcome='Pass', flow_api_name='Overdue_Flag', version=3)]}
@@ -227,6 +234,7 @@ class EvidenceTests(Harness):
         self.assertIn('evidence_ref file missing', self.assert_rule('evidence-ref'))
         self.data['items'][0].pop('flow_validation')
         self.save()
+        self.add_sections('Flows Deployed (if any)', 'Execution Order Check')
         self.assertIn('records no frozen flow_validation', self.assert_rule('evidence-ref'))
 
     def test_unsupported_flow_validation_stays_awaiting_visual_qa(self):
@@ -257,6 +265,7 @@ class EvidenceTests(Harness):
         (self.folder / 'agent-evidence.json').write_text(json.dumps(
             {'agent_contexts': [context(o) for o in covered], 'agent_runtime': {o: copy.deepcopy(runtime) for o in covered}}))
         self.save()
+        self.add_sections('Agentforce Deployed (if any)', 'Agentforce Current-Test Evidence (if any)')
 
     def test_agent_obligations_need_complete_passing_evidence(self):
         self.agent()
@@ -270,13 +279,41 @@ class EvidenceTests(Harness):
         self.assertIn('different deployed version', self.assert_rule('evidence-ref'))
         self.data['items'][0].pop('obligations')
         self.save()
+        self.add_sections('Agentforce Deployed (if any)', 'Agentforce Current-Test Evidence (if any)')
         self.assertIn('records no obligations', self.assert_rule('evidence-ref'))
 
     def test_evidence_ref_stays_inside_the_folder(self):
         self.agent()
         self.data['items'][0]['evidence_ref'] = '../outside.json'
         self.save()
+        self.add_sections('Agentforce Deployed (if any)', 'Agentforce Current-Test Evidence (if any)')
         self.assertIn('must stay inside the folder', self.assert_rule('evidence-ref'))
+
+
+class SlotAndSectionTests(Harness):
+    def test_non_terminal_job_holds_the_write_slot(self):
+        self.data['items'] = items(('I1', 'unverified', ()), ('I2', 'applied', ()))
+        self.data['items'][0]['reason'] = 'deploy timed out; job still queued'
+        first = (base.checkpoint('A1', 'unverified', 'unverified').replace('outcome: pending', 'outcome: unverified') +
+                 '- Deploy 0AfKa00000iDxZZKAS: status Queued at timeout\n')
+        second = base.checkpoint('A2', 'applied', 'applied').replace('outcome: pending', 'outcome: applied')
+        self.save(first + second)
+        self.assertIn('A1 left job 0AfKa00000iDxZZKAS non-terminal, yet A2 started after it', self.assert_rule('plan'))
+        self.save(first + '- Deploy 0AfKa00000iDxZZKAS: final status Succeeded (sf project deploy report)\n' + second)
+        code, output = self.run_cli('check')
+        self.assertNotIn('non-terminal', output)
+
+    def test_per_type_sections_follow_the_template_conditions(self):
+        self.data['items'] = items(('I1', 'applied', ()))
+        self.data['items'][0].update(type='Apex', category='gated', grounding=[dict(
+            assumption='Invocable Apex', source='docs', ref='https://developer.salesforce.com/docs/apex', verdict='supported')])
+        self.save()
+        self.assertIn('the log needs its "Apex Deployed" section', self.assert_rule('log-type-sections'))
+        self.data['items'][0]['disposition'] = 'failed'
+        self.data['items'][0]['reason'] = 'State left: unchanged; rollback: not needed'
+        self.save()
+        code, output = self.run_cli('check')
+        self.assertNotIn('log-type-sections', output)
 
 
 if __name__ == '__main__':

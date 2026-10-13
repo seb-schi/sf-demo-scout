@@ -573,13 +573,16 @@ def check(task, record):
             if over(text):
                 issue('arch', 'map exceeds 350 lines / 3750 words' + (' only due to SE sections' if not over(template) else ''),
                       arch, warning=not over(template))
-    positions = {}
+    positions, checkpoints, names = {}, [], []
     if log.exists():
-        for section in headings(read(log)):
-            match = CHECKPOINT.fullmatch(read(log)[section[2]:].splitlines()[0])
+        log_text = read(log)
+        for section in headings(log_text):
+            names.append(section[0])
+            match = CHECKPOINT.fullmatch(log_text[section[2]:].splitlines()[0])
             if match:
                 positions.setdefault(match[2], section[2])
-    for rule, message in BUILD.check_findings(record, task.parent, positions):
+                checkpoints.append((match[2], section[4]))
+    for rule, message in BUILD.check_findings(record, task.parent, positions, checkpoints, names):
         issue(rule, message)
     print('\n'.join(findings + warnings) or f'{task}:1: check: pass')
     return 3 if findings else 0

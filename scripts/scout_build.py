@@ -252,9 +252,43 @@ def write_order_findings(record, positions):
     return problems
 
 
-def check_findings(record, folder, positions):
-    """All W10 rules as (rule, message) pairs. Simple tasks are checked only for evidence and order."""
+JOB = re.compile(r'\b0Af[A-Za-z0-9]{12,15}\b')
+NONTERMINAL = re.compile(r'(?i)\b(?:queued|in ?progress|pending|canceling|unknown)\b')
+TERMINAL = re.compile(r'(?i)\b(?:succeeded|succeededpartial|failed|canceled)\b')
+TYPE_SECTIONS = {'flow': ('Flows Deployed', 'Execution Order Check'), 'apex': ('Apex Deployed',),
+                 'lwc': ('LWC Deployed',), 'agentforce': ('Agentforce Deployed', 'Agentforce Current-Test Evidence')}
+
+
+def job_slot_findings(checkpoints):
+    """X5: once a checkpoint records a job without a terminal status, no later checkpoint may start."""
+    problems = []
+    for n, (attempt, body) in enumerate(checkpoints):
+        jobs = set(JOB.findall(body))
+        open_jobs = [j for j in jobs if not any(TERMINAL.search(line) for line in body.splitlines() if j in line)
+                     and any(NONTERMINAL.search(line) for line in body.splitlines() if j in line)]
+        if open_jobs and n + 1 < len(checkpoints):
+            problems.append('%s left job %s non-terminal, yet %s started after it' % (attempt, open_jobs[0], checkpoints[n + 1][0]))
+    return problems
+
+
+def type_section_findings(record, section_names):
+    """C6: per-type log sections, required only under the template's own conditions."""
+    problems = []
+    for item in record['items']:
+        kind = re.sub(r'[\s_-]', '', item['type']).lower()
+        kind = 'agentforce' if kind in ('agent', 'agentforceagent') else kind
+        if item['disposition'] == 'applied' and kind in TYPE_SECTIONS:
+            for name in TYPE_SECTIONS[kind]:
+                if not any(s == name or s.startswith(name + ' (') for s in section_names):
+                    problems.append('%s is an applied %s; the log needs its "%s" section' % (item['id'], item['type'], name))
+    return sorted(set(problems))
+
+
+def check_findings(record, folder, positions, checkpoints=(), section_names=()):
+    """All W10 rules as (rule, message) pairs. Simple tasks are checked only for evidence, order and the job slot."""
     findings = [('plan', m) for m in write_order_findings(record, positions)]
+    findings += [('plan', m) for m in job_slot_findings(list(checkpoints))]
+    findings += [('log-type-sections', m) for m in type_section_findings(record, section_names)]
     try:
         plan(record)
     except CycleError as error:
