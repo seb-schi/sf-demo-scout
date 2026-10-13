@@ -43,6 +43,7 @@ FIELD = re.compile(r'(?i)^[ \t]*(?:[-*+][ \t]*)?(job|status|launched|settled)[ \
 PART = re.compile(r'(?i)^[ \t]*(status|launched|settled)[ \t]*:[ \t]*(.*?)[ \t]*$')
 ISO = re.compile(r'(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d):(\d\d)(?:[.,](\d{1,9}))?(Z|[+-]\d\d:?\d\d)?')
 ORG_ID = re.compile(r'(?<![A-Za-z0-9])00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?(?![A-Za-z0-9])')
+BINDING = re.compile(r'(?i)^[ \t]*(?:[-+][ \t]+)?(?:bound|binding|target|org)\b[^:\r\n]*:(.*)$')
 
 
 class CycleError(ValueError):
@@ -147,7 +148,12 @@ def _moment(value):
     if not match:
         return None
     year, month, day, hour, minute, second = (int(match[n]) for n in range(1, 7))
-    offset = 0 if match[8] in (None, 'Z') else int(match[8][0] + '1') * (int(match[8][1:3]) * 60 + int(match[8][-2:]))
+    offset = 0
+    if match[8] not in (None, 'Z'):
+        hours, minutes = int(match[8][1:3]), int(match[8][-2:])
+        if hours > 23 or minutes > 59:  # R2-F11: +00:90 is not an offset
+            return None
+        offset = int(match[8][0] + '1') * (hours * 60 + minutes)
     try:
         zone = timezone(timedelta(minutes=offset)) if match[8] else None
         return datetime(year, month, day, hour, minute, second, int((match[7] or '0').ljust(6, '0')[:6]), zone)
@@ -161,10 +167,10 @@ def _word(value):
     return value if re.fullmatch(r'\w+', value) else value or None
 
 
-def _fields(visible):
-    """`job:` lines (their IDs and inline fields) and checkpoint-level status, launched and settled, outside fences."""
+def _fields(text):
+    """`job:` lines (their IDs and inline fields) and checkpoint-level status, launched and settled, fences included."""
     lines, level = [], {}
-    for line in visible.splitlines():
+    for line in text.splitlines():
         match = FIELD.match(re.sub(r'[*`]', '', line))
         if not match:
             continue
@@ -184,17 +190,20 @@ def _fields(visible):
 def checkpoint_state(checkpoint, item):
     """F1-F3: one checkpoint's jobs and submissions, whether each settled, its times and its format problems.
 
-    Job IDs count wherever they appear, fences included. Settlement is positive: a terminal word from the
-    family's vocabulary in a `status:` field on the same checkpoint. Checkpoint-level fields apply to a lone job.
+    Job lines, their fields and job IDs count wherever they appear, fences included (R2-F1: a fenced receipt
+    is still a submission). Settlement is positive: a terminal word from the family's vocabulary in a `status:`
+    field on the same checkpoint. Checkpoint-level fields apply to a lone job. A submission without an ID takes
+    its item's family, or its own label's when no item owns the attempt (`pending`, on another task's log).
     """
     kind = family(item['type']) if item else ''
-    lines, level = _fields(checkpoint['visible'])
+    lines, level = _fields(checkpoint['raw'])
     jobs, problems = {}, []
 
     def entry(key, ref, vocabulary):
         return jobs.setdefault(key, {'ref': ref, 'vocabulary': vocabulary, 'status': None, 'launched': None, 'settled': None})
     for line in lines:
-        targets = [entry(i[:15], i, i[:3]) for i in line['ids']] or [entry('~' + line['ref'].lower(), line['ref'] or 'submission', kind)]
+        targets = [entry(i[:15], i, i[:3]) for i in line['ids']] or [
+            entry('~' + line['ref'].lower(), line['ref'] or 'submission', kind or family(line['ref']))]
         for job in targets:
             for key in ('status', 'launched', 'settled'):
                 if line.get(key):
@@ -259,20 +268,18 @@ def _start(state, exclude):
     return heading, heading + timedelta(seconds=59, microseconds=999999)
 
 
-def _inside(holder, other):
-    """F3: True when `other` certainly starts inside `holder`'s open jobs, False when certainly not, None if unknown."""
-    keys = set(holder['jobs'])
-    launched = [j['launched_at'] for j in holder['jobs'].values() if j['launched_at']]
-    if not launched or len(launched) != len(holder['jobs']):
+def _slot(job):
+    """F3: a job's hold on the write slot, (launched, settled), settled None while open; None when unknown."""
+    if not job['launched_at']:
         return None
-    begin = min(launched, key=_sort_key)
-    settled = [j['settled_at'] for j in holder['jobs'].values()]
-    end = None if holder['open'] else (max(settled, key=_sort_key) if all(settled) else False)
-    if end is False:
-        return None
-    window = _start(other, keys & set(other['jobs']))
-    if window is None:
-        return None
+    if not job['terminal']:
+        return job['launched_at'], None
+    return (job['launched_at'], job['settled_at']) if job['settled_at'] else None
+
+
+def _within(slot, window):
+    """F3: True when a start window certainly falls inside a slot, False when certainly not, None if unknown."""
+    begin, end = slot
     earliest, latest = window
     if not _comparable(begin, earliest, end):
         return None
@@ -281,6 +288,20 @@ def _inside(holder, other):
     if latest < begin or (end is not None and earliest >= end):
         return False
     return None
+
+
+def _starts(state, holder_state, holder):
+    """F3 and R2-F3: what in `state` claims the slot, as (who, window): each of its own jobs' launch, or for an
+    attempt that records no job of its own its start. The holder's job, cited again by a later attempt, is the
+    same job. Only an attempt that records no submission and is already_satisfied wrote nothing."""
+    shared = set(holder_state['jobs']) if state is not holder_state else set()
+    own = [j for k, j in state['jobs'].items() if j is not holder and k not in shared]
+    if own:
+        name = (lambda j: '%s (job %s)' % (state['attempt'], j['ref'])) if state is holder_state else (lambda j: state['attempt'])
+        return [(name(j), (j['launched_at'], j['launched_at']) if j['launched_at'] else None) for j in own]
+    if state is holder_state or (state['outcome'] == 'already_satisfied' and not state['jobs']):
+        return []
+    return [(state['attempt'], _start(state, shared))]
 
 
 def job_findings(record, checkpoints):
@@ -298,20 +319,20 @@ def job_findings(record, checkpoints):
             job = state['open'][0]
             problems.append('%s is %s, but attempt %s has an unsettled job (%s: %s); it stays unverified until a terminal status'
                             % (item['id'], item['disposition'], state['attempt'], job['ref'], job.get('why', 'not terminal')))
-    for holder in states:
-        if not holder['jobs']:
-            continue
-        for other in states:
-            if other is holder or other['attempt'] == holder['attempt'] or other['outcome'] == 'already_satisfied':
-                continue
-            inside = _inside(holder, other)
-            if inside is None:
-                inside = bool(holder['open']) and other['position'] > holder['position']
-            if inside and holder['open']:
-                problems.append('%s left job %s non-terminal, yet %s started after it' % (holder['attempt'], holder['open'][0]['ref'], other['attempt']))
-            elif inside:
-                last = max(holder['jobs'].values(), key=lambda j: _sort_key(j['settled_at']))
-                problems.append("%s launched before %s's job %s settled (%s)" % (other['attempt'], holder['attempt'], last['ref'], last['settled']))
+    for holder_state in states:
+        for holder in holder_state['jobs'].values():
+            slot = _slot(holder)
+            for state in states:
+                if state is not holder_state and state['attempt'] == holder_state['attempt']:
+                    continue
+                for who, window in _starts(state, holder_state, holder):
+                    inside = _within(slot, window) if slot and window else None
+                    if inside is None:  # unknown: an open job holds the slot against everything logged after it
+                        inside = not holder['terminal'] and state['position'] > holder_state['position']
+                    if inside and not holder['terminal']:
+                        problems.append('%s left job %s non-terminal, yet %s started after it' % (holder_state['attempt'], holder['ref'], who))
+                    elif inside:
+                        problems.append("%s launched before %s's job %s settled (%s)" % (who, holder_state['attempt'], holder['ref'], holder['settled']))
     return list(dict.fromkeys(problems))
 
 
@@ -371,17 +392,52 @@ def plan(record, checkpoints=()):
     return {'order': write_order, 'layers': layers, 'next': unsettled, 'blocked': blocked, 'open_jobs': jobs, 'ready': ready}
 
 
-def write_order_findings(record, checkpoints):
-    """X22 and F4: a dependent's first attempt follows its prerequisite's first attempt that itself settled."""
-    items = {i['id']: i for i in record['items']}
-    seen = {}
+def _states(record, checkpoints):
+    """Each attempt's first checkpoint, parsed by checkpoint_state with its owning item."""
+    owners = {a: i for i in record['items'] for a in i['attempts']}
+    states = {}
     for checkpoint in checkpoints:
-        seen.setdefault(checkpoint['attempt'], checkpoint)
+        if checkpoint['attempt'] not in states:
+            states[checkpoint['attempt']] = checkpoint_state(checkpoint, owners.get(checkpoint['attempt']))
+    return states
+
+
+def _earliest(windows):
+    """The earliest of several (earliest, latest) windows, as one window; None when any is unknown or incomparable."""
+    if not windows or not all(windows) or not _comparable(*(w[0] for w in windows)):
+        return None
+    return min((w[0] for w in windows), key=_sort_key), min((w[1] for w in windows), key=_sort_key)
+
+
+def _settle(state):
+    """When an attempt's work settled, as a window: its last job's terminal time, else (synchronous) its start."""
+    if state['jobs']:
+        settled = [j['settled_at'] for j in state['jobs'].values()]
+        return (max(settled, key=_sort_key),) * 2 if all(settled) and _comparable(*settled) else None
+    return _start(state, set())
+
+
+def _chronology(item, states):
+    """R2-F5: an item's attempts in the order they ran. Log order, unless recorded start times certainly say otherwise."""
+    present = sorted((a for a in item['attempts'] if a in states), key=lambda a: states[a]['position'])
+    windows = {a: _start(states[a], set()) for a in present}
+    if not all(windows.values()) or not _comparable(*(w[0] for w in windows.values())):
+        return present
+    if any(windows[later][1] < windows[earlier][0] for n, earlier in enumerate(present) for later in present[n + 1:]):
+        return sorted(present, key=lambda a: _sort_key(windows[a][0]))  # stable: log order breaks ties
+    return present
+
+
+def write_order_findings(record, checkpoints):
+    """X22, F4 and R2-F4: a dependent's first attempt starts after its prerequisite's first settling attempt settled.
+    Recorded times decide when they are certain; log position decides the rest."""
+    items = {i['id']: i for i in record['items']}
+    states = _states(record, checkpoints)
     problems = []
     for item in items.values():
         if not item['attempts']:
             continue
-        first = min((seen[a]['position'] for a in item['attempts'] if a in seen), default=None)
+        mine = [states[a] for a in item['attempts'] if a in states]
         for dependency in item['depends_on']:
             prerequisite = items.get(dependency)
             if prerequisite is None:
@@ -389,19 +445,33 @@ def write_order_findings(record, checkpoints):
             if prerequisite['disposition'] not in SETTLED_OK:
                 problems.append('%s was attempted while its prerequisite %s is %s' % (item['id'], dependency, prerequisite['disposition']))
                 continue
-            settling = min((seen[a]['position'] for a in prerequisite['attempts'] if a in seen and seen[a]['outcome'] in SETTLED_OK), default=None)
-            if first is not None and settling is not None and settling > first:
+            settling = [states[a] for a in prerequisite['attempts'] if a in states and states[a]['outcome'] in SETTLED_OK]
+            if not mine or not settling:
+                continue
+            start, settled = _earliest([_start(s, set()) for s in mine]), _earliest([_settle(s) for s in settling])
+            early = None
+            if start and settled and _comparable(start[0], settled[0]):
+                early = True if start[1] < settled[0] else False if start[0] >= settled[1] else None
+            if early is None:
+                early = min(s['position'] for s in settling) > min(s['position'] for s in mine)
+            if early:
                 problems.append('%s was attempted before its prerequisite %s settled' % (item['id'], dependency))
     return problems
 
 
 def retry_findings(record, checkpoints):
-    """RB3 and F5: a retry, an attempt after a failed one on the same item, cites its covering lesson or Docs search."""
-    outcomes = {c['attempt']: c['outcome'] for c in checkpoints}
+    """RB3, F5 and R2-F5: a retry, the attempt that ran next after a failed one on the same item, cites its covering
+    lesson or Docs search. The attempts array lists them in the order they ran, as W3's last-outcome rule assumes."""
+    states = _states(record, checkpoints)
     problems = []
     for item in record['items']:
-        for previous, attempt in zip(item['attempts'], item['attempts'][1:]):
-            if outcomes.get(previous) != 'failed':
+        chronology = _chronology(item, states)
+        listed = [a for a in item['attempts'] if a in states]
+        if listed != chronology:
+            problems.append('%s lists attempts %s, but its checkpoints ran %s; list them in the order they ran'
+                            % (item['id'], ', '.join(listed), ', '.join(chronology)))
+        for previous, attempt in zip(chronology, chronology[1:]):
+            if states[previous]['outcome'] != 'failed':
                 continue
             if not any(e.get('attempt') == attempt and e['source'] in ('lesson', 'docs') and e['ref'].strip() for e in item['grounding']):
                 problems.append('%s retried in %s after failed %s without a grounding entry {"attempt":"%s"} citing the covering '
@@ -433,6 +503,8 @@ def beat_verdict(record, beat):
     reasons = {verdict: [] for verdict in VERDICTS}
     if not _text((beat.get('verification') or {}).get('evidence')):
         reasons['unverified'].append(beat['id'] + ' records no verification evidence')
+    if beat.get('proof_moment') and not any(_active(c) for c in beat['claims']):  # R2-F2: withdrawal never erases the proof
+        reasons['unverified'].append(beat['id'] + ' is the proof moment but has no active claim')
     for claim in beat['claims']:
         result = claim.get('result')
         if result == 'failed':
@@ -528,8 +600,18 @@ def _assessor():
 
 
 def bound_orgs(task_visible):
-    """C2: the org IDs the task record names outside fences, as 15-character keys."""
-    return sorted({m[0][:15] for m in ORG_ID.finditer(task_visible)})
+    """C2 and R2-F8: the org IDs on the task record's binding lines, outside fences, as 15-character keys.
+
+    A binding line's label, the text before its first colon, starts with Bound, Binding, Target or Org, as
+    `pending` reads a folder's org. A request, an amendment, a quote or reuse provenance that mentions another
+    org doesn't bind it.
+    """
+    found = set()
+    for line in task_visible.splitlines():
+        match = BINDING.match(re.sub(r'[*_`]', '', line))
+        if match:
+            found |= {m[0][:15] for m in ORG_ID.finditer(match[1])}
+    return sorted(found)
 
 
 def _flow_findings(folder, item, orgs):
@@ -555,8 +637,16 @@ def _flow_findings(folder, item, orgs):
     rows = evidence.get('flow_tests') if isinstance(evidence, dict) else None
     if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
         return ['evidence file needs a "flow_tests" list of objects']
+    required = set(flow['required_tests'])
+    for n, row in enumerate(rows, 1):  # R2-F9: rows beyond the required ones still need their shape; required rows meet their contract below
+        if isinstance(row.get('test'), str) and row['test'] in required:
+            continue
+        if (not _text(row.get('test')) or not _text(row.get('flow_api_name')) or not _positive(row.get('version'))
+                or not (isinstance(row.get('org_id'), str) and ORG_ID.fullmatch(row['org_id']))):
+            return ['flow_tests row %d needs a test, a flow_api_name, a positive integer version and an org_id' % n]
     if len(orgs) != 1:
-        return ['the task record names %d org IDs; Flow test org_id needs exactly one bound org' % len(orgs)]
+        return ['the task record names %d bound org IDs; record the one binding line, as in '
+                '"Bound: <alias> · <username> · <org ID>"' % len(orgs)]
     problems, unavailable = [], []
     for test in flow['required_tests']:
         matches = [r for r in rows if r.get('test') == test]
@@ -674,9 +764,18 @@ def _has(section_names, name):
     return any(s == name or s.startswith(name + ' (') or s.startswith(name + ' —') for s in section_names)
 
 
+def agent_live(item, states):
+    """F14 and R2-F6: an attempted agent is live when its last recorded publish settled Active, whatever its
+    behavioural verification found."""
+    publishes = [j for a in _chronology(item, states) for j in states[a]['jobs'].values() if j['vocabulary'] == 'agentforce']
+    return bool(publishes) and publishes[-1]['terminal'] and _word(publishes[-1]['status']).lower() == 'active'
+
+
 def type_section_findings(record, checkpoints, section_names, folder=None):
-    """F14: the change-log template's own conditions decide each section, never the final disposition."""
+    """F14: the change-log template's own conditions decide each section, never the final disposition.
+    Sections count at the template's own level, `##` (R2-C4); the caller passes those names."""
     existing = {c['attempt'] for c in checkpoints if c.get('existing')}
+    states = _states(record, checkpoints)
     problems = []
     for item in record['items']:
         kind = family(item['type'])
@@ -684,7 +783,7 @@ def type_section_findings(record, checkpoints, section_names, folder=None):
             continue
         needed = list(TYPE_SECTIONS.get(kind, ()))
         if kind == 'agentforce':
-            if not (_text(item.get('agent_version')) and item['disposition'] in ('applied', 'already_satisfied', 'failed')):
+            if not agent_live(item, states):
                 needed.append('Agent Not Live')
             if existing & set(item['attempts']):
                 needed.append('Existing Agent Before-State')

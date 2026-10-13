@@ -342,7 +342,7 @@ class BuildRouteTests(unittest.TestCase):
                      '`Succeeded|SucceededPartial|Failed|Canceled`', '`JobComplete|Failed|Aborted`', '`Completed|Failed`',
                      '`Active|Inactive|NeedsUICommit|Failed`')
         self.phrases(self.command, '`- job:<ID>;status:<terminal>;launched:<YYYY-MM-DDTHH:MM:SS>;settled:<…>` per job',
-                     "Settle any prior task's open job with a status read before writing, or stop and tell the SE")
+                     "Settle every `open_jobs` entry `pending` reports with a status read before writing, or stop and tell the SE")
 
     def test_prerequisites_and_failures_block_dependents(self):
         self.phrases(self.build, "Proceed only when every prerequisite is `applied` or `already_satisfied`",

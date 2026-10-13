@@ -63,12 +63,24 @@ def job(reference, status=None, launched=None, settled=None):
     return '- job: ' + reference + ''.join('; %s: %s' % (k, v) for k, v in fields if v) + '\n'
 
 
+LIVE = job('agent publish', 'Active', '2026-10-13T12:00:00', '2026-10-13T12:02:00')
+
+
 class Harness(unittest.TestCase):
     """The history suite's fixture, without re-running its tests."""
     setUp = base.ScoutHistoryTests.setUp
-    save = base.ScoutHistoryTests.save
     run_cli = base.ScoutHistoryTests.run_cli
     assert_rule = base.ScoutHistoryTests.assert_rule
+
+    def save(self, checkpoints=None):
+        """The history suite's save. R2-F6 changed it: an applied or already_satisfied Agentforce item's default
+        checkpoint records its publish settling Active, as build.md's job line requires, so the agent is live."""
+        if checkpoints is None:
+            checkpoints = ''.join(
+                base.checkpoint(a, i['disposition'], i['disposition']).replace('outcome: pending', 'outcome: ' + i['disposition'])
+                + (LIVE if BUILD.family(i['type']) == 'agentforce' and i['disposition'] in BUILD.SETTLED_OK else '')
+                for i in self.data['items'] for a in i['attempts'] if i['disposition'])
+        base.ScoutHistoryTests.save(self, checkpoints)
 
     def add_sections(self, *names):
         """Insert per-type log sections ahead of the final Checkpoints section."""
@@ -419,7 +431,7 @@ class EvidenceTests(Harness):
                 self.assertIn('active_version', self.assert_rule('evidence-ref'))
         self.flow(evidence={'flow_tests': [self.row()]})
         self.task.write_text(self.task.read_text().replace(base.ORG + ')', base.ORG + '); copied from 00D000000000002EAA'))
-        self.assertIn('names 2 org IDs', self.assert_rule('evidence-ref'))
+        self.assertIn('names 2 bound org IDs', self.assert_rule('evidence-ref'))  # R2-F8 renamed the binding message
 
     def test_unsupported_flow_validation_stays_awaiting_visual_qa(self):
         self.flow(mode='unsupported', tests=())
@@ -798,7 +810,135 @@ class JobTests(Harness):
         self.assertIn('"Agent Not Live"', self.assert_rule('log-type-sections'))
         evidence(self)
         self.data['items'][0]['what'] = 'Modify Existing Agent Demo_Agent'
-        self.save(cp('A1', body='- Classification / source: existing; Demo_Agent original version 0Xx-version-6.\n'))
+        self.save(cp('A1', body='- Classification / source: existing; Demo_Agent original version 0Xx-version-6.\n' + LIVE))
+        self.add_sections('Agentforce Deployed (if any)', 'Agentforce Current-Test Evidence (if any)')
+        self.assertIn('"Existing Agent Before-State"', self.assert_rule('log-type-sections'))
+        self.add_sections('Existing Agent Before-State (only for modified incumbent agents)')
+        self.passes()
+
+
+class Round3Tests(Harness):
+    """W10 round 3: Astra's round-2 findings R2-F1 to R2-F12, and candidates C1 and C4 as ruled."""
+
+    def test_r2_f1_job_lines_count_inside_fences(self):
+        self.save(cp('A1', body='```text\n' + job(DEPLOY, 'Succeeded', '2026-10-13T12:00:00', '2026-10-13T12:05:00') + '```\n'))
+        self.passes()  # a fenced receipt's own fields settle its job
+        EvidenceTests.agent(self)
+        self.save(cp('A1', body='```text\n' + job('agent publish', 'InProgress', '2026-10-13T12:00:00') + '```\n'))
+        self.add_sections('Agentforce Deployed (if any)', 'Agentforce Current-Test Evidence (if any)', 'Agent Not Live')
+        self.assertIn('has an unsettled job (agent publish', self.assert_rule('plan'))
+        self.assertEqual([j['job'] for j in json.loads(self.run_cli('plan')[1])['open_jobs']], ['agent publish'])
+
+    def test_r2_f2_a_proof_moment_needs_an_active_claim(self):
+        complex_story(self.data)
+        self.data['path'] = 'open-ended'
+        self.data['story']['beats'][0]['claims'][0].update(result='dropped', required=False)
+        self.save()
+        output = self.assert_rule('story')
+        self.assertIn('proof moment needs a claim with readback', output)
+        self.assertIn('B1 is the proof moment but has no active claim', output)
+        self.assertIn('Overall: UNRESOLVED', self.run_cli('render')[1])
+
+    def test_r2_f3_every_job_holds_the_write_slot(self):
+        self.save(cp('A1', body=job(DEPLOY, 'Succeeded', '2026-10-13T12:00:00', '2026-10-13T12:10:00') +
+                     job(BULK, 'JobComplete', '2026-10-13T12:05:00', '2026-10-13T12:06:00')))
+        self.assertIn("A1 (job %s) launched before A1's job %s settled" % (BULK, DEPLOY), self.assert_rule('plan'))
+        self.data['items'] = items(('I1', 'unverified', ()), ('I2', 'already_satisfied', ()))
+        self.data['items'][0]['reason'] = 'deploy remains queued'
+        self.data['items'][1]['attempts'] = ['A2']
+        queued = cp('A1', 'unverified', job(DEPLOY, 'Queued', '2026-10-13T12:00:00'))
+        self.save(queued + cp('A2', 'already_satisfied', job(BULK, 'JobComplete', '2026-10-13T12:05:00', '2026-10-13T12:06:00')))
+        self.assertIn('A1 left job %s non-terminal, yet A2 started after it' % DEPLOY, self.assert_rule('plan'))
+        self.save(queued + cp('A2', 'already_satisfied'))
+        self.assertNotIn('yet A2 started', self.run_cli()[1])  # it submitted nothing, so it wrote nothing
+
+    def test_r2_f4_write_order_follows_recorded_times(self):
+        self.data['items'] = items(('I1', 'applied', ()), ('I2', 'applied', ('I1',)))
+        self.save(cp('A1', body=job(DEPLOY, 'Succeeded', '2026-10-13T12:10:00', '2026-10-13T12:11:00'), at='2026-10-13 12:10') +
+                  cp('A2', body=job(BULK, 'JobComplete', '2026-10-13T12:00:00', '2026-10-13T12:01:00')))
+        self.assertIn('I2 was attempted before its prerequisite I1 settled', self.assert_rule('plan'))
+        prerequisite = cp('A1', body=job(DEPLOY, 'Succeeded', '2026-10-13T12:00:00', '2026-10-13T12:05:00'))
+        dependent = cp('A2', body=job(BULK, 'JobComplete', '2026-10-13T12:05:01', '2026-10-13T12:06:00'), at='2026-10-13 12:05')
+        self.save(dependent + prerequisite)
+        self.passes()  # the times prove the order, whatever the log's order
+
+    def test_r2_f5_retries_follow_the_order_attempts_ran(self):
+        complex_story(self.data)
+        self.data['items'][0]['attempts'] = ['A2', 'A1', 'A3']
+        self.data['items'][0]['grounding'].append(dict(assumption='A1 failure covered', source='lesson', ref='L1', verdict='covered', attempt='A3'))
+        self.save(cp('A1', 'failed', '- Error: failed first write.\n') + cp('A2', at='2026-10-13 12:10') + cp('A3', at='2026-10-13 12:20'))
+        output = self.assert_rule('grounding')
+        self.assertIn('I1 lists attempts A2, A1, A3, but its checkpoints ran A1, A2, A3', output)
+        self.assertIn('I1 retried in A2 after failed A1', output)
+
+    def test_r2_f6_agent_not_live_follows_the_publish(self):
+        EvidenceTests.agent(self)
+        self.data['items'][0].update(disposition='failed', reason='State left: published but Inactive; rollback: unchanged')
+        self.data['story']['beats'][0]['verification']['verdict'] = 'unverified'
+        self.save(cp('A1', 'failed', job('agent publish', 'Inactive', '2026-10-13T12:00:00', '2026-10-13T12:05:00')))
+        self.add_sections('Agentforce Deployed (if any)', 'Agentforce Current-Test Evidence (if any)')
+        self.assertIn('"Agent Not Live"', self.assert_rule('log-type-sections'))
+        EvidenceTests.agent(self)
+        self.data['items'][0].update(disposition='unverified', reason='Version active; runtime probe timed out')
+        self.data['story']['beats'][0]['verification']['verdict'] = 'unverified'
+        self.save(cp('A1', 'unverified', job('agent publish', 'Active', '2026-10-13T12:00:00', '2026-10-13T12:05:00')))
+        self.add_sections('Agentforce Deployed (if any)', 'Agentforce Current-Test Evidence (if any)')
+        self.assertNotIn('Agent Not Live', self.run_cli()[1])
+
+    def test_r2_f7_a_dropped_optional_claim_is_history(self):
+        complex_story(self.data)
+        self.data['items'][0]['grounding'] = [dict(DOCS)]  # I1's active proof claim still owes Docs
+        self.data['story']['beats'][0]['claims'].append(dict(text='Withdrawn extra', item='I2', result='dropped', required=False))
+        self.data['items'].append(item('I2', 'omitted'))
+        self.data['items'][1].update(reason='SE withdrew the optional field', beat='-', readback='')
+        self.save()
+        self.passes()  # no proof-moment Docs obligation, no readback for an item only a withdrawn claim names
+
+    def test_r2_f8_only_a_binding_line_binds(self):
+        EvidenceTests.flow(self, evidence={'flow_tests': [EvidenceTests.row(self)]})
+        self.task.write_text(self.task.read_text() + '\n## Request verbatim\n'
+                             'Build this in the bound demo org, never in our production org 00D000000000999EAA.\n'
+                             '> Target org: 00D000000000998EAA, quoted from an old email\n'
+                             '- Request (verbatim, for our demo org): not 00D000000000997EAA\n')
+        self.passes()
+        self.task.write_text(self.task.read_text().replace('Org: ', 'Owner: ', 1))
+        self.assertIn('names 0 bound org IDs', self.assert_rule('evidence-ref'))
+
+    def test_r2_f9_rows_beyond_the_required_ones_keep_their_shape(self):
+        EvidenceTests.flow(self, evidence={'flow_tests': [EvidenceTests.row(self), EvidenceTests.row(self, test='Extra_Test', version=True)]})
+        self.assertIn('flow_tests row 2 needs', self.assert_rule('evidence-ref'))
+
+    def test_r2_f10_a_boolean_row_version_never_matches_version_1(self):
+        EvidenceTests.flow(self, evidence={'flow_tests': [EvidenceTests.row(self, version=True)]})
+        self.data['items'][0]['flow_validation'].update(version=1, active_version=1)
+        self.save()
+        self.add_sections('Flows Deployed (if any)', 'Execution Order Check')
+        self.assertIn('did not run on the frozen flow and version 1', self.assert_rule('evidence-ref'))
+
+    def test_r2_f11_time_zone_offsets_are_validated(self):
+        self.save(cp('A1', body=job(DEPLOY, 'Succeeded', '2026-10-13T12:00:00+00:90', '2026-10-13T12:05:00+00:90')))
+        self.assertIn('is not an ISO time with seconds', self.assert_rule('plan'))
+        self.save(cp('A1', body=job(DEPLOY, 'Succeeded', '2026-10-13T12:00:00+05:30', '2026-10-13T12:05:00+05:30')))
+        self.passes()
+
+    def test_r2_f12_the_route_lists_the_lesson_source(self):
+        route = (Path(BUILD.__file__).resolve().parents[1] / 'commands/scout.md').read_text()
+        self.assertIn('Sources: `docs|skill|org|lesson|ungrounded`', route)
+
+    def test_c1_pending_names_a_prior_task_open_job(self):
+        self.data['items'][0].update(disposition='unverified', reason='Queued at timeout; never terminal')
+        self.save(cp('A1', 'unverified', job(DEPLOY, 'Queued', '2026-10-13T12:00:00')))
+        rows = [r for r in base.ScoutHistoryTests.pending_rows(self) if r.get('file') == str(self.log)]
+        self.assertEqual([(r['state'], r.get('open_jobs')) for r in rows], [('resolved', [DEPLOY])])
+        self.save(cp('A1', 'unverified', job(DEPLOY, 'Succeeded', '2026-10-13T12:00:00', '2026-10-13T12:20:00')))
+        rows = [r for r in base.ScoutHistoryTests.pending_rows(self) if r.get('file') == str(self.log)]
+        self.assertEqual([(r['state'], r.get('open_jobs')) for r in rows], [('resolved', None)])
+
+    def test_c4_sections_count_at_the_template_level(self):
+        EvidenceTests.agent(self)
+        self.data['items'][0]['what'] = 'Modify Existing Agent Demo_Agent'
+        self.save(cp('A1', body='- Classification / source: existing; original version 0Xx-version-6.\n' + LIVE +
+                     '#### Existing Agent Before-State\nA scratch note, not the template section.\n'))
         self.add_sections('Agentforce Deployed (if any)', 'Agentforce Current-Test Evidence (if any)')
         self.assertIn('"Existing Agent Before-State"', self.assert_rule('log-type-sections'))
         self.add_sections('Existing Agent Before-State (only for modified incumbent agents)')
