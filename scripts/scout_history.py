@@ -396,7 +396,7 @@ def marked_receipts(text):
 def task_receipts(task):
     # Repair IDs are generated independently; never infer them from a filename.
     # The route requires every checkpoint marker to be recorded in this task.
-    return {m[2] for m in re.finditer(r'^(`?)<!-- scout-repair:([\w.-]+) -->\1\r?$', read(task), re.M)}
+    return set(re.findall(r'<!-- scout-repair:([\w.-]+) -->', read(task)))
 
 
 def owned_receipt(match, receipt_ids):
@@ -710,8 +710,8 @@ def check(task, record):
         for start in re.finditer(r'^<!-- scout-repair:[\w.-]+ -->\r?$', text, re.M):
             marker = RECEIPT.match(text, start.start())
             if marker and not owned_receipt(marker, receipt_ids):
-                issue('checkpoint', 'unrecorded report marker; record the exact line <!-- scout-repair:' + marker[1] + ' -->' +
-                      ' in task record ' + str(task) + ' (required before apply-report)', log,
+                issue('checkpoint', 'unrecorded report marker; copy the marker <!-- scout-repair:' + marker[1] + ' -->' +
+                      ' into task record ' + str(task) + ' (required before apply-report)', log,
                       line=text[:marker.start()].count('\n') + 1)
     if record['history']['architecture'] in ('created', 'reconciled'):
         arch = local(task.parent, 'demo-architecture.md')
@@ -916,7 +916,7 @@ def scout_agreement(body, outcome, receipt_ids=()):
     is the canonical outcome. Only a single-line pending field at an exact writable
     own offset is exempt. Evidence links/paths are never field labels or rewrite
     targets; code spans supply no fields or agreement words. Report marker pairs
-    occupy whole lines; task registration is a whole literal/backticked marker line.
+    occupy whole lines; task registration accepts the literal marker anywhere on a line.
     Only owned pairs exempt delta strings and map read-back outcomes by the route.
     Discovery has its separate fixed rule.
     """

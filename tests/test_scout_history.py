@@ -121,21 +121,26 @@ class ScoutHistoryTests(unittest.TestCase):
                 self.assertEqual(code, 0, output)
                 self.assertEqual(len(history.task_receipts(self.task)), 1)
 
-    def test_r12_f1_whole_line_registration_and_pairing(self):
-        marker = '<!-- scout-repair:repair-example -->'
-        closer = '<!-- /scout-repair:repair-example -->'
+    def test_r13_f1_registration_anywhere_keeps_whole_line_receipt_pairs(self):
+        marker = self.real_report_receipt(before='Pending')
+        closer = marker.replace('scout-repair:', '/scout-repair:')
+        task_text = self.task.read_text().replace(marker, '')
+        log_bytes = self.log.read_bytes()
+        marker_id = marker.removeprefix('<!-- scout-repair:').removesuffix(' -->')
         for recorded, expected in ((marker, 0), ('`' + marker + '`', 0),
-                                   ('Example: ' + marker, 3),
-                                   ('Example: `' + marker + '`', 3)):
-            self.save(checkpoint() + '```text\n' + marker +
-                      '\n- **Outcome / read-back:** applied\n' + closer + '\n```\n')
-            self.task.write_text(self.task.read_text() + '\n' + recorded + '\n')
-            self.run_cli('resolve')
-            code, output = self.run_cli()
-            self.assertEqual(code, expected, output)
-            if expected:
-                self.assertIn('record the exact line ' + marker, output)
-                self.assertIn(self.task.name, output)
+                                   ('Report marker: ' + marker, 0),
+                                   ('Report marker: `' + marker + '`', 0),
+                                   ('- ' + marker, 0), ('- Marker: `' + marker + '` saved', 0),
+                                   ('', 3), ('Report marker: ' + marker_id, 3),
+                                   ('Report marker: `' + marker_id + '`', 3)):
+            with self.subTest(recorded=recorded):
+                self.task.write_text(task_text + '\n' + recorded + '\n')
+                code, output = self.run_cli()
+                self.assertEqual(code, expected, output)
+                if expected:
+                    self.assertIn('copy the marker ' + marker, output)
+                    self.assertIn(self.task.name, output)
+        self.assertEqual(self.log.read_bytes(), log_bytes)
         for start, end in ((marker, closer), ('data ' + marker, closer),
                            (marker, 'data ' + closer)):
             text = start + '\nClassification: existing\n' + end + '\n'
@@ -288,9 +293,9 @@ class ScoutHistoryTests(unittest.TestCase):
                        '- **Requested delta / exclusions:** STATUS equals: "Pending" → "Closed"; unchanged\n'
                        '<!-- /scout-repair:' + name + ' -->\n```\n')
             self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') + receipt)
-            self.task.write_text(self.task.read_text() + '\n<!-- scout-repair:example -->\n')
+            self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
             self.assertEqual(self.run_cli()[0], 0 if name == 'example' else 3)
-            self.task.write_text(self.task.read_text() + '\n<!-- scout-repair:' + name + ' -->\n')
+            self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:' + name + ' -->\n')
             self.assertEqual(self.run_cli()[0], 0)
 
     def test_r10_f5_agreement_crosses_noncheckpoint_headings(self):
@@ -399,7 +404,7 @@ class ScoutHistoryTests(unittest.TestCase):
                 Repair(None).checkpoint(task, contract, state, first=True)
                 receipt = receipt_log.read_text()
                 self.save(checkpoint() + '```text\n' + receipt + '```\n')
-                self.task.write_text(self.task.read_text() + '\n<!-- scout-repair:example -->\n')
+                self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
                 self.run_cli('resolve')
                 self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
                 self.assertIn(receipt, self.log.read_text())
@@ -412,7 +417,7 @@ class ScoutHistoryTests(unittest.TestCase):
                     self.assertNotEqual(replacement, receipt)
                     self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') +
                               '```text\n' + replacement + '```\n')
-                    self.task.write_text(self.task.read_text() + '\n<!-- scout-repair:example -->\n')
+                    self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
                     self.assert_rule('checkpoint')
 
     def test_r9_f4_classification_offsets_survive_link_and_markup_prefix(self):
