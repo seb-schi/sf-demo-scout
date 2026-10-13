@@ -251,6 +251,11 @@ def prepare_workspace(workspace_value: str, customer_value: str, writer: str) ->
         _make_directory_chain(project, PurePosixPath("force-app/main/default"))
         project_config = project / "sfdx-project.json"
         write_receipt(project_config, config)
+        with open(project / ".forceignore", "x", encoding="utf-8",
+                  opener=lambda path, flags: os.open(path, flags, 0o600)) as stream:
+            stream.write("# Anchor SDR's default ignores to this writer project.\n")
+            stream.flush()
+            os.fsync(stream.fileno())
         receipt = dict(result, project_config_sha256=hash_file(project_config))
         write_receipt(Path(result["ownership_receipt"]), receipt)
         return verify_workspace(str(project))

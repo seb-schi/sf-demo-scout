@@ -1,12 +1,13 @@
 """Executable fixtures for retained, per-writer Scout metadata projects."""
 
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 import importlib.util
 import io
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
@@ -54,7 +55,14 @@ class OwnedWorkspaceTests(unittest.TestCase):
             "--customer-dir", customer or self.customer, "--writer", writer,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        return json.loads(result.stdout)
+        payload = json.loads(result.stdout)
+        ignore = Path(payload["project_root"]) / ".forceignore"
+        self.assertTrue(stat.S_ISREG(ignore.lstat().st_mode))
+        self.assertEqual(stat.S_IMODE(ignore.stat().st_mode), 0o600)
+        contents = ignore.read_text(encoding="utf-8")
+        self.assertTrue(contents.strip())
+        self.assertTrue(all(line.startswith("#") for line in contents.splitlines()))
+        return payload
 
     def reject_prepare(self, workspace=None, customer=None, writer="build"):
         result = self.cli(
@@ -153,6 +161,47 @@ class OwnedWorkspaceTests(unittest.TestCase):
                 self.reject_prepare(workspace=workspace, customer=customer)
         self.assertFalse((self.customer / ".scout-work").exists())
 
+    def retained_state(self, root):
+        return {
+            str(path.relative_to(root)): (
+                (path.read_bytes(), path.stat().st_mtime_ns) if path.is_file() else None
+            )
+            for path in root.rglob("*")
+        }
+
+    def test_pre_w8_projects_and_snapshots_stay_unchanged_during_recovery(self):
+        old = self.prepare()
+        old_project = Path(old["project_root"])
+        (old_project / ".forceignore").unlink()  # Model a retained pre-W8 project.
+        relative = "layouts/Case-Original.layout-meta.xml"
+        original = Path(old["source_root"]) / relative
+        original.parent.mkdir()
+        original.write_bytes(b"<Layout>original</Layout>")
+        saved = self.cli("preserve", "--source-root", old["source_root"],
+                         "--rollback-dir", old["rollback_dir"],
+                         "--kind", "component-preedit", "--path", relative)
+        self.assertEqual(saved.returncode, 0, saved.stderr)
+        artifact = json.loads(saved.stdout)["artifact"]
+        custom = Path(self.prepare()["project_root"])
+        (custom / ".forceignore").write_bytes(b"# User policy\n**/excluded/**\n")
+        unknown = self.customer / ".scout-work/interrupted-unknown"
+        (unknown / "empty").mkdir(parents=True)
+        (unknown / "partial.xml").write_bytes(b"retained interrupted source")
+        retained = (old_project, custom, unknown, Path(old["rollback_dir"]))
+        before = {path: self.retained_state(path) for path in retained}
+        for project in (old_project, custom):
+            result = self.cli("verify-workspace", "--project-root", project)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        verified = self.cli("verify", "--artifact", artifact)
+        self.assertEqual(verified.returncode, 0, verified.stderr)
+        fresh = self.prepare(writer="repair")
+        staged = self.cli("stage", "--artifact", artifact,
+                          "--project-root", fresh["project_root"], "--path", relative)
+        self.assertEqual(staged.returncode, 0, staged.stderr)
+        self.assertEqual((Path(fresh["source_root"]) / relative).read_bytes(), original.read_bytes())
+        self.assertEqual({path: self.retained_state(path) for path in retained}, before)
+        self.assertFalse((old_project / ".forceignore").exists())
+
     def test_symlinked_workspace_customer_and_source_config_are_rejected(self):
         alias = self.base / "alias"
         alias.symlink_to(self.workspace, target_is_directory=True)
@@ -234,6 +283,90 @@ class OwnedWorkspaceTests(unittest.TestCase):
             self.assertNotEqual(self.cli("verify-workspace", "--project-root", path).returncode, 0)
         self.prepare()
         self.assertTrue(all(path.exists() for path in retained))
+
+    def test_forceignore_open_and_partial_write_fail_before_ownership(self):
+        spec = importlib.util.spec_from_file_location("forceignore_failure_helper", HELPER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        incumbent = Path(self.prepare()["project_root"])
+        before = self.retained_state(incumbent)
+        staging = self.customer / ".scout-work"
+        for failure in ("open", "write"):
+            with self.subTest(failure=failure):
+                existing = set(staging.iterdir())
+
+                @contextmanager
+                def failing_open(path, *args, **kwargs):
+                    self.assertEqual(Path(path).name, ".forceignore")
+                    if failure == "open":
+                        raise OSError("injected forceignore open failure")
+                    with open(path, *args, **kwargs) as stream:
+                        proxy = mock.Mock(wraps=stream)
+
+                        def partial_write(text):
+                            stream.write(text[:8])
+                            raise OSError("injected forceignore write failure")
+
+                        proxy.write.side_effect = partial_write
+                        yield proxy
+
+                output, errors = io.StringIO(), io.StringIO()
+                with mock.patch.object(module, "open", failing_open, create=True):
+                    with redirect_stdout(output), redirect_stderr(errors):
+                        result = module.main([
+                            "prepare-workspace", "--workspace-root", str(self.workspace),
+                            "--customer-dir", str(self.customer), "--writer", "build",
+                        ])
+                self.assertEqual(result, 1)
+                self.assertEqual(output.getvalue(), "")
+                self.assertIn("injected forceignore " + failure + " failure", errors.getvalue())
+                created = set(staging.iterdir()) - existing
+                self.assertEqual(len(created), 1)
+                partial = created.pop()
+                self.assertIn(str(partial), errors.getvalue())
+                self.assertFalse((partial / "ownership.json").exists())
+                self.assertNotEqual(self.cli("verify-workspace", "--project-root", partial).returncode, 0)
+                partial_state = self.retained_state(partial)
+                self.prepare()
+                self.assertEqual(self.retained_state(partial), partial_state)
+                self.assertEqual(self.retained_state(incumbent), before)
+
+    def test_forceignore_collision_does_not_overwrite_or_follow_symlink(self):
+        spec = importlib.util.spec_from_file_location("forceignore_collision_helper", HELPER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        external = self.base / "external-ignore"
+        external.write_bytes(b"external policy")
+        real_mkdtemp = module.tempfile.mkdtemp
+        for kind in ("file", "symlink"):
+            with self.subTest(kind=kind):
+                created = []
+
+                def collision(*args, **kwargs):
+                    project = Path(real_mkdtemp(*args, **kwargs))
+                    created.append(project)
+                    ignore = project / ".forceignore"
+                    if kind == "symlink":
+                        ignore.symlink_to(external)
+                    else:
+                        ignore.write_bytes(b"existing policy")
+                    return str(project)
+
+                output, errors = io.StringIO(), io.StringIO()
+                with mock.patch.object(module.tempfile, "mkdtemp", side_effect=collision):
+                    with redirect_stdout(output), redirect_stderr(errors):
+                        result = module.main([
+                            "prepare-workspace", "--workspace-root", str(self.workspace),
+                            "--customer-dir", str(self.customer), "--writer", "build",
+                        ])
+                self.assertEqual(result, 1)
+                self.assertEqual(output.getvalue(), "")
+                project, = created
+                self.assertFalse((project / "ownership.json").exists())
+                self.assertEqual(external.read_bytes(), b"external policy")
+                ignore = project / ".forceignore"
+                self.assertEqual(ignore.is_symlink(), kind == "symlink")
+                self.assertEqual(ignore.read_bytes(), b"external policy" if kind == "symlink" else b"existing policy")
 
     def test_verify_is_read_only_and_rejects_tampering_and_source_symlink(self):
         payload = self.prepare()
