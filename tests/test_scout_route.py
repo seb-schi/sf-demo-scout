@@ -13,12 +13,62 @@ class ScoutRouteTests(unittest.TestCase):
 
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
-        self.assertLessEqual(sum(len(p.read_text().split()) for p in [COMMAND, *optional]), 2000)
-        paths = re.findall(r'(?:\$\{CLAUDE_PLUGIN_ROOT\}|\[PLUGIN_ROOT_ABS\])/([^`\s]+)', self.command)
+        caps = {'scout.md': 2100, 'history.md': 900, 'discovery.md': 1100}
+        for path in [COMMAND, *optional]:
+            self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)
+        text = '\n'.join(p.read_text() for p in [COMMAND, *optional])
+        paths = re.findall(r'(?:\$\{CLAUDE_PLUGIN_ROOT\}|\[PLUGIN_ROOT_ABS\])/([^`\s]+)', text)
         self.assertGreater(len(paths), 10)
         for relative in paths:
             self.assertTrue((ROOT / relative).exists(), relative)
         self.assertEqual(self.command.count('/CLAUDE.md'), 1)
+
+    def test_every_quoted_section_exists(self):
+        count = 0
+        for path in [COMMAND, *(ROOT / 'prompts/scout').glob('*.md')]:
+            current = None
+            for token in re.finditer(r'\$\{CLAUDE_PLUGIN_ROOT\}/([^`\s]+)|§"([^"]+)"', path.read_text()):
+                if token[1]:
+                    current = ROOT / token[1]
+                else:
+                    self.assertIsNotNone(current, token[0])
+                    source = current.read_text()
+                    self.assertRegex(source, r'(?m)^(?:#{1,6} ' + re.escape(token[2]) +
+                                     r'|\*\*' + re.escape(token[2]) + r'\*\*)$', str(current))
+                    count += 1
+        self.assertGreaterEqual(count, 5)
+
+    def test_structured_history_record_checkpoint_and_gate(self):
+        history = (ROOT / 'prompts/scout/history.md').read_text()
+        for phrase in ('fenced `scout-items` JSON block', '"schema":1', '"depends_on":[]', '"components":[]',
+                       '"readback":""', '"grounding":', '"attempts":[]', '"proposed_entries":[]',
+                       'new per-task change log before the first checkpoint',
+                       '### PENDING — component repair · attempt <ID> · <YYYY-MM-DD HH:MM>',
+                       '- **Outcome: <disposition>.** <evidence>', 'Run items in `depends_on` order',
+                       'Send the handover only after exit 0', 'fix and recheck up to twice', 'History incomplete:'):
+            self.assertIn(phrase, self.command)
+        self.assertLess(self.command.index('After the last disposition'), self.command.index('/prompts/scout/history.md'))
+        self.assertGreater(self.command.index('/prompts/scout/history.md'), self.command.index('Assign exactly one disposition'))
+        for phrase in ('Run `resolve --task [T]`, then `check --task [T]`', 'Verified — Applied This Build',
+                       'Verified — Already Satisfied Before This Build', 'AWAITING_QA', 'SKIPPED',
+                       'FAILED, BLOCKED, INCOMPLETE (unverified)', 'FINISHED_WITH_EXCEPTIONS',
+                       "Each settled attempt's heading comes from its own", 'Missing/conflicting outcomes stay PENDING'):
+            self.assertIn(phrase, history)
+
+    def test_history_map_ownership_precedence_and_reoffer(self):
+        history = (ROOT / 'prompts/scout/history.md').read_text()
+        for phrase in ('Create a map only when this task established a story', 'audience and moment',
+                       'map unchanged', 'one line at most 320 characters',
+                       'Every SE-authored/non-template section stays byte-identical, in place',
+                       'overrides deleting legacy banners', 'per-task log rule overrides',
+                       "outcome heading rule overrides that file's heading rule",
+                       "second author despite", 'No answer means write nothing',
+                       '`pending` to re-offer next run', 'On skip, write the arc and stamps without new entries',
+                       'rerun `check`, then send one truthful receipt line'):
+            self.assertIn(phrase, history)
+        self.assertIn('`demo-architecture.md` first', self.command)
+        self.assertIn('reconcile-plan --folder', self.command)
+        self.assertIn('read every `unclear` checkpoint', self.command)
 
     def test_never_bullets_remain_qualified_and_byte_identical(self):
         bullets = ['- Delete existing metadata or records',
