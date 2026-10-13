@@ -945,5 +945,97 @@ class Round3Tests(Harness):
         self.passes()
 
 
+class Round4Tests(Harness):
+    """W10 round 4: Astra's round-3 findings R3-F1 to R3-F7, and candidates C1, C2 and C4 as ruled."""
+
+    def test_r3_f1_an_executor_label_never_merges_submissions(self):
+        EvidenceTests.agent(self)
+        self.save(cp('A1', body=job('agent publish', 'InProgress', '2026-10-13T12:00:00') +
+                     job('agent publish', 'Active', '2026-10-13T12:05:00', '2026-10-13T12:06:00')))
+        self.add_sections('Agentforce Deployed (if any)', 'Agentforce Current-Test Evidence (if any)')
+        self.assertIn('has an unsettled job (agent publish', self.assert_rule('plan'))
+        self.assertEqual(len(json.loads(self.run_cli('plan')[1])['open_jobs']), 1)
+
+    def test_r3_f2_an_executor_label_is_not_a_shared_job(self):
+        self.data['items'] = items(('I1', 'applied', ()), ('I2', 'applied', ()))
+        for each in self.data['items']:
+            each['type'] = 'EmailToCaseSettings'  # its apply script reports Completed or Failed
+        self.save(cp('A1', body=job('apply script', 'Completed', '2026-10-13T12:00:00Z', '2026-10-13T12:10:00Z')) +
+                  cp('A2', body=job('apply script', 'Completed', '2026-10-13T12:05:00Z', '2026-10-13T12:06:00Z'), at='2026-10-13 12:05'))
+        self.assertIn("A2 launched before A1's job apply script settled", self.assert_rule('plan'))
+
+    def test_r3_f3_chronology_applies_each_certain_comparison(self):
+        complex_story(self.data)
+        self.data['items'][0]['attempts'] = ['A2', 'A1', 'A3']
+        self.data['items'][0]['grounding'].append(dict(assumption='A1 error', source='lesson', ref='L1', verdict='covered', attempt='A3'))
+        self.save(cp('A2', body=job(BULK, 'JobComplete', '2026-10-13T12:11:00Z', '2026-10-13T12:12:00Z')) +
+                  cp('A1', 'failed', job(DEPLOY, 'Failed', '2026-10-13T12:10:00Z', '2026-10-13T12:10:30Z')) + cp('A3', at='2026-10-13 12:20'))
+        self.assertIn('I1 retried in A2 after failed A1', self.assert_rule('grounding'))  # one minute-only heading disables nothing
+        self.data['items'][0]['attempts'] = ['A3', 'A1', 'A2']
+        self.data['items'][0]['grounding'][-1]['attempt'] = 'A2'
+        self.save(cp('A3', at='2026-10-13 11:50') + cp('A1', body=job(DEPLOY, 'Succeeded', '2026-10-13T12:01:30', '2026-10-13T12:01:40')) +
+                  cp('A2', at='2026-10-13 12:01'))
+        self.assertNotIn('but its checkpoints ran', self.run_cli()[1])  # uncertain pairs keep log order
+
+    def test_r3_f4_only_the_binding_binds(self):
+        EvidenceTests.flow(self, evidence={'flow_tests': [EvidenceTests.row(self)]})
+        self.task.write_text(self.task.read_text() + '\n## Request verbatim\nReproduce the old issue:\nTarget org: 00D000000000999EAA\n'
+                             '\n## Reuse provenance\nOrg copied from: 00D000000000998EAA\n')
+        self.passes()
+        text = self.task.read_text().replace('Org: ', 'Owner: ', 1)
+        self.task.write_text(text + '\n## Target\n- Selector `demo` · username `%s` · org ID `%s`\n' % (base.USER, base.ORG))
+        self.passes()  # a Target section binds, label or not
+
+    def test_r3_f5_an_active_claim_needs_its_item_and_read_back(self):
+        complex_story(self.data)
+        for change in (lambda: self.data['story']['beats'][0]['claims'][0].update(item='I9'),
+                       lambda: self.data['items'][0].update(readback='')):
+            with self.subTest():
+                complex_story(self.data)
+                self.data['items'][0]['readback'] = 'sf data query --target-org demo'
+                change()
+                self.save()
+                self.assertIn('Overall: UNRESOLVED', self.run_cli('render')[1])
+
+    def test_r3_f6_business_process_and_path_sections(self):
+        for kind, section in (('BusinessProcess', 'Business Processes Deployed (if any)'), ('PathAssistant', 'Paths Deployed (if any)')):
+            with self.subTest(kind=kind):
+                self.data = base.record()
+                self.data['items'][0]['type'] = kind
+                self.save()
+                self.assertIn('"%s"' % section.split(' (')[0], self.assert_rule('log-type-sections'))
+                self.add_sections(section)
+                self.assertNotIn('log-type-sections', self.run_cli()[1])
+
+    def test_r3_f7_an_out_of_range_time_is_malformed(self):
+        complex_story(self.data)
+        self.save(cp('A1', body=job(DEPLOY, 'Succeeded', '0001-01-01T00:00:00+23:59', '0001-01-01T00:01:00+23:59')))
+        code, output = self.run_cli()
+        self.assertEqual(code, 3, output)
+        self.assertIn('is not an ISO time with seconds', output)
+
+    def test_r3_c1_the_latest_publish_by_launch_decides_liveness(self):
+        EvidenceTests.agent(self)
+        self.save(cp('A1', body=job('agent publish', 'Inactive', '2026-10-13T12:05:00', '2026-10-13T12:06:00') +
+                     job('agent publish', 'Active', '2026-10-13T12:00:00', '2026-10-13T12:01:00')))
+        self.add_sections('Agentforce Deployed (if any)', 'Agentforce Current-Test Evidence (if any)')
+        self.assertIn('"Agent Not Live"', self.assert_rule('log-type-sections'))
+
+    def test_r3_c2_already_satisfied_writes_nothing(self):
+        self.data['items'][0].update(disposition='already_satisfied')
+        self.save(cp('A1', 'already_satisfied', job(DEPLOY, 'Succeeded', '2026-10-13T12:00:00', '2026-10-13T12:05:00')))
+        self.assertIn('already_satisfied means nothing was written', self.assert_rule('plan'))
+
+    def test_r3_c4_pending_reports_open_jobs_only_where_a_write_may_still_land(self):
+        rows = lambda: [r for r in base.ScoutHistoryTests.pending_rows(self) if r.get('file') == str(self.log)]  # noqa: E731
+        self.save(cp('A1', body='- Receipts: deploy %s read back.\n' % DEPLOY))
+        self.assertEqual([r.get('open_jobs') for r in rows()], [None])  # settled history: a bare ID is a settled deploy
+        self.data['items'][0].update(disposition='unverified', reason='Timed out; never terminal')
+        self.save(cp('A1', 'unverified', '- Receipts: deploy %s submitted.\n' % DEPLOY))
+        self.assertEqual([r.get('open_jobs') for r in rows()], [[DEPLOY]])
+        self.save('### PENDING — component repair\n- Deploy %s submitted; outcome: unverified (job still queued)\n' % DEPLOY)
+        self.assertEqual([r.get('open_jobs') for r in rows()], [[DEPLOY]])  # legacy: its final outcome is unverified
+
+
 if __name__ == '__main__':
     unittest.main()

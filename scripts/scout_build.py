@@ -31,7 +31,8 @@ GATED = tuple(name for name, _ in FAMILIES)
 
 # F14: sections the change-log template asks for whenever an item of the family was attempted.
 TYPE_SECTIONS = {'flow': ('Flows Deployed', 'Execution Order Check'), 'apex': ('Apex Deployed',), 'lwc': ('LWC Deployed',),
-                 'agentforce': ('Agentforce Deployed', 'Agentforce Current-Test Evidence')}
+                 'agentforce': ('Agentforce Deployed', 'Agentforce Current-Test Evidence'),
+                 'businessprocess': ('Business Processes Deployed',), 'pathassistant': ('Paths Deployed',)}  # R3-F6
 
 # F2: each executor family's explicit terminal vocabulary. Job IDs key by prefix; submissions without one by item family.
 JOB_ID = re.compile(r'(?<![A-Za-z0-9])(?:0Af|750)[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?(?![A-Za-z0-9])')
@@ -44,6 +45,7 @@ PART = re.compile(r'(?i)^[ \t]*(status|launched|settled)[ \t]*:[ \t]*(.*?)[ \t]*
 ISO = re.compile(r'(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d):(\d\d)(?:[.,](\d{1,9}))?(Z|[+-]\d\d:?\d\d)?')
 ORG_ID = re.compile(r'(?<![A-Za-z0-9])00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?(?![A-Za-z0-9])')
 BINDING = re.compile(r'(?i)^[ \t]*(?:[-+][ \t]+)?(?:bound|binding|target|org)\b[^:\r\n]*:(.*)$')
+BINDING_SECTION = re.compile(r'(?i)^#{2,6}[ \t]+(?:bound|binding|target|org)\b')
 
 
 class CycleError(ValueError):
@@ -156,8 +158,11 @@ def _moment(value):
         offset = int(match[8][0] + '1') * (hours * 60 + minutes)
     try:
         zone = timezone(timedelta(minutes=offset)) if match[8] else None
-        return datetime(year, month, day, hour, minute, second, int((match[7] or '0').ljust(6, '0')[:6]), zone)
-    except ValueError:
+        moment = datetime(year, month, day, hour, minute, second, int((match[7] or '0').ljust(6, '0')[:6]), zone)
+        if zone:
+            moment.astimezone(timezone.utc)  # R3-F7: out of range in UTC is malformed, never a crash
+        return moment
+    except (ValueError, OverflowError):
         return None
 
 
@@ -199,11 +204,14 @@ def checkpoint_state(checkpoint, item):
     lines, level = _fields(checkpoint['raw'])
     jobs, problems = {}, []
 
-    def entry(key, ref, vocabulary):
-        return jobs.setdefault(key, {'ref': ref, 'vocabulary': vocabulary, 'status': None, 'launched': None, 'settled': None})
-    for line in lines:
-        targets = [entry(i[:15], i, i[:3]) for i in line['ids']] or [
-            entry('~' + line['ref'].lower(), line['ref'] or 'submission', kind or family(line['ref']))]
+    def entry(key, ref, vocabulary, explicit=False):
+        job = jobs.setdefault(key, {'ref': ref, 'vocabulary': vocabulary, 'status': None, 'launched': None, 'settled': None,
+                                    'explicit': False})
+        job['explicit'] |= explicit  # recorded on a `job:` line, not only mentioned
+        return job
+    for number, line in enumerate(lines):  # R3-F1: an executor label is no identity; each such line is its own submission
+        targets = [entry(i[:15], i, i[:3], True) for i in line['ids']] or [
+            entry('~%d:%s' % (number, line['ref'].lower()), line['ref'] or 'submission', kind or family(line['ref']), True)]
         for job in targets:
             for key in ('status', 'launched', 'settled'):
                 if line.get(key):
@@ -294,7 +302,7 @@ def _starts(state, holder_state, holder):
     """F3 and R2-F3: what in `state` claims the slot, as (who, window): each of its own jobs' launch, or for an
     attempt that records no job of its own its start. The holder's job, cited again by a later attempt, is the
     same job. Only an attempt that records no submission and is already_satisfied wrote nothing."""
-    shared = set(holder_state['jobs']) if state is not holder_state else set()
+    shared = {k for k in holder_state['jobs'] if not k.startswith('~')} if state is not holder_state else set()  # R3-F2
     own = [j for k, j in state['jobs'].items() if j is not holder and k not in shared]
     if own:
         name = (lambda j: '%s (job %s)' % (state['attempt'], j['ref'])) if state is holder_state else (lambda j: state['attempt'])
@@ -315,6 +323,9 @@ def job_findings(record, checkpoints):
         problems.append('launched: and settled: times mix zoned and local times; use one form')
     for state in states:
         item = owners.get(state['attempt'])
+        if state['jobs'] and (state['outcome'] == 'already_satisfied' or (item and item['disposition'] == 'already_satisfied')):
+            problems.append('%s records a submission (%s), so it wrote; already_satisfied means nothing was written'
+                            % (state['attempt'], next(iter(state['jobs'].values()))['ref']))  # R3-C2
         if item and item['disposition'] in ('applied', 'already_satisfied', 'failed') and state['open']:
             job = state['open'][0]
             problems.append('%s is %s, but attempt %s has an unsettled job (%s: %s); it stays unverified until a terminal status'
@@ -418,14 +429,22 @@ def _settle(state):
 
 
 def _chronology(item, states):
-    """R2-F5: an item's attempts in the order they ran. Log order, unless recorded start times certainly say otherwise."""
+    """R2-F5 and R3-F3: an item's attempts in the order they ran. Each pair whose recorded start windows are comparable
+    and disjoint is ordered by time; every other pair keeps log order. Uncertain or incomparable windows never
+    disable a certain comparison, nor turn an earliest possible time into a definite order."""
     present = sorted((a for a in item['attempts'] if a in states), key=lambda a: states[a]['position'])
     windows = {a: _start(states[a], set()) for a in present}
-    if not all(windows.values()) or not _comparable(*(w[0] for w in windows.values())):
-        return present
-    if any(windows[later][1] < windows[earlier][0] for n, earlier in enumerate(present) for later in present[n + 1:]):
-        return sorted(present, key=lambda a: _sort_key(windows[a][0]))  # stable: log order breaks ties
-    return present
+
+    def before(x, y):
+        wx, wy = windows[x], windows[y]
+        return bool(wx and wy and _comparable(wx[0], wy[0]) and wx[1] < wy[0])
+    after = {a: {b for b in present if b != a and before(b, a)} for a in present}
+    order, done = [], set()
+    while len(order) < len(present):
+        ready = [a for a in present if a not in done and after[a] <= done] or [a for a in present if a not in done]
+        order.append(ready[0])  # log order among the attempts whose certain predecessors have run
+        done.add(ready[0])
+    return order
 
 
 def write_order_findings(record, checkpoints):
@@ -505,8 +524,11 @@ def beat_verdict(record, beat):
         reasons['unverified'].append(beat['id'] + ' records no verification evidence')
     if beat.get('proof_moment') and not any(_active(c) for c in beat['claims']):  # R2-F2: withdrawal never erases the proof
         reasons['unverified'].append(beat['id'] + ' is the proof moment but has no active claim')
+    items = {i['id']: i for i in record['items']}
     for claim in beat['claims']:
         result = claim.get('result')
+        if _active(claim) and (claim.get('item') not in items or not _text(items[claim['item']].get('readback'))):
+            reasons['unverified'].append('claim has no existing item with a read-back: ' + claim['text'][:60])  # R3-F5
         if result == 'failed':
             reasons['failed'].append('claim failed: ' + claim['text'][:60])
         elif result is None:
@@ -600,17 +622,24 @@ def _assessor():
 
 
 def bound_orgs(task_visible):
-    """C2 and R2-F8: the org IDs on the task record's binding lines, outside fences, as 15-character keys.
+    """C2, R2-F8 and R3-F4: the org IDs of the task record's binding, outside fences, as 15-character keys.
 
-    A binding line's label, the text before its first colon, starts with Bound, Binding, Target or Org, as
-    `pending` reads a folder's org. A request, an amendment, a quote or reuse provenance that mentions another
-    org doesn't bind it.
+    The binding is where Scout records it: a header line, before the first `##` section, whose label starts with
+    Bound, Binding, Target or Org (as `pending` reads a folder's org); or any line of a section so titled. Every
+    other section (the request, amendments, provenance) and every quote is ignored, whatever its lines say.
     """
-    found = set()
+    found, section = set(), 'header'
     for line in task_visible.splitlines():
-        match = BINDING.match(re.sub(r'[*_`]', '', line))
-        if match:
-            found |= {m[0][:15] for m in ORG_ID.finditer(match[1])}
+        heading = re.match(r'^(#{1,6})[ \t]+\S', line)
+        if heading:
+            if len(heading[1]) >= 2:
+                section = 'binding' if BINDING_SECTION.match(line) else 'other'
+            continue
+        text = re.sub(r'[*_`]', '', line)
+        if text.lstrip().startswith('>'):
+            continue
+        if section == 'binding' or (section == 'header' and BINDING.match(text)):
+            found |= {m[0][:15] for m in ORG_ID.finditer(text)}
     return sorted(found)
 
 
@@ -645,8 +674,8 @@ def _flow_findings(folder, item, orgs):
                 or not (isinstance(row.get('org_id'), str) and ORG_ID.fullmatch(row['org_id']))):
             return ['flow_tests row %d needs a test, a flow_api_name, a positive integer version and an org_id' % n]
     if len(orgs) != 1:
-        return ['the task record names %d bound org IDs; record the one binding line, as in '
-                '"Bound: <alias> · <username> · <org ID>"' % len(orgs)]
+        return ['the task record names %d bound org IDs; state the binding once, as a header line such as '
+                '"Target: <alias> · <username> · <org ID>" or in a "Target" section' % len(orgs)]
     problems, unavailable = [], []
     for test in flow['required_tests']:
         matches = [r for r in rows if r.get('test') == test]
@@ -767,7 +796,12 @@ def _has(section_names, name):
 def agent_live(item, states):
     """F14 and R2-F6: an attempted agent is live when its last recorded publish settled Active, whatever its
     behavioural verification found."""
-    publishes = [j for a in _chronology(item, states) for j in states[a]['jobs'].values() if j['vocabulary'] == 'agentforce']
+    publishes = []
+    for attempt in _chronology(item, states):
+        jobs = [j for j in states[attempt]['jobs'].values() if j['vocabulary'] == 'agentforce']
+        if len(jobs) > 1 and all(j['launched_at'] for j in jobs) and _comparable(*(j['launched_at'] for j in jobs)):
+            jobs.sort(key=lambda j: _sort_key(j['launched_at']))  # R3-C1: by recorded launch, line order breaking ties
+        publishes += jobs
     return bool(publishes) and publishes[-1]['terminal'] and _word(publishes[-1]['status']).lower() == 'active'
 
 

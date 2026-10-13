@@ -641,9 +641,17 @@ def pending(directory, org, username):
                 state = checkpoint_state(text[start:].splitlines()[0], title, body)
                 row = {'file': str(path), 'line': text[:start].count('\n') + 1, 'state': state, 'heading': title}
                 own = CHECKPOINT.fullmatch(text[start:].splitlines()[0])
-                if own:  # W10 C8: a job this owned checkpoint left unsettled, whatever its heading says
-                    held = BUILD.checkpoint_state(dict(attempt=own[2], stamp=own[3], position=start, raw=text[start:end],
-                                                       visible=body, outcome=own_outcome(body)), None)['open']
+                legacy = not own and (state == 'unresolved' or (state == 'resolved' and
+                                      'unverified' in re.findall(r'[a-z_]+', (outcome_values(body) or [''])[-1].lower())))
+                if own or legacy:  # W10 C8 and R3-C4: a job left unsettled, whatever the heading says; legacy logs by job ID
+                    held = BUILD.checkpoint_state(dict(attempt=own[2] if own else 'legacy', stamp=own[3] if own else '',
+                                                       position=start, raw=text[start:end], visible=body,
+                                                       outcome=own_outcome(body) if own else None), None)['open']
+                    final = own and (own[1] if own[1] != 'PENDING' else own_outcome(body))
+                    if final in ('applied', 'already_satisfied', 'failed', 'blocked', 'omitted'):
+                        held = [job for job in held if job['explicit']]  # a bare ID in settled history is a settled deploy
+                    elif not own:
+                        held = [job for job in held if BUILD.JOB_ID.fullmatch(job['ref'])]
                     if held:
                         row['open_jobs'] = [job['ref'] for job in held]
                 print(json.dumps(row))
