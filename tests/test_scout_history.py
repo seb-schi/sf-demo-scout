@@ -169,6 +169,19 @@ class ScoutHistoryTests(unittest.TestCase):
         for span in ('`Outcome: failed`', '`x\u2028outcome: failed`'):
             self.assertEqual(list(history.fields(span, masked=False)), [])
 
+    def test_rc_outcome_evidence_may_open_with_a_code_span(self):
+        # RC, from the live trial (B3): Scout's evidence often opens with the command or query it ran.
+        for evidence in ('`sf data query` returned 1 row', '``a `b` c`` returned 1 row',
+                         '`sf apex run test`: 5/5 pass; `Status__c` and Due_Date__c unchanged'):
+            with self.subTest(evidence=evidence):
+                self.save(checkpoint().replace('read-back receipt', evidence))
+                self.run_cli('resolve')
+                self.assertIn('### applied \u2014 component repair', self.log.read_text())
+                self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        self.save(checkpoint().replace('read-back receipt', '`sf data query` returned 1 row') + '- Verification: failed\n')
+        self.run_cli('resolve')
+        self.assertIn('### PENDING \u2014 component repair', self.log.read_text())
+
     def test_r11_f1_real_writer_quotes_pending_report_folder_and_paths(self):
         from scout_report_repair import Repair
         for member, slug in (('Example/Pending', 'example'), ('Pending/Report', 'example'),

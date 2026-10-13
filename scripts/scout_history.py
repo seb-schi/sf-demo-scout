@@ -982,14 +982,16 @@ def scout_agreement(body, outcome, receipt_ids=()):
     normal = lambda value: value.translate(str.maketrans('', '', '*_`'))
     final = normal(outcome)
     words = r'\b(?:' + '|'.join(normal(value) for value in DISPOSITIONS) + r')\b'
+    unmasked = mask_receipt_delta(body, receipt_ids).splitlines(keepends=True)
     lines = mask_code_spans(mask_receipt_delta(body, receipt_ids)).splitlines(keepends=True)
     offset = 0
     for n, line in enumerate(lines):
         raw = line.rstrip('\r\n')
-        canonical = OUTCOME.fullmatch(raw)
+        # RC, from the live trial: evidence may open with a code span, so match the line before masking.
+        canonical = OUTCOME.fullmatch(unmasked[n].rstrip('\r\n'))
         if canonical and canonical[1] != outcome:
             return False
-        source = canonical[2] if canonical else raw
+        source = raw[canonical.start(2):].lstrip() if canonical else raw
         receipt = any(m.start(2) <= offset < m.end(2) for m in receipts)
         outcome_fields = [value.strip() for label, value, *_ in fields(source if receipt else normal(source), masked=False)
                           if label == 'outcome']
