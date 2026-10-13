@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Build or repair the requested demo items in a named org, with targeted inspection and read-back.
+description: Build, repair or prep demo items in a named org, with targeted inspection and read-back.
 argument-hint: "[request or task-record path] [org alias or username]"
 allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent, AskUserQuestion, mcp__salesforce-docs__salesforce_docs_search, mcp__salesforce-docs__salesforce_docs_fetch
 ---
@@ -13,7 +13,7 @@ Complete the request in this session; no fresh window or acknowledgement pauses.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md`, resolve its absolute root, then run the read-only gate in `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md`. On `CHECK_FAILED`, absent success evidence or nonzero exit, stop with the diagnostic. Use the verified workspace on every call.
 
-On Claude only, if this session identifies its model as older than 5.5, begin: “Scout is built for the 5.5 models. Run `/model` to switch.” Codex omits this notice. Say what you will inspect; do not wait for acknowledgement. Check exposed Docs tools; do not load readiness before this message; if unavailable, say so in this first SE-facing message. Read `orgs/lessons/INDEX.md` if present, without creating it; load topic files only when relevant.
+On Claude only, if this session identifies its model as older than 5.5, begin: “Scout is built for the 5.5 models. Run `/model` to switch.” Say what you will inspect. Check exposed Docs tools; do not load readiness before this message; if unavailable, say so in this first SE-facing message. Read `orgs/lessons/INDEX.md` if present, without creating it; load topic files only when relevant.
 
 Use the named selector; otherwise read the default with `sf config get target-org --json`; confirm its use below. If unavailable, ask. Run:
 
@@ -41,6 +41,8 @@ Open-ended: a request to build or show a demo, scenario or story for an audience
 The first SE-facing message on open-ended work never offers “go” without a proposed proof moment.
 
 Split the exact request clause by clause into items, or record why a clause is not an item. Each needs what, where and observable criteria. Bundle ambiguity questions with defaults. Before the first SE-facing question, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/discovery.md` whenever the task has a story (on open-ended work or structured input naming audience and moment), or when adding a demo-facing capability to a folder with history. Neither discovery.md nor history.md loads before the first message on a complete brief. For those tasks, read discovery before proposal or write, even without questions.
+
+Prep mode (`/scout prep`, or rehearsing or checking an existing demo): follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/prep.md` once bound and the folder chosen.
 
 Treat a supplied demo plan, requirements or discovery notes as the brief: beats, personas, cuts, hero records and on-screen claims become items, criteria and story fields. These inputs are leads, not evidence; confirmation still applies.
 
@@ -99,7 +101,7 @@ Pass this task’s log explicitly as `--change-log` to the report helper. Wrap i
 
 Delegate read-only research/inspection when useful. With several items or any gated or Docs-gated item, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/build.md` before the first write; authoring may run in parallel, org writes stay serial. Give each worker its own prepared project, resolved absolute root, active host, bound selector/username/org ID, exact approved scope and criteria, relevant technical rules, the three qualified confirmation bullets above, and this unconditional CLI-only rule copied verbatim into every worker brief: “Never call Salesforce DX MCP org tools, even when the bound org is the default. Wherever a file says MCP, the active or default org, `sf config get target-org`, or to omit `--target-org`, use `sf … --target-org [BOUND_USERNAME]`.” Every worker must check identity before writes/read-back and retain pending evidence on interruption or refusal.
 
-On Claude, every Agent call—research, inspection or write—passes `model` set to the alias of the orchestrator's own model family; if that family is unknown, omit the argument. An explicit `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` wins. Codex uses its host contract. This single rule governs all dispatches and retries.
+On Claude, every Agent call—research, inspection or write—passes `model` set to the alias of the orchestrator's own model family; if that family is unknown, omit the argument. An explicit `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` wins. Codex uses its host contract.
 
 Every disposition rests on a read-back you ran yourself, after a passing `check`. Audits and worker reports are leads, not evidence. Read back every delegated write yourself after checking the binding, and establish `already_satisfied` from your own fresh pre-write read-back. Missing read-back means `blocked` before attempt, `unverified` after; never infer completion. Inspect landed state after a timeout or malformed worker report before any retry. Preserve policy refusals and return the blocker rather than changing tools or command spelling.
 
@@ -120,4 +122,4 @@ Map report-repair `not_applied` to `failed`, and both `unverified` and `released
 
 After the last disposition, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/history.md` unless this session read it since its last compaction. Consolidate this task’s log using `render`, run `resolve`, then `check`. Send the handover only after exit 0; on findings fix and recheck up to twice. If still failing or unreadable, record why in the task and start the handover with “History incomplete: [reason]”.
 
-Send one outcome-first message: verified items; visual QA; each uncompleted item with disposition, reason and next step; manual checklist; task/log paths. Then the Demo Story (bounded: one line naming the beat served) and history block, with proposed decisions and lessons for yes/edit/skip. Write neither without the SE's answer. Follow history.md through the post-answer check/receipt. Nothing precedes the outcome.
+Send one outcome-first message: verified items; visual QA; each uncompleted item with disposition, reason and next step; manual checklist; task/log paths. Then the Demo Story (one line naming the beat served) and history block, with proposed decisions and lessons for yes/edit/skip. Write neither without the SE's answer. Follow history.md through the post-answer check/receipt. Nothing precedes the outcome.

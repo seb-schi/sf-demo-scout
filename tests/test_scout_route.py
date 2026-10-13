@@ -19,7 +19,7 @@ class ScoutRouteTests(unittest.TestCase):
 
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
-        caps = {'scout.md': 2310, 'history.md': 900, 'discovery.md': 1100, 'build.md': 1300}  # W10 C9, as amended
+        caps = {'scout.md': 2310, 'history.md': 900, 'discovery.md': 1100, 'build.md': 1300, 'prep.md': 900}  # W10 C9 and W9 C5
         for path in [COMMAND, *optional]:
             self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)
         text = '\n'.join(p.read_text() for p in [COMMAND, *optional])
@@ -124,7 +124,7 @@ class ScoutRouteTests(unittest.TestCase):
                      'mark the proof moment', 'Label unfulfilled beats planned/unverified',
                      "map's Narrative Arc")
         self.phrases(self.command, 'Send one outcome-first message',
-                     'Then the Demo Story (bounded: one line naming the beat served) and history block')
+                     'Then the Demo Story (one line naming the beat served) and history block')
 
     def test_k6_lessons_require_yes_and_skip_extra_offers(self):
         self.phrases(self.history, 'propose 1–3 lessons', 'yes, edit or skip', 'Write only on yes or edit',
@@ -380,6 +380,17 @@ class BuildRouteTests(unittest.TestCase):
     def test_rb6_deletes_always_get_their_own_confirmation(self):
         self.phrases(self.command, 'counts as its confirmation, except for deletes',
                      'Confirm each delete alone, naming every target and what goes with it.')
+
+    def test_w9_prep_mode_routes_explicitly_and_stays_read_only(self):
+        self.phrases(self.command, 'Prep mode (`/scout prep`, or rehearsing or checking an existing demo): follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/prep.md`')
+        prep = (ROOT / 'prompts/scout/prep.md').read_text()
+        self.phrases(prep, 'Prep is read-only: it returns before any task record, change log or history step',
+                     'never by running a stored command', 'Never rerun a rehearsal, pilot, test or preview',
+                     'the verdict is computed, never chosen', 'scout_prep.py check', 'must exit 0', 'Offer fixes; never apply them',
+                     "this folder's own `seed_asset` only", 'run prep again in full', 'never invent beats',
+                     'Keys always carry the task file', 'Quarantine sources that name another org')
+        self.phrases(self.build, 'an item seeding date-relative claims holds `"valid_until":"YYYY-MM-DD"`',
+                     '"record_id":"…","before":{…}', 'against its flip ID, record ID and before-values')
 
     def test_history_reread_rule(self):
         self.phrases(self.command, 'unless this session read it since its last compaction')
