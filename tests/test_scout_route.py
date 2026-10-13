@@ -285,5 +285,12 @@ class ScoutRouteTests(unittest.TestCase):
         self.phrases(self.command, 'Stamp records from `date`, never an estimate')
 
 
+    def test_r5_f17_reoffers_only_from_chosen_folder(self):
+        self.phrases(self.command, "Re-offer only the chosen folder's proposals")
+
+    def test_r5_f16_route_limits_legacy_final_outcomes_to_component_repair(self):
+        self.phrases(self.command, 'A legacy component repair heading with a final outcome is resolved')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -487,7 +487,7 @@ class ScoutHistoryTests(unittest.TestCase):
         self.task.unlink()  # Match by username, not the org ID in a neighboring task.
         code, output = self.run_cli('pending', '--orgs-dir', str(self.folder.parent), '--org-id', ORG, '--username', USER)
         self.assertEqual(code, 0)
-        self.assertEqual([json.loads(s)['state'] for s in output.splitlines()], ['resolved', 'resolved'])  # F6 applies the outcome rule to every checkpoint kind.
+        self.assertEqual([json.loads(s)['state'] for s in output.splitlines()], ['resolved', 'unclear'])  # R5 F16: unknown kinds need manual interpretation.
 
     def test_fenced_examples_do_not_supply_outcomes_or_headers(self):
         self.data['items'][0]['attempts'] = ['A1']
@@ -678,6 +678,7 @@ class ScoutHistoryTests(unittest.TestCase):
         self.save(checkpoint(outcome=None))
         sibling = self.folder.parent / 'aaa-other'
         sibling.mkdir()
+        (sibling / 'task-other.md').write_text('Org: other@example.test\n')
         (sibling / 'changes-bad.md').write_bytes(b'Other\n\xff')
         (sibling / 'changes-link.md').symlink_to(self.log)
         errors = io.StringIO()
@@ -802,6 +803,308 @@ class ScoutHistoryTests(unittest.TestCase):
         arch = self.architecture()
         arch.write_text(arch.read_text().replace('## Decision Log\n', '## Decision Log\n```text\n' + 'template ' * 3800 + '\n```\n'))
         self.assert_rule('arch')
+
+
+    def test_r5_f1_legacy_outcomes_include_nested_sections_only_until_peer(self):
+        for body, state in (
+            ('**Outcome:** applied\n### Read-back\n**Outcome:** pending\n', 'unclear'),
+            ('### Verification\n**Outcome:** applied\n', 'resolved'),
+            ('**Outcome:** applied\n## Later notes\n**Outcome:** pending\n', 'resolved'),
+            ('**Outcome:** applied\n### Evidence\n```text\n**Outcome:** pending\n```\n', 'resolved'),
+        ):
+            with self.subTest(body=body):
+                self.log.write_text(f'Org: {ORG}\n## PENDING — component repair\n' + body)
+                self.assertEqual(self.pending_rows()[0]['state'], state)
+
+    def test_r5_f2_markup_and_template_pending_fields(self):
+        self.assertEqual(self.run_cli()[0], 0)
+        for field in ('preedit_snapshot.status: `pending`', 'verification: **pending**',
+                      '**First pre-edit artifact / source / members:** pending',
+                      '**Pre-edit artifact / source:** _pending_',
+                      '**Original Flow activation (Flow only):** pending'):
+            with self.subTest(field=field):
+                self.save()
+                self.log.write_text(self.log.read_text() + '- ' + field + '\n')
+                self.assert_rule('checkpoint')
+        self.save(checkpoint().replace('outcome: pending', 'outcome: `pending`'))
+        self.assertEqual(self.run_cli('resolve')[0], 0)
+        self.assertIn('outcome: `applied`', self.log.read_text())
+        self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r5_f3_component_classification_requires_before_state(self):
+        for value in ('Report and ReportFolder: existing; saved.json',
+                      'Report and ReportFolder: _existing_; saved.json',
+                      '`CustomField:Example__c.Label__c`: **existing**; saved.json',
+                      'Report: new; ReportFolder: existing; saved.json'):
+            with self.subTest(value=value):
+                self.save()
+                self.log.write_text(self.log.read_text() + '- **Classification / source:** ' + value + '\n')
+                self.assertEqual(self.run_cli()[0], 0)
+                self.log.write_text(self.log.read_text().replace(
+                    '## Existing Component Before-State and Direct Repairs\nPreserved.\n', ''))
+                self.assert_rule('log-section')
+
+    def test_r5_f4_created_map_owns_nested_and_non_template_content(self):
+        self.data['history']['architecture'] = 'created'
+        self.save()
+        for extra in ('### Accepted decisions\n- **[2026-10-13]** — ' + 'decision ' * 3800 + f' (see `{self.log.name}`)\n',
+                      '### Notes\n' + 'note ' * 3800 + '\n',
+                      '> ' + 'note ' * 3800 + '\n'):
+            with self.subTest(prefix=extra[:30]):
+                arch = self.architecture()
+                arch.write_text(arch.read_text() + extra)
+                self.assert_rule('arch')
+        arch = self.architecture()
+        arch.write_text(arch.read_text().replace('## Demo Flow / Narrative Arc\n',
+                         '## Demo Flow / Narrative Arc\n### Beats\n1. ' + 'x' * 321 + '\n'))
+        self.assert_rule('arch')
+
+    def test_r5_f4_reconcile_owns_every_current_log_citation(self):
+        self.data['history']['architecture'] = 'reconciled'
+        self.save()
+        for prefix in ('### Accepted decisions\n', '## Current Live State\n', '> '):
+            with self.subTest(prefix=prefix):
+                arch = self.architecture()
+                arch.write_text(arch.read_text() + prefix + f'- **[2026-10-13]** — {"x" * 321} (see `{self.log.name}`)\n')
+                self.assert_rule('arch')
+        arch = self.architecture('## SE notes\n' + 'retained ' * 3800 + '\n')
+        code, out = self.run_cli()
+        self.assertEqual(code, 0, out)
+        self.assertIn('arch: warning:', out)
+
+    def test_r5_f5_reconcile_stamp_is_only_unfenced_header(self):
+        arch = self.architecture()
+        for tail in ('```text\nReconciled through: changes-2099-01-01-0000-example.md\n```\n',
+                     'Reconciled through: changes-2099-01-01-0000-example.md\n'):
+            with self.subTest(tail=tail):
+                arch.write_text('Reconciled through: none — created from discovery\n## SE notes\n' + tail)
+                code, out = self.run_cli('reconcile-plan', '--folder', str(self.folder))
+                self.assertEqual(code, 0, out)
+                self.assertEqual([json.loads(line)['file'] for line in out.splitlines()], [str(self.log)])
+
+    def test_r5_f6_docs_gated_known_type_requires_docs(self):
+        self.data['items'][0]['category'] = 'docs-gated'
+        self.save()
+        out = self.assert_rule('grounding')
+        self.assertEqual(len(out.splitlines()), 1, out)
+        self.data['items'][0]['grounding'] = [dict(source='docs', ref='https://example.test/fields',
+                                                  assumption='Field XML', verdict='supported')]
+        self.save()
+        self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r5_f6_already_satisfied_cannot_depend_on_failed_parent(self):
+        self.data['items'] = [item(disposition='failed'), item('I2', 'already_satisfied')]
+        self.save()
+        self.assertEqual(self.run_cli()[0], 0)
+        self.data['items'][1]['depends_on'] = ['I1']
+        self.save()
+        out = self.assert_rule('dependency')
+        self.assertEqual(len(out.splitlines()), 1, out)
+
+    def test_r5_f6_reoffer_answer_suppresses_only_named_task(self):
+        self.data['history'].update(decisions='proposed', proposed_entries=['Keep scope.'])
+        self.save()
+        first = self.task.name
+        self.task = self.folder / 'task-2026-10-13-1300-example.md'
+        self.save()
+        second = self.task.name
+        self.task = self.folder / 'task-2026-10-13-1400-example.md'
+        self.data = record()
+        self.data['history']['reoffers'] = [{'task': first, 'answer': 'skipped'}]
+        self.save()
+        proposed = [r for r in self.pending_rows() if r['state'] == 'proposed']
+        self.assertEqual([Path(r['file']).name for r in proposed], [second])
+
+    def test_r5_f8_labelled_evidence_is_not_a_disposition(self):
+        for tail, state in (('I1: receipt saved.json', 'resolved'), ('(a) Evidence: saved.json', 'resolved'),
+                            ('I2: pending', 'unclear'), ('I2: PARTIALLY APPLIED', 'unclear'),
+                            ('I2: not applied', 'unclear'), ('I2: omitted', 'unclear')):
+            with self.subTest(tail=tail):
+                self.log.write_text(f'Org: {ORG}\n## PENDING — component repair\n**Outcome:**\n  - I1: applied\n  - {tail}\n')
+                self.assertEqual(self.pending_rows()[0]['state'], state)
+
+    def test_r5_f9_historical_outcome_heading_resolves_but_check_requires_body(self):
+        for outcome in ('applied', 'already_satisfied', 'failed', 'blocked', 'unverified', 'omitted'):
+            with self.subTest(outcome=outcome):
+                self.save(checkpoint(outcome=None, heading=outcome))
+                self.assertEqual(self.pending_rows()[0]['state'], 'resolved')
+                self.assert_rule('checkpoint')
+
+    def test_r5_f10_seed_and_task_share_workspace_alias(self):
+        alias = self.root / 'alias'
+        alias.symlink_to(self.folder.parent, target_is_directory=True)
+        seed = self.folder / 'seed.sh'
+        seed.write_text('# synthetic\n')
+        self.data['items'][0]['seed_asset'] = str(alias / self.folder.name / seed.name)
+        self.save()
+        code, out = self.run_cli('check', '--task', str(alias / self.folder.name / self.task.name))
+        self.assertEqual(code, 0, out)
+        seed.unlink()
+        target = self.root / 'other.sh'
+        target.write_text('# synthetic\n')
+        seed.symlink_to(target)
+        self.assertEqual(self.run_cli('check', '--task', str(alias / self.folder.name / self.task.name))[0], 4)
+
+    def test_r5_f11_task_symlink_loop_is_unreadable(self):
+        loop = self.folder / 'task-loop.md'
+        loop.symlink_to(loop.name)
+        code, out = self.run_cli('check', '--task', str(loop))
+        self.assertEqual(code, 4, out)
+        self.assertIn(': read:', out)
+
+    def test_r5_f12_failed_requires_both_nonempty_fields(self):
+        self.data['items'] = [item(disposition='failed')]
+        self.save()
+        self.assertEqual(self.run_cli()[0], 0)
+        for reason in ('State left: ; rollback: not needed', 'State left: unchanged; rollback: ;',
+                       'State left: rollback: not needed', 'State left: ` `; rollback: not needed'):
+            with self.subTest(reason=reason):
+                self.data['items'][0]['reason'] = reason
+                self.save()
+                self.assert_rule('disposition')
+
+    def test_r5_f13_task_file_symlink_never_rewrites_target_log(self):
+        self.save(checkpoint())
+        sibling = self.folder.parent / 'other'
+        sibling.mkdir()
+        alias = sibling / self.task.name
+        alias.symlink_to(self.task)
+        before = self.log.read_bytes()
+        for command in ('resolve', 'check', 'render'):
+            code, out = self.run_cli(command, '--task', str(alias))
+            self.assertEqual(code, 4, out)
+            self.assertEqual(self.log.read_bytes(), before)
+
+    def test_r5_f14_already_satisfied_attempts_must_all_be_noops(self):
+        self.data['items'][0].update(disposition='already_satisfied', attempts=['A1', 'A2'])
+        self.save()
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        for earlier in ('applied', 'failed', 'unverified', 'blocked', 'omitted'):
+            with self.subTest(earlier=earlier):
+                self.save(checkpoint('A1', earlier, earlier).replace('outcome: pending', 'outcome: ' + earlier) +
+                          checkpoint('A2', 'already_satisfied', 'already_satisfied').replace('outcome: pending', 'outcome: already_satisfied'))
+                self.assert_rule('checkpoint')
+        self.data['items'][0]['attempts'] = []
+        self.save()
+        self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r5_f15_unknown_folder_relevance_is_incomplete(self):
+        self.task.unlink()
+        self.log.write_bytes(f'Org: {ORG}\n'.encode() + b'\xff')
+        code, out = self.run_cli('pending', '--orgs-dir', str(self.folder.parent), '--org-id', ORG)
+        self.assertEqual(code, 3, out)
+        row = json.loads(out)
+        self.assertEqual(row['state'], 'incomplete')
+        self.assertEqual(row['path'], str(self.folder))
+        self.assertTrue(row['reason'])
+
+    def test_r5_f15_symlink_folder_is_incomplete_without_following(self):
+        self.save(checkpoint(outcome=None))
+        moved = self.root / 'moved'
+        self.folder.rename(moved)
+        self.folder.symlink_to(moved, target_is_directory=True)
+        before = {p.name: p.read_bytes() for p in moved.iterdir()}
+        code, out = self.run_cli('pending', '--orgs-dir', str(self.folder.parent), '--org-id', ORG)
+        self.assertEqual(code, 3, out)
+        self.assertEqual(json.loads(out)['state'], 'incomplete')
+        self.assertEqual(json.loads(out)['path'], str(self.folder))
+        self.assertEqual(before, {p.name: p.read_bytes() for p in moved.iterdir()})
+
+    def test_r5_f16_unknown_kinds_and_legacy_omitted_are_unclear(self):
+        for title, outcome in (('PENDING — Diagnostic FlowTest', 'applied'),
+                               ('PENDING — data seed', 'applied'),
+                               ('CHECKPOINT: PENDING — Diagnostic FlowTest', 'applied'),
+                               ('PENDING — component repair', 'omitted')):
+            with self.subTest(title=title):
+                self.log.write_text(f'Org: {ORG}\n## {title}\n**Outcome:** {outcome}\n')
+                self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
+
+    def test_r5_f17_proposals_include_folder_and_answers_are_folder_scoped(self):
+        self.data['history'].update(decisions='proposed', proposed_entries=['Keep scope.'])
+        self.save()
+        original_folder, original_task = self.folder, self.task
+        self.folder = self.folder.parent / 'other'
+        self.folder.mkdir()
+        self.task = self.folder / 'task-2026-10-13-1300-example.md'
+        self.data = record()
+        self.data['history']['reoffers'] = [{'task': original_task.name, 'answer': 'skipped'}]
+        self.save()
+        proposed = [r for r in self.pending_rows() if r['state'] == 'proposed']
+        self.assertEqual(len(proposed), 1)
+        self.assertEqual(proposed[0]['file'], str(original_task))
+        self.assertEqual(proposed[0]['folder'], str(original_folder))
+
+
+    def test_r5_attack_labelled_unknown_status_cannot_hide_among_receipts(self):
+        for tail, state in (('I2: waiting', 'unclear'), ('I2: in_progress', 'unclear'),
+                            ('I2: deferred', 'unclear'), ('I1: evidence saved.json', 'resolved')):
+            with self.subTest(tail=tail):
+                self.log.write_text(f'Org: {ORG}\n## PENDING — component repair\n**Outcome:**\n  - I1: applied\n  - {tail}\n')
+                self.assertEqual(self.pending_rows()[0]['state'], state)
+
+    def test_r5_attack_kind_must_be_component_repair_not_a_trailing_mention(self):
+        self.log.write_text(f'Org: {ORG}\n## PENDING — data seed for component repair\n**Outcome:** applied\n')
+        self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
+
+    def test_r5_attack_reconcile_header_ends_at_any_section_heading(self):
+        for heading in ('### Examples', '# Other document'):
+            with self.subTest(heading=heading):
+                self.architecture().write_text('Reconciled through: none\n' + heading +
+                    '\nReconciled through: changes-2099-01-01-0000-example.md\n')
+                code, out = self.run_cli('reconcile-plan', '--folder', str(self.folder))
+                self.assertEqual(code, 0, out)
+                self.assertEqual(len(out.splitlines()), 1)
+
+    def test_r5_attack_created_decisions_cannot_hide_without_current_citation(self):
+        self.data['history']['architecture'] = 'created'
+        self.save()
+        arch = self.architecture()
+        arch.write_text(arch.read_text() + '### Accepted decision\n' + 'x' * 321 + '\n')
+        self.assert_rule('arch')
+
+    def test_r5_attack_unlistable_folder_is_incomplete(self):
+        iterdir = Path.iterdir
+        def guarded(path):
+            if path == self.folder:
+                raise PermissionError('synthetic unreadable folder')
+            return iterdir(path)
+        with patch.object(Path, 'iterdir', guarded):
+            code, out = self.run_cli('pending', '--orgs-dir', str(self.folder.parent), '--org-id', ORG)
+        self.assertEqual(code, 3, out)
+        self.assertEqual(json.loads(out)['state'], 'incomplete')
+        self.assertEqual(json.loads(out)['path'], str(self.folder))
+
+
+    def test_r5_attack_emphasized_pending_outcome_is_resolved(self):
+        self.save(checkpoint().replace('outcome: pending', 'outcome: **_pending_**'))
+        self.assertEqual(self.run_cli('resolve')[0], 0)
+        self.assertIn('outcome: **_applied_**', self.log.read_text())
+        self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r5_attack_crlf_cannot_supply_failed_state(self):
+        self.data['items'] = [item(disposition='failed')]
+        self.data['items'][0]['reason'] = 'State left: \r\nrollback: not needed'
+        self.save()
+        self.assert_rule('disposition')
+
+
+    def test_r5_attack_created_last_decision_line_without_newline_is_capped(self):
+        self.data['history']['architecture'] = 'created'
+        self.save()
+        arch = self.architecture()
+        arch.write_text(arch.read_text() + '### Accepted decisions\n' + 'x' * 321)
+        self.assert_rule('arch')
+
+
+    def test_r5_attack_nested_pending_field_is_checked_but_not_rewritten(self):
+        nested = '#### Read-back\n- verification: `pending`\n'
+        self.save(checkpoint() + nested)
+        self.assertEqual(self.run_cli('resolve')[0], 0)
+        self.assertTrue(self.log.read_text().endswith(nested))
+        self.assert_rule('checkpoint')
+        self.save()
+        self.log.write_text(self.log.read_text() + '#### Read-back\n```text\n- verification: pending\n```\nBusiness Status is Pending.\n')
+        self.assertEqual(self.run_cli()[0], 0)
 
 
 if __name__ == '__main__':

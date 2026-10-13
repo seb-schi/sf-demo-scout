@@ -44,13 +44,22 @@ def read(path):
 
 
 def local(folder, name):
+    # Only the workspace root may be an alias, never an org folder or its children.
+    folder = folder.absolute()
+    if folder.is_symlink() or not name or '..' in Path(name).parts:
+        raise OSError('record path must stay inside its regular folder')
+    folder = folder.parent.resolve(strict=True) / folder.name
     path = folder / name
-    if not name or '..' in Path(name).parts:
-        raise OSError('record path must stay inside its folder')
-    if any(p.is_symlink() for p in (path, *path.parents)):
-        raise OSError('symlink path refused')
-    if not path.resolve().is_relative_to(folder.resolve()):
+    if Path(name).is_absolute():
+        root = next((p for p in path.parents if p.resolve() == folder.parent), None)
+        if root is None:
+            raise OSError('record path escaped its workspace')
+        path = folder.parent / path.relative_to(root)
+    if not path.is_relative_to(folder):
         raise OSError('record path escaped its folder')
+    relative = path.relative_to(folder)
+    if any((folder / Path(*relative.parts[:n])).is_symlink() for n in range(len(relative.parts) + 1)):
+        raise OSError('symlink path refused')
     return path
 
 
@@ -84,6 +93,14 @@ def headings(text):
         end = next((m.start() for m in matches[n + 1:] if len(m[1]) <= len(match[1])), len(text))
         result.append((match[2], len(match[1]), match.start(), end, visible[match.end():end]))
     return result
+
+
+def document_header(text):
+    visible, _ = markdown(text)
+    for title, level, start, _, _ in headings(text):
+        if start or level != 1:  # Only the opening document title belongs to the header.
+            return visible[:start]
+    return visible
 
 
 def unique(pairs):
@@ -226,7 +243,7 @@ def outcome_values(body):
     marker = re.compile(r'(?i)^[ \t]*(?:[-*][ \t]+)?(?:\*\*)?(?:final[ \t]+)?outcome'
                         r'(?:[ \t]*\([^\r\n)]*\)|[ \t]*/[ \t]*read-back)?(?:\*\*)?[ \t]*:'
                         r'[ \t]*(?:\*\*)?[ \t]*([^\r\n]*)$')
-    lines, values = own_body(body).splitlines(), []
+    lines, values = markdown(body)[0].splitlines(), []
     for n, line in enumerate(lines):
         match = marker.fullmatch(line)
         if match:
@@ -243,7 +260,7 @@ def disposition_word(value):
     value = re.sub(r'[*`]', '', value).strip()
     value = re.sub(r'^-[ \t]+', '', value)
     value = re.sub(r'^(?:\([\w]+\)|I\d+:)[ \t]*', '', value)
-    match = re.match(r'([\w]+)\b', value)
+    match = re.match(r'([\w]+)\b', value.strip(' \t_'))
     return match[1].lower() if match else ''
 
 
@@ -258,12 +275,24 @@ def own_outcome(body):
     return outcome if all(disposition_word(v) in ('pending', outcome) for v in outcome_values(body)) else None
 
 
-def status_fields(body):
-    # Match only a field's value start, never a business value mentioned in its evidence.
-    return re.finditer(r'(?im)^[ \t]*(?:-[ \t]+)?(?:\*\*)?'
+def status_fields(body, nested=False):
+    # Preserve token offsets for resolve; markup cannot hide a pending field value.
+    return re.finditer(r'(?im)^[ \t]*(?:-[ \t]+)?[*_`]*'
                        r'(outcome(?:[ \t]*/[ \t]*read-back)?|classification(?:[ \t]*/[ \t]*source)?|'
-                       r'preedit_snapshot(?:\.status)?|rollback(?:_receipt)?|verification|cleanup|artifact(?:s)?)'
-                       r'(?:\*\*)?[ \t]*:[ \t]*(?:\*\*)?[ \t]*(pending)\b', own_body(body))
+                       r'preedit_snapshot(?:\.status)?|rollback(?:_receipt)?|verification|cleanup|artifact(?:s)?|'
+                       r'(?:first )?pre-edit artifact / source(?: / members)?|'
+                       r'original flow activation \(flow only\)|preservation|exact bundle members)'
+                       r'[*_`]*[ \t]*:[ \t*_`]*(pending)(?=$|[^\w]|_)', markdown(body)[0] if nested else own_body(body))
+
+
+def existing_classification(text):
+    # Template values can classify several named components before their evidence.
+    for line in markdown(text)[0].splitlines():
+        plain = re.sub(r'[*`]', '', line)
+        field = re.match(r'(?i)^[ \t]*(?:- )?classification(?: / source)?[ \t]*:(.*)', plain)
+        if field and re.search(r'(?i)(?:^|[:;])[ \t_]*existing(?=$|[^\w]|_)', field[1]):
+            return True
+    return False
 
 
 def docs_url(reference):
@@ -352,8 +381,9 @@ def check(task, record):
             issue('disposition', identifier + ' verified disposition needs evidence')
         if disposition == 'omitted' and not item['reason'].strip():
             issue('disposition', identifier + ' omitted without reason/decision source')
-        if disposition == 'failed' and not (re.search(r'State left:\s*\S', item['reason'], re.I) and
-                                            re.search(r'rollback:\s*\S', item['reason'], re.I)):
+        if disposition == 'failed' and not all(
+                (m := re.search(label + r':[ \t]*(.*?)(?=;|\n|(?:State left|rollback):|$)', item['reason'], re.I))
+                and m[1].strip().strip('*_`').strip() for label in ('State left', 'rollback')):
             issue('disposition', identifier + ' failed: reason needs State left: ...; rollback: ...')
         if item['visual_qa'] and disposition != 'applied':
             issue('disposition', identifier + ' visual_qa only applies to applied')
@@ -427,7 +457,7 @@ def check(task, record):
             required.append((2, 'Script Deliverables'))
         if any(i['attempts'] for i in items.values()):
             required.append((2, 'Checkpoints'))
-        if re.search(r'(?im)^[ \t]*(?:- )?(?:\*\*)?Classification[^\r\n:]*:(?:\*\*)?[ \t]*existing\b', visible):
+        if existing_classification(visible):
             required.append((2, 'Existing Component Before-State and Direct Repairs'))
         for level, name in required:
             found = [s for s in sections if s[1] == level and (re.sub(r' \([^()]*\)$', '', s[0]) == re.sub(r' \([^()]*\)$', '', name) or s[0].startswith(name + ' —'))]
@@ -456,7 +486,8 @@ def check(task, record):
                     issue('checkpoint', 'unrecorded checkpoint: ' + section[0], log)
         for item in items.values():
             attempted = item['disposition'] in ('applied', 'failed', 'unverified')
-            if item['disposition'] in DISPOSITIONS and bool(item['attempts']) != attempted:
+            if ((attempted and not item['attempts']) or
+                    (item['disposition'] in ('blocked', 'omitted') and item['attempts'])):
                 issue('checkpoint', item['id'] + ' attempt count disagrees with disposition', log)
             for attempt in item['attempts']:
                 candidates = [s for s in sections if (m := CHECKPOINT.fullmatch(text[s[2]:].splitlines()[0])) and m[2] == attempt]
@@ -465,12 +496,12 @@ def check(task, record):
                     section = candidates[0]
                     match = CHECKPOINT.fullmatch(text[section[2]:].splitlines()[0])
                     outcome = own_outcome(section[4])
-                    if attempted and attempt == item['attempts'][-1] and outcome != item['disposition']:
-                        issue('checkpoint', item['id'] + ' last attempt disagrees with disposition', log)
+                    if ((attempted and attempt == item['attempts'][-1]) or item['disposition'] == 'already_satisfied') and outcome != item['disposition']:
+                        issue('checkpoint', item['id'] + ' attempt outcome disagrees with disposition', log)
                     valid = (bool(checkpoint_sections) and checkpoint_sections[0][2] < section[2] < checkpoint_sections[0][3]
                              and checkpoint_sections[0][3] == len(text))
                     if item['disposition'] in DISPOSITIONS:
-                        valid &= outcome is not None and match[1] == outcome and not any(status_fields(section[4]))
+                        valid &= outcome is not None and match[1] == outcome and not any(status_fields(section[4], nested=True))
                     else:
                         valid &= match[1] == 'PENDING'
                 if not valid:
@@ -489,31 +520,43 @@ def check(task, record):
                     not re.search(r'^Target Org: \S.+$', header, re.M) or
                     not re.search(r'^Reconciled through: `?' + re.escape(record['change_log']) + r'`?$', header, re.M)):
                 issue('arch', 'missing template title/headers or current log stamp', arch)
-            template_parts = ['\n'.join(line for line in header.splitlines()
-                               if re.match(r'^(?:# Demo Architecture|Last reconciled:|Target Org:|Reconciled through:)', line))]
+            created = record['history']['architecture'] == 'created'
             map_text = text.replace('\r\n', '\n')
             map_sections = headings(map_text)
+            lines = map_text.splitlines()
+            owned = set(range(len(header.splitlines()))) if created else {
+                n for n, line in enumerate(header.splitlines())
+                if re.match(r'^(?:# Demo Architecture|Last reconciled:|Target Org:|Reconciled through:)', line)}
             stamp = re.compile(r'(?<![\w.-])' + re.escape(Path(record['change_log']).stem) + r'(?:\.md)?(?![\w.-])')
+            decision_lines = set()
             for section in map_sections:
                 if section[1] != 2 or section[0] not in ARCH_SECTIONS:
                     continue
-                content = own_body(section[4])  # Nested SE headings and their content are not ours.
-                end = next((s[2] for s in map_sections if section[2] < s[2] < section[3]), section[3])
-                raw = map_text[section[2]:end]  # Include fenced template text in the size budget.
-                template_parts.append('\n'.join(line for line in raw.splitlines() if not line.lstrip().startswith('>')))
                 if section[0] == 'Decision Log':
-                    lines = content.splitlines()
-                    for n, line in enumerate(lines):
-                        if stamp.search(line) and not line.lstrip().startswith('>'):
-                            following = lines[n + 1:n + 2]
-                            continuation = following and following[0].strip() and not re.match(r'^(?:- |#)', following[0])
-                            if len(line) > 320 or continuation or not re.match(r'^- \*\*\[\d{4}-\d\d-\d\d\]\*\* — ', line):
-                                issue('arch', 'current decision must be a dated line <=320 characters', arch)
-                if (section[0] == 'Demo Flow / Narrative Arc' and
-                        (record['history']['architecture'] == 'created' or record['history'].get('arc_changed')) and
-                        any(len(line) > 320 for line in content.splitlines() if not line.lstrip().startswith('>'))):
-                    issue('arch', 'arc beats must be <=320 characters', arch)
-            template = '\n'.join(template_parts)
+                    decision_lines.update(range(map_text[:section[2]].count('\n') + 1, len(map_text[:section[3]].splitlines())))
+                # Creation owns all nested text. Reconciliation preserves old SE sections.
+                end = section[3] if created else next((s[2] for s in map_sections if section[2] < s[2] < section[3]), section[3])
+                begin_line, end_line = map_text[:section[2]].count('\n'), len(map_text[:end].splitlines())
+                owned.update(n for n in range(begin_line, end_line) if created or not lines[n].lstrip().startswith('>'))
+                if section[0] == 'Demo Flow / Narrative Arc' and (created or record['history'].get('arc_changed')):
+                    if any(len(line) > 320 for line in section[4].splitlines()
+                           if created or not line.lstrip().startswith('>')):
+                        issue('arch', 'arc beats must be <=320 characters', arch)
+            # Current-task references are owned wherever they occur, including nested/SE sections.
+            for n, line in enumerate(lines):
+                current = bool(stamp.search(line)) and not (n < len(header.splitlines()) and line.startswith('Reconciled through:'))
+                if current:
+                    owned.add(n)
+                    if len(line) > 320:
+                        issue('arch', 'current-task lines must be <=320 characters', arch)
+                if created and n in decision_lines and not line.startswith('#') and len(line) > 320:
+                    issue('arch', 'new decision lines must be <=320 characters', arch)
+                if n in decision_lines and (current or (created and line.startswith('- '))):
+                    following = lines[n + 1:n + 2]
+                    continuation = following and following[0].strip() and not re.match(r'^(?:- |#)', following[0])
+                    if len(line) > 320 or continuation or not re.match(r'^- \*\*\[\d{4}-\d\d-\d\d\]\*\* — ', line):
+                        issue('arch', 'current decision must be a dated line <=320 characters', arch)
+            template = map_text if created else '\n'.join(lines[n] for n in sorted(owned))
             over = lambda value: len(value.splitlines()) > 350 or len(value.split()) > 3750
             if over(text):
                 issue('arch', 'map exceeds 350 lines / 3750 words' + (' only due to SE sections' if not over(template) else ''),
@@ -528,15 +571,34 @@ def checkpoint_heading(title):
 
 
 def pending(directory, org, username):
-    for folder in sorted(p for p in directory.iterdir() if p.is_dir() and not p.is_symlink()):
+    incomplete = False
+    for folder in sorted(directory.iterdir()):
+        if folder.is_symlink():
+            print(json.dumps({'state': 'incomplete', 'path': str(folder), 'reason': 'symlink folder refused'}))
+            incomplete = True
+            continue
+        if not folder.is_dir():
+            continue
         texts, unreadable = [], []
-        for path in sorted(set(folder.glob('changes-*.md')) | set(folder.glob('task-*.md'))):
+        try:
+            paths = sorted(p for p in folder.iterdir() if re.fullmatch(r'(?:changes|task)-.*\.md', p.name))
+        except OSError:
+            print(json.dumps({'state': 'incomplete', 'path': str(folder), 'reason': 'cannot list history folder'}))
+            incomplete = True
+            continue
+        for path in paths:
             try:
                 texts.append((path, read(path)))
             except (OSError, UnicodeError):
                 unreadable.append(path)
         identity = r'(?<![A-Za-z0-9])' + re.escape(org[:15]) + r'(?:[A-Za-z0-9]{3})?(?![A-Za-z0-9])'
         matched = any(re.search(identity, t) or (username and re.search(r'(?<![\w@.\-])' + re.escape(username) + r'(?![\w@.\-])', t)) for _, t in texts)
+        identified = any(re.search(r'\b00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?\b', t) or
+                         re.search(r'(?im)^(?:Org|Target Org):[^\r\n]*[\w.+-]+@[\w.-]+', t) for _, t in texts)
+        if unreadable and not matched and not identified:
+            print(json.dumps({'state': 'incomplete', 'path': str(folder), 'reason': 'unreadable history; folder relevance unknown'}))
+            incomplete = True
+            continue
         for path in unreadable:
             print(json.dumps({'file': str(path), 'state': 'unclear' if matched else 'skipped', 'reason': 'unreadable history'}),
                   file=sys.stdout if matched else sys.stderr)
@@ -547,12 +609,7 @@ def pending(directory, org, username):
             for title, _, start, _, body in headings(text):
                 if not checkpoint_heading(title):
                     continue
-                own = CHECKPOINT.fullmatch(text[start:].splitlines()[0])
-                values = outcome_values(body)
-                if own:
-                    state = 'resolved' if own_outcome(body) else 'unresolved' if own[1] == 'PENDING' else 'unclear'
-                else:
-                    state = 'unresolved' if not values else 'resolved' if legacy_final(values[-1]) else 'unclear'
+                state = checkpoint_state(text[start:].splitlines()[0], title, body)
                 print(json.dumps({'file': str(path), 'line': text[:start].count('\n') + 1, 'state': state, 'heading': title}))
             if path.name.startswith('task-'):
                 try:
@@ -563,21 +620,50 @@ def pending(directory, org, username):
         answered = {a['task'] for _, r in records for a in r['history'].get('reoffers', [])}
         for path, record in records:
             if record['history']['decisions'] == 'proposed' and path.name not in answered:
-                print(json.dumps({'file': str(path), 'state': 'proposed', 'proposed_entries': record['history']['proposed_entries']}))
+                print(json.dumps({'file': str(path), 'folder': str(folder), 'state': 'proposed', 'proposed_entries': record['history']['proposed_entries']}))
+
+    return 3 if incomplete else 0
+
+
+def checkpoint_state(heading, title, body):
+    """Discovery rules (current-task check/resolve deliberately remain stricter).
+
+    Exact /scout outcome headings resolve. Exact PENDING needs its own canonical
+    final line. Legacy component repair uses the last unfenced marker through
+    the next same/higher heading: no marker is unresolved; a final value resolves;
+    anything else is unclear. Unknown kinds are always unclear. Values stay on
+    their own line plus immediate indented continuations, never across a blank.
+    A value starts with one of five legacy final words, or is empty with at least
+    one final continuation and no non-final disposition. Evidence-only lines are
+    ignored. Labelled receipts/evidence/companion/artifact/source/query lines are
+    evidence; other unknown labelled values are unclear, never inferred final.
+    """
+    own = CHECKPOINT.fullmatch(heading)
+    if own:
+        return 'resolved' if own[1] != 'PENDING' or own_outcome(body) else 'unresolved'
+    if not re.match(r'(?i)^(?:PENDING[ \t]+[-—–][ \t]+|CHECKPOINT:[ \t]*PENDING[ \t]+[-—–][ \t]+)component repair\b', title):
+        return 'unclear'
+    values = outcome_values(body)
+    return 'unresolved' if not values else 'resolved' if legacy_final(values[-1]) else 'unclear'
 
 
 def legacy_final(marker):
+    # Five legacy final words; omitted is a /scout-only final disposition.
+    final = ('applied', 'already_satisfied', 'failed', 'blocked', 'unverified')
     lines = marker.splitlines()
     first = disposition_word(lines[0]) if lines else ''
     if first:
-        return first in DISPOSITIONS
+        return first in final
     dispositions = []
     for line in lines[1:]:
         word = disposition_word(line)
         labelled = re.match(r'^[ \t]*(?:-[ \t]+)?(?:\([\w]+\)|I\d+:)', re.sub(r'[*`]', '', line))
+        # Labelled receipts are evidence; any other unknown labelled value is conservative.
+        if labelled and word in ('receipt', 'evidence', 'companion', 'artifact', 'source', 'query'):
+            continue
         if labelled or word in (*DISPOSITIONS, 'pending', 'partial', 'partially', 'not_applied', 'not', 'incomplete', 'unknown'):
             dispositions.append(word)
-    return bool(dispositions) and all(w in DISPOSITIONS for w in dispositions)
+    return bool(dispositions) and all(w in final for w in dispositions)
 
 
 def reconcile_plan(folder):
@@ -585,7 +671,8 @@ def reconcile_plan(folder):
         raise OSError('expected a folder')
     arch = local(folder, 'demo-architecture.md')
     text = read(arch) if arch.exists() else ''
-    stamp = re.search(r'^Reconciled through:[ \t]*`?changes-(\d{4}-\d\d-\d\d-\d{4})-', text, re.M)
+    header = document_header(text)
+    stamp = re.search(r'^Reconciled through:[ \t]*`?changes-(\d{4}-\d\d-\d\d-\d{4})-', header, re.M)
     prior = stamp[1] if stamp else ''
     files = sorted((p for p in folder.glob('changes-*.md')
                     if (m := re.fullmatch(r'changes-(\d{4}-\d\d-\d\d-\d{4})-[\w.-]+\.md', p.name)) and m[1] > prior), reverse=True)
@@ -608,11 +695,11 @@ def main(argv=None):
         parser.error('expected a 15- or 18-character org ID')
     try:
         if args.command == 'pending':
-            pending(args.orgs_dir.resolve(strict=True), args.org_id, args.username)
+            return pending(args.orgs_dir.resolve(strict=True), args.org_id, args.username)
         elif args.command == 'reconcile-plan':
             reconcile_plan(args.folder.resolve(strict=True))
         else:
-            task = args.task.resolve(strict=True)
+            task = local(args.task.absolute().parent, args.task.name)
             record = task_record(task)
             if args.command == 'render':
                 print(render(record), end='')
@@ -623,7 +710,7 @@ def main(argv=None):
     except BlockError as error:
         print(f'{getattr(args, "task", "history")}:1: block: {error}')
         return 3
-    except (OSError, UnicodeError, ValueError, RecursionError) as error:
+    except (OSError, UnicodeError, ValueError, RuntimeError) as error:
         print(f'{getattr(args, "task", "history")}:1: read: could not safely read/update history ({type(error).__name__})')
         return 4
     return 0
