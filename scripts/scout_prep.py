@@ -2,9 +2,10 @@
 """Read-only demo-day prep for /scout (W9): constructed checks, a total verdict, and a safe demo-path.md.
 
 Subcommands:
+  scratch  make a new, private scratch folder under the vetted base, for the results file
   run      execute one allowlisted read-only check against the bound org (query, describe, retrieve)
   verdict  compute the readiness verdict from a results file
-  render   write the candidate demo-path.md and its metadata as new files in scratch
+  render   write the candidate demo-path.md and its metadata into a new scratch folder of its own, and name it
   check    gate a candidate against its results and the bound identity (exit 0 before publishing)
   publish  gate again, then replace demo-path.md without ever losing a concurrent save
 
@@ -15,11 +16,13 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import errno
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import secrets
 import shutil
 import stat
 import subprocess
@@ -58,8 +61,10 @@ TIME = re.compile(r'(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(:\d{2}(?:\.\d{1,6})?)?(
 HEADER = re.compile(r'org-verified\s*:', re.I)
 RESERVED = re.compile(r'scout:(?:begin|end|demo-path)|org-verified\s*:', re.I)
 BREAKS = re.compile(r'[\r\n\x0b\x0c\x1c-\x1e\x85\u2028\u2029]+')
-SECRET = re.compile(r'00D[A-Za-z0-9]{12,15}![\w.-]+|\bBearer\s+[\w.-]+|\b(?:access_?token|refresh_?token|session_?id|sid|'
-                    r'password|client_secret)\b["\']?\s*[:=]\s*["\']?[^\s"\',;]+', re.I)
+# F20 and R09: whole credentials, including quoted values with spaces and bearer tokens with +, / and =.
+SECRET = re.compile(r'00D[A-Za-z0-9]{12,15}![^\s"\'<>]+|\bBearer\s+[A-Za-z0-9._~+/=-]+|\b(?:access_?token|refresh_?token|'
+                    r'session_?id|sid|password|passwd|client_?secret|secret)\b["\']?\s*[:=]\s*'
+                    r'(?:"(?:[^"\\]|\\.)*"?|\'(?:[^\'\\]|\\.)*\'?|[^\s"\',;]+)', re.I)
 IDENT = r'[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*'
 TOKEN = re.compile(r"""(?P<space>[ \t\r\n]+)
     | (?P<string>'(?:[^'\\]|\\.)*')
@@ -375,9 +380,11 @@ def query_observation(result, count_only):
     """F18 and F19: a usable result has a records list and an integer totalSize; at most 2,000 records come back."""
     records = result.get('records') if isinstance(result, dict) else None
     total = result.get('totalSize') if isinstance(result, dict) else None
-    if not isinstance(records, list) or not all(isinstance(r, dict) for r in records) or type(total) is not int or total < 0:
+    done = result.get('done', True) if isinstance(result, dict) else None
+    if not isinstance(records, list) or not all(isinstance(r, dict) for r in records) or type(total) is not int or total < 0 \
+            or type(done) is not bool:  # R11: a malformed done flag never reads as complete
         raise Refused('CLI returned an unusable query result')
-    complete = result.get('done', True) is not False and len(records) <= RECORDS and (count_only or len(records) == total)
+    complete = done and len(records) <= RECORDS and (count_only or len(records) == total)
     return {'totalSize': total, 'records': records[:RECORDS], 'complete': complete}
 
 
@@ -417,6 +424,14 @@ def run_check(kind, selector, username, org, query=None, sobject=None, metadata=
         files = sorted(str(p.relative_to(target)) for p in target.rglob('*') if p.is_file())
         observed = {'directory': str(target), 'files': files[:RECORDS], 'complete': len(files) <= RECORDS}
     return {'kind': kind, 'observed': observed, 'at': now(clock).isoformat(timespec='seconds')}
+
+
+def observed_at(clock=None):
+    """R07: the time a check was attempted, even when the helper refused it."""
+    try:
+        return now(clock).isoformat(timespec='seconds')
+    except Refused:
+        return current_time().isoformat(timespec='seconds')
 
 
 def read_exact(path):
@@ -465,6 +480,8 @@ def check_obligation(obligation):
     if result is not None and (not isinstance(result, dict) or not isinstance(result.get('status'), (str, type(None)))
                                or not isinstance(result.get('at'), (str, type(None)))):
         raise Refused('%s needs a result of the form {"status":…,"observed":…,"at":…} or null' % obligation['key'])
+    if isinstance(result, dict) and result.get('status') is not None and parse_time(result.get('at')) is None:
+        raise Refused('%s needs its result\'s at: an ISO time with a timezone, the helper\'s or date\'s' % obligation['key'])  # R06
 
 
 def check_beat(entry, keys):
@@ -518,13 +535,28 @@ def load_results(path):
         beats.add(entry['key'])
     if not all(isinstance(line, str) for line in data.get('constraints', [])):
         raise Refused('constraints need to be strings')
+    for text in strings(data):
+        try:
+            text.encode('utf-8')
+        except UnicodeEncodeError as error:  # R12: an unpaired surrogate is a schema error, never a crash
+            raise Refused('results text is not valid Unicode') from error
     if any(RESERVED.search(unicodedata.normalize('NFKC', text)) for text in strings(data)):
         raise Refused('results text may not contain a Scout marker or an Org-verified line')
     return data
 
 
-def history(obligation, keyed):
-    """F08 and F10: a superseded or deliberately dropped obligation leaves the verdict only with a named source."""
+def provenance(value, read):
+    """F08 and R05: a source reference is `<path>§<section>`, naming a source this run read (its path as listed, or
+    its file name) and a section in it."""
+    if not stated(value) or '§' not in value:
+        return False
+    path, section = (part.strip() for part in value.split('§', 1))
+    return bool(path and section) and (path in read or path in {Path(r).name for r in read})
+
+
+def history(obligation, keyed, read=frozenset()):
+    """F08, F10 and R05: a superseded or deliberately dropped obligation leaves the verdict only with a named source:
+    the amendment's, reconciliation's or record's `<path>§<section>`, the path being one of this run's read sources."""
     successor, dropped = obligation.get('superseded_by'), obligation.get('dropped')
     if successor is None and dropped in (None, False):
         return None
@@ -532,17 +564,18 @@ def history(obligation, keyed):
         target = keyed.get(successor) if isinstance(successor, str) else None
         if target is None or target is obligation or target.get('superseded_by') is not None \
                 or target.get('dropped') not in (None, False) or dropped not in (None, False) \
-                or not stated(obligation.get('supersession_source')):
-            return 'blocking', 'superseded_by must name another live obligation, with supersession_source'
+                or not provenance(obligation.get('supersession_source'), read):
+            return 'blocking', 'superseded_by must name another live obligation, with supersession_source as a read source\'s <path>§<section>'
         return 'history', 'superseded by %s (%s)' % (successor, obligation['supersession_source'])
-    if dropped is not True or obligation.get('required', True) is not False or not stated(obligation.get('drop_source')):
-        return 'blocking', 'only an optional obligation can be dropped, with drop_source'
+    if dropped is not True or obligation.get('required', True) is not False or not provenance(obligation.get('drop_source'), read):
+        return 'blocking', 'only an optional obligation can be dropped, with drop_source as a read source\'s <path>§<section>'
     return 'history', 'dropped (%s)' % obligation['drop_source']
 
 
-def state_of(obligation, keyed, started, moment, demo):
-    """X1, F10–F12, C03: one state per obligation, and anything unrecognized fails closed."""
-    retired = history(obligation, keyed)
+def state_of(obligation, keyed, started, moment, demo, read=frozenset()):
+    """X1, F10–F12, C03: one state per obligation, and anything unrecognized fails closed.
+    R06: every result needs its observation time inside this run, whatever its status."""
+    retired = history(obligation, keyed, read)
     if retired:
         return retired
     result = obligation.get('result')
@@ -551,28 +584,34 @@ def state_of(obligation, keyed, started, moment, demo):
     status, kind = result.get('status'), obligation.get('kind')
     if kind not in KINDS or status not in STATES:
         return 'blocking', 'unrecognized kind or state'
+    at = parse_time(result.get('at'))
+    timed = at is not None and started is not None and started <= at <= moment
+    untimed = 'observation time missing, or outside this prep run'  # F12
     if status in EXCEPTIONS and kind not in EXCEPTIONS[status]:
-        return 'blocking', 'unknown: %s is no result for a %s' % (status, kind)  # C03
+        return 'blocking', 'unknown: %s is no result for a %s' % (status, kind) + ('' if timed else '; ' + untimed)  # C03
     if status != 'passed' and status not in EXCEPTIONS:
-        return 'blocking', status
+        return 'blocking', status + ('' if timed else '; ' + untimed)
     until = obligation.get('valid_until')
     if until is not None and (parse_date(until) is None or parse_date(until) < demo.date()):
         return 'blocking', 'expires before the demo (%s)' % until  # F11
-    at = parse_time(result.get('at'))
-    if at is None or started is None or not started <= at <= moment:
-        return 'blocking', 'observation time missing, or outside this prep run'  # F12
+    if not timed:
+        return 'blocking', untimed
     return ('passed', '') if status == 'passed' else ('exception', LABELS[status])
 
 
 def classify(data, demo_time=None):
-    """Every obligation with its state, in results order. Expiry runs through the demo, and never before now (F11)."""
+    """Every obligation with its state, in results order. Expiry runs through the demo, and never before now (F11).
+    R03: date-only validity reads in one timezone, this machine's, so naming a later demo can't revive an expired date."""
     moment = current_time()
     demo = max(moment, demo_time) if isinstance(demo_time, datetime.datetime) and demo_time.tzinfo else moment
+    demo = demo.astimezone(moment.tzinfo)
     obligations = data.get('obligations') if isinstance(data.get('obligations'), list) else []
     entries = [o for o in obligations if isinstance(o, dict)]
     keyed = {o['key']: o for o in entries if isinstance(o.get('key'), str)}
     started = parse_time(data.get('started_at'))
-    return [(o,) + state_of(o, keyed, started, moment, demo) for o in entries]
+    sources = data.get('sources') if isinstance(data.get('sources'), list) else []
+    read = frozenset(s['path'].strip() for s in sources if isinstance(s, dict) and s.get('state') == 'read' and stated(s.get('path')))
+    return [(o,) + state_of(o, keyed, started, moment, demo, read) for o in entries]
 
 
 def key_of(obligation):
@@ -608,11 +647,17 @@ def gaps(data, rows):
     required = [o for o in live if o.get('required', True) is not False]
     if not required:
         reasons.append('no recoverable story or proof moment')
-    elif not any(o.get('proof_moment') is True for o in required):
-        reasons.append('no proof-moment obligation')
-    checked = {beat_of(o) for o in live}
-    reasons += ['%s has no checks' % clean(b['key']) for b in beats_of(data) if b['key'] not in checked]
+    elif not any(o.get('proof_moment') is True and o.get('kind') == 'claim' for o in required):
+        reasons.append('no proof-moment claim')  # X1 and R04: a manual step or other kind never stands in for it
+    checked, retired = {beat_of(o) for o in live}, retired_beats(rows)
+    reasons += ['%s has no checks' % clean(b['key']) for b in beats_of(data) if b['key'] not in checked | retired]
     return reasons
+
+
+def retired_beats(rows):
+    """R14: a beat whose every obligation is history (superseded or dropped) is retired, not unchecked."""
+    live = {beat_of(o) for o, state, _ in rows if state != 'history'}
+    return {beat_of(o) for o, state, _ in rows if state == 'history'} - live - {None}
 
 
 def verdict_from(data, rows):
@@ -701,9 +746,10 @@ def drift_section(data, outcome, live):
     """C3 section 1 and F16: each failed check, what it was, what it is now, and the fix."""
     lines = [header(data, outcome), '', '## Drift since the build']
     for obligation, state, _ in live:
-        if state == 'blocking' and status_of(obligation) == 'failed':
-            lines.append('- ✗ %s — was: %s; now: %s; fix: %s' % (label(obligation), clean(obligation.get('was')) or 'not recorded',
-                                                                 now_of(obligation), clean(obligation.get('fix')) or 'none offered yet'))
+        if state == 'blocking' and status_of(obligation) == 'failed':  # R06: every check shows when it was observed
+            lines.append('- ✗ %s — was: %s; now: %s (%s); fix: %s' % (label(obligation), clean(obligation.get('was')) or 'not recorded',
+                                                                      now_of(obligation), at_of(obligation),
+                                                                      clean(obligation.get('fix')) or 'none offered yet'))
     return block(lines, 3)
 
 
@@ -741,15 +787,16 @@ def beat_lines(entry, rows, states):
         elif state == 'exception':
             lines.append('- Check: %s — %s%s (%s)' % (why, label(obligation), proof, at_of(obligation)))
         else:
-            lines.append('- Check: ✗ %s%s — %s' % (label(obligation), proof, clean(why)))
+            lines.append('- Check: ✗ %s%s — %s (%s)' % (label(obligation), proof, clean(why), at_of(obligation)))
     return lines
 
 
-def path_section(data, live):
+def path_section(data, live, rows=()):
     """C3 section 3, F13, F15: beats in story order (first appearance), per task; beatless obligations under General."""
     entries = {b['key']: b for b in beats_of(data)}
     states = {o['key']: state for o, state, _ in live if isinstance(o.get('key'), str)}
-    order = [b['key'] for b in beats_of(data)]
+    retired = retired_beats(rows)
+    order = [b['key'] for b in beats_of(data) if b['key'] not in retired]  # R14: a retired beat leaves the path
     order += [k for k in dict.fromkeys(beat_of(o) for o, _, _ in live) if k is not None and k not in order]
     if any(beat_of(o) is None for o, _, _ in live):
         order.append(None)
@@ -788,7 +835,7 @@ def region_bodies(data, demo_time, previous):
     outcome = verdict_from(data, rows)
     live = [row for row in rows if row[1] != 'history']
     return {'drift': drift_section(data, outcome, live), 'checklist': checklist_section(data, rows, live),
-            'path': path_section(data, live), 'seams': seams_section(data, live),
+            'path': path_section(data, live, rows), 'seams': seams_section(data, live),
             'runs': runs_section(data, outcome, previous)}, outcome
 
 
@@ -874,6 +921,13 @@ def compose(existing, data, demo_time):
     return ''.join(pieces) + existing[cursor:], outcome
 
 
+def same_folder(data, folder):
+    """R13: the results were collected for this folder: their `folder` names it, by its path or its name."""
+    named = Path(data['folder'])
+    if named.name != folder.name or (named.is_absolute() and named.resolve() != folder):
+        raise Refused('the results were collected for folder %s, not %s' % (clean(data['folder']), folder))
+
+
 def checked_folder(folder):
     """C02: prep never creates a folder; the folder must already be a real directory, not a symlink."""
     path = Path(folder)
@@ -909,6 +963,7 @@ def text_of(content):
 def render(folder, data, demo_time):
     """X11, F01, F03: the candidate text, plus the sha256 (or 'absent') of the destination it was rendered from."""
     destination = checked_folder(folder) / NAME
+    same_folder(data, destination.parent)
     current = read_destination(destination)
     text, outcome = compose(text_of(current), data, demo_time)
     return text, dict(outcome, base='absent' if current is None else digest(current), destination=str(destination))
@@ -935,17 +990,17 @@ def discard(path):
         pass
 
 
-def write_candidate(out, folder, text, outcome):
-    """F01 and F04: the candidate and its metadata are new files in scratch, outside every customer folder."""
-    orgs, parent = Path(folder).resolve().parent, Path(out).parent.resolve()
-    if parent == orgs or orgs in parent.parents:
-        raise Refused('--out must be a new file in scratch, outside every customer folder')
+def write_candidate(text, outcome):
+    """F01, F04 and R01: the candidate and its metadata are new files in a new scratch folder of the helper's own,
+    under the vetted base, so no caller chooses where they land."""
+    out = scratch_dir() / 'demo-path.candidate.md'
     create(meta_path(out), json.dumps({'schema': 1, 'destination': outcome['destination'], 'base': outcome['base']}))
     try:
         create(out, text)
     except BaseException:
         discard(meta_path(out))
         raise
+    return out
 
 
 def candidate_base(candidate, destination):
@@ -986,91 +1041,164 @@ def gate(candidate, data, org, username, demo_time):
     return problems
 
 
-def backup_dir(folder):
-    """F04: .scout-work/prep inside this folder, with no symlinked component, checked before anything moves."""
-    path = folder
-    for part in ('.scout-work', 'prep'):
-        path = path / part
+DIRECTORY = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+
+
+def open_directory(name, parent=None, create=False):
+    """F04 and R02: a directory opened without following a symlink, created first if asked. Every later step goes
+    through the descriptor, so swapping a path component after this check can't redirect a move."""
+    if create:
         try:
-            os.mkdir(str(path), 0o700)
+            os.mkdir(name, 0o700, dir_fd=parent)
         except FileExistsError:
             pass
-        info = os.lstat(str(path))
-        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
-            raise Refused('%s is not a plain directory: nothing was replaced' % path)
-    return path
-
-
-def stage(folder, candidate):
-    """N6: the staged copy lives in the destination's own folder, so linking it into place is atomic."""
-    handle, staged = tempfile.mkstemp(prefix=NAME + '.tmp-', dir=str(folder))
-    with os.fdopen(handle, 'wb') as stream:
-        stream.write(candidate.encode('utf-8'))
-        stream.flush()
-        os.fsync(stream.fileno())
-    return staged
-
-
-def restore(backup, destination):
-    """F01: put the moved file back without clobbering a newer save; if one exists, keep both and name them."""
     try:
-        os.link(str(backup), str(destination))
+        return os.open(name, DIRECTORY, dir_fd=parent)
     except OSError as error:
-        if os.path.lexists(str(destination)):
+        raise Refused('%s is not a plain directory: nothing was replaced' % name) from error
+
+
+def read_at(directory, name):
+    """F04: a regular file's bytes, relative to a directory descriptor and never through a symlink; None when absent."""
+    try:
+        descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise Refused('%s is not a regular file: leaving it untouched' % name) from error
+        raise
+    with open(descriptor, 'rb') as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise Refused('%s is not a regular file: leaving it untouched' % name)
+        return stream.read()
+
+
+def exists_at(directory, name):
+    try:
+        os.stat(name, dir_fd=directory, follow_symlinks=False)
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def discard_at(directory, name):
+    try:
+        os.unlink(name, dir_fd=directory)
+    except OSError:
+        pass
+
+
+def same_directory(parent, name, descriptor):
+    """R02: is `name` in `parent` still the very directory `descriptor` holds, not swapped, moved or replaced?"""
+    try:
+        info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+    except OSError:
+        return False
+    held = os.fstat(descriptor)
+    return stat.S_ISDIR(info.st_mode) and (info.st_dev, info.st_ino) == (held.st_dev, held.st_ino)
+
+
+def stage(home, candidate):
+    """N6: the staged copy is a new file in the destination's own folder, by descriptor, so linking it in is atomic."""
+    for _ in range(100):
+        name = '%s.tmp-%s' % (NAME, secrets.token_hex(6))
+        try:
+            descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=home)
+        except FileExistsError:
+            continue
+        with os.fdopen(descriptor, 'wb') as stream:
+            stream.write(candidate.encode('utf-8'))
+            stream.flush()
+            os.fsync(stream.fileno())
+        return name
+    raise Refused('could not stage the candidate: nothing was replaced')
+
+
+def restore(prep, backup, home, shown, destination):
+    """F01 and R08: put the moved file back without clobbering a newer save; if one exists, keep both and name them."""
+    try:
+        os.link(backup, NAME, src_dir_fd=prep, dst_dir_fd=home, follow_symlinks=False)
+    except OSError as error:
+        if exists_at(home, NAME):
             raise Refused('kept both files: the newest demo-path.md at %s, and the one moved aside at %s'
-                          % (destination, backup)) from error
-        raise Refused('could not put demo-path.md back; its bytes are at %s' % backup) from error
-    discard(backup)
+                          % (destination, shown)) from error
+        raise Refused('could not put demo-path.md back; its bytes are at %s' % shown) from error
+    discard_at(prep, backup)
 
 
 def publish(folder, candidate_path, data, org, username, demo_time):
-    """X10–X12, F01, F02, F04, N6: gate again, then replace without ever losing a concurrent save."""
+    """X10–X12, F01, F02, F04, N6: gate again, then replace without ever losing a concurrent save.
+
+    R02: after the gate, every step runs through descriptors for the folder and its `.scout-work/prep`, and the move
+    aside is checked to have landed in this folder's own backup directory. R08: any failure after the move puts the
+    file back, or names where its bytes are.
+    """
     destination = checked_folder(folder) / NAME
+    same_folder(data, destination.parent)
     candidate = read_exact(candidate_path)
     base = candidate_base(candidate_path, destination)
     problems = gate(candidate, data, org, username, demo_time)
     if problems:
         raise Refused('the candidate fails the gate: ' + '; '.join(problems))  # F02
-    current = read_destination(destination)
-    if (current is None) != (base == 'absent') or (current is not None and digest(current) != base):
-        raise Refused('demo-path.md changed after render; nothing was replaced, so render again')  # F01
-    if compose(text_of(current), data, demo_time)[0] != candidate:
-        raise Refused('the candidate is not a fresh render of demo-path.md and these results')
-    backups = backup_dir(destination.parent) if current is not None else None
-    staged = stage(destination.parent, candidate)
-    probe = staged + '.link'
+    home = open_directory(str(destination.parent))
+    held = [home]
     try:
-        os.link(staged, probe)  # N6: without hard links nothing moves
-        if current is None:
-            try:
-                os.link(staged, str(destination))
-            except FileExistsError as error:
-                raise Refused('a demo-path.md appeared during prep; kept it, and the candidate at %s' % candidate_path) from error
-            return {'published': str(destination), 'backup': None}
-        backup = backups / ('demo-path.%s.md' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
-        if os.path.lexists(str(backup)):
-            raise Refused('backup name taken; nothing was replaced, so publish again')
-        os.rename(str(destination), str(backup))  # F01: whatever was saved last moves, whole, to the backup
-        if digest(read_nofollow(backup)) != base:
-            restore(backup, destination)
-            raise Refused('demo-path.md was saved during publication; it is back at %s and nothing was replaced' % destination)
+        current = read_at(home, NAME)
+        if (current is None) != (base == 'absent') or (current is not None and digest(current) != base):
+            raise Refused('demo-path.md changed after render; nothing was replaced, so render again')  # F01
+        if compose(text_of(current), data, demo_time)[0] != candidate:
+            raise Refused('the candidate is not a fresh render of demo-path.md and these results')
+        work = prep = None
+        if current is not None:
+            work = open_directory('.scout-work', home, create=True)
+            held.append(work)
+            prep = open_directory('prep', work, create=True)
+            held.append(prep)
+        staged = stage(home, candidate)
+        probe = staged + '.link'
         try:
-            os.link(staged, str(destination))  # F01: no clobber
-        except FileExistsError as error:
-            raise Refused('a new demo-path.md was saved during publication; kept it at %s, and the previous one at %s'
-                          % (destination, backup)) from error
-        except OSError:
-            restore(backup, destination)
-            raise
-        return {'published': str(destination), 'backup': str(backup)}
+            os.link(staged, probe, src_dir_fd=home, dst_dir_fd=home, follow_symlinks=False)  # N6: without hard links nothing moves
+            if current is None:
+                try:
+                    os.link(staged, NAME, src_dir_fd=home, dst_dir_fd=home, follow_symlinks=False)
+                except FileExistsError as error:
+                    raise Refused('a demo-path.md appeared during prep; kept it, and the candidate at %s' % candidate_path) from error
+                return {'published': str(destination), 'backup': None}
+            backup = 'demo-path.%s.md' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+            shown = destination.parent / '.scout-work' / 'prep' / backup
+            if exists_at(prep, backup):
+                raise Refused('backup name taken; nothing was replaced, so publish again')
+            try:
+                os.rename(NAME, backup, src_dir_fd=home, dst_dir_fd=prep)  # F01: whatever was saved last moves, whole
+            except OSError as error:
+                raise Refused('could not move demo-path.md aside (%s); nothing was replaced' % type(error).__name__) from error
+            try:
+                if not (same_directory(home, '.scout-work', work) and same_directory(work, 'prep', prep)):
+                    raise Refused('.scout-work/prep changed during publication')
+                if digest(read_at(prep, backup) or b'') != base:
+                    raise Refused('demo-path.md was saved during publication')
+                os.link(staged, NAME, src_dir_fd=home, dst_dir_fd=home, follow_symlinks=False)  # F01: no clobber
+            except FileExistsError as error:
+                raise Refused('a new demo-path.md was saved during publication; kept it at %s, and the previous one at %s'
+                              % (destination, shown)) from error
+            except BaseException as error:  # R08: put it back, or name where its bytes are
+                restore(prep, backup, home, shown, destination)
+                reason = str(error) if isinstance(error, Refused) else 'publication failed (%s)' % type(error).__name__
+                raise Refused('%s; demo-path.md is back at %s and nothing was replaced' % (reason, destination)) from error
+            return {'published': str(destination), 'backup': str(shown)}
+        finally:
+            discard_at(home, probe)
+            discard_at(home, staged)
     finally:
-        discard(probe)
-        discard(staged)
+        for descriptor in reversed(held):
+            os.close(descriptor)
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('scratch')
     run = commands.add_parser('run')
     run.add_argument('--kind', required=True, choices=('query', 'describe', 'retrieve'))
     for flag in ('--selector', '--username', '--org-id'):
@@ -1085,14 +1213,15 @@ def main(argv=None):
         sub.add_argument('--demo-time')
         if name in ('render', 'publish'):
             sub.add_argument('--folder', required=True)
-        if name == 'render':
-            sub.add_argument('--out', required=True)
         if name in ('check', 'publish'):
             sub.add_argument('--candidate', required=True)
             sub.add_argument('--org-id', required=True)
             sub.add_argument('--username', required=True)
     args = parser.parse_args(argv)
     try:
+        if args.command == 'scratch':
+            print(json.dumps({'scratch': str(scratch_dir())}))
+            return 0
         if args.command == 'run':
             print(json.dumps(run_check(args.kind, args.selector, args.username, args.org_id, args.query,
                                        args.sobject, args.metadata, args.clock)))
@@ -1104,8 +1233,8 @@ def main(argv=None):
             return 0
         if args.command == 'render':
             text, outcome = render(args.folder, data, demo_time)
-            write_candidate(args.out, args.folder, text, outcome)
-            print(json.dumps({'candidate': args.out, 'verdict': outcome['verdict'], 'base': outcome['base']}))
+            candidate = write_candidate(text, outcome)
+            print(json.dumps({'candidate': str(candidate), 'verdict': outcome['verdict'], 'base': outcome['base']}))
             return 0
         if args.command == 'publish':
             print(json.dumps(publish(args.folder, args.candidate, data, args.org_id, args.username, demo_time)))
@@ -1114,7 +1243,10 @@ def main(argv=None):
         print('\n'.join('prep: ' + p for p in problems) or 'prep: check pass')
         return 3 if problems else 0
     except Refused as error:
-        print(json.dumps(dict({'refused': str(error)}, **({'error': error.error} if error.error else {}))))
+        payload = dict({'refused': str(error)}, **({'error': error.error} if error.error else {}))
+        if args.command == 'run':  # R07: a check the helper refuses still has its observation time
+            payload['at'] = observed_at(args.clock)
+        print(json.dumps(payload))
         return 3
     except (OSError, UnicodeError, ValueError, RecursionError) as error:
         print(json.dumps({'reason': 'could not read or run (%s)' % type(error).__name__}))

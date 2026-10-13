@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -119,6 +120,15 @@ class Fixture(unittest.TestCase):
         clock.start()
         self.addCleanup(clock.stop)
         self.renders = 0
+        real_scratch = prep.scratch_dir  # R01: render makes its own scratch under the vetted base; clean it up
+
+        def tracked():
+            path = real_scratch()
+            self.addCleanup(shutil.rmtree, str(path), True)
+            return path
+        scratch = patch.object(prep, 'scratch_dir', tracked)
+        scratch.start()
+        self.addCleanup(scratch.stop)
 
     def cli(self, *args):
         output = io.StringIO()
@@ -130,11 +140,12 @@ class Fixture(unittest.TestCase):
         self.results.write_text(json.dumps(data))
 
     def render(self, data, demo_time=None):
+        # R01 changed this helper: render chooses its own scratch file and names it.
         self.save(data)
         self.renders += 1
-        candidate = self.scratch / ('candidate-%d.md' % self.renders)
         extra = ['--demo-time', demo_time] if demo_time else []
-        code, output = self.cli('render', '--results', self.results, '--folder', self.folder, '--out', candidate, *extra)
+        code, output = self.cli('render', '--results', self.results, '--folder', self.folder, *extra)
+        candidate = Path(json.loads(output)['candidate']) if code == 0 else self.scratch / ('not-rendered-%d.md' % self.renders)
         return code, output, candidate
 
     def gate(self, candidate, data, org=ORG, user=USER):
@@ -388,8 +399,10 @@ class VerdictTests(Fixture):
             (results(obligation(), obligation('t.md#opt', 'failed', proof=False, required=False)), 'not ready'),
             # F08 flips the old expectation ('ready'): a supersession that names no live obligation supersedes nothing.
             (results(obligation(), obligation('t.md#old', 'failed', proof=False, superseded_by='t2.md#B1/claim1')), 'not ready'),
-            (results(obligation(), obligation('t.md#old', 'failed', proof=False, superseded_by=KEY, supersession_source=source)), 'ready'),
-            (results(obligation(), obligation('t.md#B1/c2', 'passed', at=None, proof=False)), 'not ready'),
+            # R05 changed this case: the supersession's source is one this run read.
+            (results(obligation(), obligation('t.md#old', 'failed', proof=False, superseded_by=KEY, supersession_source=source),
+                     sources=[dict(path='task-2026-10-14-0900-y.md', state='read')]), 'ready'),
+            (results(obligation(), obligation('t.md#B1/c2', 'passed', at='2000-01-01T00:00:00+00:00', proof=False)), 'not ready'),
             (results(), 'not ready'),
             (results(obligation(proof=False)), 'not ready'),
             (results(obligation(), sources=[dict(path='task-old.md', state='unreadable')]), 'not ready'),
@@ -402,14 +415,18 @@ class VerdictTests(Fixture):
 
     def test_supersession_needs_another_live_obligation_and_its_source(self):
         source = 'task-2026-10-14-0900-y.md § Amendments'
+        read = [dict(path='task-2026-10-14-0900-y.md', state='read')]  # R05 changed this test: the source is a read source
         old = lambda **extra: obligation('t.md#I2', 'failed', kind='item', proof=False, **extra)  # noqa: E731
-        self.assertEqual(self.outcome(obligation(), old(superseded_by=KEY, supersession_source=source)), 'ready')
+        self.assertEqual(self.outcome(obligation(), old(superseded_by=KEY, supersession_source=source), sources=read), 'ready')
+        for bare in ('yes', 'task-2026-10-14-0900-y.md', 'unread-task.md § Amendments', 'task-2026-10-14-0900-y.md § '):
+            with self.subTest(bare=bare):  # R05: provenance names a read source and a section
+                self.assertEqual(self.outcome(obligation(), old(superseded_by=KEY, supersession_source=bare), sources=read), 'not ready')
         for extra in (dict(superseded_by='missing-task.md#missing', supersession_source=source),
                       dict(superseded_by='t.md#I2', supersession_source=source), dict(superseded_by=KEY),
                       dict(superseded_by=KEY, supersession_source=' '), dict(superseded_by='t.md#I3', supersession_source=source)):
             with self.subTest(extra=extra):
                 retired = obligation('t.md#I3', 'passed', kind='item', proof=False, superseded_by=KEY, supersession_source=source)
-                self.assertEqual(self.outcome(obligation(), retired, old(**extra)), 'not ready')
+                self.assertEqual(self.outcome(obligation(), retired, old(**extra), sources=read), 'not ready')
         for successor in (True, {'anything': 'goes'}, ['t.md#I3']):
             with self.subTest(successor=successor):
                 data = results(obligation(), old(superseded_by=successor, supersession_source=source))
@@ -418,10 +435,12 @@ class VerdictTests(Fixture):
 
     def test_a_deliberately_dropped_optional_obligation_is_history(self):
         source = 'task-2026-10-13-1200-x.md § story.beats[0].claims'
+        read = [dict(path='orgs/example/task-2026-10-13-1200-x.md', state='read')]  # R05: a read source, here by its file name
         dropped = lambda **extra: obligation('t.md#B1/c9', 'failed', proof=False, dropped=True, **extra)  # noqa: E731
-        self.assertEqual(self.outcome(obligation(), dropped(required=False, drop_source=source)), 'ready')
-        self.assertEqual(self.outcome(obligation(), dropped(required=True, drop_source=source)), 'not ready')
-        self.assertEqual(self.outcome(obligation(), dropped(required=False)), 'not ready')
+        self.assertEqual(self.outcome(obligation(), dropped(required=False, drop_source=source), sources=read), 'ready')
+        self.assertEqual(self.outcome(obligation(), dropped(required=True, drop_source=source), sources=read), 'not ready')
+        self.assertEqual(self.outcome(obligation(), dropped(required=False), sources=read), 'not ready')
+        self.assertEqual(self.outcome(obligation(), dropped(required=False, drop_source='SE withdrew it'), sources=read), 'not ready')
 
     def test_only_read_and_unrelated_sources_pass(self):
         for state in ('read', 'unrelated'):
@@ -458,11 +477,15 @@ class VerdictTests(Fixture):
         self.assertEqual(self.verdict(data, '2026-10-15T10:00:00+02:00')['verdict'], 'not ready')
 
     def test_observation_times_must_fall_inside_this_run(self):
-        for at in ('not-a-time', '2026-10-13T15:00:00', '2000-01-01T00:00:00+00:00', '2026-10-13T14:00:00+02:00',
-                   '2026-10-13T17:00:00+02:00', None, '20261013T150000+0200'):
+        for at in ('2000-01-01T00:00:00+00:00', '2026-10-13T14:00:00+02:00', '2026-10-13T17:00:00+02:00'):
             with self.subTest(at=at):
-                self.assertEqual(self.outcome(obligation(at=at)), 'not ready')  # F12
-        self.assertEqual(self.outcome(obligation(), obligation('t.md#B1/eye', 'eye', proof=False, at=None)), 'not ready')
+                self.assertEqual(self.outcome(obligation(at=at)), 'not ready')  # F12: a real time, outside this run
+        # R06 changed these: a result without a usable time is refused outright, whatever its status.
+        for at in ('not-a-time', '2026-10-13T15:00:00', None, '20261013T150000+0200'):
+            for status in ('passed', 'failed', 'open'):
+                with self.subTest(at=at, status=status):
+                    self.assertIn("needs its result's at", self.verdict(results(obligation(), obligation('t.md#B1/c9', status, proof=False, at=at)), code=3)['refused'])
+        self.verdict(results(obligation(), obligation('t.md#B1/eye', 'eye', proof=False, at=None)), code=3)
         for at in ('2026-10-13T13:00:00Z', '2026-10-13T15:00:00+0200', '2026-10-13 15:00+02:00', '2026-10-13T15:00:00.25+02:00'):
             with self.subTest(at=at):
                 self.assertEqual(self.outcome(obligation(at=at)), 'ready')
@@ -521,7 +544,7 @@ class VerdictTests(Fixture):
                     self.results.write_text(mutate)
                 else:
                     self.save(mutate(results(obligation())))
-                for args in (('verdict',), ('render', '--folder', self.folder, '--out', self.scratch / ('c%d.md' % number)),
+                for args in (('verdict',), ('render', '--folder', self.folder),
                              ('check', '--candidate', self.scratch / 'none.md', '--org-id', ORG, '--username', USER)):
                     try:
                         code, output = self.cli(args[0], '--results', self.results, *args[1:])
@@ -554,8 +577,8 @@ class RenderTests(Fixture):
         self.assertEqual(code, 0, output)
         drift, checklist, path, seams, runs = (self.regions(candidate.read_text())[n] for n in prep.REGIONS)
         self.assertTrue(drift.startswith('Org-verified: %s against %s (%s) — not ready — 1 of 3 checks passed\n' % (STAMP, ORG, USER)))
-        self.assertIn('- ✗ Status shows Overdue (%s) — was: Overdue since 2026-10-12; now: New; fix: Run seed/kit-requests.apex with --reset'
-                      % failed['key'], drift)  # F16
+        self.assertIn('- ✗ Status shows Overdue (%s) — was: Overdue since 2026-10-12; now: New (%s); fix: Run seed/kit-requests.apex with --reset'
+                      % (failed['key'], prep.at_of(failed)), drift)  # F16; R06 changed it: every check shows its time
         self.assertIn('fix: Run seed/kit-requests.apex with --reset', checklist)
         for line in ('### task-2026-10-13-1200-x.md#B1 · Overdue kit requests — not ready',
                      '- Persona: Field rep · Login: rep@example.test · Start: Kit Requests app > Requests tab > R-0001',
@@ -639,7 +662,7 @@ class RenderTests(Fixture):
         linked.symlink_to(self.folder, target_is_directory=True)
         for folder in (self.orgs / 'no-such-customer', linked):
             with self.subTest(folder=folder.name):
-                code, output = self.cli('render', '--results', self.results, '--folder', folder, '--out', self.scratch / (folder.name + '.md'))
+                code, output = self.cli('render', '--results', self.results, '--folder', folder)
                 self.assertEqual(code, 3, output)  # C02
                 self.assertIn('never creates', output)
         self.assertFalse((self.orgs / 'no-such-customer').exists())
@@ -655,26 +678,26 @@ class RenderTests(Fixture):
         self.assertIn('edited Scout region', output)
         self.assertEqual((self.destination.read_text(), candidate.exists()), (edited, False))
 
-    def test_out_is_a_new_file_outside_every_customer_folder(self):
+    def test_render_writes_only_into_a_new_scratch_folder_of_its_own(self):
+        """R01 changed this test: no caller chooses where the candidate lands, so --out is gone."""
         task = self.folder / 'task-owned.md'
         task.write_text('ORIGINAL TASK EVIDENCE\n')
         self.save(results(obligation()))
-        linked = self.scratch / 'into-folder'
-        linked.symlink_to(self.folder, target_is_directory=True)
-        link = self.scratch / 'link.md'
-        link.symlink_to(task)
-        for out in (task, self.orgs / 'other' / 'new-candidate.md', self.folder / 'new.md', self.orgs / 'stray.md', linked / 'x.md', link):
-            with self.subTest(out=out):
-                code, output = self.cli('render', '--results', self.results, '--folder', self.folder, '--out', out)
-                self.assertEqual(code, 3, output)  # F04
+        with self.assertRaises(SystemExit):  # argparse: --out is no longer an option
+            self.cli('render', '--results', self.results, '--folder', self.folder, '--out', self.orgs / 'other' / 'task-new.md')
+        first, second = (Path(json.loads(self.cli('render', '--results', self.results, '--folder', self.folder)[1])['candidate'])
+                         for _ in range(2))
+        base = Path(os.path.realpath(prep.SCRATCH_BASE))
+        for candidate in (first, second):
+            self.assertEqual(candidate.parent.parent, base)
+            self.assertTrue(candidate.parent.name.startswith('scout-prep-'))
+            self.assertEqual(stat.S_IMODE(candidate.parent.stat().st_mode), 0o700)
+            self.assertTrue(prep.meta_path(candidate).is_file())
+        self.assertNotEqual(first.parent, second.parent)  # every render gets a new folder; nothing is overwritten
         self.assertEqual(task.read_text(), 'ORIGINAL TASK EVIDENCE\n')
         self.assertEqual(sorted(p.name for p in self.folder.iterdir()), ['task-owned.md'])
         self.assertEqual(sorted(p.name for p in self.orgs.iterdir()), ['example', 'other'])
-        fresh = self.scratch / 'fresh.md'
-        self.assertEqual(self.cli('render', '--results', self.results, '--folder', self.folder, '--out', fresh)[0], 0)
-        before = fresh.read_bytes()
-        self.assertEqual(self.cli('render', '--results', self.results, '--folder', self.folder, '--out', fresh)[0], 3)
-        self.assertEqual(fresh.read_bytes(), before)
+        self.assertEqual([p.name for p in (self.orgs / 'other').iterdir()], ['task-2026-10-01-0900-other.md'])
 
 
 class GateTests(Fixture):
@@ -777,7 +800,7 @@ class PublishTests(Fixture):
         _, _, candidate = self.render(data)
         real = os.rename
         def racing(source, destination, *args, **kwargs):
-            if Path(source) == self.destination:
+            if source == prep.NAME:  # R02 changed this hook: publish moves and links by name, relative to the folder's descriptor
                 self.destination.write_text(self.destination.read_text() + '\nLAST SECOND SE SAVE\n')
             return real(source, destination, *args, **kwargs)
         with patch.object(prep.os, 'rename', racing):
@@ -794,7 +817,7 @@ class PublishTests(Fixture):
         real = os.rename
         def racing(source, destination, *args, **kwargs):
             moved = real(source, destination, *args, **kwargs)
-            if Path(source) == self.destination:
+            if source == prep.NAME:  # R02 changed this hook: publish moves and links by name, relative to the folder's descriptor
                 self.destination.write_text('NEW FILE SAVED BY THE EDITOR\n')
             return moved
         with patch.object(prep.os, 'rename', racing):
@@ -810,7 +833,7 @@ class PublishTests(Fixture):
         _, _, candidate = self.render(data)
         real = os.link
         def racing(source, destination, *args, **kwargs):
-            if Path(destination) == self.destination:
+            if destination == prep.NAME:  # R02 changed this hook: publish moves and links by name, relative to the folder's descriptor
                 self.destination.write_text('HAND-MADE, SAVED DURING PREP\n')
             return real(source, destination, *args, **kwargs)
         with patch.object(prep.os, 'link', racing):
@@ -869,7 +892,10 @@ class PublishTests(Fixture):
 
 
 class FixMatrixTests(FakeCli):
-    """F23 and X15: a fix is a separate /scout task; prep never writes, and after a fix it runs again in full."""
+    """F23 and X15: a fix is a separate /scout task; prep never writes, and after a fix it runs again in full.
+
+    R10: these are observation tests. They pin what prep observes and that it never writes; the SE's answer and the
+    fix task itself are native behavior, graded by the battery's B5 and C05's route pins."""
     CLAIM = 'SELECT COUNT() FROM Kit_Request__c WHERE Due_Date__c < TODAY'
     FLIP = "SELECT Id, Status__c FROM Kit_Request__c WHERE Name = 'R-0001'"
 
@@ -958,6 +984,135 @@ class FixMatrixTests(FakeCli):
         _, _, candidate = self.render(data)
         self.assertEqual(self.gate(candidate, data, org='00D000000000002EAA')[0], 3)
         self.assertEqual(self.mutations(), [])
+
+
+class Round3Tests(FakeCli):
+    """W9 round 3: Astra's round-2 findings R01–R12 and candidates R13, R14, R16 and R17, as ruled."""
+    verdict = VerdictTests.verdict
+    outcome = VerdictTests.outcome
+
+    def test_r01_scratch_is_new_private_and_under_the_vetted_base(self):
+        code, output = self.cli('scratch')
+        self.assertEqual(code, 0, output)
+        folder = Path(json.loads(output)['scratch'])
+        self.assertEqual(folder.parent, Path(os.path.realpath(prep.SCRATCH_BASE)))
+        self.assertTrue(folder.name.startswith('scout-prep-'))
+        self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o700)
+        self.assertNotEqual(folder, Path(json.loads(self.cli('scratch')[1])['scratch']))
+
+    def test_r02_a_swapped_backup_folder_never_receives_the_file(self):
+        data = results(obligation())
+        original = self.published(data)
+        _, _, candidate = self.render(data)
+        victim = self.root / 'second-customer'
+        victim.mkdir()
+        real_stage = prep.stage
+
+        def swap(home, text):
+            directory = self.folder / '.scout-work' / 'prep'
+            directory.rename(directory.with_name('prep-before-swap'))
+            directory.symlink_to(victim, target_is_directory=True)
+            return real_stage(home, text)
+        with patch.object(prep, 'stage', swap):
+            code, output = self.publish(candidate, data)
+        self.assertEqual(code, 3, output)
+        self.assertIn('changed during publication', output)
+        self.assertEqual(list(victim.iterdir()), [])
+        self.assertEqual(self.destination.read_bytes(), original)
+        self.assertEqual(list((self.folder / '.scout-work' / 'prep-before-swap').iterdir()), [])
+        self.assertEqual(self.staged(), [])
+
+    def test_r03_a_later_demo_never_revives_an_expired_date(self):
+        self.clock = prep.now('2026-10-14T00:30:00+02:00')
+        run = dict(started_at='2026-10-14T00:10:00+02:00', observed_at='2026-10-14T00:25:00+02:00')
+        expired = results(obligation(valid_until='2026-10-13', at='2026-10-14T00:20:00+02:00'), **run)
+        for demo in (None, '2026-10-13T23:30:00-01:00', '2026-10-14T09:00:00+02:00'):
+            with self.subTest(demo=demo):
+                self.assertEqual(self.verdict(expired, demo)['verdict'], 'not ready')
+        valid = results(obligation(valid_until='2026-10-14', at='2026-10-14T00:20:00+02:00'), **run)
+        self.assertEqual(self.verdict(valid, '2026-10-14T09:00:00+02:00')['verdict'], 'ready')
+        self.assertEqual(self.verdict(valid, '2026-10-15T09:00:00+02:00')['verdict'], 'not ready')
+
+    def test_r04_a_manual_step_never_stands_in_for_the_proof_claim(self):
+        manual = obligation('t.md#manual1', kind='manual', proof=True)
+        self.assertEqual(self.verdict(results(manual))['blocking'], ['no proof-moment claim'])
+        self.assertEqual(self.outcome(obligation(), manual), 'ready')
+
+    def test_r06_a_failed_check_shows_its_time_in_the_path(self):
+        code, output, candidate = self.render(results(obligation(), obligation('t.md#B1/c2', 'failed', proof=False)))
+        self.assertEqual(code, 0, output)
+        self.assertIn('- Check: ✗ Two overdue rows (t.md#B1/c2) — failed (%s)' % STAMP, self.regions(candidate.read_text())['path'])
+
+    def test_r07_a_refused_check_still_names_its_time(self):
+        code, output = self.run_prep('--kind', 'query', '--query', 'SELECT Id FROM Account; DELETE')
+        self.assertEqual(code, 3, output)
+        at = json.loads(output)['at']
+        self.assertEqual(at, prep.now(NOW).isoformat(timespec='seconds'))
+        self.assertEqual(self.verdict(results(obligation(), obligation('t.md#B1/c2', 'eye', proof=False, at=at)))['verdict'],
+                         'ready with exceptions')
+
+    def test_r08_a_failure_after_the_move_puts_the_file_back(self):
+        data = results(obligation())
+        original = self.published(data)
+        _, _, candidate = self.render(data)
+        real_read = prep.read_at
+
+        def failing(directory, name):
+            if name.startswith('demo-path.') and name != prep.NAME:
+                raise PermissionError('concurrent ACL change')
+            return real_read(directory, name)
+        with patch.object(prep, 'read_at', failing):
+            code, output = self.publish(candidate, data)
+        self.assertEqual(code, 3, output)
+        self.assertIn('is back at %s' % self.destination, output)
+        self.assertEqual(self.destination.read_bytes(), original)
+        self.assertEqual((self.backups(), self.staged()), ([], []))
+
+    def test_r09_credentials_are_redacted_whole(self):
+        message = ('INVALID_LOGIN password="first SECRETTAIL" secret: \'x y SECRET2\' '
+                   'Authorization: Bearer abc+/BEARERTAIL== sid=00D000000000001!AQ4AQ.SECRET3')
+        redacted = prep.cli_error({'name': 'INVALID_LOGIN', 'message': message})['message']
+        for secret in ('SECRETTAIL', 'SECRET2', 'BEARERTAIL', 'SECRET3'):
+            self.assertNotIn(secret, redacted)
+        self.assertTrue(redacted.startswith('INVALID_LOGIN '))
+
+    def test_r11_a_malformed_done_flag_is_unusable(self):
+        for done in ('false', 0, None, 'true', 1):
+            with self.subTest(done=done), self.assertRaises(prep.Refused):
+                prep.query_observation({'records': [{'Id': 'a'}], 'totalSize': 1, 'done': done}, False)
+        self.assertTrue(prep.query_observation({'records': [{'Id': 'a'}], 'totalSize': 1, 'done': True}, False)['complete'])
+        self.assertTrue(prep.query_observation({'records': [{'Id': 'a'}], 'totalSize': 1}, False)['complete'])
+        self.assertFalse(prep.query_observation({'records': [{'Id': 'a'}], 'totalSize': 2, 'done': False}, False)['complete'])
+
+    def test_r12_an_unpaired_surrogate_is_a_schema_error(self):
+        self.save(results(obligation(text='unpaired surrogate \ud800')))
+        for command in (('verdict',), ('render', '--folder', self.folder)):
+            with self.subTest(command=command[0]):
+                code, output = self.cli(command[0], '--results', self.results, *command[1:])
+                self.assertEqual(code, 3, output)
+                self.assertIn('not valid Unicode', output)
+
+    def test_r13_results_publish_only_into_the_folder_they_describe(self):
+        code, output, _ = self.render(results(obligation(), folder=str(self.orgs / 'other')))
+        self.assertEqual(code, 3, output)
+        self.assertIn('collected for folder', output)
+        good = results(obligation())
+        code, output, candidate = self.render(good)
+        self.assertEqual(code, 0, output)
+        code, output = self.publish(candidate, dict(good, folder='orgs/other'))
+        self.assertEqual(code, 3, output)
+        self.assertFalse(self.destination.exists())
+        for folder in ('example', str(self.folder)):
+            with self.subTest(folder=folder):
+                self.assertEqual(self.render(dict(good, folder=folder))[0], 0)
+
+    def test_r14_a_retired_beat_neither_blocks_nor_renders(self):
+        old = obligation('old.md#B1/c1', 'failed', beat='old.md#B1', superseded_by=KEY, supersession_source='old.md § Amendments')
+        data = results(obligation(), old, beats=[beat('old.md#B1'), beat()], sources=[dict(path='old.md', state='read')])
+        self.assertEqual(self.verdict(data)['verdict'], 'ready')
+        code, output, candidate = self.render(data)
+        self.assertEqual(code, 0, output)
+        self.assertNotIn('old.md#B1', self.regions(candidate.read_text())['path'])
 
 
 class BytecodeTests(unittest.TestCase):

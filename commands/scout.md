@@ -42,7 +42,7 @@ The first SE-facing message on open-ended work never offers “go” without a p
 
 Split the exact request clause by clause into items, or record why a clause is not an item. Each needs what, where and observable criteria. Bundle ambiguity questions with defaults. Before the first SE-facing question, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/discovery.md` whenever the task has a story (on open-ended work or structured input naming audience and moment), or when adding a demo-facing capability to a folder with history. Neither discovery.md nor history.md loads before the first message on a complete brief. For those tasks, read discovery before proposal or write, even without questions.
 
-Prep mode (`/scout prep`, or rehearsing or checking an existing demo): follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/prep.md` once bound and the folder chosen.
+Prep mode (`/scout prep`, or rehearsing or checking an existing demo): follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/prep.md` once bound, never creating a folder.
 
 Treat a supplied demo plan, requirements or discovery notes as the brief: beats, personas, cuts, hero records and on-screen claims become items, criteria and story fields. These inputs are leads, not evidence; confirmation still applies.
 

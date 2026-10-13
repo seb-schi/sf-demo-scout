@@ -392,6 +392,30 @@ class BuildRouteTests(unittest.TestCase):
         self.phrases(self.build, 'an item seeding date-relative claims holds `"valid_until":"YYYY-MM-DD"`',
                      '"record_id":"…","before":{…}', 'against its flip ID, record ID and before-values')
 
+    def test_w9_round2_and_round3_route_requirements_are_pinned(self):
+        """W9 R10: reverting any of these sentences fails this test."""
+        prep = (ROOT / 'prompts/scout/prep.md').read_text()
+        self.phrases(self.command, 'once bound, never creating a folder')  # R16
+        self.phrases(prep,
+                     'scratch from `python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py scratch`',  # R17
+                     'but never create a folder: with no matching folder, say so and stop',  # C02
+                     'A required `omitted` item is open.', 'A recovered attempt counts by its latest disposition.',
+                     'A `failed` or `unverified` beat verdict is an `item` obligation, `failed` or `unknown`.',
+                     '"required":false,"dropped":true,"drop_source":"<path§section>"',
+                     "A validity window you can't derive is `unknown`.",  # C04
+                     'and `supersession_source` to its `<path§section>`',  # R05
+                     'Only `read` and `unrelated` sources pass.',  # F10
+                     'A check the helper refuses is `eye` for a claim, config, persona or visual-QA obligation, and `unknown` for any other kind.',  # R07
+                     '"at":"<the helper\'s at, else date\'s>"',  # R07
+                     'recheck all three right before running it, and if anything changed, ask again',  # C05
+                     'scout_prep.py run --kind query|describe|retrieve --selector [BOUND_SELECTOR] --username [BOUND_USERNAME] --org-id [BOUND_ORG_ID]',
+                     'scout_prep.py verdict --results R',
+                     'scout_prep.py render --results R --folder F`, which prints the candidate C',
+                     'scout_prep.py check --results R --candidate C --org-id [BOUND_ORG_ID] --username [BOUND_USERNAME]',
+                     'scout_prep.py publish --results R --folder F --candidate C --org-id [BOUND_ORG_ID] --username [BOUND_USERNAME]',  # F24
+                     '"login":"…","start":"…","steps":[{"do":"…","expect":"…","ref":"<obligation-key>"|null}],"climax":<step-number>|null,'
+                     '"transitions":["…"],"fallback":"…"|null')  # F16
+
     def test_history_reread_rule(self):
         self.phrases(self.command, 'unless this session read it since its last compaction')
 
