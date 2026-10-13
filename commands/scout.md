@@ -23,7 +23,7 @@ python3 [PLUGIN_ROOT_ABS]/scripts/scout_target.py bind --selector [SELECTOR]
 
 Require exit 0; preserve the returned selector, username and org ID. From this point every org-directed `sf` call carries `--target-org [BOUND_USERNAME]`. Never call Salesforce DX MCP org tools, even when the bound org is the default. Wherever a file says MCP, the active or default org, `sf config get target-org`, or to omit `--target-org`, use `sf … --target-org [BOUND_USERNAME]`. Keep defaults, aliases and authentication unchanged; a different target needs the SE to name it and a new binding.
 
-Before every write and every read-back supporting a disposition, run:
+Before every write, each retry included, and every read-back supporting a disposition, run:
 
 ```text
 python3 [PLUGIN_ROOT_ABS]/scripts/scout_target.py check
@@ -89,13 +89,13 @@ Before seeding, describe every object using `${CLAUDE_PLUGIN_ROOT}/prompts/sparr
 
 ## Execution and delegation
 
-Work solo by default. Run items in `depends_on` order. Follow steps 2–7 of `${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md`; this task replaces step 1. Read `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` and create a fresh writer-owned `prepare-workspace` project with `WRITER=scout` for each item. Retain its ownership receipt, source and original rollback evidence.
+Work solo by default. Run items in `depends_on` order. Follow steps 2–7 of `${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md`; this task replaces step 1. Read `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` and create a fresh writer-owned `prepare-workspace` project with `WRITER=scout` for each item. Retain its ownership receipt, source and original rollback evidence. Never use another customer folder's source, records or wording as a template; offer such a build by folder name, reuse it only on the SE's yes, and scan copies for that customer's content.
 
 Legacy prompts supply technical procedures: category gates, vendor compatibility, `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Companion Permission Set — MANDATORY", append-only LRP edits, no new-from-scratch FlexiPage, and incumbent preservation. Ignore their envelopes, placeholders, report formats, acknowledgements, phase topology and model choices. Keep skill, rollback, targeted read-back, data-repair and log requirements; no new write capability.
 
 Pass this task’s log explicitly as `--change-log` to the report helper. Wrap its attempt in the owned checkpoint form, keeping the helper’s marked receipt block fenced and its evidence unchanged. Existing-report filter changes use `${CLAUDE_PLUGIN_ROOT}/prompts/building/scout-2-repair.md` with the bound username as selector. Retain this route’s original binding check and the helper’s receipts/operator-evidence requirements.
 
-Delegate read-only research/inspection when useful. Serialize writes in this round, even when items share no component; workers may handle one item at a time. Give each worker its own prepared project, resolved absolute root, active host, bound selector/username/org ID, exact approved scope and criteria, relevant technical rules, the three qualified confirmation bullets above, and this unconditional CLI-only rule copied verbatim into every worker brief: “Never call Salesforce DX MCP org tools, even when the bound org is the default. Wherever a file says MCP, the active or default org, `sf config get target-org`, or to omit `--target-org`, use `sf … --target-org [BOUND_USERNAME]`.” Every worker must check identity before writes/read-back and retain pending evidence on interruption or refusal.
+Delegate read-only research/inspection when useful. With several items, or any gated or Docs-gated item, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/build.md` before the first write: authoring workers may run in parallel, and org writes stay serial. Give each worker its own prepared project, resolved absolute root, active host, bound selector/username/org ID, exact approved scope and criteria, relevant technical rules, the three qualified confirmation bullets above, and this unconditional CLI-only rule copied verbatim into every worker brief: “Never call Salesforce DX MCP org tools, even when the bound org is the default. Wherever a file says MCP, the active or default org, `sf config get target-org`, or to omit `--target-org`, use `sf … --target-org [BOUND_USERNAME]`.” Every worker must check identity before writes/read-back and retain pending evidence on interruption or refusal.
 
 On Claude, every Agent call—research, inspection or write—passes `model` set to the alias of the orchestrator's own model family; if that family is unknown, omit the argument. An explicit `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` wins. Codex uses its host contract. This single rule governs all dispatches and retries.
 

@@ -19,7 +19,7 @@ class ScoutRouteTests(unittest.TestCase):
 
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
-        caps = {'scout.md': 2250, 'history.md': 900, 'discovery.md': 1100}
+        caps = {'scout.md': 2310, 'history.md': 900, 'discovery.md': 1100, 'build.md': 1300}  # W10 C9, as amended
         for path in [COMMAND, *optional]:
             self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)
         text = '\n'.join(p.read_text() for p in [COMMAND, *optional])
@@ -236,13 +236,13 @@ class ScoutRouteTests(unittest.TestCase):
     def test_target_resume_and_recovery_boundaries(self):
         for forbidden in ('switch-org.md', 'sf config set', 'sf alias set', 'sf org login', '--set-default'):
             self.assertNotIn(forbidden, self.command)
-        for instruction in ('Before every write and every read-back supporting a disposition',
+        for instruction in ('Before every write, each retry included, and every read-back supporting a disposition',
                             'stop writing', 'any item with an attempted write is `unverified`, never `blocked`',
                             'never in `audit-*.md`', 'PENDING — component repair',
                             'without resolving, cleaning or relabelling',
                             'Record in-flight writes before dispatch',
                             'check its recorded target first', 'do not replay it',
-                            'Read back every delegated write yourself', 'share no component',
+                            'Read back every delegated write yourself', 'org writes stay serial',
                             'WRITER=scout'):
             self.assertIn(instruction, self.command)
 
