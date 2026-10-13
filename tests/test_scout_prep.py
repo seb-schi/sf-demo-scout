@@ -12,6 +12,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -713,7 +714,7 @@ class GateTests(Fixture):
         found = prep.parse_regions(text)['path']
         forged = prep.region('path', found['body'].replace('Two overdue rows', 'Three overdue rows'))
         candidate.write_text(text[:found['start']] + forged + text[found['end']:])
-        self.assertIn('does not match the results', self.gate(candidate, data)[1])
+        self.assertIn('hand-assembled', self.gate(candidate, data)[1])  # Q03 changed it: a re-hashed region breaks the set line first
         _, _, candidate = self.render(data)
         self.assertEqual(self.gate(candidate, data), (0, 'prep: check pass\n'))
 
@@ -1113,6 +1114,96 @@ class Round3Tests(FakeCli):
         code, output, candidate = self.render(data)
         self.assertEqual(code, 0, output)
         self.assertNotIn('old.md#B1', self.regions(candidate.read_text())['path'])
+
+
+class Round4Tests(FakeCli):
+    """W9 round 4: Astra's round-3 findings Q02, Q03, Q06, Q08–Q11 and candidates C01 and C02, as ruled. Q01, Q04, Q05 and Q07
+    are crafted races outside the realistic threat model (Decisions, round 5)."""
+    verdict = VerdictTests.verdict
+
+    def berlin(self):
+        """Q02's checks read this machine's zone; pin it, and restore it after."""
+        saved = os.environ.get('TZ')
+        os.environ['TZ'] = 'Europe/Berlin'
+        time.tzset()
+
+        def restore():
+            if saved is None:
+                os.environ.pop('TZ', None)
+            else:
+                os.environ['TZ'] = saved
+            time.tzset()
+        self.addCleanup(restore)
+
+    def test_q02_a_daylight_saving_change_never_shifts_the_validity_day(self):
+        self.berlin()
+        self.clock = prep.now('2026-03-28T10:00:00+01:00')
+        run = dict(started_at='2026-03-28T09:50:00+01:00', observed_at='2026-03-28T09:55:00+01:00')
+        claim = lambda until: results(obligation(valid_until=until, at='2026-03-28T09:52:00+01:00'), **run)  # noqa: E731
+        self.assertEqual(self.verdict(claim('2026-03-29'), '2026-03-30T00:30:00+02:00')['verdict'], 'not ready')  # spring forward
+        self.assertEqual(self.verdict(claim('2026-03-30'), '2026-03-30T00:30:00+02:00')['verdict'], 'ready')
+        self.clock = prep.now('2026-10-24T10:00:00+02:00')
+        run = dict(started_at='2026-10-24T09:50:00+02:00', observed_at='2026-10-24T09:55:00+02:00')
+        claim = lambda until: results(obligation(valid_until=until, at='2026-10-24T09:52:00+02:00'), **run)  # noqa: E731
+        self.assertEqual(self.verdict(claim('2026-10-24'), '2026-10-25T23:30:00+01:00')['verdict'], 'not ready')  # fall back
+        self.assertEqual(self.verdict(claim('2026-10-25'), '2026-10-25T23:30:00+01:00')['verdict'], 'ready')
+
+    def test_q03_regions_from_different_renders_are_hand_assembled(self):
+        good, bad = results(obligation()), results(obligation(), obligation('t.md#B1/c2', 'failed', proof=False))
+        first, second = (self.render(data)[2].read_text() for data in (good, bad))
+        one, two = prep.parse_regions(first), prep.parse_regions(second)
+        mixed = first[:one['path']['start']] + second[two['path']['start']:two['path']['end']] + first[one['path']['end']:]
+        self.destination.write_text(mixed)
+        code, output, _ = self.render(good)
+        self.assertEqual(code, 3, output)
+        self.assertIn('hand-assembled', output)
+        self.assertEqual(self.destination.read_text(), mixed)
+        self.destination.write_text(first)  # a whole verbatim copy stays Scout's (R15)
+        self.assertEqual(self.render(good)[0], 0)
+
+    def test_q06_a_relative_folder_path_resolves_against_the_workspace(self):
+        good = results(obligation())
+        for folder in ('../../second-workspace/orgs/example', 'other/../../example', 'orgs/other'):
+            with self.subTest(folder=folder):
+                code, output, _ = self.render(dict(good, folder=folder))
+                self.assertEqual(code, 3, output)
+                self.assertIn('collected for folder', output)
+        for folder in ('example', 'orgs/example', 'orgs/./example', str(self.folder)):
+            with self.subTest(folder=folder):
+                self.assertEqual(self.render(dict(good, folder=folder))[0], 0)
+
+    def test_q09_offsets_out_of_range_are_not_iso(self):
+        for at in ('2026-10-13T15:39:00+01:99', '2026-10-13T15:39:00+24:00', '2026-10-13T15:39:00+0199'):
+            with self.subTest(at=at):
+                self.assertIsNone(prep.parse_time(at))
+                self.assertIn("needs its result's at", self.verdict(results(obligation(at=at)), code=3)['refused'])
+        self.assertIsNotNone(prep.parse_time('2026-10-13T15:39:00+05:45'))
+
+    def test_q10_a_failed_stage_leaves_nothing_behind(self):
+        data = results(obligation())
+        self.published(data)
+        _, _, candidate = self.render(data)
+        with patch.object(prep.os, 'fsync', side_effect=OSError(28, 'No space left on device')):
+            code, output = self.publish(candidate, data)
+        self.assertNotEqual(code, 0, output)
+        self.assertEqual(self.staged(), [])
+        self.assertEqual(sorted(p.name for p in self.folder.iterdir()), ['.scout-work', 'demo-path.md'])
+
+    def test_q11_render_never_blocks_on_a_fifo(self):
+        os.mkfifo(str(self.destination))
+        code, output, _ = self.render(results(obligation()))  # would hang without O_NONBLOCK
+        self.assertEqual(code, 3, output)
+        self.assertIn('not a regular file', output)
+
+    def test_c02_a_retired_beat_s_fallback_leaves_the_seams(self):
+        old = obligation('old.md#B1/c1', 'failed', beat='old.md#B1', superseded_by=KEY, supersession_source='old.md § Amendments')
+        retired = beat('old.md#B1', fallback='OLD RETIRED FALLBACK')
+        data = results(obligation(), old, beats=[retired, beat()], sources=[dict(path='old.md', state='read')])
+        code, output, candidate = self.render(data)
+        self.assertEqual(code, 0, output)
+        seams = self.regions(candidate.read_text())['seams']
+        self.assertNotIn('OLD RETIRED FALLBACK', seams)
+        self.assertIn('Show the saved screenshot', seams)
 
 
 class BytecodeTests(unittest.TestCase):

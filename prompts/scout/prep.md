@@ -7,7 +7,7 @@ Bind, check the target and choose the folder as `commands/scout.md` requires, bu
 
 ## Collect the obligations
 Build one results file in scratch, `results.json`:
-`{"schema":1,"folder":"…","org_id":"…","username":"…","started_at":"…","observed_at":"…","sources":[{"path":"…","state":"read|unreadable|quarantined|malformed|unrelated"}],"beats":[…],"constraints":["…"],"obligations":[…]}`.
+`{"schema":1,"folder":"orgs/<folder>","org_id":"…","username":"…","started_at":"…","observed_at":"…","sources":[{"path":"…","state":"read|unreadable|quarantined|malformed|unrelated"}],"beats":[…],"constraints":["…"],"obligations":[…]}`.
 
 Each obligation is `{"key":"<task-file>#<B2/claim1|I3|FL1|manual2|…>","kind":"claim|item|flip|checkpoint|job|manual|config|persona|visual_qa","beat":"B2","required":true,"proof_moment":false,"text":"…","valid_until":"YYYY-MM-DD"|null,"superseded_by":null,"supersession_source":null,"result":null}`. Keys always carry the task file, since IDs repeat across tasks; name another task's beat by its full key.
 
@@ -38,7 +38,7 @@ For the path, list the story's beats in order: `{"key":"<task-file>#B2","name":"
 Run every check through the helper, never by hand and never by running a stored command:
 `python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py run --kind query|describe|retrieve --selector [BOUND_SELECTOR] --username [BOUND_USERNAME] --org-id [BOUND_ORG_ID] --query "SELECT …"` (or `--sobject X`, `--metadata Type:Name`).
 - It binds first, accepts one SELECT in its read-only grammar, and retrieves only into scratch.
-- Rewrite a stored read-back as a constrained query. A check the helper refuses is `eye` for a claim, config, persona or visual-QA obligation, and `unknown` for any other kind.
+- Rewrite a stored read-back as a constrained query. A check outside the helper's grammar is `eye` for a claim, config, persona or visual-QA obligation; anything else refused is `unknown`.
 - A result with `"complete":false` is `unknown`. Search a CLI error's printed name and message verbatim unless a loaded lesson covers it; record `unavailable`.
 - Never rerun a rehearsal, pilot, test or preview.
 

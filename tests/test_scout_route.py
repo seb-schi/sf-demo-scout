@@ -405,16 +405,23 @@ class BuildRouteTests(unittest.TestCase):
                      "A validity window you can't derive is `unknown`.",  # C04
                      'and `supersession_source` to its `<path§section>`',  # R05
                      'Only `read` and `unrelated` sources pass.',  # F10
-                     'A check the helper refuses is `eye` for a claim, config, persona or visual-QA obligation, and `unknown` for any other kind.',  # R07
+                     "A check outside the helper's grammar is `eye` for a claim, config, persona or visual-QA obligation; anything else refused is `unknown`.",  # R07, C01
+                     '"folder":"orgs/<folder>"',  # Q06
+                     '**ready with exceptions:** the only gaps are check-by-eye, visual-QA and persona checks.',  # F10, Q08
                      '"at":"<the helper\'s at, else date\'s>"',  # R07
                      'recheck all three right before running it, and if anything changed, ask again',  # C05
-                     'scout_prep.py run --kind query|describe|retrieve --selector [BOUND_SELECTOR] --username [BOUND_USERNAME] --org-id [BOUND_ORG_ID]',
-                     'scout_prep.py verdict --results R',
-                     'scout_prep.py render --results R --folder F`, which prints the candidate C',
-                     'scout_prep.py check --results R --candidate C --org-id [BOUND_ORG_ID] --username [BOUND_USERNAME]',
-                     'scout_prep.py publish --results R --folder F --candidate C --org-id [BOUND_ORG_ID] --username [BOUND_USERNAME]',  # F24
+                     '`python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py run --kind query|describe|retrieve --selector [BOUND_SELECTOR] --username [BOUND_USERNAME] --org-id [BOUND_ORG_ID]',
+                     '`python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py verdict --results R`',
+                     '`python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py render --results R --folder F`, which prints the candidate C',
+                     '`python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py check --results R --candidate C --org-id [BOUND_ORG_ID] --username [BOUND_USERNAME]`',
+                     '`python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py publish --results R --folder F --candidate C --org-id [BOUND_ORG_ID] --username [BOUND_USERNAME]`',  # F24, Q08
                      '"login":"…","start":"…","steps":[{"do":"…","expect":"…","ref":"<obligation-key>"|null}],"climax":<step-number>|null,'
                      '"transitions":["…"],"fallback":"…"|null')  # F16
+
+    def test_w9_the_exception_rule_names_no_optional_obligations(self):
+        """F10 and Q08: an optional failure blocks like any other, so the exception rule never lists it."""
+        rule = next(line for line in (ROOT / 'prompts/scout/prep.md').read_text().splitlines() if 'ready with exceptions:' in line)
+        self.assertNotIn('optional', rule)
 
     def test_history_reread_rule(self):
         self.phrases(self.command, 'unless this session read it since its last compaction')

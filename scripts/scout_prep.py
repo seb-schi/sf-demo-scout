@@ -17,6 +17,10 @@ from __future__ import annotations
 import argparse
 import datetime
 import errno
+try:
+    import fcntl
+except ImportError:  # not on every platform; only recovery messages use it
+    fcntl = None
 import hashlib
 import json
 import os
@@ -44,6 +48,7 @@ RECORDS = 2000
 SCRATCH_BASE = '/tmp'
 NAME = 'demo-path.md'
 MARKER = '<!-- scout:demo-path -->'
+SET = re.compile(r'^<!-- scout:set sha256=([0-9a-f]{64}) -->$')
 STATES = ('passed', 'failed', 'unavailable', 'open', 'unknown', 'eye', 'visual_qa', 'persona')
 EXCEPTIONS = {'eye': ('claim', 'config', 'persona', 'visual_qa'), 'visual_qa': ('visual_qa',), 'persona': ('persona',)}
 LABELS = {'eye': 'check by eye', 'visual_qa': 'visual QA', 'persona': 'persona access'}
@@ -59,7 +64,7 @@ BEAT = re.compile(r'[\w.-]+')
 DATE = re.compile(r'\d{4}-\d{2}-\d{2}', re.A)
 TIME = re.compile(r'(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(:\d{2}(?:\.\d{1,6})?)?(Z|[+-]\d{2}:?\d{2})', re.A)
 HEADER = re.compile(r'org-verified\s*:', re.I)
-RESERVED = re.compile(r'scout:(?:begin|end|demo-path)|org-verified\s*:', re.I)
+RESERVED = re.compile(r'scout:(?:begin|end|demo-path|set)|org-verified\s*:', re.I)
 BREAKS = re.compile(r'[\r\n\x0b\x0c\x1c-\x1e\x85\u2028\u2029]+')
 # F20 and R09: whole credentials, including quoted values with spaces and bearer tokens with +, / and =.
 SECRET = re.compile(r'00D[A-Za-z0-9]{12,15}![^\s"\'<>]+|\bBearer\s+[A-Za-z0-9._~+/=-]+|\b(?:access_?token|refresh_?token|'
@@ -290,6 +295,8 @@ def parse_time(value):
         whole, fraction = seconds.split('.')
         seconds = whole + '.' + fraction.ljust(6, '0')
     zone = '+00:00' if zone == 'Z' else zone if ':' in zone else zone[:3] + ':' + zone[3:]
+    if int(zone[1:3]) > 23 or int(zone[4:6]) > 59:  # Q09: +01:99 is no offset
+        return None
     try:
         return datetime.datetime.fromisoformat('%sT%s%s%s' % (day, minutes, seconds, zone))
     except ValueError:
@@ -601,10 +608,11 @@ def state_of(obligation, keyed, started, moment, demo, read=frozenset()):
 
 def classify(data, demo_time=None):
     """Every obligation with its state, in results order. Expiry runs through the demo, and never before now (F11).
-    R03: date-only validity reads in one timezone, this machine's, so naming a later demo can't revive an expired date."""
+    R03 and Q02: date-only validity reads in this machine's timezone, by its rules at the demo's instant, so naming a
+    later demo can't revive an expired date and a daylight-saving change can't shift the day."""
     moment = current_time()
     demo = max(moment, demo_time) if isinstance(demo_time, datetime.datetime) and demo_time.tzinfo else moment
-    demo = demo.astimezone(moment.tzinfo)
+    demo = demo.astimezone()  # Q02: this machine's zone rules at the demo's instant, not today's offset
     obligations = data.get('obligations') if isinstance(data.get('obligations'), list) else []
     entries = [o for o in obligations if isinstance(o, dict)]
     keyed = {o['key']: o for o in entries if isinstance(o.get('key'), str)}
@@ -808,11 +816,12 @@ def path_section(data, live, rows=()):
     return block(lines)
 
 
-def seams_section(data, live):
-    """C3 section 4: check-by-eye, visual-QA and persona-access items, each beat's fallback, and org constraints."""
-    lines = ['## Known seams']
+def seams_section(data, live, rows=()):
+    """C3 section 4: check-by-eye, visual-QA and persona-access items, each live beat's fallback, and org constraints."""
+    lines, retired = ['## Known seams'], retired_beats(rows)
     lines += ['- %s: %s (%s)' % (why[0].upper() + why[1:], label(o), at_of(o)) for o, state, why in live if state == 'exception']
-    lines += ['- Fallback for %s: %s' % (beat_label(b['key'], b), clean(b['fallback'])) for b in beats_of(data) if stated(b.get('fallback'))]
+    lines += ['- Fallback for %s: %s' % (beat_label(b['key'], b), clean(b['fallback'])) for b in beats_of(data)
+              if stated(b.get('fallback')) and b['key'] not in retired]  # C02
     constraints = data.get('constraints')
     lines += ['- Org constraint: ' + clean(line) for line in (constraints if isinstance(constraints, list) else [])]
     return block(lines)
@@ -835,7 +844,7 @@ def region_bodies(data, demo_time, previous):
     outcome = verdict_from(data, rows)
     live = [row for row in rows if row[1] != 'history']
     return {'drift': drift_section(data, outcome, live), 'checklist': checklist_section(data, rows, live),
-            'path': path_section(data, live, rows), 'seams': seams_section(data, live),
+            'path': path_section(data, live, rows), 'seams': seams_section(data, live, rows),
             'runs': runs_section(data, outcome, previous)}, outcome
 
 
@@ -899,16 +908,32 @@ def owned_regions(text):
     regions = parse_regions(text)
     if list(regions) != list(REGIONS):
         raise Refused("demo-path.md lacks Scout's five regions in order: leaving it untouched; offer a new file name")
-    if any(BEGIN.match(lines[number].rstrip('\r\n')) or END.match(lines[number].rstrip('\r\n')) for number in fenced(lines)):
+    inside = fenced(lines)
+    if any(BEGIN.match(lines[number].rstrip('\r\n')) or END.match(lines[number].rstrip('\r\n')) for number in inside):
         raise Refused('Scout markers inside a code fence: leaving demo-path.md untouched; offer a new file name')
+    sets = [n for n, line in enumerate(lines) if 'scout:set' in line]
+    match = SET.match(lines[sets[0]].rstrip('\r\n')) if len(sets) == 1 else None
+    if not match or sets[0] in inside or any(r['start'] <= sum(map(len, lines[:sets[0]])) < r['end'] for r in regions.values()) \
+            or match[1] != set_digest(regions[name]['sha'] for name in REGIONS):
+        raise Refused('demo-path.md is hand-made or hand-assembled (its regions are not one Scout render): leaving it '
+                      'untouched; offer a new file name')  # Q03
     return regions
+
+
+def set_digest(shas):
+    """Q03: one digest over the five region hashes, in order, binding them to a single render."""
+    return digest(''.join(shas).encode())
+
+
+def set_line(bodies):
+    return '<!-- scout:set sha256=%s -->' % set_digest(digest(bodies[name].encode()) for name in REGIONS)
 
 
 def compose(existing, data, demo_time):
     """X10, F03, F17: regenerate Scout's five regions in place, keeping every other byte; a new file gets the skeleton."""
     if existing is None:
         bodies, outcome = region_bodies(data, demo_time, [])
-        return MARKER + '\n# Demo path\n\n' + '\n'.join(region(name, bodies[name]) for name in REGIONS), outcome
+        return MARKER + '\n' + set_line(bodies) + '\n# Demo path\n\n' + '\n'.join(region(name, bodies[name]) for name in REGIONS), outcome
     regions = owned_regions(existing)
     edited = [name for name in REGIONS if digest(regions[name]['body'].encode()) != regions[name]['sha']]
     if edited:
@@ -918,13 +943,19 @@ def compose(existing, data, demo_time):
     for name in REGIONS:
         pieces += [existing[cursor:regions[name]['start']], region(name, bodies[name])]
         cursor = regions[name]['end']
-    return ''.join(pieces) + existing[cursor:], outcome
+    text = ''.join(pieces) + existing[cursor:]
+    return re.sub(r'(?m)^<!-- scout:set sha256=[0-9a-f]{64} -->(?=\r?$)', set_line(bodies), text, count=1), outcome
 
 
 def same_folder(data, folder):
-    """R13: the results were collected for this folder: their `folder` names it, by its path or its name."""
+    """R13 and Q06: the results were collected for this folder: their `folder` is its name, its path relative to the
+    workspace (`orgs/<folder>`), or its absolute path."""
     named = Path(data['folder'])
-    if named.name != folder.name or (named.is_absolute() and named.resolve() != folder):
+    if len(named.parts) == 1 and not named.is_absolute():
+        same = named.name == folder.name
+    else:  # Q06: a path, relative to the workspace (orgs/<folder>), or absolute
+        same = (named if named.is_absolute() else folder.parent.parent / named).resolve() == folder
+    if not same:
         raise Refused('the results were collected for folder %s, not %s' % (clean(data['folder']), folder))
 
 
@@ -937,8 +968,10 @@ def checked_folder(folder):
 
 
 def read_nofollow(path):
-    """F04: read a file without following a symlink."""
-    with open(os.open(str(path), os.O_RDONLY | os.O_NOFOLLOW), 'rb') as stream:
+    """F04 and Q11: read a regular file without following a symlink or blocking on a FIFO swapped in."""
+    with open(os.open(str(path), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise Refused('demo-path.md is not a regular file: leaving it untouched')
         return stream.read()
 
 
@@ -1107,10 +1140,14 @@ def stage(home, candidate):
             descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=home)
         except FileExistsError:
             continue
-        with os.fdopen(descriptor, 'wb') as stream:
-            stream.write(candidate.encode('utf-8'))
-            stream.flush()
-            os.fsync(stream.fileno())
+        try:
+            with os.fdopen(descriptor, 'wb') as stream:
+                stream.write(candidate.encode('utf-8'))
+                stream.flush()
+                os.fsync(stream.fileno())
+        except BaseException:
+            discard_at(home, name)  # Q10: a failed stage (a full disk, say) leaves nothing behind
+            raise
         return name
     raise Refused('could not stage the candidate: nothing was replaced')
 
