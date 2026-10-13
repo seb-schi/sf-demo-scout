@@ -70,6 +70,149 @@ def checkpoint(attempt='A1', outcome='applied', heading='PENDING'):
 
 
 class ScoutHistoryTests(unittest.TestCase):
+    def test_r9_attack_compound_dispositions_include_segment_labels(self):
+        for extra in ('- Verification: applied; failed: stale read-back\n',
+                      '- Detail:\n  failed: refresh; applied\n',
+                      '- outcome: pending (failed on refresh)\n'):
+            self.save(checkpoint() + extra)
+            before = self.log.read_bytes()
+            self.run_cli('resolve')
+            self.assertEqual(self.log.read_bytes(), before)
+            self.assert_rule('checkpoint')
+
+    def test_r9_attack_outcome_table_values_remain_strict(self):
+        for label in ('Outcome', 'Outcome (attempt: A1)'):
+            for value in ('unknown', 'pending', 'failed'):
+                self.save(checkpoint() + '| ' + label + ' | ' + value + ' |\n')
+                before = self.log.read_bytes()
+                self.run_cli('resolve')
+                self.assertEqual(self.log.read_bytes(), before)
+                self.assert_rule('checkpoint')
+        self.save(checkpoint() + '| Outcome | applied |\n')
+        self.run_cli('resolve')
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+
+    def test_r9_attack_classification_presentation_keeps_raw_value(self):
+        for field in ('- [receipt](saved.json) · classification: exi**sting\n',
+                      '- classification: new\n  [receipt](saved.json;section)\n  existing\n'):
+            self.save()
+            self.log.write_text(self.log.read_text().replace(
+                '## Existing Component Before-State and Direct Repairs\nPreserved.\n', '') + field)
+            self.assertIn('Existing Component Before-State', self.assert_rule('log-section'))
+
+    def test_r9_f1_all_compound_dispositions_and_continuations_agree(self):
+        for extra in ('- Verification: applied; failed on refresh\n',
+                      '- I1: applied · I2 failed\n', '- I1: applied | I2 failed\n',
+                      '- Detail:\n  applied; failed on refresh\n',
+                      '```text\nVerification: applied; failed on refresh\n```\n'):
+            with self.subTest(extra=extra):
+                self.save(checkpoint() + extra)
+                before = self.log.read_bytes()
+                self.assertEqual(self.run_cli('resolve')[0], 0)
+                self.assertEqual(self.log.read_bytes(), before)
+                self.assert_rule('checkpoint')
+                self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') + extra)
+                self.assert_rule('checkpoint')
+        for extra in ('- Verification: applied; applied on refresh\n',
+                      '- I1: applied · I2 applied\n', '- Detail:\n  applied; applied on refresh\n'):
+            self.save(checkpoint() + extra)
+            self.run_cli('resolve')
+            self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+
+    def test_r9_f2_container_fences_precede_boundaries_and_inventory(self):
+        for prefix in ('> ', '> > ', '- ', '  - ', '1. ', '> - ', '    > '):
+            for delimiter in ('```', '~~~~'):
+                with self.subTest(prefix=prefix, delimiter=delimiter):
+                    for field in ('Outcome: failed', 'Verification: pending'):
+                        extra = (prefix + delimiter + 'text\n' + prefix + '### Read-back\n' +
+                                 prefix + field + '\n' + prefix + delimiter + '\n')
+                        self.save(checkpoint() + extra)
+                        self.run_cli('resolve')
+                        self.assert_rule('checkpoint')
+                        if field == 'Outcome: failed':
+                            self.assertIn('### PENDING — component repair', self.log.read_text())
+                        self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') + extra)
+                        self.assert_rule('checkpoint')
+                    self.log.write_text('Org: ' + ORG + '\n' + prefix + delimiter + 'text\n' +
+                                        prefix + '## PENDING — component repair\n' + prefix + delimiter + '\n')
+                    self.assertEqual(self.pending_rows(), [])
+
+    def test_r9_f2_fence_closes_only_with_same_container_prefix(self):
+        for opening, wrong in (('> ', ''), ('> ', '> > '), ('- ', '  '), ('> - ', '> ')):
+            text = ('Org: ' + ORG + '\n' + opening + '```text\n' + wrong + '```\n' +
+                    '## PENDING — hidden\n' + opening + '```\n## PENDING — visible\n')
+            self.log.write_text(text)
+            rows = self.pending_rows()
+            self.assertEqual([r['heading'] for r in rows], ['PENDING — visible'])
+
+    def test_r9_f3_real_writer_exempts_only_delta_json_business_values(self):
+        from scout_report_repair import Repair
+        task = self.folder / '.report-repairs' / 'example'
+        task.mkdir(parents=True)
+        receipt_log = self.folder / 'receipt.txt'
+        for prior, after in (('Open', 'Pending'), ('Pending', 'Closed'),
+                             ('Pending "review"', 'Still Pending; outcome: failed'),
+                             ('Pending\\review', 'Pending\nreview')):
+            with self.subTest(prior=prior, after=after):
+                receipt_log.write_text('')
+                contract = dict(target=dict(username=USER, org_id=ORG), member='Example/Report', baseline='saved.json',
+                                delta=dict(column='STATUS', operator='equals', before=prior, after=after))
+                state = dict(log=str(receipt_log), mutation='succeeded', acceptance='passed', recovery='complete',
+                             original=dict(artifact=str(self.folder / 'preedit')), readback=str(task / 'readback.json'))
+                Repair(None).checkpoint(task, contract, state, first=True)
+                receipt = receipt_log.read_text()
+                self.save(checkpoint() + '```text\n' + receipt + '```\n')
+                self.run_cli('resolve')
+                self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+                self.assertIn(receipt, self.log.read_text())
+                # Real writer placeholders elsewhere must remain findings.
+                for replacement in (receipt.replace('existing; saved.json', 'unknown; pending'),
+                                    receipt.replace('acceptance=passed;', 'acceptance=passed; pending;'),
+                                    receipt.replace('all other report metadata', 'pending; all other report metadata'),
+                                    receipt.replace('<!-- /scout-repair:example -->', '<!-- /scout-repair:other -->'),
+                                    receipt.replace('Requested delta / exclusions', 'Evidence')):
+                    self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') +
+                              '```text\n' + replacement + '```\n')
+                    self.assert_rule('checkpoint')
+
+    def test_r9_f4_classification_offsets_survive_link_and_markup_prefix(self):
+        for prefix in ('', '- [receipt](evidence/component-describe.json) · ', '- **receipt**: saved · '):
+            for label in ('classification', '**classification**'):
+                with self.subTest(prefix=prefix, label=label):
+                    self.save()
+                    self.log.write_text(self.log.read_text().replace(
+                        '## Existing Component Before-State and Direct Repairs\nPreserved.\n', '') +
+                        prefix + label + ': Report: new\n  ReportFolder: existing\n')
+                    self.assertIn('Existing Component Before-State', self.assert_rule('log-section'))
+
+    def test_r9_f5_only_valued_outcome_fields_are_mentions(self):
+        for extra in ('#### Outcome\nSaved read-back.\n', '- Outcome:\n  applied\n',
+                      '- Outcome:\n  > applied\n', '- Outcome:\n',
+                      '- Evidence: [read-back](outcome.json)\n', '- File: outcome.json\n'):
+            with self.subTest(extra=extra):
+                self.save(checkpoint() + extra)
+                self.run_cli('resolve')
+                self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        for extra in ('- Outcome:\n  failed\n', '- Outcome:\n  unknown\n', '- Outcome:\n  pending\n',
+                      '- Outcome:\n  applied; failed on refresh\n', '- Outcome:\n  applied\n  unknown\n',
+                      '- Outcome: applied\n  unknown\n'):
+            self.save(checkpoint() + extra)
+            before = self.log.read_bytes()
+            self.run_cli('resolve')
+            self.assertEqual(self.log.read_bytes(), before)
+            self.assert_rule('checkpoint')
+
+    def test_r9_f6_unplaced_checkpoint_headings_fail_closed_with_line(self):
+        for title in ('- step\n    - nested\n\n    ## PENDING — component repair',
+                      '- step\n    > ## PENDING — component repair',
+                      '            > - > 1. ## PENDING — component repair',
+                      '\t\t## PENDING — component repair'):
+            self.log.write_text('Org: ' + ORG + '\n\n' + title + '\nNo write yet.\n')
+            rows = self.pending_rows()
+            self.assertEqual(len(rows), 1, rows)
+            self.assertEqual(rows[0]['state'], 'unclear', rows)
+            self.assertEqual(rows[0]['line'], 3 + title.count('\n'), rows)
+
     def test_r8_attack_pending_only_backticks_exempt_content(self):
         for field in ('<!-- pending verification -->', '<span title="pending">read-back</span>',
                       '- Receipt: [saved](evidence/pending/result.json)'):
@@ -252,6 +395,11 @@ class ScoutHistoryTests(unittest.TestCase):
                 self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
                 before = self.log.read_bytes()
                 self.assertEqual(self.run_cli('resolve')[0], 0)
+                if extra == 'The outcome is still unknown.\n':
+                    # Round-8 F5: prose with no valued outcome field is not a mention.
+                    self.assertNotEqual(self.log.read_bytes(), before)
+                    self.assertEqual(self.run_cli()[0], 0)
+                    continue
                 self.assertEqual(self.log.read_bytes(), before)
                 self.assert_rule('checkpoint')
                 self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') + extra)
@@ -1621,8 +1769,10 @@ class ScoutHistoryTests(unittest.TestCase):
         self.data['items'] = [item(disposition='blocked')]
         self.data['items'][0]['attempts'] = ['A1','A2']
         self.save()
-        self.log.write_text(self.log.read_text() + '- classification: unknown; retrieve failed\n')
         self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        self.log.write_text(self.log.read_text() + '- classification: unknown; retrieve failed\n')
+        # Round-8 F1: the compound segment's failed conflicts with canonical blocked.
+        self.assert_rule('checkpoint')
         for earlier in ('applied','failed','unverified','already_satisfied'):
             self.save(checkpoint('A1',earlier,earlier).replace('outcome: pending','outcome: '+earlier)+
                       checkpoint('A2','blocked','blocked').replace('outcome: pending','outcome: blocked'))

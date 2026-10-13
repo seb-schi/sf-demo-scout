@@ -82,17 +82,24 @@ def local(folder, name):
     return path
 
 
+def container_prefix(line):
+    """The literal indentation/blockquote/list prefix, at any nesting depth."""
+    return re.match(r'^(?:\ufeff)?[ \t]*(?:(?:>[ \t]*|(?:[-+*]|\d+[.)])[ \t]+)[ \t]*)*', line)[0]
+
+
 def markdown(text):
     """Mask fenced examples, preserving offsets; also return actual scout-items blocks."""
-    visible, blocks, body, fence, info = [], [], [], '', ''
+    visible, blocks, body, fence, info, container = [], [], [], '', '', ''
     for line in text.splitlines(keepends=True):
-        match = re.match(r'^ {0,3}(`{3,}|~{3,})([^\r\n]*)', line)
+        prefix = container_prefix(line)
+        match = re.match(r'(`{3,}|~{3,})([^\r\n]*)', line[len(prefix):])
         if not fence and match:
-            fence, info = match[1], match[2].strip()
+            fence, info, container = match[1], match[2].strip(), prefix
             body = []
         elif fence:
-            if match and match[1][0] == fence[0] and len(match[1]) >= len(fence) and not match[2].strip():
-                if info == 'scout-items':
+            if (match and prefix == container and match[1][0] == fence[0] and
+                    len(match[1]) >= len(fence) and not match[2].strip()):
+                if info == 'scout-items' and not container.strip():
                     blocks.append(''.join(body))
                 fence = ''
             else:
@@ -328,9 +335,9 @@ def own_outcome(body):
 
 
 def status_fields(body, nested=False):
-    """Lexical pending lint over the raw body. Only single-line backtick spans exempt."""
+    """Lexical pending lint: backtick spans and the writer's JSON delta strings exempt."""
     # Equal-length backtick runs delimit a span; triple fence lines have no closer.
-    visible = re.sub(r'(?<!`)(`+)(?!`)[^\r\n]*?(?<!`)\1(?!`)', '', body)
+    visible = re.sub(r'(?<!`)(`+)(?!`)[^\r\n]*?(?<!`)\1(?!`)', '', mask_receipt_delta(body))
     if re.search(r'\bpending\b', visible, re.I) or re.search(r'\bpending\b', unmark(visible), re.I):
         yield 'pending', 0, 0
 
@@ -340,23 +347,47 @@ def marked_receipts(text):
         r'<!-- scout-repair:([^\r\n]+?) -->(.*?)<!-- /scout-repair:\1 -->', text, re.S)]
 
 
+def mask_receipt_delta(text):
+    """Mask exactly the two JSON strings written by Repair.checkpoint, in paired receipts.
+
+    Preserve offsets and every other character, including other quoted business
+    values and pending placeholders. No receipt or delta is edited on disk.
+    """
+    string = r'"(?:[^"\\\x00-\x1f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*"'
+    delta = re.compile(r'^- \*\*Requested delta / exclusions:\*\* [^\r\n:]+: (' + string +
+                       r') → (' + string + r')(?=;)', re.M)
+
+    def receipt(match):
+        def values(row):
+            value = row[0]
+            for group in (2, 1):
+                start, end = row.start(group) - row.start(), row.end(group) - row.start()
+                value = value[:start] + ' ' * (end - start) + value[end:]
+            return value
+        return delta.sub(values, match[0])
+
+    return re.sub(r'<!-- scout-repair:([^\r\n]+?) -->(.*?)<!-- /scout-repair:\1 -->', receipt, text, flags=re.S)
+
+
 def existing_classification(text):
     # Keep only the classification value, through its continuations or delimiter.
     for source in [text, *marked_receipts(text)]:
         visible = markdown(source)[0]
         values = []
-        for label, value, start, offset, _ in fields(source):
+        for label, value, start, offset, _ in fields(source, offsets=True):
             if label not in ('classification', 'classificationsource'):
                 continue
             tail = visible[offset:].splitlines()[1:]
             # A delimiter on the first line ends the value before any continuation.
             first = visible[offset:].splitlines()[0]
             ended = bool(re.search(r' · |[;|]', first[start - offset + len(value):]))
+            value = unmark(first[start - offset:start - offset + len(value)])
             for line in tail:
                 if ended or not line.strip() or not line.startswith((' ', '\t', '>')):
                     break
-                value += '\n' + re.split(r' · |[;|]', unmark(line), maxsplit=1)[0]
-                ended = bool(re.search(r' · |[;|]', line))
+                clean = unmark(line)
+                value += '\n' + re.split(r' · |[;|]', clean, maxsplit=1)[0]
+                ended = bool(re.search(r' · |[;|]', clean))
             if not value.strip(' \t\r\n>+-'):
                 raise BlockError('empty classification value')
             values.append(value)
@@ -714,11 +745,26 @@ def pending(directory, org, username):
             continue
         records = []
         for path, text in texts:
-            for title, _, start, end, body in headings(text):
+            sections = headings(text)
+            for title, _, start, end, body in sections:
                 if not checkpoint_heading(title):
                     continue
                 state = checkpoint_state(text[start:].splitlines()[0], title, text[end - len(body):end])
                 print(json.dumps({'file': str(path), 'line': text[:start].count('\n') + 1, 'state': state, 'heading': title}))
+            # Fail closed when a deeply nested/indented heading escaped inventory.
+            # Title spans prevent duplicates, including multi-line setext titles.
+            offset = 0
+            lines = markdown(text)[0].splitlines(keepends=True)
+            for n, line in enumerate(lines):
+                clean = line[len(container_prefix(line)):].strip()
+                atx = re.fullmatch(r'#{1,6}[ \t]+(.+)', clean)
+                setext = n + 1 < len(lines) and re.fullmatch(
+                    r'=+|-+', lines[n + 1][len(container_prefix(lines[n + 1])):].strip())
+                title = atx[1] if atx else clean if setext else ''
+                placed = any(s[2] <= offset < s[3] - len(s[4]) for s in sections)
+                if checkpoint_heading(title) and not placed:
+                    print(json.dumps({'file': str(path), 'line': n + 1, 'state': 'unclear', 'heading': title}))
+                offset += len(line)
             if path.name.startswith('task-'):
                 try:
                     records.append((path, task_record(path)))
@@ -763,8 +809,9 @@ def scout_agreement(body, outcome):
     """Resolve/check ONLY: one own canonical line plus strict full-body agreement.
 
     No fences are masked. Paired report receipts map their Outcome / read-back
-    field; the remaining content gets the lexical pending lint. Elsewhere each outcome value,
-    labelled disposition and disposition-bearing continuation must agree exactly.
+    field; the remaining content gets the lexical pending lint (only the writer's
+    JSON delta strings are masked). Elsewhere each valued outcome field must be
+    exact, and EVERY disposition word in labelled lines/continuations must agree.
     Only own pending outcome fields that resolve can rewrite exactly are allowed.
     Unknown values/conflicts/unrewritable fields cannot authorize a final heading.
     """
@@ -774,7 +821,8 @@ def scout_agreement(body, outcome):
     normal = lambda value: value.translate(str.maketrans('', '', '*_`'))
     final = normal(outcome)
     words = r'\b(?:' + '|'.join(normal(value) for value in DISPOSITIONS) + r')\b'
-    for line in body.splitlines(keepends=True):
+    lines = mask_receipt_delta(body).splitlines(keepends=True)
+    for n, line in enumerate(lines):
         raw = line.rstrip('\r\n')
         canonical = OUTCOME.fullmatch(raw)
         if canonical and canonical[1] != outcome:
@@ -783,19 +831,36 @@ def scout_agreement(body, outcome):
         receipt = any(m.start(2) <= offset < m.end(2) for m in receipts)
         entries = list(fields(source if receipt else normal(source), masked=False))
         outcome_fields = [(value.strip(), start) for label, value, start, _, _ in entries if label == 'outcome']
-        mentions = max(len(re.findall('outcome', source, re.I)), len(re.findall('outcome', normal(source), re.I)))
-        if mentions != len(outcome_fields):
-            return False
+        cells = [cell.strip() for cell in normal(source).strip().strip('|').split('|')]
+        table = len(cells) > 1 and any(label == 'outcome' and not value.strip()
+                                     for label, value, *_ in fields(cells[0] + ':', masked=False))
+        if table:
+            outcome_fields.append((cells[1], 0))
         mapped = receipt and re.match(r'^- Outcome / read-back:', unmark(source))
         if receipt:
             if outcome_fields and (not mapped or any(receipt_outcome(value) != outcome for value, _ in outcome_fields)):
                 return False
             offset += len(line)
             continue
+        if outcome_fields:
+            for following in lines[n + 1:]:
+                if not following.startswith((' ', '\t', '>')):
+                    break
+                content = following[len(container_prefix(following)):].strip()
+                if (not content or content.startswith(('#', '```', '~~~', '<!--')) or
+                        list(fields(normal(content), masked=False))):
+                    break
+                value = re.split(r' · |[;|]', normal(content), maxsplit=1)[0].strip()
+                if value.lower() not in (final, final + '.'):
+                    return False
         for value, _ in outcome_fields:
+            if not value:
+                continue
+            if any(word.lower() != final for word in re.findall(words, value, re.I)):
+                return False
             if re.match(r'pending\b', value, re.I):
                 writable = [v for label, v, _, _, _ in fields(source, offsets=True) if label == 'outcome']
-                if canonical or offset not in writable_lines or len(writable) != len(outcome_fields):
+                if table or canonical or offset not in writable_lines or len(writable) != len(outcome_fields):
                     return False
             elif value.lower() not in (final, final + '.'):
                 return False
@@ -806,14 +871,8 @@ def scout_agreement(body, outcome):
             plain = re.sub(r'\b(?:final\s+)?outcome(?:\s*/\s*read-back)?\s*(?:\([^)]*\)\s*)?:[^;|]*?(?= · |[;|]|$)', '', plain, flags=re.I)
         labelled = ':' in plain or '|' in plain
         continuation = bool(re.match(r'^(?:[ \t]+|>[ \t]*|[-+][ \t]+|\d+[.)][ \t]+)', plain))
-        if labelled or continuation:
-            for n, value in enumerate(re.split(r' · |[;|]', plain)):
-                if n and ':' not in value and '|' not in plain and not re.fullmatch(words, value.strip(), re.I):
-                    continue
-                value = value.split(':', 1)[-1].strip(' \t>+-.')
-                found = re.findall(words, value, re.I)
-                if found and value.lower().rstrip('.') != final:
-                    return False
+        if (labelled or continuation) and any(word.lower() != final for word in re.findall(words, plain, re.I)):
+            return False
         offset += len(line)
     return True
 

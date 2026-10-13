@@ -8,6 +8,10 @@ COMMAND = ROOT / 'commands/scout.md'
 
 
 class ScoutRouteTests(unittest.TestCase):
+    def test_r9_f3_report_delta_exemption_is_narrow(self):
+        self.phrases(self.history, 'Marked report receipts also exempt their delta’s JSON before/after strings',
+                     'elsewhere, pending is a finding', 'Never fabricate evidence')
+
     def test_r8_f6_business_pending_values_use_backticks(self):
         self.phrases(self.history, 'Write business values containing the word pending in backticks')
 
