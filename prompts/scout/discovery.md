@@ -1,6 +1,6 @@
 # Shape the demo
 
-Read before the first SE-facing question on open-ended work, or when adding a demo-facing capability to a folder with history. Read the referenced sections only as needed. Follow their content, not their stage numbers, questionnaires, acknowledgement stops, audit modes, spec writes or model choices. Write no spec.
+Read before the first SE-facing question whenever the task has a story (open-ended or structured audience/moment input), or when adding a demo-facing capability to a folder with history. Read the referenced sections only as needed. Follow their content, not their stage numbers, questionnaires, acknowledgement stops, audit modes, spec writes or model choices. Write no spec.
 
 ## Draft the spine and proposal
 
@@ -40,6 +40,10 @@ Apply what a top SE would; at minimum:
 - Build in the audience's existing app. Create another only if requested or the existing app cannot support the change; ground that limitation in Docs, especially for managed apps. Record the app choice as a decision.
 - Propose AI only with customer appetite and trusted data. If trust is the concern, show the human-in-the-loop step.
 
+## Story record
+
+When a story exists, `story` requires residual, audience, kp1, kp2, kp3, source (`se-stated|se-confirmed`), and beats: id, name, persona, pain, climax, proof_moment (boolean), claims (text/item pairs). Mark a proof moment; record its claims' exact read-only commands in their items' `readback`.
+
 ## Tell the verified story
 
-After the outcome sections, use `${CLAUDE_PLUGIN_ROOT}/prompts/building/handover-brief.md` §"Demo Story" for the open-ended Demo Story. Each beat names persona, click path, record, KP, verified claims and climax; mark the proof moment. Label unfulfilled beats planned/unverified. Drop claims without data. These beats become the map's Narrative Arc. A bounded change needs one line naming the beat it serves.
+After the outcome sections, use `${CLAUDE_PLUGIN_ROOT}/prompts/building/handover-brief.md` §"Demo Story" for every task with a story. The 2–6 beat count governs over the brief’s 3–5 steps. Each beat names persona, click path, record, KP, verified claims and climax; mark the proof moment. Label unfulfilled beats planned/unverified. Drop claims without data. These beats become the map's Narrative Arc. A bounded change needs one line naming the beat it serves.

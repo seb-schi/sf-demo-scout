@@ -18,10 +18,39 @@ ORG = '00D000000000001EAA'
 USER = 'demo@example.test'
 
 
+SECTIONS = ('Verified — Applied This Build', 'Verified — Already Satisfied Before This Build',
+            'Accounted-for Exceptions', 'Unresolved Work')
+LOG_SECTIONS = ('Achieved State', 'What Was Deployed', 'What Was Skipped', 'Completion Reconciliation',
+                'Companion Permission Set', 'Issues Encountered', 'Docs Consulted',
+                'SE Must Do Next (in order)', 'How to Verify', 'Open Questions for Next Session')
+ARCH_SECTIONS = ('Customer Context & Value Spine', 'Demo Flow / Narrative Arc',
+                 'Pointers (not duplicated here)', 'Decision Log')
+
+
+def expected_render(data):
+    # Independent specification oracle, deliberately not the implementation's constants or render.
+    groups = [[], [], [], []]
+    skipped = []
+    mapping = {'applied': (0, 'applied'), 'already_satisfied': (1, 'already_satisfied'),
+               'omitted': (2, 'SKIPPED'), 'failed': (3, 'FAILED'), 'blocked': (3, 'BLOCKED')}
+    for value in data['items']:
+        group, label = (2, 'AWAITING_QA') if value['visual_qa'] else mapping.get(value['disposition'], (3, 'INCOMPLETE (unverified)'))
+        line = '- %s — %s — %s' % (value['id'], label, ' '.join((value['evidence'] + ' ' + value['reason']).split()))
+        groups[group].append(line)
+        if value['disposition'] == 'omitted': skipped.append(line)
+    status = 'UNRESOLVED' if groups[3] else 'FINISHED_WITH_EXCEPTIONS' if groups[2] else 'FULLY_VERIFIED'
+    counts = [sum(any(e['source'] == source for e in i['grounding']) for i in data['items'])
+              for source in ('docs', 'skill', 'org', 'ungrounded')]
+    lines = ['Grounding: %d items; docs %d; skill %d; org %d; ungrounded %d' % (len(data['items']), *counts),
+             '', '## What Was Skipped', *(skipped or ['None.']), '', '## Completion Reconciliation', 'Overall: ' + status]
+    for name, rows in zip(SECTIONS, groups): lines += ['', '### ' + name, *(rows or ['None.'])]
+    return '\n'.join(lines) + '\n'
+
+
 def item(identifier='I1', disposition='applied'):
     return dict(id=identifier, what='Add label', type='CustomField', beat='-', category='autonomous',
                 criterion='Label matches', readback='sf sobject describe --target-org demo@example.test',
-                proves='KP3', depends_on=[], components=['CustomField:Example__c.Label__c'], attempts=[],
+                proves='KP3', depends_on=[], components=['CustomField:Example__c.Label__c'], attempts=['A' + identifier[1:]] if disposition in ('applied', 'failed', 'unverified') else [],
                 grounding=[dict(assumption='Field XML', source='skill', ref='field skill', verdict='authorable')],
                 disposition=disposition, evidence='Describe confirms label', visual_qa=False,
                 reason='State left: unchanged; rollback: not needed' if disposition == 'failed' else '', seed_asset='')
@@ -51,12 +80,15 @@ class ScoutHistoryTests(unittest.TestCase):
         self.data = record()
         self.save()
 
-    def save(self, checkpoints=''):
+    def save(self, checkpoints=None):
+        if checkpoints is None:
+            checkpoints = ''.join(checkpoint(a, i['disposition'], i['disposition']).replace('outcome: pending', 'outcome: ' + i['disposition'])
+                                  for i in self.data['items'] for a in i['attempts'] if i['disposition'])
         self.task.write_text(f'# Task\nOrg: {USER} ({ORG})\n\n```scout-items\n' + json.dumps(self.data) + '\n```\n')
         self.log = self.folder / self.data['change_log']
         self.log.write_text(f'# Change Log — Example — 2026-10-13 1200\nOrg: {USER} ({ORG})\n'
-            f'Task record: {self.task.name}\nAudit used: scoped (task record)\n' + history.render(self.data) +
-            '\n'.join('## ' + s + '\nRecorded.\n' for s in history.LOG_SECTIONS if s not in
+            f'Task record: {self.task.name}\nAudit used: scoped (task record)\n' + expected_render(self.data) +
+            '\n'.join('## ' + s + '\nRecorded.\n' for s in LOG_SECTIONS if s not in
                       ('Completion Reconciliation', 'What Was Skipped')) +
             '## Existing Component Before-State and Direct Repairs\nPreserved.\n'
             '## Script Deliverables\nNone.\n' + ('## Checkpoints\n' + checkpoints if checkpoints else ''))
@@ -102,7 +134,7 @@ class ScoutHistoryTests(unittest.TestCase):
                 self.assertEqual(self.run_cli()[0], 0)
                 rendered = self.run_cli('render')[1]
                 self.assertIn('Overall: ' + overall, rendered)
-                self.assertIn('### ' + history.SECTIONS[section] + '\n- I1 — ' + label, rendered)
+                self.assertIn('### ' + SECTIONS[section] + '\n- I1 — ' + label, rendered)
                 skipped = rendered.split('## What Was Skipped\n')[1].split('\n## ')[0]
                 self.assertEqual('- I1' in skipped, disposition == 'omitted')
         self.data['items'] = [item(), item('I2', 'blocked')]
@@ -110,9 +142,9 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assertIn('UNRESOLVED', self.run_cli('render')[1])
 
     def test_block_missing_duplicate_malformed_and_schema(self):
-        for text in ('no block', '```scout-items\n{}\n```\n' * 2,
-                     '```scout-items\n{\n```', '```scout-items\n{"schema":1,"schema":1}\n```',
-                     '```scout-items\nNaN\n```'):
+        for text in ('no block', ('```scout-items\n' + json.dumps(record()) + '\n```\n') * 2,
+                     '```scout-items\n{\n```', '```scout-items\n' + json.dumps(record())[:-1] + ', "schema": 1}\n```',
+                     '```scout-items\n' + json.dumps(record())[:-1] + ', "note": NaN}\n```'):
             self.task.write_text(text)
             self.assert_rule('block')
         for key, value in [('schema', True), ('items', {}), ('history', None), ('path', 'unknown')]:
@@ -215,7 +247,7 @@ class ScoutHistoryTests(unittest.TestCase):
         self.save()
         self.assert_rule('grounding')
         self.data = record()
-        self.data['items'][0].update(disposition='omitted', reason='Docs-confirmed UI-only')
+        self.data['items'][0].update(disposition='omitted', attempts=[], reason='Docs-confirmed UI-only')
         self.save()
         self.assert_rule('grounding')
         self.data['items'][0]['grounding'] = [dict(assumption='UI capability', source='docs',
@@ -253,7 +285,7 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assert_rule('log-header')
 
     def test_log_sections_and_conditional_sections(self):
-        for section in (*history.LOG_SECTIONS, *history.SECTIONS):
+        for section in (*LOG_SECTIONS, *SECTIONS):
             self.save()
             self.log.write_text(self.log.read_text().replace(section, 'Missing section'))
             self.assert_rule('log-section')
@@ -349,7 +381,7 @@ class ScoutHistoryTests(unittest.TestCase):
         arch = self.folder / 'demo-architecture.md'
         arch.write_text('# Demo Architecture — Example\nLast reconciled: 2026-10-13 1200 by /scout\n'
                         f'Target Org: demo ({USER})\nReconciled through: {self.data["change_log"]}\n' + extra +
-                        '\n'.join('## ' + s + '\nRecorded.\n' for s in history.ARCH_SECTIONS) +
+                        '\n'.join('## ' + s + '\nRecorded.\n' for s in ARCH_SECTIONS) +
                         f'- **[2026-10-13]** — Keep fields. **Why:** scope. (see `{self.data["change_log"]}`)\n')
         return arch
 
@@ -374,7 +406,7 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assertEqual(self.run_cli()[0], 0)
         code, output = self.run_cli('pending', '--orgs-dir', str(self.folder.parent), '--org-id', ORG)
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(output)['proposed_entries'], self.data['history']['proposed_entries'])
+        self.assertEqual([json.loads(line)['proposed_entries'] for line in output.splitlines() if json.loads(line)['state'] == 'proposed'], [self.data['history']['proposed_entries']])
 
     def hashes(self):
         return {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in self.folder.rglob('*') if p.is_file()}
@@ -421,7 +453,7 @@ class ScoutHistoryTests(unittest.TestCase):
         states = [json.loads(line)['state'] for line in output.splitlines()]
         self.assertEqual(states.count('unresolved'), 1)
         self.assertEqual(states.count('unclear'), 1)
-        self.assertEqual(states.count('resolved'), 5)
+        self.assertEqual(states.count('resolved'), 6)  # five historical plus current task
         code, output = self.run_cli('reconcile-plan', '--folder', str(self.folder))
         rows = [json.loads(line) for line in output.splitlines()]
         self.assertEqual(code, 0)
@@ -439,7 +471,7 @@ class ScoutHistoryTests(unittest.TestCase):
         after = self.hashes()
         self.assertEqual([p for p in before if before[p] != after[p]], [self.log])
         self.data['history']['architecture'] = 'reconciled'
-        self.data['items'][0]['attempts'] = []
+        self.data['items'][0]['attempts'] = ['A1']
         self.save()
         self.architecture('## Current Live State\n' + 'retained ' * 3800 + '\n')
         code, output = self.run_cli()
@@ -455,12 +487,14 @@ class ScoutHistoryTests(unittest.TestCase):
         self.task.unlink()  # Match by username, not the org ID in a neighboring task.
         code, output = self.run_cli('pending', '--orgs-dir', str(self.folder.parent), '--org-id', ORG, '--username', USER)
         self.assertEqual(code, 0)
-        self.assertEqual([json.loads(s)['state'] for s in output.splitlines()], ['resolved', 'unclear'])
+        self.assertEqual([json.loads(s)['state'] for s in output.splitlines()], ['resolved', 'resolved'])  # F6 applies the outcome rule to every checkpoint kind.
 
     def test_fenced_examples_do_not_supply_outcomes_or_headers(self):
         self.data['items'][0]['attempts'] = ['A1']
         self.save(checkpoint(outcome=None) + '```text\n- **Outcome: applied.** example\n```\n')
+        before = self.log.read_bytes()
         self.assertEqual(self.run_cli('resolve')[0], 0)
+        self.assertEqual(before, self.log.read_bytes())
         self.assert_rule('checkpoint')
         self.task.write_text('````markdown\n' + self.task.read_text() + '\n````\n')
         self.assert_rule('block')
@@ -515,6 +549,259 @@ class ScoutHistoryTests(unittest.TestCase):
             old = text.split('\n')[0] + '\nNone.'
             self.log.write_text(self.log.read_text().replace(old, text))
             self.assert_rule('reconciliation')
+
+
+    def pending_rows(self, username=None):
+        args = ['pending', '--orgs-dir', str(self.folder.parent), '--org-id', ORG]
+        if username: args += ['--username', username]
+        code, out = self.run_cli(*args)
+        self.assertEqual(code, 0, out)
+        return [json.loads(line) for line in out.splitlines()]
+
+    def test_r4_f1_outcome_never_crosses_blank_or_unindented_line(self):
+        for tail in ('\napplied the object; flow failed', 'applied the object; flow failed'):
+            self.log.write_text(f'Org: {ORG}\n## PENDING — component repair\n**Outcome**:\n' + tail + '\n')
+            self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
+
+    def test_r4_f6_eleven_history_shapes_and_marker_boundaries(self):
+        # Structural reconstructions only; no source customer text or names.
+        bodies = [('- outcome: pending (in flight)\n- **Outcome: applied.** receipt', 'resolved')] * 5
+        bodies += [('- outcome: pending', 'unresolved'),
+                   ('FINAL OUTCOME (attempt EX): applied', 'resolved'),
+                   ('**Outcome (EX):**\n  - (a) applied\n  - (b) already_satisfied\n  - (c) applied\n  - Companion: NEW PermissionSet Example', 'resolved'),
+                   ('**Outcome:** PARTIALLY APPLIED', 'unclear')]
+        text = f'Org: {ORG}\n'
+        for n, (body, _) in enumerate(bodies):
+            title = f'### PENDING — component repair · attempt EX-{n} · 2026-10-13 12:00' if n < 6 else '## CHECKPOINT: PENDING - Component Repair (Attempt EX)'
+            text += title + '\n' + body + '\n'
+        text += '## PENDING — data seed\n- outcome: pending\n## CHECKPOINT: PENDING — Diagnostic Example\n**Outcome:** pending\n'
+        self.log.write_text(text)
+        self.assertEqual([r['state'] for r in self.pending_rows()], [state for _, state in bodies] + ['unclear', 'unclear'])
+        for value in ('**Outcome:** APPLIED — receipt\n  Evidence: saved.json',
+                      '**Outcome (EX):**\n  - **I1:** applied\n  - I2: blocked\n  Receipt: saved.json',
+                      '- outcome: pending\n**Outcome:** applied'):
+            self.log.write_text(f'Org: {ORG}\n## PENDING — component repair\n' + value + '\n')
+            self.assertEqual(self.pending_rows()[0]['state'], 'resolved')
+        self.log.write_text(f'Org: {ORG}\n## Pending questions\n## Not pending work\n')
+        self.assertEqual(self.pending_rows(), [])
+
+    def test_r4_f7_scout_pending_without_final_is_unresolved(self):
+        for body in ('- outcome: pending\n', '- **Outcome / read-back:** pending\n', 'No marker\n'):
+            self.save(checkpoint(outcome=None) + body)
+            self.assertEqual(self.pending_rows()[0]['state'], 'unresolved')
+
+    def test_r4_f8_resolve_edits_only_owned_unfenced_status_lines(self):
+        receipt = '```text\n- outcome: pending\n```\n'
+        foreign = '#### PENDING — component repair · attempt FOREIGN · 2026-10-13 12:00\n- outcome: pending\n'
+        self.save(checkpoint() + receipt + foreign)
+        self.assertEqual(self.run_cli('resolve')[0], 0)
+        text = self.log.read_text()
+        self.assertIn(receipt, text)
+        self.assertIn(foreign, text)
+        self.assertIn('### applied — component repair · attempt A1', text)
+        self.assert_rule('checkpoint')  # Foreign checkpoint cannot disappear from the inventory.
+        self.save(checkpoint() + '- **Outcome / read-back:** failed — rejected\n')
+        before = self.log.read_bytes()
+        self.run_cli('resolve')
+        self.assertEqual(before, self.log.read_bytes())
+
+    def test_r4_f9_pending_business_values_are_not_status_fields(self):
+        self.save(checkpoint().replace('read-back receipt', 'Status__c is Pending; readback confirms three rows') +
+                  '- Notes: Status: Pending\n- classification: new — Status: Pending is the intended value\n')
+        self.run_cli('resolve')
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        for key in ('classification', 'preedit_snapshot', 'outcome'):
+            self.save(checkpoint() + '- ' + key + ': pending\n')
+            if key != 'outcome': self.run_cli('resolve')
+            self.assert_rule('checkpoint')
+
+    def test_r4_f10_disposition_matches_last_attempt_and_inventory(self):
+        for disposition, attempts, body in [('applied', [], ''), ('failed', [], ''), ('unverified', [], ''),
+                ('applied', ['A1'], checkpoint(outcome='failed')), ('already_satisfied', ['A1'], checkpoint()),
+                ('blocked', ['A1'], checkpoint()), ('omitted', ['A1'], checkpoint()),
+                ('applied', ['A1'], checkpoint() + checkpoint('LOST', outcome=None))]:
+            with self.subTest(disposition=disposition, attempts=attempts, body=body):
+                self.data = record()
+                self.data['items'][0].update(disposition=disposition, attempts=attempts, reason='State left: unchanged; rollback: not needed')
+                self.save(body)
+                self.run_cli('resolve')
+                self.assert_rule('checkpoint')
+        self.data = record()
+        self.data['items'][0]['attempts'] = ['A1', 'A2']
+        self.save(checkpoint('A1', 'failed') + checkpoint('A2', 'applied'))
+        self.run_cli('resolve')
+        self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r4_f11_workspace_symlink_accepted_but_child_links_refused(self):
+        alias = self.root / 'alias'
+        alias.symlink_to(self.root / 'orgs', target_is_directory=True)
+        for command in ('check', 'resolve'):
+            code, out = self.run_cli(command, '--task', str(alias / 'example' / self.task.name))
+            self.assertEqual(code, 0, out)
+        log = self.log.read_text()
+        self.log.unlink()
+        peer = self.root / 'peer.md'
+        peer.write_text(log)
+        self.log.symlink_to(peer)
+        self.assertEqual(self.run_cli('resolve')[0], 4)
+
+    def test_r4_f12_literal_template_and_plain_existing_classification(self):
+        self.save(checkpoint() + '- Classification: existing\n')
+        self.run_cli('resolve')
+        self.log.write_text(self.log.read_text().replace('Direct Repairs\n', 'Direct Repairs (if any)\n'))
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        self.log.write_text(self.log.read_text().replace('## Existing Component Before-State and Direct Repairs (if any)', '## Absent'))
+        self.assert_rule('log-section')
+
+    def test_r4_f13_map_only_lints_current_decisions_and_changed_arc(self):
+        self.data['history']['architecture'] = 'reconciled'
+        self.save()
+        arch = self.architecture('## Current Live State\nSE note ' + self.log.name + '\n')
+        arch.write_text(arch.read_text().replace('## Demo Flow / Narrative Arc\n', '## Demo Flow / Narrative Arc\n1. ' + 'old ' * 100 + '\n'))
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        self.data['history']['arc_changed'] = True
+        self.save()
+        self.assert_rule('arch')
+        self.data['history']['arc_changed'] = False
+        self.save()
+        arch = self.architecture()
+        arch.write_text(arch.read_text().replace('Keep fields.', 'x' * 321).replace('`' + self.log.name + '`', '`' + self.log.stem + '`'))
+        self.assert_rule('arch')
+        for extra in ('### SE annotations\n' + 'retained ' * 3800 + '\n', '> SE banner ' + 'retained ' * 3800 + '\n'):
+            arch = self.architecture()
+            arch.write_text(arch.read_text().replace('## Decision Log\n', '## Decision Log\n' + extra))
+            code, out = self.run_cli()
+            self.assertEqual(code, 0, out)
+            self.assertIn('arch: warning:', out)
+
+    def test_r4_f14_pending_reports_bad_files_and_malformed_proposals(self):
+        self.save(checkpoint(outcome=None))
+        sibling = self.folder.parent / 'aaa-other'
+        sibling.mkdir()
+        (sibling / 'changes-bad.md').write_bytes(b'Other\n\xff')
+        (sibling / 'changes-link.md').symlink_to(self.log)
+        errors = io.StringIO()
+        with contextlib.redirect_stderr(errors):
+            rows = self.pending_rows()
+        self.assertEqual([r['state'] for r in rows if r['file'] == str(self.log)], ['unresolved'])
+        self.assertIn('changes-bad.md', errors.getvalue())
+        self.assertIn('changes-link.md', errors.getvalue())
+        (self.folder / 'changes-bad.md').write_bytes(b'Example\n\xff')
+        self.task.write_text('```scout-items\n{"history":{"decisions":"proposed"},}\n```\n')
+        rows = self.pending_rows()
+        self.assertEqual(sum(r['state'] == 'unclear' for r in rows), 2)
+
+    def test_r4_f15_independent_mapping_oracle_and_valid_guard_pins(self):
+        self.assertEqual(history.render(self.data), expected_render(self.data))
+        self.assertEqual(self.run_cli()[0], 0)
+        self.log.write_text(self.log.read_text() + '## Later notes\n')
+        self.assert_rule('checkpoint')
+        self.data['items'] = [item(disposition='failed')]
+        self.data['items'][0]['reason'] = 'State left: unchanged'
+        self.save()
+        self.assert_rule('disposition')
+        self.data = record()
+        self.save()
+        self.log.write_text(self.log.read_text().replace('Org:', 'Owner:'))
+        self.assert_rule('log-header')
+        self.data['items'] = [item(), item('I2')]
+        self.data['items'][1]['attempts'] = ['A1']
+        self.save()
+        self.assert_rule('block')
+        self.task.unlink()
+        self.log.write_text(f'Org: {USER}.uat\n## PENDING — component repair\n')
+        self.assertEqual(self.pending_rows(USER), [])
+        self.data = record()
+        self.data['history']['architecture'] = 'created'
+        self.save()
+        arch = self.architecture()
+        arch.write_text(arch.read_text().replace('Target Org:', 'Owner:'))
+        self.assert_rule('arch')
+
+    def test_r4_f16_story_header_folder_crlf_seed_type_and_beat_edges(self):
+        self.story()
+        self.data['path'] = 'complete-brief'
+        self.data['story']['source'] = 'invented'
+        self.save()
+        self.assert_rule('story')
+        for old, new in [('Audit used: scoped (task record)', 'Audit used: none'),
+                         ('Audit used: scoped (task record)', 'Audit used: TBD'),
+                         ('Audit used:', 'Spec: old.md\nAudit used:')]:
+            self.data = record()
+            self.save()
+            self.log.write_text(self.log.read_text().replace(old, new))
+            self.assert_rule('log-header')
+        self.assertEqual(self.run_cli('reconcile-plan', '--folder', str(self.log))[0], 4)
+        self.architecture().write_text('Reconciled through: none # next: ' + self.log.name + '\n')
+        self.assertEqual(len(self.run_cli('reconcile-plan', '--folder', str(self.folder))[1].splitlines()), 1)
+        self.data = record()
+        self.data['history']['architecture'] = 'created'
+        self.save(checkpoint())
+        arch = self.architecture()
+        for p in (self.log, arch): p.write_bytes(p.read_bytes().replace(b'\n', b'\r\n'))
+        self.run_cli('resolve')
+        raw = self.log.read_bytes()
+        self.assertEqual(raw.count(b'\n'), raw.count(b'\r\n'))
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        seed = self.folder / 'seed.py'
+        seed.write_text('# synthetic\n')
+        self.data['items'][0]['seed_asset'] = str(seed)
+        self.save()
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        for kind in ('Page Layout', 'Lightning App', 'Path', 'Records', 'Picklist values'):
+            self.data = record()
+            self.data['items'][0]['type'] = kind
+            self.save()
+            self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        self.story()
+        self.data['items'][0]['beat'] = 'B99'
+        self.save()
+        self.assert_rule('story')
+
+    def test_r4_f17_reoffer_answers_suppress_only_the_named_prior_task(self):
+        self.data['history'].update(decisions='proposed', proposed_entries=['Keep scope.'])
+        self.save()
+        prior = self.task.name
+        self.task = self.folder / 'task-2026-10-13-1300-example.md'
+        self.data = record()
+        self.data['history']['reoffers'] = [{'task': prior, 'answer': 'skipped'}]
+        self.save()
+        self.assertFalse(any(r['state'] == 'proposed' for r in self.pending_rows()))
+
+    def test_r4_f17_lowercase_docs_unavailable(self):
+        self.story()
+        self.data['items'][0]['grounding'] = [dict(source='ungrounded', ref='', assumption='Mechanism', verdict='docs unavailable: SE accepted')]
+        self.save()
+        code, out = self.run_cli()
+        self.assertEqual(code, 0, out)
+        self.assertIn('grounding: warning:', out)
+
+
+
+    def test_r4_attack_mixed_nonfinal_continuations_and_stem_boundary(self):
+        for word in ('INCOMPLETE', 'unknown', 'not applied'):
+            self.log.write_text(f'Org: {ORG}\n## PENDING — component repair\n**Outcome:**\n  - I1: applied\n  - I2: {word}\n')
+            with self.subTest(word=word):
+                self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
+        self.data['history']['architecture'] = 'reconciled'
+        self.save()
+        arch = self.architecture()
+        # A different log sharing this stem must not make an old entry current.
+        arch.write_text(arch.read_text().replace('Keep fields.', 'x' * 321).replace('`' + self.log.name + '`', '`' + self.log.stem + '-later.md`'))
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+
+
+
+    def test_r4_attack_map_banner_and_fenced_template_budget(self):
+        self.data['history']['architecture'] = 'reconciled'
+        self.save()
+        self.architecture('Hand-kept banner: ' + 'retained ' * 3800 + '\n')
+        code, out = self.run_cli()
+        self.assertEqual(code, 0, out)
+        self.assertIn('arch: warning:', out)
+        arch = self.architecture()
+        arch.write_text(arch.read_text().replace('## Decision Log\n', '## Decision Log\n```text\n' + 'template ' * 3800 + '\n```\n'))
+        self.assert_rule('arch')
 
 
 if __name__ == '__main__':
