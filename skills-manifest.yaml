@@ -22,7 +22,7 @@
 # and commit. Adapted and frozen entries are visibly skipped with their
 # reasons. Advancing `revision:` requires a separate upstream review and
 # manifest edit; `branch:` is descriptive and never controls checkout.
-# The pinned SHA is the reviewed v1.52 refresh input; it does not claim that
+# The pinned SHA is the reviewed v1.62.0 refresh input; it does not claim that
 # every current local skill was copied byte-for-byte from that revision.
 # The dated comments below are historical provenance and do not override
 # each entry's enforced current policy.
@@ -57,9 +57,11 @@ sources:
     repo: https://github.com/forcedotcom/sf-skills
     type: clone
     branch: main
-    revision: 8febf3f2bfb537a7586f36ee42dcf5e5d69c02a5
+    revision: 4bbae5c421e51b40e4169afa72c4496372a602a7
 
 skills:
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): held.
+  # Frozen successor still requires hosted-only execute_metadata_action; no tree changes.
   - name: sf-flow
     policy: frozen
     reason: >-
@@ -94,10 +96,14 @@ skills:
   # start --authoring-bundle` (sf CLI 2.131.0+); Scout's v1.0 copies omitted it. All
   # three tracked to upstream's current folder layout (stale pre-5a4d9c3 fossils
   # dropped; no Scout hand-edits existed). Pinned per-skill copy, NOT vendor-skills.sh.
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # Re-vendored full directory at reviewed pin; upstream changes adopted.
   - name: platform-custom-field-generate
     source: afv
     path: skills/platform-custom-field-generate
     policy: replace
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adapted-merged.
+  # Description refresh only; stripped confirmation gate preserved.
   - name: platform-custom-object-generate
     source: afv
     path: skills/platform-custom-object-generate
@@ -105,6 +111,8 @@ skills:
     reason: >-
       Preserves Scout's stripped human confirmation gate and current
       orchestrator-compatible behavior.
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # Re-vendored full directory at reviewed pin; upstream changes adopted.
   - name: platform-permission-set-generate
     source: afv
     path: skills/platform-permission-set-generate
@@ -118,6 +126,8 @@ skills:
   # @sf-agentscript SDK runtime dep, held out like the LWC SLDS-linter scripts.
   # SKILL.md is NOT byte-verbatim v1.38 (it retains the 281e296 SFAP-404 + 0242aaa
   # action-interface-relocation hand-edits); do NOT wholesale re-vendor it.
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adapted-merged.
+  # Migration/voice references and router merged; Audit/Repair and SFAP edits preserved; new helpers held.
   - name: agentforce-generate
     source: afv
     path: skills/agentforce-generate
@@ -125,16 +135,22 @@ skills:
     reason: >-
       Preserves compiler-neutralized Audit/Repair content, prior SFAP action
       interface edits, and intentional omission of the external SDK scripts.
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # No upstream window delta; refresh existing Scout drift to reviewed pin.
   - name: agentforce-test
     source: afv
     path: skills/agentforce-test
     policy: replace
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # AHM updates adopted; examples scrubbed, stdin/parser/temp-file/rate examples corrected.
   - name: agentforce-observe
     source: afv
     path: skills/agentforce-observe
     policy: replace
 
   # ── RE-POINTED renames (afv/main) ──────────────────────────────────────
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): unchanged.
+  # No upstream window delta; hooks/scripts layout and sf-flow handoff preserved.
   - name: experience-lwc-generate
     source: afv
     path: skills/experience-lwc-generate
@@ -142,26 +158,36 @@ skills:
     reason: >-
       Preserves hooks/scripts validator wiring instead of upstream's top-level
       migration, plus references to the frozen sf-flow skill.
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # Re-vendored full directory at reviewed pin; upstream changes adopted.
   - name: platform-soql-query
     source: afv
     path: skills/platform-soql-query
     policy: replace
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adapted-merged.
+  # Description refresh only; metadata reorder has no local counterpart; sf-flow handoff preserved.
   - name: platform-data-manage
     source: afv
     path: skills/platform-data-manage
     policy: adapted
     reason: >-
       Preserves the held cross-reference to the frozen sf-flow skill.
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # Re-vendored full directory at reviewed pin; upstream changes adopted.
   - name: platform-apex-logs-debug
     source: afv
     path: skills/platform-apex-logs-debug
     policy: replace
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adapted-merged.
+  # Bundled Apex test-run handoff added; sf-flow handoff preserved.
   - name: platform-metadata-deploy
     source: afv
     path: skills/platform-metadata-deploy
     policy: adapted
     reason: >-
       Preserves the held cross-reference to the frozen sf-flow skill.
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adapted-merged.
+  # Description refresh only; hooks/scripts validator path preserved.
   - name: platform-apex-test-run
     source: afv
     path: skills/platform-apex-test-run
@@ -171,6 +197,8 @@ skills:
       current hook wiring.
 
   # ── SWAP: Apex methodology (afv/main) ──────────────────────────────────
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): unchanged.
+  # No upstream window delta; held frontmatter/version and API 67 graft preserved.
   - name: platform-apex-generate
     source: afv
     path: skills/platform-apex-generate
@@ -178,6 +206,8 @@ skills:
     reason: >-
       Preserves intentionally held frontmatter/version while retaining the
       reviewed API 67 body-only graft.
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): held.
+  # Upstream description change touches intentionally held frontmatter; API 67 graft preserved.
   - name: platform-apex-test-generate
     source: afv
     path: skills/platform-apex-test-generate
@@ -185,6 +215,8 @@ skills:
     reason: >-
       Preserves intentionally held frontmatter/version while retaining the
       reviewed API 67 body-only graft.
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): unchanged.
+  # No upstream window delta; held configuring-code-analyzer handoff preserved.
   - name: dx-code-analyzer-run
     source: afv
     path: skills/dx-code-analyzer-run
@@ -194,14 +226,20 @@ skills:
       upstream successor is not vendored.
 
   # ── NEW declarative skills (afv/main) ──────────────────────────────────
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # No upstream window delta; refresh existing Scout drift to reviewed pin.
   - name: platform-validation-rule-generate
     source: afv
     path: skills/platform-validation-rule-generate
     policy: replace
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # No upstream window delta; refresh existing Scout drift to reviewed pin.
   - name: platform-list-view-generate
     source: afv
     path: skills/platform-list-view-generate
     policy: replace
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): held.
+  # Description change held with frozen tree; hosted-only execute_metadata_action remains upstream.
   - name: platform-flexipage-generate
     source: afv
     path: skills/platform-flexipage-generate
@@ -217,6 +255,8 @@ skills:
   # 12 of 17 cases test Edit/Delete/confirm paths Scout cannot reach); its one useful artifact
   # (composed Account owner rule) was grafted into references/rule-types.md. Permanent
   # intentional drift — do NOT "fix" it by re-vendoring verbatim. See PLAN 2026-07-27/0944.
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adapted-merged.
+  # Description refresh only; stripped gate, composed example and omitted test cases preserved.
   - name: platform-sharing-rules-generate
     source: afv
     path: skills/platform-sharing-rules-generate
@@ -226,18 +266,24 @@ skills:
       upstream test cases while retaining Scout's composed-rule example.
 
   # ── NEW 2026-07-08: reusable value sets (afv/main, sf-skills v1.29.0) ──
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # Re-vendored full directory at reviewed pin; upstream changes adopted.
   - name: platform-value-set-generate
     source: afv
     path: skills/platform-value-set-generate
     policy: replace
 
   # ── NEW 2026-07-20: custom report types (afv/main, sf-skills v1.31.0) ──
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # Re-vendored full directory at reviewed pin; upstream changes adopted.
   - name: platform-custom-report-type-generate
     source: afv
     path: skills/platform-custom-report-type-generate
     policy: replace
 
   # ── NEW 2026-08-04: Lightning Reports (afv/main, sf-skills v1.33.0) ──
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # Re-vendored full directory at reviewed pin; upstream changes adopted.
   - name: platform-report-generate
     source: afv
     path: skills/platform-report-generate
@@ -249,10 +295,14 @@ skills:
   # sanitize-developer-name.sh — the script is a SELF-CONTAINED POSIX sed helper (no external runtime dep),
   # so unlike the held-out LWC SLDS-linter / agentforce SDK scripts it IS vendored. Custom Setting is a
   # single SKILL.md (no refs, no scripts). See PLAN 2026-09-01/1014.
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # Re-vendored full directory at reviewed pin; upstream changes adopted.
   - name: platform-custom-setting-generate
     source: afv
     path: skills/platform-custom-setting-generate
     policy: replace
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): adopted.
+  # Re-vendored full directory at reviewed pin; upstream changes adopted.
   - name: platform-custom-metadata-type-generate
     source: afv
     path: skills/platform-custom-metadata-type-generate
@@ -270,6 +320,8 @@ skills:
   # ADAPTED 2026-09-17 (Batch 4): SKILL.md is base-E2C-only. Scout's orchestrator/Phase 3
   # owns the agent entitlement check and channel handoff; do not restore upstream's
   # implicit agent/channel delegation by wholesale replacement. Scripts remain unchanged.
+  # 2026-10-13 (W12, 8febf3f..4bbae5c): held.
+  # Description reintroduces agent/channel delegation; keep base-E2C scope and scripts/tests omission.
   - name: service-email-to-case-configure
     source: afv
     path: skills/service-email-to-case-configure

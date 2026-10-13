@@ -1,12 +1,19 @@
 ---
 name: platform-value-set-generate
-description: "Use this skill when users need to create, generate, or validate a Salesforce global value set or customize a standard value set. Trigger when users mention a global value set, GlobalValueSet, standard value set, StandardValueSet, a reusable picklist, a picklist value set shared across fields, or customizing standard picklists like Industry, Lead Source, or Opportunity Stage. Also use when users hit deployment errors adding values to a standard picklist, referencing a value set from a custom field, or working with .globalValueSet-meta.xml or .standardValueSet-meta.xml files. DO NOT TRIGGER for an inline one-off picklist on a single field with no reuse, or for general custom field metadata work that does not involve a GlobalValueSet or StandardValueSet — use platform-custom-field-generate instead."
+description: "Use to create, generate, or validate a Salesforce GlobalValueSet (reusable picklist shared across fields) or customize a StandardValueSet (built-in picklists like Industry, Lead Source, Opportunity Stage). Trigger on global/standard value set, reusable picklist, .globalValueSet-meta.xml or .standardValueSet-meta.xml, or deploy errors adding values to a standard picklist. DO NOT TRIGGER for a one-off inline picklist on a single field with no reuse — use platform-custom-field-generate."
 metadata:
   version: "1.0"
+  domains: ["Platform"]
   minApiVersion: "60.0"
+  relatedSkills:
+    - "platform-custom-field-generate"
   cliTools:
     - tool: ["sf"]
       semver: ">=2.0.0"
+  mcpTools:
+    metadata-grounding:
+      tools: ["query_metadata", "search_metadata"]
+      semver: ">=1.0.0"
 ---
 
 ## Overview
@@ -198,7 +205,7 @@ When customizing a **StandardValueSet** (or extending a shared GlobalValueSet), 
 
 For well-known standard picklists you already know the canonical values (e.g. `Industry`, `LeadSource`, `OpportunityStage`). When you are unsure a named value exists, you can confirm it against the live org — but treat lookup as a *confirmation* step, not a required first call:
 
-- **Grounding MCP** (if available) exposes `search_metadata` and `query-metadata` to look up live metadata. Use them only to confirm a named value's exact `<fullName>`/`<label>` — not to pull the full list to reproduce.
+- **Grounding MCP** (if available) exposes `search_metadata` and `query_metadata` to look up live metadata. Use them only to confirm a named value's exact `<fullName>`/`<label>` — not to pull the full list to reproduce.
 - **CLI fallback** — query the Tooling API directly:
 
 ```bash
@@ -291,7 +298,7 @@ Before generating value-set XML, verify:
 - [ ] When referencing from a field, is `<valueSetName>` the **bare** developer name with NO `__gvs` suffix?
 
 ### StandardValueSet Checks CRITICAL
-- [ ] Are you emitting modifications ONLY to values you know exist (confirmed from known standard catalogs, or via grounding `search_metadata`/`query-metadata` / Tooling API if unsure) — never invented values?
+- [ ] Are you emitting modifications ONLY to values you know exist (confirmed from known standard catalogs, or via grounding `search_metadata`/`query_metadata` / Tooling API if unsure) — never invented values?
 - [ ] Is the root `<StandardValueSet>` with the correct namespace?
 - [ ] Does the root use `<fullName>` set to the fixed catalog name (NOT `masterLabel`)?
 - [ ] Are values `<standardValue>` entries (NOT `customValue`)?

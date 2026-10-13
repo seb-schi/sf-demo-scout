@@ -3,6 +3,8 @@ name: platform-validation-rule-generate
 description: "Use this skill when users need to create, modify, or validate Salesforce Validation Rules. Trigger when users mention validation rules, field validation, data quality rules, formula validation, error messages, or validation logic. Also use when users encounter validation errors, need to update formulas, or want to enforce business rules at the data layer. Always use this skill for any validation rule work."
 metadata:
   version: "1.0"
+  domains: ["Platform"]
+  minApiVersion: "60.0"
 ---
 
 ## When to Use This Skill
@@ -18,15 +20,15 @@ Use this skill when you need to:
 
 # ValidationRule Metadata Specification
 
-### 📋 Overview
+### Overview
 Validation Rules are declarative metadata components used to enforce data quality and business logic in Salesforce. They evaluate a formula expression when a record is saved and prevent the save operation if the expression returns TRUE.
 
-### 🎯 Purpose
+### Purpose
 -Enforce business rules at the data layer
 -Prevent invalid or incomplete records from being saved
 -Display meaningful error messages to guide users
 
-### ⚙️ Required Properties
+### Required Properties
 
 #### Core Validation Rule Properties
 

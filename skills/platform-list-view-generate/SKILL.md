@@ -3,6 +3,8 @@ name: platform-list-view-generate
 description: "Use this skill when users need to create, generate, or validate Salesforce List View metadata. Trigger when users mention list views, filtered record lists, creating views, setting up record columns, filtering records by criteria, or ask about list view visibility. Also use when users say things like \"I need a view that shows...\", \"filter records by...\", \"create a list view for...\", or when they're working with ListView XML files and need validation or troubleshooting."
 metadata:
   version: "1.0"
+  domains: ["Platform"]
+  minApiVersion: "51.0"
 ---
 
 ## When to Use This Skill
@@ -17,14 +19,14 @@ Use this skill when you need to:
 
 # Salesforce List View Metadata Knowledge
 
-## 📋 Overview
+## Overview
 Salesforce List Views define filtered, column-based record listings on an object's tab.
 
-## 🎯 Purpose
+## Purpose
 - Provide curated, role- or task-specific subsets of records
 - Standardize commonly used filters and visible fields across teams
 
-## 🔧 Configuration
+## Configuration
 
 Unless specifically requested to be generated inline, List Views are stored at:
 - force-app/main/default/objects/<ObjectName>/listViews/<fullName>.listView-meta.xml
