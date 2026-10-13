@@ -31,7 +31,8 @@ class HardeningCallerTests(unittest.TestCase):
             old.parent.mkdir(parents=True)
             old.write_text("interrupted original")
             projects = []
-            for writer in ("build-phase1", "audit-prelude", "direct-repair"):
+            writers = ("build-phase1", "audit-prelude", "direct-repair", "scout", "scout2-repair")
+            for writer in writers:
                 result = subprocess.run(["/bin/bash", "-eu", "-c", command],
                     env={**os.environ, "ASSET_HELPER": str(ROOT / "scripts/build-assets.py"),
                          "WORKSPACE_ROOT": str(workspace), "CUSTOMER_DIR": str(customer),
@@ -40,12 +41,13 @@ class HardeningCallerTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 receipt = json.loads(result.stdout)
                 projects.append(receipt["project_root"])
+                self.assertTrue((Path(receipt["project_root"]) / ".forceignore").is_file())
                 self.assertEqual(receipt["rollback_dir"], str(customer / "rollback"))
                 marker = Path(receipt["source_root"]) / "retained.txt"
                 marker.write_text(writer)
-            self.assertEqual(len(set(projects)), 3)
+            self.assertEqual(len(set(projects)), len(writers))
             self.assertEqual(old.read_text(), "interrupted original")
-            for project, writer in zip(projects, ("build-phase1", "audit-prelude", "direct-repair")):
+            for project, writer in zip(projects, writers):
                 self.assertEqual((Path(project) / "force-app/main/default/retained.txt").read_text(), writer)
 
     def test_each_phase_receives_owned_project_and_refusal_contract(self):

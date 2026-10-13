@@ -3,12 +3,16 @@
 Run the complete repository suite from the repository root:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -v
+scout_test_state=$(mktemp -d /tmp/scout-tests.XXXXXX)
+mkdir -p "$scout_test_state/home" "$scout_test_state/claude"
+env HOME="$scout_test_state/home" CLAUDE_CONFIG_DIR="$scout_test_state/claude" \
+  TMPDIR="$scout_test_state" PYTHONDONTWRITEBYTECODE=1 \
+  python3 -B -m unittest discover -s tests -v
 ```
 
 This is the single clean-checkout offline command. It uses only local fixtures:
 no network, npm registry, Salesforce org, real CLI installation, customer data,
-or user-home mutation. The test processes retain the caller's real `HOME`;
+or user-home mutation. The test processes retain the supplied `HOME`;
 fixture locations are passed through the shipped seams. CLI tests replace
 `PATH` with a temporary directory plus fixed system utility directories, and
 provide isolated `npm`, `sf`, and `claude` stubs so missing stubs cannot fall
@@ -56,6 +60,40 @@ Install Python dependencies into a development virtual environment using
 with that environment's Python. The report repair uses only the standard library,
 with bounded Expat parsing that rejects DOCTYPE/entity declarations and external
 references before resolution. Its CLI fixtures run with site packages disabled.
+
+## Writer-project real-CLI conversion gate
+
+W8 also requires this separate integration gate in a **network-denied sandbox**
+with an already installed real `sf` CLI. Default discovery above deliberately
+does not enter `tests/integration/` (it is not a Python package). Both commands
+must pass for W8; the fixture suite alone does not prove source resolution.
+
+```bash
+scout_cli_state=$(mktemp -d /tmp/scout-cli-tests.XXXXXX)
+mkdir -p "$scout_cli_state/home" "$scout_cli_state/claude"
+env HOME="$scout_cli_state/home" CLAUDE_CONFIG_DIR="$scout_cli_state/claude" \
+  TMPDIR="$scout_cli_state" PYTHONDONTWRITEBYTECODE=1 \
+  SF_DISABLE_TELEMETRY=true SF_AUTOUPDATE_DISABLE=true \
+  python3 -B tests/integration/test_forceignore_conversion.py
+```
+
+The gate creates fresh temporary HOME, Claude configuration and CLI state/cache
+directories under `/tmp` for its subprocesses, passes an environment allowlist
+without inherited authentication or org selectors, and disables telemetry and
+updates. Network denial must be supplied by the execution sandbox; environment
+flags alone do not enforce it. Missing CLI/SDR prerequisites or timeouts fail;
+the gate never installs dependencies or reports a skipped pass. It prints
+`sf --version`, the installed SDR version, commands, JSON results, manifest
+members and converted file inventories. Retain that output with the review.
+
+The fixture uses a writer project below hidden ancestors and spaces, plus an
+outer `.forceignore` to reproduce the native trap. Relative and absolute source
+paths must resolve the exact object and bundle. Removing only the writer's
+`.forceignore` must yield an empty manifest; restoring it must recover both
+components. Dotfiles, nested hidden directories, `.dup` files and package2
+descriptor/manifest files remain excluded, including inside the bundle and
+without an outer ignore file. There are no deploy, retrieve, auth or org calls.
+Native verification of both routes remains Opus's W5 integration gate.
 
 ## Scout 2 preview verification
 
