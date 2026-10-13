@@ -389,6 +389,11 @@ def task_receipts(task):
     return set(re.findall(r'<!-- scout-repair:([\w.-]+) -->', read(task)))
 
 
+def owned_receipt(match, receipt_ids):
+    """Both exemptions require the exact marker recorded in this task."""
+    return match[1] in receipt_ids
+
+
 def mask_receipt_delta(text, receipt_ids=()):
     """Mask exactly the two JSON strings written by Repair.checkpoint, in paired receipts.
 
@@ -400,7 +405,7 @@ def mask_receipt_delta(text, receipt_ids=()):
                        r') → (' + string + r')(?=;)', re.M)
 
     def receipt(match):
-        if match[1] not in receipt_ids:
+        if not owned_receipt(match, receipt_ids):
             return match[0]
         def values(row):
             value = row[0]
@@ -685,6 +690,11 @@ def check(task, record):
                         valid &= match[1] == 'PENDING'
                 if not valid:
                     issue('checkpoint', attempt + ' missing, duplicate, misplaced or unsettled outcome/fields', log)
+        for marker in re.finditer(r'<!-- scout-repair:([^\r\n]+?) -->', text):
+            if not owned_receipt(marker, receipt_ids):
+                issue('checkpoint', 'unrecorded report marker; record the exact line ' + marker[0] +
+                      ' in task record ' + str(task) + ' (required before apply-report)', log,
+                      line=text[:marker.start()].count('\n') + 1)
     if record['history']['architecture'] in ('created', 'reconciled'):
         arch = local(task.parent, 'demo-architecture.md')
         if not arch.exists():
@@ -888,10 +898,11 @@ def scout_agreement(body, outcome, receipt_ids=()):
     is the canonical outcome. Only a single-line pending field at an exact writable
     own offset is exempt. Evidence links/paths are never field labels or rewrite
     targets. Paired report outcomes map by the route; only task-recorded markers
-    authorize the JSON delta exemption. Discovery has its separate fixed rule.
+    authorize both receipt exemptions. Discovery has its separate fixed rule.
     """
     writable_lines = {offset for label, _, _, offset, _ in fields(own_body(body), offsets=True) if label == 'outcome'}
-    receipts = list(re.finditer(r'<!-- scout-repair:([^\r\n]+?) -->(.*?)<!-- /scout-repair:\1 -->', body, re.S))
+    receipts = [m for m in re.finditer(r'<!-- scout-repair:([^\r\n]+?) -->(.*?)<!-- /scout-repair:\1 -->', body, re.S)
+                if owned_receipt(m, receipt_ids)]
     normal = lambda value: value.translate(str.maketrans('', '', '*_`'))
     final = normal(outcome)
     words = r'\b(?:' + '|'.join(normal(value) for value in DISPOSITIONS) + r')\b'

@@ -70,6 +70,63 @@ def checkpoint(attempt='A1', outcome='applied', heading='PENDING'):
 
 
 class ScoutHistoryTests(unittest.TestCase):
+    def record_report_marker(self, name='example'):
+        from scout_report_repair import checkpoint_marker
+        self.task.write_text(self.task.read_text() + '\n' + checkpoint_marker(Path(name)) + '\n')
+
+    def test_r11_f1_real_writer_quotes_pending_report_folder_and_paths(self):
+        from scout_report_repair import Repair
+        for member, slug in (('Example/Pending', 'example'), ('Pending/Report', 'example'),
+                             ('Example/Report', 'pending-example')):
+            with self.subTest(member=member, slug=slug):
+                self.folder = self.folder.parent / slug
+                self.folder.mkdir(exist_ok=True)
+                self.task = self.folder / self.task.name
+                self.log = self.folder / self.data['change_log']
+                repair_task = self.folder / '.scout-tasks' / 'repair-example'
+                repair_task.mkdir(parents=True, exist_ok=True)
+                receipt_log = self.folder / 'receipt.txt'
+                receipt_log.write_text('')
+                contract = dict(target=dict(username='pending@example.test', org_id=ORG), member=member,
+                                baseline='pending/source.json', delta=dict(column='STATUS', operator='equals',
+                                before='Pending', after='Closed'))
+                state = dict(log=str(receipt_log), mutation='succeeded', acceptance='passed', recovery='verified',
+                             original=dict(artifact=str(self.folder / 'pending-artifact')),
+                             readback=str(repair_task / 'pending-readback.json'), job_id='pending-job')
+                Repair(None).checkpoint(repair_task, contract, state, first=True)
+                receipt = receipt_log.read_text()
+                self.save(checkpoint() + '```text\n' + receipt + '```\n')
+                self.task.write_text(self.task.read_text() + '\n<!-- scout-repair:repair-example -->\n')
+                self.run_cli('resolve')
+                self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+                self.assertIn(receipt, self.log.read_text())
+
+    def test_r11_f2_unrecorded_marker_names_exact_line_and_task_fix(self):
+        marker = '<!-- scout-repair:repair-example -->'
+        receipt = '```text\n' + marker + '\n- **Outcome / read-back:** applied\n<!-- /scout-repair:repair-example -->\n```\n'
+        for record in ('', 'Report marker: repair-example', 'Report marker: `repair-example`', marker, '`'+marker+'`'):
+            with self.subTest(record=record):
+                self.save(checkpoint() + receipt)
+                self.task.write_text(self.task.read_text() + '\n' + record + '\n')
+                self.run_cli('resolve')
+                code, output = self.run_cli()
+                if marker in record:
+                    self.assertEqual(code, 0, output)
+                else:
+                    self.assertEqual(code, 3, output)
+                    self.assertIn(marker, output)
+                    self.assertIn(self.task.name, output)
+                    self.assertIn('record', output.lower())
+
+    def test_r11_f2_foreign_receipts_do_not_skip_agreement(self):
+        body = '```text\n<!-- scout-repair:foreign -->\n- Verification: failed\n<!-- /scout-repair:foreign -->\n```\n'
+        for final in (False, True):
+            self.save((checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') if final else checkpoint()) + body)
+            before = self.log.read_bytes()
+            self.run_cli('resolve')
+            self.assertEqual(self.log.read_bytes(), before)
+            self.assert_rule('checkpoint')
+
     def test_r10_attack_shortcut_references_preserve_link_bytes(self):
         extra = '- Evidence: [outcome: pending]\n\n[outcome: pending]: saved.json\n'
         self.save(checkpoint() + extra)
@@ -236,7 +293,7 @@ class ScoutHistoryTests(unittest.TestCase):
             self.assertEqual([r['heading'] for r in rows], ['PENDING — visible'])
 
     def test_r9_f3_real_writer_exempts_only_delta_json_business_values(self):
-        from scout_report_repair import Repair
+        from scout_report_repair import Repair, code_span
         task = self.folder / '.report-repairs' / 'example'
         task.mkdir(parents=True)
         receipt_log = self.folder / 'receipt.txt'
@@ -257,11 +314,12 @@ class ScoutHistoryTests(unittest.TestCase):
                 self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
                 self.assertIn(receipt, self.log.read_text())
                 # Real writer placeholders elsewhere must remain findings.
-                for replacement in (receipt.replace('existing; saved.json', 'unknown; pending'),
-                                    receipt.replace('acceptance=passed;', 'acceptance=passed; pending;'),
+                for replacement in (receipt.replace('existing; ' + code_span('saved.json'), 'unknown; pending'),
+                                    receipt.replace('acceptance=' + code_span('passed') + ';', 'acceptance=passed; pending;'),
                                     receipt.replace('all other report metadata', 'pending; all other report metadata'),
                                     receipt.replace('<!-- /scout-repair:example -->', '<!-- /scout-repair:other -->'),
                                     receipt.replace('Requested delta / exclusions', 'Evidence')):
+                    self.assertNotEqual(replacement, receipt)
                     self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') +
                               '```text\n' + replacement + '```\n')
                     self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
@@ -335,9 +393,11 @@ class ScoutHistoryTests(unittest.TestCase):
             receipt = ('```text\n<!-- scout-repair:example -->\n- **Outcome / read-back:** ' + receipt_value +
                        '; receipt.json\n<!-- /scout-repair:example -->\n```\n')
             self.save(checkpoint(outcome=outcome) + '- Detail:\n  - I1: ' + outcome + '\n' + receipt)
+            self.record_report_marker()
             self.run_cli('resolve')
             self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
             self.save(checkpoint(outcome='applied') + receipt)
+            self.record_report_marker()
             before = self.log.read_bytes()
             self.run_cli('resolve')
             self.assertEqual(self.log.read_bytes(), before)
@@ -404,6 +464,7 @@ class ScoutHistoryTests(unittest.TestCase):
                 self.data['items'][0]['disposition'] = disposition
                 self.data['items'][0]['reason'] = 'State left: unchanged; rollback: retained'
                 self.save(checkpoint(outcome=disposition) + receipt)
+                self.record_report_marker()
                 self.run_cli('resolve')
                 self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
                 self.assertIn(receipt, self.log.read_text())
@@ -538,6 +599,7 @@ class ScoutHistoryTests(unittest.TestCase):
                         text = text.replace('Preserved.', field)
                     elif location == 'receipt':
                         text += '```text\n<!-- scout-repair:example -->\n' + field + '\n<!-- /scout-repair:example -->\n```\n'
+                        self.record_report_marker()
                     else:
                         text += ('#### Read-back\n' if location == 'nested' else '') + field + '\n'
                     self.log.write_text(text)
@@ -652,6 +714,7 @@ class ScoutHistoryTests(unittest.TestCase):
                            '- **Outcome / read-back:** ' + receipt_outcome + '; receipt.json\n'
                            '<!-- /scout-repair:example -->\n```\n')
                 self.save(checkpoint() + receipt)
+                self.record_report_marker()
                 before = self.log.read_bytes()
                 self.assertEqual(self.pending_rows()[0]['state'], 'unclear')
                 self.run_cli('resolve')
@@ -1907,6 +1970,7 @@ class ScoutHistoryTests(unittest.TestCase):
 
     def test_r6_attack_marked_receipt_pending_field_is_real_evidence(self):
         self.save()
+        self.record_report_marker()
         receipt = '<!-- scout-repair:example -->\n- verification: `pending`\n<!-- /scout-repair:example -->\n'
         self.log.write_text(self.log.read_text() + '```text\n' + receipt + '```\n')
         self.assertEqual(self.run_cli()[0], 0)

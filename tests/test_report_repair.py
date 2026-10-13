@@ -116,6 +116,55 @@ class ReportRepairTests(unittest.TestCase):
     def count(self, operation):
         return sum(row[0] == operation for row in self.adapter.trace)
 
+    def test_r11_inspect_cli_names_exact_marker_and_recording_requirement(self):
+        args = ['scout-repair.py', 'inspect-report', '--workspace-root', str(self.workspace),
+                '--customer-dir', str(self.customer), '--target-org', 'example', '--report', MEMBER,
+                '--column', DELTA['column'], '--operator', DELTA['operator'], '--before', DELTA['before'],
+                '--after', DELTA['after'], '--request-file', str(self.request), '--request-reference', 'R1']
+        for missing, expected in ((None, 0), ('report', 1)):
+            self.adapter.missing = missing
+            with self.subTest(missing=missing):
+                output = io.StringIO()
+                with patch.object(sys, 'argv', args), patch.object(repair, 'Salesforce', return_value=self.adapter), contextlib.redirect_stdout(output):
+                    self.assertEqual(repair.main(), expected)
+                result = json.loads(output.getvalue())
+                marker = '<!-- scout-repair:' + Path(result['task']).name + ' -->'
+                self.assertEqual(result.get('checkpoint_marker'), marker)
+                self.assertIn(marker, Path(result['log']).read_text())
+                requirement = '\n'.join(result.get('requirements', []))
+                for value in (marker, 'task record', 'before apply-report'):
+                    self.assertIn(value, requirement)
+                self.assertEqual(self.count('deploy'), 0)
+
+    def test_r11_writer_keeps_own_pending_placeholders_plain(self):
+        task, _ = self.inspect()
+        log = repair.json_read(task / 'result.json')['log']
+        text = Path(log).read_text()
+        self.assertIn('acceptance=pending;', text)
+        self.assertIn('; pending\n', text)
+        contract = repair.json_read(task / 'contract.json')
+        del contract['baseline']
+        state = repair.json_read(task / 'result.json')
+        self.engine.checkpoint(task, contract, state)
+        self.assertIn('unknown; pending\n', Path(log).read_text())
+
+    def test_r11_writer_data_spans_survive_backticks_and_newlines(self):
+        from scout_history import status_fields
+        task, _ = self.inspect()
+        contract = repair.json_read(task / 'contract.json')
+        state = repair.json_read(task / 'result.json')
+        for value in ('pending`path', 'pending``path\nnext line', '`pending`\r\npath'):
+            with self.subTest(value=value):
+                contract.update(member='Pending/Pending', baseline={'source': value})
+                contract['target']['username'] = 'pending@example.test'
+                state.update(mutation='not_attempted', acceptance='failed', recovery='verified',
+                             original={'artifact': value}, readback={'source': value}, job_id=value, error=value)
+                self.engine.checkpoint(task, contract, state)
+                receipt = Path(state['log']).read_text()
+                self.assertEqual(list(status_fields(receipt, receipt_ids={task.name})), [])
+                self.assertIn(repair.code_span(value), receipt)
+                self.assertNotIn('\nnext line', receipt)
+
     def test_exact_byte_delta_and_explicit_identity_with_fixed_source_paths(self):
         task, sha = self.inspect()
         self.adapter.trace.clear()
