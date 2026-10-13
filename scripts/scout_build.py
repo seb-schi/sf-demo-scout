@@ -229,6 +229,8 @@ def checkpoint_state(checkpoint, item):
             problems.append('%s: %s: "%s" is not an ISO time with seconds' % (checkpoint['attempt'], key, text))
     for job in jobs.values():
         name, words = VOCABULARY.get(job['vocabulary'], (None, ()))
+        if item is None and name is None and job['explicit']:  # R4-F5: no owner to name the family, so any terminal word
+            name, words = 'submission', tuple(w for _, family_words in VOCABULARY.values() for w in family_words)
         status = _word(job['status'])
         job['terminal'] = any(status is not None and status.lower() == w.lower() for w in words)
         if job['status'] is None:
@@ -527,8 +529,9 @@ def beat_verdict(record, beat):
     items = {i['id']: i for i in record['items']}
     for claim in beat['claims']:
         result = claim.get('result')
-        if _active(claim) and (claim.get('item') not in items or not _text(items[claim['item']].get('readback'))):
-            reasons['unverified'].append('claim has no existing item with a read-back: ' + claim['text'][:60])  # R3-F5
+        if _active(claim) and (claim.get('item') not in items or not _text(items[claim['item']].get('readback'))
+                               or not _text(claim.get('text'))):
+            reasons['unverified'].append('claim has no text, or no existing item with a read-back: ' + str(claim.get('text'))[:60])  # R3-F5, R4-F2
         if result == 'failed':
             reasons['failed'].append('claim failed: ' + claim['text'][:60])
         elif result is None:
@@ -549,6 +552,8 @@ def beat_verdict(record, beat):
     for item in beat_items(record, beat):
         if item['disposition'] not in SETTLED_OK:
             reasons['unverified'].append(item['id'] + ' is ' + str(item['disposition']))
+        elif not _text(item.get('evidence')):
+            reasons['unverified'].append(item['id'] + ' records no evidence')  # R4-F2
         elif item['visual_qa']:
             reasons['visual_qa'].append(item['id'] + ' awaits visual QA')
     for verdict in ('failed', 'unverified', 'visual_qa'):
@@ -570,7 +575,8 @@ def overall(record, base):
     if verdicts is None:
         return base
     found = {verdict for _, verdict, _ in verdicts}
-    if base == 'UNRESOLVED' or not verdicts or found & {'failed', 'unverified'}:
+    proof = any(b.get('proof_moment') for b in (record.get('story') or {}).get('beats') or [])
+    if base == 'UNRESOLVED' or not verdicts or found & {'failed', 'unverified'} or not proof:  # R4-F1: no proof moment, no clean Overall
         return 'UNRESOLVED'
     if base == 'FINISHED_WITH_EXCEPTIONS' or 'visual_qa' in found:
         return 'FINISHED_WITH_EXCEPTIONS'
@@ -632,8 +638,10 @@ def bound_orgs(task_visible):
     for line in task_visible.splitlines():
         heading = re.match(r'^(#{1,6})[ \t]+\S', line)
         if heading:
-            if len(heading[1]) >= 2:
+            if len(heading[1]) == 2:  # R4-F3: deeper headings inherit their `##` section's scope
                 section = 'binding' if BINDING_SECTION.match(line) else 'other'
+            elif len(heading[1]) > 2 and section == 'header':
+                section = 'other'
             continue
         text = re.sub(r'[*_`]', '', line)
         if text.lstrip().startswith('>'):
@@ -802,7 +810,21 @@ def agent_live(item, states):
         if len(jobs) > 1 and all(j['launched_at'] for j in jobs) and _comparable(*(j['launched_at'] for j in jobs)):
             jobs.sort(key=lambda j: _sort_key(j['launched_at']))  # R3-C1: by recorded launch, line order breaking ties
         publishes += jobs
+    if len(publishes) > 1 and all(j['launched_at'] for j in publishes) and _comparable(*(j['launched_at'] for j in publishes)):
+        publishes.sort(key=lambda j: _sort_key(j['launched_at']))  # R4-C2: across attempts too, when every launch is known
     return bool(publishes) and publishes[-1]['terminal'] and _word(publishes[-1]['status']).lower() == 'active'
+
+
+def section_family(item_type):
+    """R4-F4: the type family that decides a section, after W3's aliases and a plural spelling (`Path`, `Business Processes`)."""
+    kind = family(item_type)
+    if kind in GATED:
+        return kind
+    for form in (kind, kind[:-2] if kind.endswith('es') else kind, kind[:-1] if kind.endswith('s') else kind):
+        canonical = TYPE_ALIASES.get(form, form)
+        if canonical in TYPE_SECTIONS:
+            return canonical
+    return kind
 
 
 def type_section_findings(record, checkpoints, section_names, folder=None):
@@ -812,7 +834,7 @@ def type_section_findings(record, checkpoints, section_names, folder=None):
     states = _states(record, checkpoints)
     problems = []
     for item in record['items']:
-        kind = family(item['type'])
+        kind = section_family(item['type'])
         if not item['attempts']:
             continue
         needed = list(TYPE_SECTIONS.get(kind, ()))
@@ -851,6 +873,8 @@ def check_findings(record, folder, checkpoints=(), section_names=(), task_visibl
     findings += [('grounding', m) for m in retry_findings(record, checkpoints)]
     if not verdicts:
         return findings + [('story', 'a complex task needs story beats')]
+    if not any(b.get('proof_moment') for b in record['story']['beats']):
+        findings.append(('story', 'a complex story needs its proof-moment beat'))  # R4-F1
     for beat, (identifier, verdict, reasons) in zip(record['story']['beats'], verdicts):
         if any(c.get('result') == 'dropped' and _active(c) for c in beat['claims']):
             findings.append(('story', '%s drops a required %sclaim' % (identifier, 'proof-moment ' if beat['proof_moment'] else '')))

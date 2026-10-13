@@ -647,8 +647,8 @@ def pending(directory, org, username):
                     held = BUILD.checkpoint_state(dict(attempt=own[2] if own else 'legacy', stamp=own[3] if own else '',
                                                        position=start, raw=text[start:end], visible=body,
                                                        outcome=own_outcome(body) if own else None), None)['open']
-                    final = own and (own[1] if own[1] != 'PENDING' else own_outcome(body))
-                    if final in ('applied', 'already_satisfied', 'failed', 'blocked', 'omitted'):
+                    final = own_outcome(body) if own else None  # R4-C1: settled only when the body's own outcome says so
+                    if final in ('applied', 'already_satisfied', 'failed', 'blocked', 'omitted') and own[1] in (final, 'PENDING'):
                         held = [job for job in held if job['explicit']]  # a bare ID in settled history is a settled deploy
                     elif not own:
                         held = [job for job in held if BUILD.JOB_ID.fullmatch(job['ref'])]

@@ -1037,5 +1037,78 @@ class Round4Tests(Harness):
         self.assertEqual([r.get('open_jobs') for r in rows()], [[DEPLOY]])  # legacy: its final outcome is unverified
 
 
+class Round5Tests(Harness):
+    """W10 round 5: Astra's round-4 findings R4-F1 to R4-F7, and candidates C1 and C2, under the realistic threat model."""
+
+    def test_r4_f1_a_complex_story_needs_its_proof_moment(self):
+        complex_story(self.data)
+        self.data['story']['beats'][0]['proof_moment'] = False
+        self.save()
+        self.assertIn('needs its proof-moment beat', self.assert_rule('story'))
+        self.assertIn('Overall: UNRESOLVED', self.run_cli('render')[1])
+
+    def test_r4_f2_a_claim_needs_its_text_and_its_item_its_evidence(self):
+        for change in (lambda: self.data['story']['beats'][0]['claims'][0].update(text='   '),
+                       lambda: self.data['items'][0].update(evidence='')):
+            with self.subTest():
+                complex_story(self.data)
+                self.data['items'][0].update(readback='sf data query --target-org demo', evidence='read back')
+                change()
+                self.save()
+                self.assertIn('Overall: UNRESOLVED', self.run_cli('render')[1])
+
+    def test_r4_f3_binding_scope_follows_the_level_two_section(self):
+        EvidenceTests.flow(self, evidence={'flow_tests': [EvidenceTests.row(self)]})
+        self.task.write_text(self.task.read_text() + '\n## Request verbatim\nBackground only:\n### Target\nOrg ID: 00D000000000999EAA\n')
+        self.passes()  # a nested Target inside the request never binds
+        text = self.task.read_text().replace('Org: ', 'Owner: ', 1)
+        self.task.write_text(text + '\n## Target\n### Identity\n- org ID `%s`\n' % base.ORG)
+        self.passes()  # a nested heading keeps its Target section's scope
+
+    def test_r4_f4_section_families_follow_aliases_and_plurals(self):
+        for kind, section in (('Path', 'Paths Deployed (if any)'), ('Paths', 'Paths Deployed (if any)'),
+                              ('Business Processes', 'Business Processes Deployed (if any)')):
+            with self.subTest(kind=kind):
+                self.data = base.record()
+                self.data['items'][0]['type'] = kind
+                self.save()
+                self.assertIn('"%s"' % section.split(' (')[0], self.assert_rule('log-type-sections'))
+
+    def test_r4_f5_pending_settles_an_executor_no_item_names(self):
+        self.save(cp('A1', body=job('apply script', 'Completed', '2026-10-13T12:00:00', '2026-10-13T12:01:00')))
+        rows = [r for r in base.ScoutHistoryTests.pending_rows(self) if r.get('file') == str(self.log)]
+        self.assertEqual([r.get('open_jobs') for r in rows], [None])
+        self.save(cp('A1', 'unverified', job('apply script', 'Running', '2026-10-13T12:00:00')))
+        rows = [r for r in base.ScoutHistoryTests.pending_rows(self) if r.get('file') == str(self.log)]
+        self.assertEqual([r.get('open_jobs') for r in rows], [['apply script']])
+
+    def test_r4_f6_a_resolved_legacy_unverified_checkpoint_keeps_its_job(self):
+        self.save('### PENDING — component repair\n- Deploy %s submitted.\n- Outcome: unverified\n' % DEPLOY)
+        rows = [r for r in base.ScoutHistoryTests.pending_rows(self) if r.get('file') == str(self.log)]
+        self.assertEqual([(r['state'], r.get('open_jobs')) for r in rows], [('resolved', [DEPLOY])])
+
+    def test_r4_f7_an_earlier_already_satisfied_attempt_never_submits(self):
+        self.data['items'][0]['attempts'] = ['A1', 'A2']
+        self.save(cp('A1', 'already_satisfied', job(DEPLOY, 'Succeeded', '2026-10-13T12:00:00', '2026-10-13T12:05:00')) +
+                  cp('A2', at='2026-10-13 12:10'))
+        self.assertIn('A1 records a submission', self.assert_rule('plan'))
+
+    def test_r4_c1_the_body_s_outcome_outranks_a_stale_heading(self):
+        self.data['items'][0].update(disposition='unverified', reason='Timed out; never terminal')
+        self.save('### applied — component repair · attempt A1 · 2026-10-13 12:00\n- **Outcome: unverified.** timed out\n'
+                  '- Deploy %s submitted.\n' % DEPLOY)
+        rows = [r for r in base.ScoutHistoryTests.pending_rows(self) if r.get('file') == str(self.log)]
+        self.assertEqual([r.get('open_jobs') for r in rows], [[DEPLOY]])
+
+    def test_r4_c2_the_latest_publish_across_attempts_decides_liveness(self):
+        EvidenceTests.agent(self)
+        self.data['items'][0]['attempts'] = ['A1', 'A2']
+        self.save(cp('A1', body=job('agent publish', 'Active', '2026-10-13T12:00:00', '2026-10-13T12:01:00') +
+                     job('agent publish', 'Inactive', '2026-10-13T12:20:00', '2026-10-13T12:21:00')) +
+                  cp('A2', body=job('agent publish', 'Active', '2026-10-13T12:10:00', '2026-10-13T12:11:00'), at='2026-10-13 12:10'))
+        self.add_sections('Agentforce Deployed (if any)', 'Agentforce Current-Test Evidence (if any)')
+        self.assertIn('"Agent Not Live"', self.assert_rule('log-type-sections'))
+
+
 if __name__ == '__main__':
     unittest.main()
