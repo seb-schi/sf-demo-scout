@@ -30,9 +30,9 @@ python3 [PLUGIN_ROOT_ABS]/scripts/scout_target.py check
   --selector [BOUND_SELECTOR] --username [BOUND_USERNAME] --org-id [BOUND_ORG_ID]
 ```
 
-On any nonzero exit, stop writing, report the reason and mark unattempted open items `blocked`; any item with an attempted write is `unverified`, never `blocked`, even if its deploy finished. Do not repair authentication or configuration. Invoke helpers and CLI with safely quoted literal arguments; allow 180000 ms for binding/checking (two bounded CLI calls). Never automatically retry a write.
+On any nonzero exit, stop writing, report the reason and mark unattempted open items `blocked`; any item with an attempted write is `unverified`, never `blocked`, even if its deploy finished. Do not repair authentication or configuration. Invoke helpers and CLI with safely quoted literal arguments; allow 180000 ms for binding/checking. Never automatically retry a write.
 
-Slugify with `${CLAUDE_PLUGIN_ROOT}/scripts/slugify.py` using the alias, otherwise username. Apply `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/customer-normalization.md`: one matching folder → use it only if its change logs or task records name the bound username or org ID, otherwise ask; several → ask which; none → ask the customer name and create `orgs/[org-slug]-[customer-slug]/`. Use its absolute path thereafter. A prefix proves no identity. Use `sf alias list --json` if needed. These choices override the fragment’s conversation.
+Slugify with `${CLAUDE_PLUGIN_ROOT}/scripts/slugify.py` using the alias, otherwise username. Apply `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/customer-normalization.md`: one matching folder → use it only if its change logs or task records name the bound username or org ID, otherwise ask; several → ask which; none → ask the customer name and create `orgs/[org-slug]-[customer-slug]/`. Use its absolute path. A prefix proves no identity. Use `sf alias list --json` if needed. These choices override the fragment.
 
 ## Scope and confirmation
 
@@ -46,12 +46,14 @@ Treat a supplied demo plan, requirements or discovery notes as the brief: beats,
 
 After the first message, read the category and companion rules in `${CLAUDE_PLUGIN_ROOT}/CLAUDE.md`. Keep its technical safety rules; this command governs targeting, orchestration and dispositions. The later Docs-Gated tier governs dashboards/complex LWC. CLI-only applies even to deliberately loaded companion rules.
 
-Before the first write, bundle one confirmation if the org came from the default, Scout proposed an item the SE did not state, or a gated category was not explicitly requested. The default-org confirmation names the bound username and org ID. An explicit SE request naming the item and action counts as its confirmation; carry it to workers. Ask again only for an amendment that introduces an unapproved target/action, never for routine progress.
+Before the first write, bundle one confirmation if the org came from the default, Scout proposed an item the SE did not state, or a gated category was not explicitly requested. The default-org confirmation names the bound username and org ID. An explicit SE request naming the item and action counts as its confirmation, except for deletes; carry it to workers. Ask again only for an amendment adding an unapproved target or action, never for routine progress.
 
 Get explicit SE confirmation before any of these actions:
 - Delete existing metadata or records
 - Modify existing profiles or permission sets
 - Touch anything prefixed `sb_` or `managed__`
+
+Confirm each delete alone, naming every target and what goes with it.
 
 ## Inspection and durable task
 
@@ -79,7 +81,7 @@ Story fields are defined in discovery.md. Every item needs type, depends_on, gro
 
 Create the block’s new per-task change log before the first checkpoint, with `Task record: [task filename]` in its header. Every owned checkpoint, including seeds, uses `### PENDING — component repair · attempt <ID> · <YYYY-MM-DD HH:MM>` under final `## Checkpoints`. Add `- **Outcome: <disposition>.** <evidence>` per attempt. Resolved headings use that attempt’s outcome; missing/conflicting outcomes stay PENDING. Never copy an item's final outcome onto earlier attempts.
 
-To resume a record, check its recorded target first. Continue items without dispositions. For an interrupted/in-flight write or an `unverified` item, reconcile only the checkpoint markers and attempt IDs recorded in this task, then read back before deciding its outcome; do not replay it. Terminal items need a new requested amendment/task to change their scope.
+To resume a record, check its recorded target first. Continue items without dispositions. For an interrupted/in-flight write or an `unverified` item, reconcile only the checkpoint markers and attempt IDs recorded in this task, then read back before deciding its outcome; do not replay it. Terminal items need a new amendment or task to change scope.
 
 ## Ground design and claims
 
@@ -89,7 +91,7 @@ Before seeding, describe every object using `${CLAUDE_PLUGIN_ROOT}/prompts/sparr
 
 ## Execution and delegation
 
-Work solo by default. Run items in `depends_on` order. Follow steps 2–7 of `${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md`; this task replaces step 1. Read `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` and create a fresh writer-owned `prepare-workspace` project with `WRITER=scout` for each item. Retain its ownership receipt, source and original rollback evidence. Never template from another customer folder's source, records or wording; offer such a build by folder name, reuse it only on the SE's yes, and scan copies for that customer's content.
+Work solo by default. Run items in `depends_on` order. Follow steps 2–7 of `${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md`; this task replaces step 1. Read `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` and create a fresh writer-owned `prepare-workspace` project with `WRITER=scout` for each item. Retain its ownership receipt, source and original rollback evidence. Never template from another customer's folder; offer its build by name, reuse it only on the SE's yes, and scan copies for that customer's content.
 
 Legacy prompts supply technical procedures: category gates, vendor compatibility, `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Companion Permission Set — MANDATORY", append-only LRP edits, no new-from-scratch FlexiPage, and incumbent preservation. Ignore their envelopes, placeholders, report formats, acknowledgements, phase topology and model choices. Keep skill, rollback, targeted read-back, data-repair and log requirements; no new write capability.
 
@@ -118,4 +120,4 @@ Map report-repair `not_applied` to `failed`, and both `unverified` and `released
 
 After the last disposition, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/history.md` unless this session read it since its last compaction. Consolidate this task’s log using `render`, run `resolve`, then `check`. Send the handover only after exit 0; on findings fix and recheck up to twice. If still failing or unreadable, record why in the task and start the handover with “History incomplete: [reason]”.
 
-Send one outcome-first message: verified items; visual QA; each uncompleted item with disposition, reason and next step; manual checklist; task/log paths. Then the Demo Story (bounded: one line naming the beat served) and history block, with proposed decisions and lessons for yes/edit/skip. Write neither without the SE's answer. Follow history.md through the post-answer check/receipt. No menu or lesson ceremony precedes the outcome.
+Send one outcome-first message: verified items; visual QA; each uncompleted item with disposition, reason and next step; manual checklist; task/log paths. Then the Demo Story (bounded: one line naming the beat served) and history block, with proposed decisions and lessons for yes/edit/skip. Write neither without the SE's answer. Follow history.md through the post-answer check/receipt. Nothing precedes the outcome.

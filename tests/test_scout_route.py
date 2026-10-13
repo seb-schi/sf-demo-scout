@@ -311,8 +311,8 @@ class BuildRouteTests(unittest.TestCase):
                      '"authored; live validation pending"', 'Pilots and runtime tests run here')
 
     def test_rb1_cross_customer_reuse_needs_the_se(self):
-        self.phrases(self.command, "Never template from another customer folder's source, records or wording",
-                     'offer such a build by folder name', "reuse it only on the SE's yes", "scan copies for that customer's content")
+        self.phrases(self.command, "Never template from another customer's folder",
+                     'offer its build by name', "reuse it only on the SE's yes", "scan copies for that customer's content")
 
     def test_rb2_every_retry_is_bound(self):
         self.phrases(self.command, 'Before every write (retries too)', 'Never automatically retry a write')
@@ -376,6 +376,10 @@ class BuildRouteTests(unittest.TestCase):
         self.phrases(self.build, 'No envelope, item cap or one-spec rule applies', 'fuzzy matching rules are authorable',
                      'UI-only goes on the SE\'s checklist with a fetched citation naming the exact operation',
                      'Such a task needs `story` with beats, even on the complete-brief path')
+
+    def test_rb6_deletes_always_get_their_own_confirmation(self):
+        self.phrases(self.command, 'counts as its confirmation, except for deletes',
+                     'Confirm each delete alone, naming every target and what goes with it.')
 
     def test_history_reread_rule(self):
         self.phrases(self.command, 'unless this session read it since its last compaction')
