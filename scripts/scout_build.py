@@ -355,8 +355,11 @@ def open_jobs(record, checkpoints):
     result = []
     for checkpoint in checkpoints:
         item = owners.get(checkpoint['attempt'])
-        for job in checkpoint_state(checkpoint, item)['open']:
+        state = checkpoint_state(checkpoint, item)
+        for job in state['open']:
             result.append({'attempt': checkpoint['attempt'], 'item': item['id'] if item else None, 'job': job['ref']})
+        if not state['jobs'] and checkpoint.get('outcome') is None:  # R5-C1: in flight, no receipt yet: reconcile first
+            result.append({'attempt': checkpoint['attempt'], 'item': item['id'] if item else None, 'job': 'in flight, no outcome recorded'})
     return result
 
 
@@ -469,12 +472,18 @@ def write_order_findings(record, checkpoints):
             settling = [states[a] for a in prerequisite['attempts'] if a in states and states[a]['outcome'] in SETTLED_OK]
             if not mine or not settling:
                 continue
-            start, settled = _earliest([_start(s, set()) for s in mine]), _earliest([_settle(s) for s in settling])
-            early = None
-            if start and settled and _comparable(start[0], settled[0]):
-                early = True if start[1] < settled[0] else False if start[0] >= settled[1] else None
-            if early is None:
-                early = min(s['position'] for s in settling) > min(s['position'] for s in mine)
+            first = states[_chronology(item, states)[0]]  # the dependent's first attempt, in the order they ran
+            start = _start(first, set())
+
+            def after(state):  # R5-F1: did this settling attempt settle after the dependent started? Certain times decide.
+                settled = _settle(state)
+                if start and settled and _comparable(start[0], settled[0]):
+                    if start[1] < settled[0]:
+                        return True
+                    if start[0] >= settled[1]:
+                        return False
+                return state['position'] > first['position']
+            early = all(after(state) for state in settling)
             if early:
                 problems.append('%s was attempted before its prerequisite %s settled' % (item['id'], dependency))
     return problems
@@ -545,11 +554,16 @@ def beat_verdict(record, beat):
             reasons['failed'].append(flip + ' rehearsal failed')
         elif result is None:
             reasons['unverified'].append(flip + ' has no rehearsal result')
+        elif result == 'not_rehearsable' and not _text(rehearsal['evidence']):
+            reasons['unverified'].append(flip + ' is not rehearsable without a stated reason')  # R5-C5
         elif result == 'not_rehearsable':
             reasons['visual_qa'].append(flip + ' could not be rehearsed safely')
         elif not _text(rehearsal['evidence']):
             reasons['unverified'].append(flip + ' passed without rehearsal evidence')
+    history = {c.get('item') for c in beat['claims'] if not _active(c)} - {c.get('item') for c in beat['claims'] if _active(c)}
     for item in beat_items(record, beat):
+        if item['disposition'] == 'omitted' and item['id'] in history:
+            continue  # R5-C2: withdrawn with the optional claim that alone named it
         if item['disposition'] not in SETTLED_OK:
             reasons['unverified'].append(item['id'] + ' is ' + str(item['disposition']))
         elif not _text(item.get('evidence')):
@@ -634,13 +648,16 @@ def bound_orgs(task_visible):
     Bound, Binding, Target or Org (as `pending` reads a folder's org); or any line of a section so titled. Every
     other section (the request, amendments, provenance) and every quote is ignored, whatever its lines say.
     """
-    found, section = set(), 'header'
+    found, section, titled = set(), 'header', False
     for line in task_visible.splitlines():
         heading = re.match(r'^(#{1,6})[ \t]+\S', line)
         if heading:
-            if len(heading[1]) == 2:  # R4-F3: deeper headings inherit their `##` section's scope
+            if len(heading[1]) == 1:  # R5-F3: the first `#` is the record's title; a later one ends every scope
+                section = 'other' if titled or section != 'header' else 'header'
+                titled = True
+            elif len(heading[1]) == 2:  # R4-F3: deeper headings inherit their `##` section's scope
                 section = 'binding' if BINDING_SECTION.match(line) else 'other'
-            elif len(heading[1]) > 2 and section == 'header':
+            elif section == 'header':
                 section = 'other'
             continue
         text = re.sub(r'[*_`]', '', line)
@@ -709,7 +726,7 @@ def _flow_findings(folder, item, orgs):
         return problems
     if unavailable:
         return [] if item['visual_qa'] and not carries else ['Flow test %s is documented unavailable: visual QA, never a pass; record "visual_qa":true%s' % (', '.join(unavailable), carries)]
-    if not item['visual_qa'] and flow.get('active_version') != flow['version']:
+    if (not item['visual_qa'] or 'active_version' in flow) and flow.get('active_version') != flow['version']:  # R5-F2
         return ['Flow active_version %s, read back after activation, must equal version %d' % (flow.get('active_version'), flow['version'])]
     return []
 
@@ -824,7 +841,7 @@ def section_family(item_type):
         canonical = TYPE_ALIASES.get(form, form)
         if canonical in TYPE_SECTIONS:
             return canonical
-    return kind
+    return 'businessprocess' if 'businessprocess' in kind else kind  # R5-C4: "Support Business Process" and the like
 
 
 def type_section_findings(record, checkpoints, section_names, folder=None):
