@@ -33,6 +33,7 @@ KNOWN_TYPES = set('customobject customfield recordtype permissionset permissions
                  'custommetadatatype globalvalueset standardvalueset'.split())
 TYPE_ALIASES = {'pagelayout': 'layout', 'lightningapp': 'customapplication', 'path': 'pathassistant',
                 'records': 'record', 'picklistvalues': 'standardvalueset'}
+BUILD.KNOWN_TYPES, BUILD.TYPE_ALIASES = KNOWN_TYPES, TYPE_ALIASES  # W10 F7: complexity is derived from these
 CHECKPOINT = re.compile(r'^### (PENDING|' + '|'.join(DISPOSITIONS) +
                         r') — component repair · attempt ([\w.-]+) · (\d{4}-\d\d-\d\d \d\d:\d\d)$')
 OUTCOME = re.compile(r'^- \*\*Outcome: (' + '|'.join(DISPOSITIONS) + r')\.\*\* (\S.*)$', re.M)
@@ -377,13 +378,13 @@ def check(task, record):
         for beat in story['beats']:
             if any(not beat[k].strip() for k in ('name', 'persona', 'pain', 'climax')):
                 issue('story', 'beat needs name, persona, pain and climax')
-            if beat['proof_moment'] and not beat['claims']:
+            if beat['proof_moment'] and not any(BUILD._active(c) for c in beat['claims']):  # W10 R2-F2
                 issue('story', 'proof moment needs a claim with readback')
             for claim in beat['claims']:
-                item = items.get(claim['item'])
-                if not claim['text'].strip() or not item or not item.get('readback', '').strip():
+                item, active = items.get(claim['item']), BUILD._active(claim)  # W10 R2-F7: a dropped optional claim is history
+                if not claim['text'].strip() or not item or (active and not item.get('readback', '').strip()):
                     issue('story', 'every claim needs an existing item with readback')
-                if beat['proof_moment']:
+                if beat['proof_moment'] and active:
                     proof_items.add(claim['item'])
     for item in items.values():
         identifier, disposition = item['id'], item['disposition']
@@ -412,7 +413,7 @@ def check(task, record):
         grounded, docs, unavailable = item['grounding'], False, False
         for entry in grounded:
             source, reference, verdict = entry['source'], entry['ref'], entry['verdict']
-            if not entry['assumption'].strip() or source not in ('docs', 'skill', 'org', 'ungrounded'):
+            if not entry['assumption'].strip() or source not in ('docs', 'skill', 'org', 'ungrounded', 'lesson'):  # W10 F5: a retry may cite a lesson
                 issue('grounding', identifier + ' invalid source or empty assumption')
             if source == 'docs':
                 valid = docs_url(reference) and bool(verdict.strip())
@@ -573,19 +574,24 @@ def check(task, record):
             if over(text):
                 issue('arch', 'map exceeds 350 lines / 3750 words' + (' only due to SE sections' if not over(template) else ''),
                       arch, warning=not over(template))
-    positions, checkpoints, names = {}, [], []
-    if log.exists():
-        log_text = read(log)
-        for section in headings(log_text):
-            names.append(section[0])
-            match = CHECKPOINT.fullmatch(log_text[section[2]:].splitlines()[0])
-            if match:
-                positions.setdefault(match[2], section[2])
-                checkpoints.append((match[2], section[4]))
-    for rule, message in BUILD.check_findings(record, task.parent, positions, checkpoints, names):
+    checkpoints, names = log_checkpoints(log) if log.exists() else ([], [])
+    for rule, message in BUILD.check_findings(record, task.parent, checkpoints, names, markdown(read(task))[0]):
         issue(rule, message)
     print('\n'.join(findings + warnings) or f'{task}:1: check: pass')
     return 3 if findings else 0
+
+
+def log_checkpoints(log):
+    """W10 hook: the log's headings and owned checkpoints for scout_build.py, raw (fences included) and parsed."""
+    text, checkpoints, names = read(log), [], []
+    for title, level, start, end, body in headings(text):
+        if level == 2:  # R2-C4: the template's sections are `##`; a nested note never stands in for one
+            names.append(title)
+        match = CHECKPOINT.fullmatch(text[start:].splitlines()[0])
+        if match:
+            checkpoints.append(dict(attempt=match[2], stamp=match[3], position=start, raw=text[start:end], visible=body,
+                                    outcome=own_outcome(body), existing=existing_classification(body)))
+    return checkpoints, names
 
 
 def checkpoint_heading(title):
@@ -629,11 +635,26 @@ def pending(directory, org, username):
             continue
         records = []
         for path, text in texts:
-            for title, _, start, _, body in headings(text):
+            for title, _, start, end, body in headings(text):
                 if not checkpoint_heading(title):
                     continue
                 state = checkpoint_state(text[start:].splitlines()[0], title, body)
-                print(json.dumps({'file': str(path), 'line': text[:start].count('\n') + 1, 'state': state, 'heading': title}))
+                row = {'file': str(path), 'line': text[:start].count('\n') + 1, 'state': state, 'heading': title}
+                own = CHECKPOINT.fullmatch(text[start:].splitlines()[0])
+                legacy = not own and (state == 'unresolved' or (state == 'resolved' and
+                                      'unverified' in re.findall(r'[a-z_]+', (outcome_values(body) or [''])[-1].lower())))
+                if own or legacy:  # W10 C8 and R3-C4: a job left unsettled, whatever the heading says; legacy logs by job ID
+                    held = BUILD.checkpoint_state(dict(attempt=own[2] if own else 'legacy', stamp=own[3] if own else '',
+                                                       position=start, raw=text[start:end], visible=body,
+                                                       outcome=own_outcome(body) if own else None), None)['open']
+                    final = own_outcome(body) if own else None  # R4-C1: settled only when the body's own outcome says so
+                    if final in ('applied', 'already_satisfied', 'failed', 'blocked', 'omitted') and own[1] in (final, 'PENDING'):
+                        held = [job for job in held if job['explicit']]  # a bare ID in settled history is a settled deploy
+                    elif not own:
+                        held = [job for job in held if BUILD.JOB_ID.fullmatch(job['ref'])]
+                    if held:
+                        row['open_jobs'] = [job['ref'] for job in held]
+                print(json.dumps(row))
             if path.name.startswith('task-'):
                 try:
                     records.append((path, task_record(path)))
@@ -727,8 +748,9 @@ def main(argv=None):
             if args.command == 'render':
                 print(render(record), end='')
             elif args.command == 'plan':
+                log = local(task.parent, record['change_log'])
                 try:
-                    print(json.dumps(BUILD.plan(record)))
+                    print(json.dumps(BUILD.plan(record, log_checkpoints(log)[0] if log.exists() else [])))
                 except BUILD.CycleError as error:
                     print(f'{task}:1: plan: {error}')
                     return 3

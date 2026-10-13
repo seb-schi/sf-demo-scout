@@ -199,7 +199,7 @@ class ScoutRouteTests(unittest.TestCase):
                     'unverified': 'A write happened or may have happened, and no read-back settles it',
                     'omitted': 'docs-confirmed UI-only with citation and manual-checklist entry'}
         for label, meaning in meanings.items():
-            rows = re.findall(r'^\| `' + label + r'` \| (.+) \|$', self.command, re.M)
+            rows = re.findall(r'^`' + label + r'` \| (.+)$', self.command, re.M)
             self.assertEqual(len(rows), 1, label)
             self.assertIn(meaning, rows[0])
         self.assertIn('both `unverified` and `released_unverified` to `unverified`', self.command)
@@ -304,15 +304,19 @@ class BuildRouteTests(unittest.TestCase):
             self.assertIn(phrase, text)
 
     def test_command_points_to_build_and_keeps_writes_serial(self):
-        self.phrases(self.command, 'With several items or any gated or Docs-gated item, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/build.md` before the first write',
+        self.phrases(self.command, 'With three or more items or any gated or Docs-gated item, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/build.md` before the first write',
                      'authoring may run in parallel, org writes stay serial')
-        self.phrases(self.build, 'Only the orchestrator writes to the org, the task record and the log',
+        self.phrases(self.build, '`commands/scout.md` routes complex plans here and still governs targeting, confirmation, dispositions and history',
+                     'Only the orchestrator writes to the org, the task record and the log',
                      'Dispatch at most four authoring workers at once', 'never write to the org, run pilots or runtime tests',
                      '"authored; live validation pending"', 'Pilots and runtime tests run here')
 
     def test_rb1_cross_customer_reuse_needs_the_se(self):
-        self.phrases(self.command, "Never template from another customer's folder",
-                     'offer its build by name', "reuse it only on the SE's yes", "scan copies for that customer's content")
+        self.phrases(self.command, "Read other customers' folders only for the history and conflict checks named here",
+                     "copy their source, records, seed data or wording only on the SE's yes to an offer naming its folder",
+                     "scan copies for that customer's content")
+        handover = self.command.split('## Verification and handover')[1]
+        self.phrases(handover, 'any copy scan')
 
     def test_rb2_every_retry_is_bound(self):
         self.phrases(self.command, 'Before every write (retries too)', 'Never automatically retry a write')
@@ -320,7 +324,8 @@ class BuildRouteTests(unittest.TestCase):
 
     def test_rb3_retry_records_the_error_rule(self):
         self.phrases(self.build, "Never retry automatically: a retry is a new attempt after K7's error rule",
-                     'recording the covering lesson or the Docs search of the verbatim error')
+                     'recording the covering lesson or the Docs search of the verbatim error as a grounding entry',
+                     '"attempt":"<retry-ID>"', '"source":"lesson|docs"', '"ref":"<lesson-ID|Docs-URL>"')
 
     def test_rb4_record_shape_and_rb5_beat_surfaces(self):
         self.phrases(self.build, "Match each on-screen noun to the record's shape", 'a "logged call" is a Task with `TaskSubtype = Call`',
@@ -331,7 +336,13 @@ class BuildRouteTests(unittest.TestCase):
                      "While any job isn't terminal, the write slot stays occupied: no org mutation of any kind",
                      "A timed-out job stays `unverified` with its job ID and launch receipt",
                      'A read-back never settles a job that may still land',
-                     'apply the delta to current source', 'keep the draft')
+                     'apply the delta to current source', 'keep the draft',
+                     '`open_jobs` and `ready`, the items writable now',
+                     "Its checkpoint's `job:` line (an ID, else the executor) records `launched:` and `settled:`; only a terminal `status:` settles it",
+                     '`Succeeded|SucceededPartial|Failed|Canceled`', '`JobComplete|Failed|Aborted`', '`Completed|Failed`',
+                     '`Active|Inactive|NeedsUICommit|Failed`')
+        self.phrases(self.command, '`- job:<ID>;status:<terminal>;launched:<YYYY-MM-DDTHH:MM:SS>;settled:<…>` per job',
+                     "Settle every `open_jobs` entry `pending` reports with a status read before writing, or stop and tell the SE")
 
     def test_prerequisites_and_failures_block_dependents(self):
         self.phrases(self.build, "Proceed only when every prerequisite is `applied` or `already_satisfied`",
@@ -344,15 +355,20 @@ class BuildRouteTests(unittest.TestCase):
                      "omit failed items' grants and name them in the log",
                      "A Service Agent's backing-action grants precede its validation probe")
 
-    def test_contract_table_has_one_row_per_type(self):
-        for row in ('| Object, field, record type |', '| Permission set |', '| App, tab |', '| Layout |',
-                    '| Record page field section |', '| List view |', '| Sharing rules |', '| Report, report type |',
-                    '| Existing report filter |', '| Data |', '| Email-to-Case |', '| Flow |', '| Apex |', '| LWC |',
-                    '| Agentforce |', '| Anything else |'):
-            self.assertIn(row, self.build)
+    def test_contract_table_has_one_row_per_type_family(self):
+        rows = re.findall(r'(?m)^([^|`\n][^|\n]*?) \| ', self.build)
+        self.assertEqual(rows[0], 'Type family')
+        self.assertEqual(rows[1:], ['Object, field, record type', 'Permission set', 'App, tab', 'Queue, business process, path',
+                                    'Layout', 'Record page field section', 'Validation rule', 'List view', 'Sharing rules',
+                                    'Report, report type', 'Existing report filter', 'Custom setting, metadata type', 'Data',
+                                    'Email-to-Case', 'Flow', 'Apex', 'LWC', 'Agentforce', 'Anything else'])
         self.phrases(self.build, 'ignore its envelopes, ledgers, output formats, phase topology and model choices',
                      'A Flow item records its frozen validation mode and every required test',
-                     "An Agentforce item references the evaluator's evidence file, with one obligation per required action and assertion")
+                     "An Agentforce item references the evaluator's evidence file, with one obligation per required action and assertion",
+                     'An `unavailable` test or invocation is visual QA, never a pass',
+                     '"unsupported_reason":"…","version":N,"active_version":N}', '"agent_version":"<active-version-ID>"',
+                     '`{test,flow_api_name,version,org_id,"outcome":"Pass|unavailable",reason}`',
+                     'when optional, `"required":false`')
 
     def test_rehearsal_rule_and_its_exclusions(self):
         self.phrases(self.build, 'Rehearse a live flip only in anonymous Apex inside an always-rolled-back savepoint',
@@ -365,11 +381,12 @@ class BuildRouteTests(unittest.TestCase):
                      '`visual_qa` when the only gaps are visual QA', '`unverified` when evidence is missing',
                      '`failed` when a claim or rehearsal failed',
                      'A `failed` or `unverified` beat makes Overall `UNRESOLVED`; a `visual_qa` beat makes it `FINISHED_WITH_EXCEPTIONS`',
-                     'never drop a required proof-moment claim')
+                     'drop only claims marked `"required":false`')
 
     def test_conditional_log_sections_and_resume(self):
         self.phrases(self.build, "with per-type sections only under the template's conditions",
-                     "Agent Not Live only when an agent isn't live", 'Execution Order Check whenever a flow deploys',
+                     'not final dispositions', "Agent Not Live whenever an attempted agent isn't live",
+                     'Existing Agent Before-State for a modified incumbent', 'Execution Order Check whenever a flow is attempted',
                      'settle any non-terminal job first, then run `plan` for the unsettled items')
 
     def test_no_scope_caps_and_docs_gated_classification(self):

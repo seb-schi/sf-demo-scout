@@ -753,6 +753,8 @@ class ScoutHistoryTests(unittest.TestCase):
             self.data = record()
             self.data['items'][0]['type'] = kind
             self.save()
+            if kind == 'Path':  # W10 R4-F4 changed this: an attempted Path item needs its Paths Deployed section
+                self.log.write_text(self.log.read_text().replace('## Checkpoints\n', '## Paths Deployed (if any)\nRecorded.\n## Checkpoints\n', 1))
             self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
         self.story()
         self.data['items'][0]['beat'] = 'B99'
