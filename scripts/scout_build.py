@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Complex-plan rules for /scout (W10): write order, authoring layers, beat verdicts, evidence references.
+"""Complex-plan rules for /scout (W10): write order, readiness, job settlement, beat verdicts, evidence references.
 
-Pure functions over a parsed scout-items record; `scout_history.py` calls them for `plan`, `render` and
-`check`. Standard library only, Python 3.9 or newer, and safe under -S.
+Pure functions over a parsed scout-items record and the task log's checkpoints; `scout_history.py` calls them for
+`plan`, `render` and `check`. Standard library only, Python 3.9 or newer, and safe under -S.
 """
+from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
 import re
@@ -15,7 +16,33 @@ CLAIM_RESULTS = ('passed', 'failed', 'dropped')
 FLIP_RESULTS = ('passed', 'failed', 'not_rehearsable')
 VERDICTS = ('verified', 'visual_qa', 'unverified', 'failed')
 FLOW_MODES = ('flow_test_required', 'unsupported')
+FLOW_FAILURES = ('Fail', 'Error', 'Skip')
 GATE = Path(__file__).resolve().parents[1] / 'prompts/building/agentforce-validation-gate.md'
+UNAVAILABLE_INVOCATION = 'current invocation evidence is unavailable'  # agentforce_evidence.py's reason, pinned by a test
+EVIDENCE_LIMIT = 4 * 1024 * 1024
+
+# F7: W3's autonomous type table; scout_history.py hands over its own, so the two never drift.
+KNOWN_TYPES, TYPE_ALIASES = frozenset(), {}
+
+# C3: type families by keyword, first match wins, so no spelling bypasses a type-conditioned rule.
+FAMILIES = (('flow', ('flow',)), ('agentforce', ('agent', 'bot', 'genai', 'aiauthoring')), ('apex', ('apex', 'trigger')),
+            ('lwc', ('lwc', 'lightningcomponentbundle', 'lightningwebcomponent')), ('emailtocase', ('emailtocase', 'casesettings')))
+GATED = tuple(name for name, _ in FAMILIES)
+
+# F14: sections the change-log template asks for whenever an item of the family was attempted.
+TYPE_SECTIONS = {'flow': ('Flows Deployed', 'Execution Order Check'), 'apex': ('Apex Deployed',), 'lwc': ('LWC Deployed',),
+                 'agentforce': ('Agentforce Deployed', 'Agentforce Current-Test Evidence')}
+
+# F2: each executor family's explicit terminal vocabulary. Job IDs key by prefix; submissions without one by item family.
+JOB_ID = re.compile(r'(?<![A-Za-z0-9])(?:0Af|750)[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?(?![A-Za-z0-9])')
+VOCABULARY = {'0Af': ('Metadata API deploy', ('Succeeded', 'SucceededPartial', 'Failed', 'Canceled')),
+              '750': ('Bulk job', ('JobComplete', 'Failed', 'Aborted')),
+              'agentforce': ('Agentforce publish', ('Active', 'Inactive', 'NeedsUICommit', 'Failed')),
+              'emailtocase': ('Email-to-Case apply script', ('Completed', 'Failed'))}
+FIELD = re.compile(r'(?i)^[ \t]*(?:[-*+][ \t]*)?(job|status|launched|settled)[ \t]*:[ \t]*(.*)$')
+PART = re.compile(r'(?i)^[ \t]*(status|launched|settled)[ \t]*:[ \t]*(.*?)[ \t]*$')
+ISO = re.compile(r'(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d):(\d\d)(?:[.,](\d{1,9}))?(Z|[+-]\d\d:?\d\d)?')
+ORG_ID = re.compile(r'(?<![A-Za-z0-9])00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?(?![A-Za-z0-9])')
 
 
 class CycleError(ValueError):
@@ -24,6 +51,36 @@ class CycleError(ValueError):
 
 def _text(value):
     return isinstance(value, str) and bool(value.strip())
+
+
+def _positive(value):
+    """F10: a version is a positive integer, never a bool or a float."""
+    return type(value) is int and value > 0
+
+
+def family(item_type):
+    """C3: the item's type family (flow, agentforce, apex, lwc, emailtocase), or its letters for any other type."""
+    kind = re.sub(r'[^a-z]', '', item_type.lower())
+    for name, keys in FAMILIES:
+        if any(key in kind.replace('workflow', '') for key in keys):
+            return name
+    return kind
+
+
+def autonomous(item):
+    """F7: a type outside every gated family that W3 lists as known; anything else is gated or Docs-gated."""
+    kind = re.sub(r'[^a-z]', '', item['type'].lower())
+    return family(item['type']) not in GATED and TYPE_ALIASES.get(kind, kind) in KNOWN_TYPES
+
+
+def derived_complex(record):
+    """F7: three or more items, or any gated or Docs-gated type."""
+    return len(record['items']) >= 3 or not all(autonomous(i) for i in record['items'])
+
+
+def is_complex(record):
+    """F7: complexity is derived, never trusted; `"complex":true` can add it but `false` can't remove it."""
+    return record.get('complex') is True or derived_complex(record)
 
 
 def validate(record):
@@ -46,6 +103,8 @@ def validate(record):
         for claim in beat['claims']:
             if 'result' in claim and claim['result'] not in CLAIM_RESULTS:
                 raise ValueError('invalid claim result')
+            if 'required' in claim and type(claim['required']) is not bool:
+                raise ValueError('invalid claim required flag')
     rehearsals = record.get('rehearsals', [])
     if not isinstance(rehearsals, list):
         raise ValueError('invalid rehearsals')
@@ -56,10 +115,18 @@ def validate(record):
     for item in record['items']:
         if 'evidence_ref' in item and not _text(item['evidence_ref']):
             raise ValueError('invalid evidence_ref')
+        if 'agent_version' in item and not _text(item['agent_version']):
+            raise ValueError('invalid agent_version')
+        if any('attempt' in entry and not _text(entry['attempt']) for entry in item['grounding']):
+            raise ValueError('invalid grounding attempt')
         if 'flow_validation' in item:
             flow = item['flow_validation']
+            tests = flow.get('required_tests', []) if isinstance(flow, dict) else None
             if (not isinstance(flow, dict) or not _text(flow.get('flow_api_name')) or flow.get('mode') not in FLOW_MODES
-                    or not isinstance(flow.get('required_tests', []), list)):
+                    or not isinstance(tests, list) or any(not _text(t) for t in tests) or len(set(tests)) != len(tests)
+                    or (flow['mode'] == 'unsupported' and tests)
+                    or any(key in flow and not _positive(flow[key]) for key in ('version', 'active_version'))
+                    or ('unsupported_reason' in flow and not isinstance(flow['unsupported_reason'], str))):
                 raise ValueError('invalid flow_validation')
         if 'obligations' in item:
             if not isinstance(item['obligations'], list) or not item['obligations']:
@@ -72,38 +139,289 @@ def validate(record):
                 seen.add(obligation['id'])
 
 
-def plan(record):
-    """Topological write order of depends_on, authoring layers, and the unsettled remainder."""
+# ---- Jobs, settlement and the serial write slot (X5, F1-F3) ----
+
+def _moment(value):
+    """F3: an ISO time with seconds, optionally zoned; None when malformed."""
+    match = ISO.fullmatch(re.sub(r'\s*\([^()]*\)$', '', value.strip()))
+    if not match:
+        return None
+    year, month, day, hour, minute, second = (int(match[n]) for n in range(1, 7))
+    offset = 0 if match[8] in (None, 'Z') else int(match[8][0] + '1') * (int(match[8][1:3]) * 60 + int(match[8][-2:]))
+    try:
+        zone = timezone(timedelta(minutes=offset)) if match[8] else None
+        return datetime(year, month, day, hour, minute, second, int((match[7] or '0').ljust(6, '0')[:6]), zone)
+    except ValueError:
+        return None
+
+
+def _word(value):
+    """A status field's value: one word, an optional trailing parenthetical, no markup."""
+    value = re.sub(r'\s*\([^()]*\)$', '', (value or '').strip()).strip(' .')
+    return value if re.fullmatch(r'\w+', value) else value or None
+
+
+def _fields(visible):
+    """`job:` lines (their IDs and inline fields) and checkpoint-level status, launched and settled, outside fences."""
+    lines, level = [], {}
+    for line in visible.splitlines():
+        match = FIELD.match(re.sub(r'[*`]', '', line))
+        if not match:
+            continue
+        parts = re.split(r'\s*[;·|,]\s*|\s+(?=(?:status|launched|settled)\s*:)', match[2], flags=re.I)
+        entry = level if match[1].lower() != 'job' else {'ref': parts[0].strip(), 'ids': [m[0] for m in JOB_ID.finditer(parts[0])]}
+        if entry is level:
+            level[match[1].lower()] = parts[0].strip()
+        for part in parts[1:]:
+            field = PART.match(part)
+            if field:
+                entry[field[1].lower()] = field[2]
+        if entry is not level:
+            lines.append(entry)
+    return lines, level
+
+
+def checkpoint_state(checkpoint, item):
+    """F1-F3: one checkpoint's jobs and submissions, whether each settled, its times and its format problems.
+
+    Job IDs count wherever they appear, fences included. Settlement is positive: a terminal word from the
+    family's vocabulary in a `status:` field on the same checkpoint. Checkpoint-level fields apply to a lone job.
+    """
+    kind = family(item['type']) if item else ''
+    lines, level = _fields(checkpoint['visible'])
+    jobs, problems = {}, []
+
+    def entry(key, ref, vocabulary):
+        return jobs.setdefault(key, {'ref': ref, 'vocabulary': vocabulary, 'status': None, 'launched': None, 'settled': None})
+    for line in lines:
+        targets = [entry(i[:15], i, i[:3]) for i in line['ids']] or [entry('~' + line['ref'].lower(), line['ref'] or 'submission', kind)]
+        for job in targets:
+            for key in ('status', 'launched', 'settled'):
+                if line.get(key):
+                    job[key] = line[key]
+    for match in JOB_ID.finditer(checkpoint['raw']):
+        entry(match[0][:15], match[0], match[0][:3])
+    for key in ('launched', 'settled'):
+        for job in jobs.values():
+            job[key] = job[key] or level.get(key)
+    if len(jobs) == 1 and level.get('status'):
+        job = next(iter(jobs.values()))
+        job['status'] = job['status'] or level['status']
+    for key, text in [('launched', level.get('launched'))] + [(k, j[k]) for j in jobs.values() for k in ('launched', 'settled')]:
+        if text and _moment(text) is None:
+            problems.append('%s: %s: "%s" is not an ISO time with seconds' % (checkpoint['attempt'], key, text))
+    for job in jobs.values():
+        name, words = VOCABULARY.get(job['vocabulary'], (None, ()))
+        status = _word(job['status'])
+        job['terminal'] = any(status is not None and status.lower() == w.lower() for w in words)
+        if job['status'] is None:
+            job['why'] = 'no status: field'
+        elif name is None:
+            job['why'] = 'a submission without its job ID'
+        elif not job['terminal']:
+            job['why'] = 'status %s is not terminal for a %s (%s)' % (job['status'], name, '|'.join(words))
+        job['launched_at'] = _moment(job['launched']) if job['launched'] else None
+        job['settled_at'] = _moment(job['settled']) if job['settled'] and job['terminal'] else None
+        if job['launched'] is None:
+            problems.append('%s records job %s without a launched: time' % (checkpoint['attempt'], job['ref']))
+        if job['terminal'] and job['settled'] is None:
+            problems.append('%s settled job %s without a settled: time' % (checkpoint['attempt'], job['ref']))
+        if job['launched_at'] and job['settled_at'] and _comparable(job['launched_at'], job['settled_at']) and job['settled_at'] < job['launched_at']:
+            problems.append('%s says job %s settled before it launched' % (checkpoint['attempt'], job['ref']))
+    return {'attempt': checkpoint['attempt'], 'position': checkpoint['position'], 'outcome': checkpoint.get('outcome'),
+            'stamp': checkpoint['stamp'], 'jobs': jobs, 'problems': problems, 'open': [j for j in jobs.values() if not j['terminal']],
+            'launched': _moment(level['launched']) if level.get('launched') else None}
+
+
+def _comparable(*moments):
+    return len({m.tzinfo is None for m in moments if m is not None}) <= 1
+
+
+def _sort_key(moment):
+    return moment.replace(tzinfo=None) if moment.tzinfo is None else moment.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _start(state, exclude):
+    """When an attempt started, as (earliest, latest): its own jobs' launch, else its `launched:`, else its heading minute.
+
+    Jobs it shares with the holder are excluded, so a retry that cites an earlier attempt's job isn't dated by it.
+    """
+    own = [j['launched_at'] for key, j in state['jobs'].items() if key not in exclude]
+    if own and all(own):
+        first = min(own, key=_sort_key)
+        return first, first
+    if not own and state['launched']:
+        return state['launched'], state['launched']
+    try:
+        heading = datetime.strptime(state['stamp'], '%Y-%m-%d %H:%M')
+    except ValueError:
+        return None
+    return heading, heading + timedelta(seconds=59, microseconds=999999)
+
+
+def _inside(holder, other):
+    """F3: True when `other` certainly starts inside `holder`'s open jobs, False when certainly not, None if unknown."""
+    keys = set(holder['jobs'])
+    launched = [j['launched_at'] for j in holder['jobs'].values() if j['launched_at']]
+    if not launched or len(launched) != len(holder['jobs']):
+        return None
+    begin = min(launched, key=_sort_key)
+    settled = [j['settled_at'] for j in holder['jobs'].values()]
+    end = None if holder['open'] else (max(settled, key=_sort_key) if all(settled) else False)
+    if end is False:
+        return None
+    window = _start(other, keys & set(other['jobs']))
+    if window is None:
+        return None
+    earliest, latest = window
+    if not _comparable(begin, earliest, end):
+        return None
+    if earliest >= begin and (end is None or latest < end):
+        return True
+    if latest < begin or (end is not None and earliest >= end):
+        return False
+    return None
+
+
+def job_findings(record, checkpoints):
+    """X5 and F1-F3: settlement, launch and settle times, and the one serial write slot across every attempt."""
+    owners = {a: i for i in record['items'] for a in i['attempts']}
+    states = [checkpoint_state(c, owners.get(c['attempt'])) for c in checkpoints]
+    problems = [p for s in states for p in s['problems']]
+    moments = [m for s in states for j in s['jobs'].values() for m in (j['launched_at'], j['settled_at']) if m]
+    moments += [s['launched'] for s in states if s['launched']]
+    if not _comparable(*moments):
+        problems.append('launched: and settled: times mix zoned and local times; use one form')
+    for state in states:
+        item = owners.get(state['attempt'])
+        if item and item['disposition'] in ('applied', 'already_satisfied', 'failed') and state['open']:
+            job = state['open'][0]
+            problems.append('%s is %s, but attempt %s has an unsettled job (%s: %s); it stays unverified until a terminal status'
+                            % (item['id'], item['disposition'], state['attempt'], job['ref'], job.get('why', 'not terminal')))
+    for holder in states:
+        if not holder['jobs']:
+            continue
+        for other in states:
+            if other is holder or other['attempt'] == holder['attempt'] or other['outcome'] == 'already_satisfied':
+                continue
+            inside = _inside(holder, other)
+            if inside is None:
+                inside = bool(holder['open']) and other['position'] > holder['position']
+            if inside and holder['open']:
+                problems.append('%s left job %s non-terminal, yet %s started after it' % (holder['attempt'], holder['open'][0]['ref'], other['attempt']))
+            elif inside:
+                last = max(holder['jobs'].values(), key=lambda j: _sort_key(j['settled_at']))
+                problems.append("%s launched before %s's job %s settled (%s)" % (other['attempt'], holder['attempt'], last['ref'], last['settled']))
+    return list(dict.fromkeys(problems))
+
+
+def open_jobs(record, checkpoints):
+    """C1: every job this task's log hasn't settled, with its attempt and item."""
+    owners = {a: i for i in record['items'] for a in i['attempts']}
+    result = []
+    for checkpoint in checkpoints:
+        item = owners.get(checkpoint['attempt'])
+        for job in checkpoint_state(checkpoint, item)['open']:
+            result.append({'attempt': checkpoint['attempt'], 'item': item['id'] if item else None, 'job': job['ref']})
+    return result
+
+
+# ---- Plan and write order (C3, C1, X22, F4) ----
+
+def order(record):
+    """The topological write order of depends_on and the authoring layers; CycleError on a cycle or unknown ID."""
     items = {i['id']: i for i in record['items']}
     position = {identifier: n for n, identifier in enumerate(items)}
     for item in items.values():
         for dependency in item['depends_on']:
             if dependency not in items:
                 raise CycleError(item['id'] + ' has unknown dependency ' + dependency)
-    order, layers, done = [], [], set()
+    result, layers, done = [], [], set()
     remaining = set(items)
     while remaining:
         layer = sorted((i for i in remaining if set(items[i]['depends_on']) <= done), key=position.get)
         if not layer:
             raise CycleError('dependency cycle among ' + ', '.join(sorted(remaining, key=position.get)))
         layers.append(layer)
-        order += layer
+        result += layer
         done |= set(layer)
         remaining -= set(layer)
+    return result, layers
+
+
+def plan(record, checkpoints=()):
+    """Write order, authoring layers, the blocked and unsettled remainder, open jobs, and what is ready to write.
+
+    C1: `ready` holds unattempted items whose prerequisites are all applied or already_satisfied, and is empty
+    while any job is open; `next` stays the whole unsettled remainder.
+    """
+    items = {i['id']: i for i in record['items']}
+    write_order, layers = order(record)
     blocked = {}
-    for identifier in order:
+    for identifier in write_order:
         item = items[identifier]
         if item['disposition'] is None:
-            failed = [d for d in item['depends_on']
-                      if items[d]['disposition'] in NOT_OK or d in blocked]
+            failed = [d for d in item['depends_on'] if items[d]['disposition'] in NOT_OK or d in blocked]
             if failed:
                 blocked[identifier] = failed
-    unsettled = [i for i in order if items[i]['disposition'] is None and i not in blocked]
-    return {'order': order, 'layers': layers, 'next': unsettled, 'blocked': blocked}
+    unsettled = [i for i in write_order if items[i]['disposition'] is None and i not in blocked]
+    jobs = open_jobs(record, checkpoints)
+    ready = [] if jobs else [i for i in unsettled if not items[i]['attempts']
+                             and all(items[d]['disposition'] in SETTLED_OK for d in items[i]['depends_on'])]
+    return {'order': write_order, 'layers': layers, 'next': unsettled, 'blocked': blocked, 'open_jobs': jobs, 'ready': ready}
+
+
+def write_order_findings(record, checkpoints):
+    """X22 and F4: a dependent's first attempt follows its prerequisite's first attempt that itself settled."""
+    items = {i['id']: i for i in record['items']}
+    seen = {}
+    for checkpoint in checkpoints:
+        seen.setdefault(checkpoint['attempt'], checkpoint)
+    problems = []
+    for item in items.values():
+        if not item['attempts']:
+            continue
+        first = min((seen[a]['position'] for a in item['attempts'] if a in seen), default=None)
+        for dependency in item['depends_on']:
+            prerequisite = items.get(dependency)
+            if prerequisite is None:
+                continue
+            if prerequisite['disposition'] not in SETTLED_OK:
+                problems.append('%s was attempted while its prerequisite %s is %s' % (item['id'], dependency, prerequisite['disposition']))
+                continue
+            settling = min((seen[a]['position'] for a in prerequisite['attempts'] if a in seen and seen[a]['outcome'] in SETTLED_OK), default=None)
+            if first is not None and settling is not None and settling > first:
+                problems.append('%s was attempted before its prerequisite %s settled' % (item['id'], dependency))
+    return problems
+
+
+def retry_findings(record, checkpoints):
+    """RB3 and F5: a retry, an attempt after a failed one on the same item, cites its covering lesson or Docs search."""
+    outcomes = {c['attempt']: c['outcome'] for c in checkpoints}
+    problems = []
+    for item in record['items']:
+        for previous, attempt in zip(item['attempts'], item['attempts'][1:]):
+            if outcomes.get(previous) != 'failed':
+                continue
+            if not any(e.get('attempt') == attempt and e['source'] in ('lesson', 'docs') and e['ref'].strip() for e in item['grounding']):
+                problems.append('%s retried in %s after failed %s without a grounding entry {"attempt":"%s"} citing the covering '
+                                'lesson or the Docs search of the verbatim error (source lesson or docs, with its ref)'
+                                % (item['id'], attempt, previous, attempt))
+        for entry in item['grounding']:
+            if 'attempt' in entry and entry['attempt'] not in item['attempts']:
+                problems.append('%s grounding names %s, which is not one of its attempts' % (item['id'], entry['attempt']))
+    return problems
+
+
+# ---- Beats and the beat-aware Overall (X1, X2, X21, F6, F8, F9) ----
+
+def _active(claim):
+    """F9 and C6: a dropped claim marked `"required":false` is history, not an obligation; claims default to required."""
+    return not (claim.get('result') == 'dropped' and claim.get('required') is False)
 
 
 def beat_items(record, beat):
-    claimed = {c['item'] for c in beat['claims']}
+    claimed = {c['item'] for c in beat['claims'] if _active(c)}
     return [i for i in record['items'] if i['beat'] == beat['id'] or i['id'] in claimed]
 
 
@@ -111,22 +429,29 @@ def beat_verdict(record, beat):
     """The computed verdict and its reasons; the order is failed, unverified, visual_qa, verified."""
     rehearsals = {}
     for rehearsal in record.get('rehearsals', []):
-        rehearsals[rehearsal['flip']] = rehearsal['result']  # the last rehearsal of a flip counts
+        rehearsals[rehearsal['flip']] = rehearsal  # the last rehearsal of a flip counts
     reasons = {verdict: [] for verdict in VERDICTS}
+    if not _text((beat.get('verification') or {}).get('evidence')):
+        reasons['unverified'].append(beat['id'] + ' records no verification evidence')
     for claim in beat['claims']:
         result = claim.get('result')
         if result == 'failed':
             reasons['failed'].append('claim failed: ' + claim['text'][:60])
         elif result is None:
             reasons['unverified'].append('claim has no result: ' + claim['text'][:60])
+        elif result == 'dropped' and _active(claim):
+            reasons['unverified'].append('required claim dropped: ' + claim['text'][:60])
     for flip in beat.get('flips', []):
-        result = rehearsals.get(flip)
+        rehearsal = rehearsals.get(flip)
+        result = rehearsal['result'] if rehearsal else None
         if result == 'failed':
             reasons['failed'].append(flip + ' rehearsal failed')
         elif result is None:
             reasons['unverified'].append(flip + ' has no rehearsal result')
         elif result == 'not_rehearsable':
             reasons['visual_qa'].append(flip + ' could not be rehearsed safely')
+        elif not _text(rehearsal['evidence']):
+            reasons['unverified'].append(flip + ' passed without rehearsal evidence')
     for item in beat_items(record, beat):
         if item['disposition'] not in SETTLED_OK:
             reasons['unverified'].append(item['id'] + ' is ' + str(item['disposition']))
@@ -138,22 +463,42 @@ def beat_verdict(record, beat):
     return 'verified', []
 
 
+def beats(record):
+    """F8: the one computation of beat verdicts that `render`, Overall and `check` all use; None for a simple task."""
+    if not is_complex(record):
+        return None
+    return [(b['id'],) + beat_verdict(record, b) for b in (record.get('story') or {}).get('beats') or []]
+
+
 def overall(record, base):
-    """Beat-aware Overall for complex tasks; simple tasks keep the item-only Overall."""
-    if not record.get('complex') or not record.get('story'):
+    """X2 and F8: a failed or unverified beat, or a complex task without beats, is UNRESOLVED; visual QA is an exception."""
+    verdicts = beats(record)
+    if verdicts is None:
         return base
-    verdicts = {beat_verdict(record, b)[0] for b in record['story']['beats']}
-    if base == 'UNRESOLVED' or verdicts & {'failed', 'unverified'}:
+    found = {verdict for _, verdict, _ in verdicts}
+    if base == 'UNRESOLVED' or not verdicts or found & {'failed', 'unverified'}:
         return 'UNRESOLVED'
-    if base == 'FINISHED_WITH_EXCEPTIONS' or 'visual_qa' in verdicts:
+    if base == 'FINISHED_WITH_EXCEPTIONS' or 'visual_qa' in found:
         return 'FINISHED_WITH_EXCEPTIONS'
     return base
 
 
 def beats_line(record):
-    if not record.get('complex') or not record.get('story'):
+    verdicts = beats(record)
+    if verdicts is None:
         return None
-    return 'Beats: ' + '; '.join('%s %s' % (b['id'], beat_verdict(record, b)[0]) for b in record['story']['beats'])
+    return 'Beats: ' + ('; '.join('%s %s' % (identifier, verdict) for identifier, verdict, _ in verdicts) or 'none recorded')
+
+
+# ---- Evidence references (X9, C2, C5, F10-F13, F15) ----
+
+def _unique(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('evidence file repeats key ' + key)
+        result[key] = value
+    return result
 
 
 def _evidence(folder, reference):
@@ -162,9 +507,17 @@ def _evidence(folder, reference):
         raise ValueError('evidence_ref must stay inside the folder')
     if any((folder / Path(*Path(reference).parts[:n])).is_symlink() for n in range(1, len(Path(reference).parts) + 1)):
         raise ValueError('evidence_ref symlink refused')
-    if not path.is_file():
+    if not reference or not path.is_file():
         raise ValueError('evidence_ref file missing')
-    return json.loads(path.read_text(encoding='utf-8'))
+    if path.stat().st_size > EVIDENCE_LIMIT:
+        raise ValueError('evidence_ref file is larger than 4 MiB')
+    try:
+        return json.loads(path.read_bytes().decode('utf-8'), object_pairs_hook=_unique,
+                          parse_constant=lambda name: (_ for _ in ()).throw(ValueError('evidence file uses ' + name)))
+    except RecursionError:
+        raise ValueError('evidence file nests too deeply') from None
+    except json.JSONDecodeError as error:
+        raise ValueError('evidence file is not JSON: ' + error.msg) from None
 
 
 def _assessor():
@@ -174,139 +527,203 @@ def _assessor():
     return module
 
 
-def evidence_findings(folder, item):
-    """X9: Flow and Agentforce items reference their contract's mandatory evidence."""
-    kind = re.sub(r'[\s_-]', '', item['type']).lower()
-    settled = item['disposition'] in SETTLED_OK
-    if kind == 'flow':
-        flow = item.get('flow_validation')
-        if flow is None:
-            return ['Flow item records no frozen flow_validation']
-        if flow['mode'] == 'flow_test_required' and not flow.get('required_tests'):
-            return ['flow_test_required needs every required test named']
-        if flow['mode'] == 'unsupported':
-            if not _text(flow.get('unsupported_reason')):
-                return ['unsupported Flow validation needs its frozen reason']
-            if item['disposition'] == 'applied' and not item['visual_qa']:
-                return ['an unsupported Flow validation stays awaiting visual QA']
-            return []
-        if not settled:
-            return []
-        try:
-            evidence = _evidence(folder, item.get('evidence_ref', ''))
-        except (OSError, ValueError, UnicodeError) as error:
-            return [str(error)]
-        results = {r.get('test'): r for r in evidence.get('flow_tests', []) if isinstance(r, dict)}
-        problems = []
-        for test in flow['required_tests']:
-            row = results.get(test)
-            if row is None:
-                problems.append('required Flow test %s has no result' % test)
-            elif row.get('outcome') != 'Pass' or row.get('flow_api_name') != flow['flow_api_name'] or row.get('version') != flow.get('version'):
-                problems.append('Flow test %s did not pass on the frozen flow and version' % test)
+def bound_orgs(task_visible):
+    """C2: the org IDs the task record names outside fences, as 15-character keys."""
+    return sorted({m[0][:15] for m in ORG_ID.finditer(task_visible)})
+
+
+def _flow_findings(folder, item, orgs):
+    flow = item.get('flow_validation')
+    if flow is None:
+        return ['Flow item records no frozen flow_validation']
+    if flow['mode'] == 'flow_test_required' and not flow.get('required_tests'):
+        return ['flow_test_required needs every required test named']
+    if flow['mode'] == 'unsupported' and not _text(flow.get('unsupported_reason')):
+        misplaced = ' (a sibling unsupported_reason is misplaced)' if 'unsupported_reason' in item else ''
+        return ['unsupported Flow validation needs its frozen reason inside flow_validation' + misplaced]
+    if item['disposition'] not in SETTLED_OK:
+        return []
+    carries = '' if item['disposition'] == 'applied' else '; already_satisfied cannot carry visual QA'
+    if not _positive(flow.get('version')):
+        return ['Flow item records no positive integer version']
+    if flow['mode'] == 'unsupported':
+        return [] if item['visual_qa'] and not carries else ['an unsupported Flow validation stays awaiting visual QA' + carries]
+    try:
+        evidence = _evidence(folder, item.get('evidence_ref', ''))
+    except (OSError, ValueError, UnicodeError) as error:
+        return [str(error)]
+    rows = evidence.get('flow_tests') if isinstance(evidence, dict) else None
+    if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
+        return ['evidence file needs a "flow_tests" list of objects']
+    if len(orgs) != 1:
+        return ['the task record names %d org IDs; Flow test org_id needs exactly one bound org' % len(orgs)]
+    problems, unavailable = [], []
+    for test in flow['required_tests']:
+        matches = [r for r in rows if r.get('test') == test]
+        if len(matches) != 1:
+            problems.append('required Flow test %s has %s' % (test, '%d rows; keep one current result' % len(matches) if matches else 'no result'))
+            continue
+        row = matches[0]
+        org = row.get('org_id')
+        if row.get('flow_api_name') != flow['flow_api_name'] or not _positive(row.get('version')) or row['version'] != flow['version']:
+            problems.append('Flow test %s did not run on the frozen flow and version %d' % (test, flow['version']))
+        elif not (isinstance(org, str) and ORG_ID.fullmatch(org) and org[:15] == orgs[0]):
+            problems.append('Flow test %s names org %s, not the bound org %s' % (test, org, orgs[0]))
+        elif row.get('outcome') == 'unavailable':
+            if _text(row.get('reason')):
+                unavailable.append(test)
+            else:
+                problems.append('Flow test %s is unavailable without its reason' % test)
+        elif row.get('outcome') in FLOW_FAILURES:
+            problems.append('Flow test %s did not pass on the frozen flow and version (%s)' % (test, row['outcome']))
+        elif row.get('outcome') != 'Pass':
+            problems.append('Flow test %s has no terminal outcome (Pass, Fail, Error, Skip, or unavailable with its reason)' % test)
+    if problems:
         return problems
-    if kind in ('agentforce', 'agent', 'agentforceagent'):
-        obligations = item.get('obligations')
-        if not obligations:
-            return ['Agentforce item records no obligations']
-        if not settled:
-            return []
-        try:
-            evidence = _evidence(folder, item.get('evidence_ref', ''))
-            assessor, gate = _assessor(), GATE.read_bytes()
-        except (OSError, ValueError, UnicodeError) as error:
-            return [str(error)]
-        contexts = {c.get('item_id'): c for c in evidence.get('agent_contexts', []) if isinstance(c, dict)}
-        runtimes = evidence.get('agent_runtime', {}) if isinstance(evidence.get('agent_runtime'), dict) else {}
-        problems = []
-        for obligation in obligations:
-            context, runtime = contexts.get(obligation['id']), runtimes.get(obligation['id'])
-            if context is None or runtime is None:
-                problems.append('obligation %s has no evidence' % obligation['id'])
-                continue
-            result = assessor.assess(obligation['agent_runtime'], context, runtime, gate)
-            if result.get('assessment') != 'PASS':
-                problems.append('obligation %s: %s' % (obligation['id'], result.get('reason', 'not passed')))
-        return problems
+    if unavailable:
+        return [] if item['visual_qa'] and not carries else ['Flow test %s is documented unavailable: visual QA, never a pass; record "visual_qa":true%s' % (', '.join(unavailable), carries)]
+    if not item['visual_qa'] and flow.get('active_version') != flow['version']:
+        return ['Flow active_version %s, read back after activation, must equal version %d' % (flow.get('active_version'), flow['version'])]
     return []
 
 
-def write_order_findings(record, positions):
-    """X22 and C8 `plan`: no attempt before its prerequisites settled, in log order."""
-    items = {i['id']: i for i in record['items']}
+def _agent_findings(folder, item):
+    obligations = item.get('obligations')
+    if not obligations:
+        return ['Agentforce item records no obligations']
     problems = []
-    for item in items.values():
+    for n, obligation in enumerate(obligations):
+        twin = next((o for o in obligations[:n] if json.dumps(o['agent_runtime'], sort_keys=True) == json.dumps(obligation['agent_runtime'], sort_keys=True)), None)
+        if twin:
+            problems.append('obligations %s and %s have identical acceptance; each action and assertion needs its own inputs' % (twin['id'], obligation['id']))
+    if item['disposition'] not in SETTLED_OK:
+        return problems
+    version = item.get('agent_version')
+    if not _text(version):
+        return problems + ['Agentforce item records no agent_version from its own publish and activation read-back']
+    try:
+        evidence = _evidence(folder, item.get('evidence_ref', ''))
+        assessor, gate = _assessor(), GATE.read_bytes()
+    except (OSError, ValueError, UnicodeError) as error:
+        return problems + [str(error)]
+    contexts = evidence.get('agent_contexts') if isinstance(evidence, dict) else None
+    runtimes = evidence.get('agent_runtime') if isinstance(evidence, dict) else None
+    if (not isinstance(contexts, list) or not all(isinstance(c, dict) for c in contexts)
+            or not isinstance(runtimes, dict) or not all(isinstance(r, dict) for r in runtimes.values())):
+        return problems + ['evidence file needs "agent_contexts" objects and "agent_runtime" objects keyed by obligation ID']
+    unavailable = []
+    for obligation in obligations:
+        found = [c for c in contexts if c.get('item_id') == obligation['id']]
+        runtime = runtimes.get(obligation['id'])
+        if not found or runtime is None:
+            problems.append('obligation %s has no evidence' % obligation['id'])
+            continue
+        if len(found) > 1:
+            problems.append('obligation %s has %d agent_contexts; keep one' % (obligation['id'], len(found)))
+            continue
+        stale = [v for v in (found[0].get('deployed_version_id'), runtime.get('deployed_version_id')) if v != version]
+        if stale:
+            problems.append('obligation %s: evidence is for a different deployed version (%s), not agent_version %s'
+                            % (obligation['id'], json.dumps(stale[0])[:80], version))
+            continue
+        try:
+            result = assessor.assess(obligation['agent_runtime'], found[0], runtime, gate)
+        except (TypeError, ValueError, KeyError, AttributeError, RecursionError) as error:
+            result = {'assessment': 'INVALID', 'reason': 'evidence could not be assessed (%s)' % type(error).__name__}
+        invocation = runtime.get('invocation') if isinstance(runtime.get('invocation'), dict) else {}
+        if result.get('assessment') == 'PASS':
+            continue
+        if (result.get('assessment'), result.get('reason')) == ('UNAVAILABLE', UNAVAILABLE_INVOCATION) and invocation.get('status') == 'unavailable':
+            unavailable.append(obligation['id'])
+            continue
+        problems.append('obligation %s: %s' % (obligation['id'], result.get('reason', 'not passed')))
+    if not problems and unavailable and not (item['visual_qa'] and item['disposition'] == 'applied'):
+        carries = '' if item['disposition'] == 'applied' else '; already_satisfied cannot carry visual QA'
+        problems.append('obligation %s documents an unavailable runtime: visual QA, never a pass; record "visual_qa":true%s'
+                        % (', '.join(unavailable), carries))
+    return problems
+
+
+def evidence_findings(folder, item, orgs=()):
+    """X9: Flow and Agentforce items reference their contract's mandatory evidence.
+
+    C5: only items with attempts, or already_satisfied ones (F11), owe it. F12: a documented unavailability is
+    visual QA, never a pass.
+    """
+    kind = family(item['type'])
+    if kind not in ('flow', 'agentforce') or (not item['attempts'] and item['disposition'] != 'already_satisfied'):
+        return []
+    return _flow_findings(folder, item, list(orgs)) if kind == 'flow' else _agent_findings(folder, item)
+
+
+def unavailable_runtime(folder, item):
+    """F12 and F14: does an Agentforce item rest on a documented unavailable runtime (actions unverified in preview)?"""
+    if family(item['type']) != 'agentforce' or item['disposition'] not in SETTLED_OK or not item['visual_qa']:
+        return False
+    try:
+        runtimes = _evidence(folder, item.get('evidence_ref', '')).get('agent_runtime')
+    except (OSError, ValueError, UnicodeError, AttributeError):
+        return False
+    return isinstance(runtimes, dict) and any(isinstance(r, dict) and isinstance(r.get('invocation'), dict)
+                                              and r['invocation'].get('status') == 'unavailable' for r in runtimes.values())
+
+
+# ---- Log sections (C6, F14) ----
+
+def _has(section_names, name):
+    return any(s == name or s.startswith(name + ' (') or s.startswith(name + ' —') for s in section_names)
+
+
+def type_section_findings(record, checkpoints, section_names, folder=None):
+    """F14: the change-log template's own conditions decide each section, never the final disposition."""
+    existing = {c['attempt'] for c in checkpoints if c.get('existing')}
+    problems = []
+    for item in record['items']:
+        kind = family(item['type'])
         if not item['attempts']:
             continue
-        first = min((positions.get(a) for a in item['attempts'] if positions.get(a) is not None), default=None)
-        for dependency in item['depends_on']:
-            prerequisite = items.get(dependency)
-            if prerequisite is None:
-                continue
-            if prerequisite['disposition'] not in SETTLED_OK:
-                problems.append('%s was attempted while its prerequisite %s is %s' % (item['id'], dependency, prerequisite['disposition']))
-                continue
-            last = max((positions.get(a) for a in prerequisite['attempts'] if positions.get(a) is not None), default=None)
-            if first is not None and last is not None and last > first:
-                problems.append('%s was attempted before its prerequisite %s settled' % (item['id'], dependency))
+        needed = list(TYPE_SECTIONS.get(kind, ()))
+        if kind == 'agentforce':
+            if not (_text(item.get('agent_version')) and item['disposition'] in ('applied', 'already_satisfied', 'failed')):
+                needed.append('Agent Not Live')
+            if existing & set(item['attempts']):
+                needed.append('Existing Agent Before-State')
+            if folder is not None and unavailable_runtime(folder, item):
+                needed.append('Actions Unverified in Preview')
+        for name in needed:
+            if not _has(section_names, name):
+                problems.append('%s is an attempted %s item; the log needs its "%s" section' % (item['id'], item['type'], name))
     return problems
 
 
-JOB = re.compile(r'\b0Af[A-Za-z0-9]{12,15}\b')
-NONTERMINAL = re.compile(r'(?i)\b(?:queued|in ?progress|pending|canceling|unknown)\b')
-TERMINAL = re.compile(r'(?i)\b(?:succeeded|succeededpartial|failed|canceled)\b')
-TYPE_SECTIONS = {'flow': ('Flows Deployed', 'Execution Order Check'), 'apex': ('Apex Deployed',),
-                 'lwc': ('LWC Deployed',), 'agentforce': ('Agentforce Deployed', 'Agentforce Current-Test Evidence')}
-
-
-def job_slot_findings(checkpoints):
-    """X5: once a checkpoint records a job without a terminal status, no later checkpoint may start."""
-    problems = []
-    for n, (attempt, body) in enumerate(checkpoints):
-        jobs = set(JOB.findall(body))
-        open_jobs = [j for j in jobs if not any(TERMINAL.search(line) for line in body.splitlines() if j in line)
-                     and any(NONTERMINAL.search(line) for line in body.splitlines() if j in line)]
-        if open_jobs and n + 1 < len(checkpoints):
-            problems.append('%s left job %s non-terminal, yet %s started after it' % (attempt, open_jobs[0], checkpoints[n + 1][0]))
-    return problems
-
-
-def type_section_findings(record, section_names):
-    """C6: per-type log sections, required only under the template's own conditions."""
-    problems = []
-    for item in record['items']:
-        kind = re.sub(r'[\s_-]', '', item['type']).lower()
-        kind = 'agentforce' if kind in ('agent', 'agentforceagent') else kind
-        if item['disposition'] == 'applied' and kind in TYPE_SECTIONS:
-            for name in TYPE_SECTIONS[kind]:
-                if not any(s == name or s.startswith(name + ' (') for s in section_names):
-                    problems.append('%s is an applied %s; the log needs its "%s" section' % (item['id'], item['type'], name))
-    return sorted(set(problems))
-
-
-def check_findings(record, folder, positions, checkpoints=(), section_names=()):
-    """All W10 rules as (rule, message) pairs. Simple tasks are checked only for evidence, order and the job slot."""
-    findings = [('plan', m) for m in write_order_findings(record, positions)]
-    findings += [('plan', m) for m in job_slot_findings(list(checkpoints))]
-    findings += [('log-type-sections', m) for m in type_section_findings(record, section_names)]
+def check_findings(record, folder, checkpoints=(), section_names=(), task_visible=''):
+    """All W10 rules as (rule, message) pairs. Every task gets the job, order, evidence and section rules;
+    complex tasks (F7) also get the beat, story and retry rules."""
+    checkpoints = list(checkpoints)
+    findings = [('plan', m) for m in write_order_findings(record, checkpoints)]
+    findings += [('plan', m) for m in job_findings(record, checkpoints)]
     try:
-        plan(record)
+        order(record)
     except CycleError as error:
         findings.append(('plan', str(error)))
+    orgs = bound_orgs(task_visible)
     for item in record['items']:
-        findings += [('evidence-ref', item['id'] + ': ' + m) for m in evidence_findings(folder, item)]
-    if not record.get('complex'):
+        findings += [('evidence-ref', item['id'] + ': ' + m) for m in evidence_findings(folder, item, orgs)]
+    findings += [('log-type-sections', m) for m in type_section_findings(record, checkpoints, section_names, folder)]
+    if record.get('complex') is False and derived_complex(record):
+        findings.append(('story', '"complex":false, but this task has three or more items or a gated or Docs-gated type'))
+    verdicts = beats(record)
+    if verdicts is None:
         return findings
-    story = record.get('story')
-    if not story or not story['beats']:
+    findings += [('grounding', m) for m in retry_findings(record, checkpoints)]
+    if not verdicts:
         return findings + [('story', 'a complex task needs story beats')]
-    for beat in story['beats']:
-        if beat['proof_moment'] and any(c.get('result') == 'dropped' for c in beat['claims']):
-            findings.append(('story', beat['id'] + ' drops a required proof-moment claim'))
-        verdict, reasons = beat_verdict(record, beat)
+    for beat, (identifier, verdict, reasons) in zip(record['story']['beats'], verdicts):
+        if any(c.get('result') == 'dropped' and _active(c) for c in beat['claims']):
+            findings.append(('story', '%s drops a required %sclaim' % (identifier, 'proof-moment ' if beat['proof_moment'] else '')))
         recorded = (beat.get('verification') or {}).get('verdict')
         if recorded is None:
-            findings.append(('beat', beat['id'] + ' has no recorded verification'))
+            findings.append(('beat', identifier + ' has no recorded verification'))
         elif recorded != verdict:
-            findings.append(('beat', '%s records %s but its evidence gives %s (%s)' % (beat['id'], recorded, verdict, '; '.join(reasons[:3]))))
+            findings.append(('beat', '%s records %s but its evidence gives %s (%s)' % (identifier, recorded, verdict, '; '.join(reasons[:3]))))
     return findings

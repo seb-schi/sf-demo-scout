@@ -33,6 +33,7 @@ KNOWN_TYPES = set('customobject customfield recordtype permissionset permissions
                  'custommetadatatype globalvalueset standardvalueset'.split())
 TYPE_ALIASES = {'pagelayout': 'layout', 'lightningapp': 'customapplication', 'path': 'pathassistant',
                 'records': 'record', 'picklistvalues': 'standardvalueset'}
+BUILD.KNOWN_TYPES, BUILD.TYPE_ALIASES = KNOWN_TYPES, TYPE_ALIASES  # W10 F7: complexity is derived from these
 CHECKPOINT = re.compile(r'^### (PENDING|' + '|'.join(DISPOSITIONS) +
                         r') — component repair · attempt ([\w.-]+) · (\d{4}-\d\d-\d\d \d\d:\d\d)$')
 OUTCOME = re.compile(r'^- \*\*Outcome: (' + '|'.join(DISPOSITIONS) + r')\.\*\* (\S.*)$', re.M)
@@ -412,7 +413,7 @@ def check(task, record):
         grounded, docs, unavailable = item['grounding'], False, False
         for entry in grounded:
             source, reference, verdict = entry['source'], entry['ref'], entry['verdict']
-            if not entry['assumption'].strip() or source not in ('docs', 'skill', 'org', 'ungrounded'):
+            if not entry['assumption'].strip() or source not in ('docs', 'skill', 'org', 'ungrounded', 'lesson'):  # W10 F5: a retry may cite a lesson
                 issue('grounding', identifier + ' invalid source or empty assumption')
             if source == 'docs':
                 valid = docs_url(reference) and bool(verdict.strip())
@@ -573,19 +574,23 @@ def check(task, record):
             if over(text):
                 issue('arch', 'map exceeds 350 lines / 3750 words' + (' only due to SE sections' if not over(template) else ''),
                       arch, warning=not over(template))
-    positions, checkpoints, names = {}, [], []
-    if log.exists():
-        log_text = read(log)
-        for section in headings(log_text):
-            names.append(section[0])
-            match = CHECKPOINT.fullmatch(log_text[section[2]:].splitlines()[0])
-            if match:
-                positions.setdefault(match[2], section[2])
-                checkpoints.append((match[2], section[4]))
-    for rule, message in BUILD.check_findings(record, task.parent, positions, checkpoints, names):
+    checkpoints, names = log_checkpoints(log) if log.exists() else ([], [])
+    for rule, message in BUILD.check_findings(record, task.parent, checkpoints, names, markdown(read(task))[0]):
         issue(rule, message)
     print('\n'.join(findings + warnings) or f'{task}:1: check: pass')
     return 3 if findings else 0
+
+
+def log_checkpoints(log):
+    """W10 hook: the log's headings and owned checkpoints for scout_build.py, raw (fences included) and parsed."""
+    text, checkpoints, names = read(log), [], []
+    for title, _, start, end, body in headings(text):
+        names.append(title)
+        match = CHECKPOINT.fullmatch(text[start:].splitlines()[0])
+        if match:
+            checkpoints.append(dict(attempt=match[2], stamp=match[3], position=start, raw=text[start:end], visible=body,
+                                    outcome=own_outcome(body), existing=existing_classification(body)))
+    return checkpoints, names
 
 
 def checkpoint_heading(title):
@@ -727,8 +732,9 @@ def main(argv=None):
             if args.command == 'render':
                 print(render(record), end='')
             elif args.command == 'plan':
+                log = local(task.parent, record['change_log'])
                 try:
-                    print(json.dumps(BUILD.plan(record)))
+                    print(json.dumps(BUILD.plan(record, log_checkpoints(log)[0] if log.exists() else [])))
                 except BUILD.CycleError as error:
                     print(f'{task}:1: plan: {error}')
                     return 3

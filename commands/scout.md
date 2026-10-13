@@ -13,7 +13,7 @@ Complete the request in this session; no fresh window or acknowledgement pauses.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md`, resolve its absolute root, then run the read-only gate in `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md`. On `CHECK_FAILED`, absent success evidence or nonzero exit, stop with the diagnostic. Use the verified workspace on every call.
 
-On Claude only, if this session identifies its model as older than 5.5, begin: “Scout is built for the 5.5 models. Run `/model` to switch.” Codex omits this notice. Say what you will inspect; do not wait for acknowledgement. Check exposed Docs tools; do not load readiness before this message; if unavailable, say so in this first SE-facing message. Read `orgs/lessons/INDEX.md` if present, without creating it; load topic files only when relevant.
+On Claude only, if this session identifies its model as older than 5.5, begin: “Scout is built for the 5.5 models. Run `/model` to switch.” Say what you will inspect. Check exposed Docs tools; do not load readiness before this message; if unavailable, say so in this first SE-facing message. Read `orgs/lessons/INDEX.md` if present, without creating it; load topic files only when relevant.
 
 Use the named selector; otherwise read the default with `sf config get target-org --json`; confirm its use below. If unavailable, ask. Run:
 
@@ -46,7 +46,7 @@ Treat a supplied demo plan, requirements or discovery notes as the brief: beats,
 
 After the first message, read the category and companion rules in `${CLAUDE_PLUGIN_ROOT}/CLAUDE.md`. Keep its technical safety rules; this command governs targeting, orchestration and dispositions. The later Docs-Gated tier governs dashboards/complex LWC. CLI-only applies even to deliberately loaded companion rules.
 
-Before the first write, bundle one confirmation if the org came from the default, Scout proposed an item the SE did not state, or a gated category was not explicitly requested. The default-org confirmation names the bound username and org ID. An explicit SE request naming the item and action counts as its confirmation, except for deletes; carry it to workers. Ask again only for an amendment adding an unapproved target or action, never for routine progress.
+Before the first write, bundle one confirmation if the org came from the default, Scout proposed an item the SE didn't state, or a gated category wasn't explicitly requested. The default-org confirmation names the bound username and org ID. An explicit SE request naming the item and action counts as its confirmation, except for deletes; carry it to workers. Ask again only for an amendment adding an unapproved target or action, never for routine progress.
 
 Get explicit SE confirmation before any of these actions:
 - Delete existing metadata or records
@@ -57,11 +57,11 @@ Confirm each delete alone, naming every target and what goes with it.
 
 ## Inspection and durable task
 
-Use `${CLAUDE_PLUGIN_ROOT}/skills/demo-org-audit/SKILL.md` for scoped inspection; read only needed sections under `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit/`, including LRP composition when relevant. A full audit at most seven days old may inform the plan, but retrieve every touched component again before writing. Keep scoped findings in the task record, never in `audit-*.md`; a full audit runs only on request. Run `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/platform-research.md` §"Step 0 — Object Capability Pre-Flight" for touched managed/industry objects and §"Step 0b — Docs Follow-Up for Restricted Objects" for restrictions. In folders with history, compare the request with the map's `[REJECTED]` and superseded entries; raise any match in the bundled confirmation. Use `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/iteration.md` §"Delta Conflict Check", including §"Agent source evidence gate"; fix symptoms use §"Symptom Follow-up (fix intent only)".
+Use `${CLAUDE_PLUGIN_ROOT}/skills/demo-org-audit/SKILL.md` for scoped inspection; read only needed sections under `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/audit/`, including LRP composition when relevant. A full audit at most seven days old may inform the plan; retrieve every touched component again before writing. Keep scoped findings in the task record, never in `audit-*.md`; a full audit runs only on request. Run `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/platform-research.md` §"Step 0 — Object Capability Pre-Flight" for touched managed/industry objects and §"Step 0b — Docs Follow-Up for Restricted Objects" for restrictions. In folders with history, compare the request with the map's `[REJECTED]` and superseded entries; raise any match in the bundled confirmation. Use `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/iteration.md` §"Delta Conflict Check", including §"Agent source evidence gate"; fix symptoms use §"Symptom Follow-up (fix intent only)".
 
-Read `demo-architecture.md` first; run `python3 [PLUGIN_ROOT_ABS]/scripts/scout_history.py reconcile-plan --folder [ORG_FOLDER]` and fold in the listed logs as leads (five newest in full, older tails). Read the newest `demo-spec-*.md` only when continuing work. Re-offer only the chosen folder's proposals. Answer re-offers in confirmation; record the answer in the new task, write with the history block.
+Read `demo-architecture.md` first; run `python3 [PLUGIN_ROOT_ABS]/scripts/scout_history.py reconcile-plan --folder [ORG_FOLDER]` and fold in the listed logs as leads. Read the newest `demo-spec-*.md` only when continuing work. Re-offer only the chosen folder's proposals. Answer re-offers in confirmation; record the answer in the new task, write with the history block.
 
-Run `python3 [PLUGIN_ROOT_ABS]/scripts/scout_history.py pending --orgs-dir [WORKSPACE]/orgs --org-id [BOUND_ORG_ID] --username [BOUND_USERNAME]`. Scan records across `orgs/*/` by the bound org ID, including prior folders. An `unresolved` checkpoint blocks dependent items; read every `unclear` checkpoint and record your interpretation. A legacy component repair heading with a final outcome is resolved. On nonzero exit from `pending` or `reconcile-plan`, read the history yourself and record that before any dependent write. Keep recovery-preservation and cleanup-withheld blockers. Preserve other tasks' records without resolving, cleaning or relabelling them.
+Run `python3 [PLUGIN_ROOT_ABS]/scripts/scout_history.py pending --orgs-dir [WORKSPACE]/orgs --org-id [BOUND_ORG_ID] --username [BOUND_USERNAME]`. Scan records across `orgs/*/` by the bound org ID, including prior folders. An `unresolved` checkpoint blocks dependent items; read every `unclear` checkpoint and record your interpretation. Settle any prior task's open job with a status read before writing, or stop and tell the SE. A legacy component repair heading with a final outcome is resolved. On nonzero exit from `pending` or `reconcile-plan`, read the history yourself and record that before any dependent write. Keep recovery-preservation and cleanup-withheld blockers. Preserve other tasks' records without resolving, cleaning or relabelling them.
 
 Stamp records from `date`, never an estimate. Before the first write, create `[ORG_FOLDER]/task-[YYYY-MM-DD]-[HHmm]-[slug].md` with a unique name. Keep request verbatim, bound selector/alias/username/org ID, categorized items, criteria, inspection findings, timestamped amendments and dispositions/evidence. Record in-flight writes before dispatch, including every checkpoint marker and attempt ID in the task record. Withdrawn unattempted items become `omitted`; withdrawal after launch stops further work but still needs read-back and an honest outcome for what landed. A new item gets its own inspection, criterion and authorization check. Preserve earlier outcomes when amending.
 
@@ -77,9 +77,9 @@ Include exactly one fenced `scout-items` JSON block (schema 1); update it with e
  "history":{"decisions":"none","proposed_entries":[],"lessons":"none","architecture":"unchanged"}}
 ```
 
-Story fields are defined in discovery.md. Every item needs type, depends_on, grounding and proves; components records known identities without enabling parallel writes. Sources: `docs|skill|org|ungrounded`; Docs needs URL/verdict. Ungrounded uses empty ref and reason in verdict; `Docs unavailable` warns instead of failing the Docs floor. Failed reason: `State left: …; rollback: …`.
+Every item needs type, depends_on, grounding and proves; components records known identities without enabling parallel writes. Sources: `docs|skill|org|ungrounded`; Docs needs URL/verdict. Ungrounded uses empty ref and reason in verdict; `Docs unavailable` warns instead of failing the Docs floor. Failed reason: `State left: …; rollback: …`.
 
-Create the block’s new per-task change log before the first checkpoint, with `Task record: [task filename]` in its header. Every owned checkpoint, including seeds, uses `### PENDING — component repair · attempt <ID> · <YYYY-MM-DD HH:MM>` under final `## Checkpoints`. Add `- **Outcome: <disposition>.** <evidence>` per attempt. Resolved headings use that attempt’s outcome; missing/conflicting outcomes stay PENDING. Never copy an item's final outcome onto earlier attempts.
+Create the block’s new per-task change log before the first checkpoint, with `Task record: [task filename]` in its header. Every owned checkpoint, including seeds, uses `### PENDING — component repair · attempt <ID> · <YYYY-MM-DD HH:MM>` under final `## Checkpoints`. Add `- **Outcome: <disposition>.** <evidence>` per attempt, plus `- job:<ID>;status:<terminal>;launched:<YYYY-MM-DDTHH:MM:SS>;settled:<…>` per job. Resolved headings use that attempt’s outcome; missing/conflicting outcomes stay PENDING. Never copy an item's final outcome onto earlier attempts.
 
 To resume a record, check its recorded target first. Continue items without dispositions. For an interrupted/in-flight write or an `unverified` item, reconcile only the checkpoint markers and attempt IDs recorded in this task, then read back before deciding its outcome; do not replay it. Terminal items need a new amendment or task to change scope.
 
@@ -91,13 +91,13 @@ Before seeding, describe every object using `${CLAUDE_PLUGIN_ROOT}/prompts/sparr
 
 ## Execution and delegation
 
-Work solo by default. Run items in `depends_on` order. Follow steps 2–7 of `${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md`; this task replaces step 1. Read `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` and create a fresh writer-owned `prepare-workspace` project with `WRITER=scout` for each item. Retain its ownership receipt, source and original rollback evidence. Never template from another customer's folder; offer its build by name, reuse it only on the SE's yes, and scan copies for that customer's content.
+Work solo by default. Run items in `depends_on` order. Follow steps 2–7 of `${CLAUDE_PLUGIN_ROOT}/prompts/building/direct-repair.md`; this task replaces step 1. Read `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` and create a fresh writer-owned `prepare-workspace` project with `WRITER=scout` for each item. Retain its ownership receipt, source and original rollback evidence. Read other customers' folders only for the history and conflict checks named here; copy their source, records, seed data or wording only on the SE's yes to an offer naming its folder, then scan copies for that customer's content.
 
 Legacy prompts supply technical procedures: category gates, vendor compatibility, `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Companion Permission Set — MANDATORY", append-only LRP edits, no new-from-scratch FlexiPage, and incumbent preservation. Ignore their envelopes, placeholders, report formats, acknowledgements, phase topology and model choices. Keep skill, rollback, targeted read-back, data-repair and log requirements; no new write capability.
 
 Pass this task’s log explicitly as `--change-log` to the report helper. Wrap its attempt in the owned checkpoint form, keeping the helper’s marked receipt block fenced and its evidence unchanged. Existing-report filter changes use `${CLAUDE_PLUGIN_ROOT}/prompts/building/scout-2-repair.md` with the bound username as selector. Retain this route’s original binding check and the helper’s receipts/operator-evidence requirements.
 
-Delegate read-only research/inspection when useful. With several items or any gated or Docs-gated item, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/build.md` before the first write; authoring may run in parallel, org writes stay serial. Give each worker its own prepared project, resolved absolute root, active host, bound selector/username/org ID, exact approved scope and criteria, relevant technical rules, the three qualified confirmation bullets above, and this unconditional CLI-only rule copied verbatim into every worker brief: “Never call Salesforce DX MCP org tools, even when the bound org is the default. Wherever a file says MCP, the active or default org, `sf config get target-org`, or to omit `--target-org`, use `sf … --target-org [BOUND_USERNAME]`.” Every worker must check identity before writes/read-back and retain pending evidence on interruption or refusal.
+Delegate read-only research/inspection when useful. With three or more items or any gated or Docs-gated item, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/build.md` before the first write; authoring may run in parallel, org writes stay serial. Give each worker its own prepared project, resolved absolute root, active host, bound selector/username/org ID, exact approved scope and criteria, relevant technical rules, the three qualified confirmation bullets above, and this unconditional CLI-only rule copied verbatim into every worker brief: “Never call Salesforce DX MCP org tools, even when the bound org is the default. Wherever a file says MCP, the active or default org, `sf config get target-org`, or to omit `--target-org`, use `sf … --target-org [BOUND_USERNAME]`.” Every worker must check identity before writes/read-back and retain pending evidence on interruption or refusal.
 
 On Claude, every Agent call—research, inspection or write—passes `model` set to the alias of the orchestrator's own model family; if that family is unknown, omit the argument. An explicit `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` wins. Codex uses its host contract. This single rule governs all dispatches and retries.
 
@@ -107,17 +107,17 @@ Every disposition rests on a read-back you ran yourself, after a passing `check`
 
 Assign exactly one disposition per item:
 
-| Disposition | Meaning |
-|---|---|
-| `applied` | Written in this task, and post-write read-back meets the criterion. |
-| `already_satisfied` | Pre-write read-back met the criterion; nothing was written. |
-| `failed` | Attempted and rejected, or read-back misses the criterion; name remaining state and whether rollback occurred. |
-| `blocked` | Not attempted; name the gate or precondition. |
-| `unverified` | A write happened or may have happened, and no read-back settles it. |
-| `omitted` | Deliberately not done: withdrawn, out of scope, or docs-confirmed UI-only with citation and manual-checklist entry. |
+Disposition | Meaning
+---|---
+`applied` | Written in this task, and post-write read-back meets the criterion.
+`already_satisfied` | Pre-write read-back met the criterion; nothing was written.
+`failed` | Attempted and rejected, or read-back misses the criterion; name remaining state and whether rollback occurred.
+`blocked` | Not attempted; name the gate or precondition.
+`unverified` | A write happened or may have happened, and no read-back settles it.
+`omitted` | Deliberately not done: withdrawn, out of scope, or docs-confirmed UI-only with citation and manual-checklist entry.
 
 Map report-repair `not_applied` to `failed`, and both `unverified` and `released_unverified` to `unverified`; other outcomes retain their names. Green deploy alone is not read-back. For authorable no-signal artifacts, `applied` covers metadata read-back only: list them under “needs visual QA”, never call them working. Whole-page non-convergent LRP authoring stays manual.
 
 After the last disposition, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/history.md` unless this session read it since its last compaction. Consolidate this task’s log using `render`, run `resolve`, then `check`. Send the handover only after exit 0; on findings fix and recheck up to twice. If still failing or unreadable, record why in the task and start the handover with “History incomplete: [reason]”.
 
-Send one outcome-first message: verified items; visual QA; each uncompleted item with disposition, reason and next step; manual checklist; task/log paths. Then the Demo Story (bounded: one line naming the beat served) and history block, with proposed decisions and lessons for yes/edit/skip. Write neither without the SE's answer. Follow history.md through the post-answer check/receipt. Nothing precedes the outcome.
+Send one outcome-first message: verified items; visual QA; each uncompleted item with disposition, reason and next step; manual checklist; any copy scan; task/log paths. Then the Demo Story (bounded: one line naming the beat served) and history block, with proposed decisions and lessons for yes/edit/skip. Write neither without the SE's answer. Follow history.md through the post-answer check/receipt.
