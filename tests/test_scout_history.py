@@ -70,6 +70,96 @@ def checkpoint(attempt='A1', outcome='applied', heading='PENDING'):
 
 
 class ScoutHistoryTests(unittest.TestCase):
+    def test_r10_attack_shortcut_references_preserve_link_bytes(self):
+        extra = '- Evidence: [outcome: pending]\n\n[outcome: pending]: saved.json\n'
+        self.save(checkpoint() + extra)
+        self.run_cli('resolve')
+        self.assertIn(extra, self.log.read_text())
+        self.assert_rule('checkpoint')
+
+    def test_r10_attack_paragraph_and_checkpoint_boundaries(self):
+        for boundary in ('\n', '#### Notes\n', '```text\n', '- A separate note\n'):
+            self.save(checkpoint() + '- Verification: applied\n' + boundary + 'failed is prose outside that value\n')
+            self.run_cli('resolve')
+            self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+        self.data['items'][0].update(disposition='failed', attempts=['A1', 'A2'],
+                                     reason='State left: unchanged; rollback: retained')
+        self.save(checkpoint() + '### Read-back\n- Verification: applied\n' + checkpoint('A2', 'failed'))
+        self.run_cli('resolve')
+        self.assertIn('### applied — component repair · attempt A1', self.log.read_text())
+        self.assertIn('### failed — component repair · attempt A2', self.log.read_text())
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+
+    def test_r10_f1_labelled_paragraphs_include_lazy_continuations(self):
+        for extra in ('- Verification: applied;\nfailed on refresh\n',
+                      '- Verification: applied\nfailed\n',
+                      '- Verification: applied\nalready_satisfied\n',
+                      '> Verification: applied;\nfailed on refresh\n',
+                      '```text\n- Verification: applied;\nfailed on refresh\n```\n',
+                      '- Verification: applied\n  refresh receipt\nfailed\n'):
+            for final in (False, True):
+                with self.subTest(extra=extra, final=final):
+                    source = checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') if final else checkpoint()
+                    self.save(source + extra)
+                    before = self.log.read_bytes()
+                    self.run_cli('resolve')
+                    self.assertEqual(self.log.read_bytes(), before)
+                    self.assert_rule('checkpoint')
+
+    def test_r10_f2_outcome_owns_deeper_labelled_subvalues(self):
+        for extra in ('- Outcome:\n  I1: unknown\n', '- Outcome:\n  I1: applied\n  I2: waiting\n',
+                      '- Outcome: applied\n  I1: applied\n  I2: unknown\n',
+                      '- Outcome: pending\n  I1: applied\n'):
+            for final in (False, True):
+                with self.subTest(extra=extra, final=final):
+                    source = checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') if final else checkpoint()
+                    self.save(source + extra)
+                    before = self.log.read_bytes()
+                    self.run_cli('resolve')
+                    self.assertEqual(self.log.read_bytes(), before)
+                    self.assert_rule('checkpoint')
+        self.save(checkpoint() + '- Outcome:\n  I1: applied\n  I2: applied\n')
+        self.run_cli('resolve')
+        self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
+
+    def test_r10_f3_links_urls_and_filenames_are_not_outcome_fields(self):
+        for extra, expected in (('- Evidence: [outcome: read-back](saved.json)\n', 0),
+                                ('- Evidence: [outcome: pending](saved.json)\n', 3),
+                                ('- File: my-outcome:report.md\n', 0),
+                                ('- URL: https://example.test/outcome:report\n', 0),
+                                ('- Outcome:\n  [applied](saved.json)\n', 0),
+                                ('- Outcome: [applied](saved.json)\n', 0)):
+            with self.subTest(extra=extra):
+                self.save(checkpoint() + extra)
+                self.run_cli('resolve')
+                self.assertIn(extra, self.log.read_text())
+                self.assertEqual(self.run_cli()[0], expected, self.run_cli()[1])
+
+    def test_r10_f4_only_recorded_report_markers_exempt_delta_values(self):
+        for name in ('example', 'repair-unrelated'):
+            receipt = ('```text\n<!-- scout-repair:' + name + ' -->\n'
+                       '- **Requested delta / exclusions:** STATUS equals: "Pending" → "Closed"; unchanged\n'
+                       '<!-- /scout-repair:' + name + ' -->\n```\n')
+            self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') + receipt)
+            self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
+            self.assertEqual(self.run_cli()[0], 0 if name == 'example' else 3)
+            self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:' + name + ' -->\n')
+            self.assertEqual(self.run_cli()[0], 0)
+
+    def test_r10_f5_agreement_crosses_noncheckpoint_headings(self):
+        for extra in ('- [ ] ```text\n  ### Read-back\n  Outcome: failed\n  ```\n',
+                      '> - [ ] ```text\n>   ### Read-back\n>   Outcome: failed\n>   ```\n',
+                      '### Read-back\nOutcome: failed\n', '### Read-back\nVerification: pending\n',
+                      'Read-back\n----------\nOutcome: failed\n'):
+            for final in (False, True):
+                with self.subTest(extra=extra, final=final):
+                    source = checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') if final else checkpoint()
+                    self.save(source + extra)
+                    self.run_cli('resolve')
+                    self.assert_rule('checkpoint')
+                    if 'Outcome: failed' in extra:
+                        self.assertIn('### applied' if final else '### PENDING', self.log.read_text())
+
     def test_r9_attack_compound_dispositions_include_segment_labels(self):
         for extra in ('- Verification: applied; failed: stale read-back\n',
                       '- Detail:\n  failed: refresh; applied\n',
@@ -162,6 +252,7 @@ class ScoutHistoryTests(unittest.TestCase):
                 Repair(None).checkpoint(task, contract, state, first=True)
                 receipt = receipt_log.read_text()
                 self.save(checkpoint() + '```text\n' + receipt + '```\n')
+                self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
                 self.run_cli('resolve')
                 self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
                 self.assertIn(receipt, self.log.read_text())
@@ -173,6 +264,7 @@ class ScoutHistoryTests(unittest.TestCase):
                                     receipt.replace('Requested delta / exclusions', 'Evidence')):
                     self.save(checkpoint(heading='applied').replace('outcome: pending', 'outcome: applied') +
                               '```text\n' + replacement + '```\n')
+                    self.task.write_text(self.task.read_text() + '\nReport marker: <!-- scout-repair:example -->\n')
                     self.assert_rule('checkpoint')
 
     def test_r9_f4_classification_offsets_survive_link_and_markup_prefix(self):

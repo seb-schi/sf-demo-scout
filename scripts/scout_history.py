@@ -293,10 +293,45 @@ def section_body(text, section):
     return text[section[3] - len(section[4]):section[3]]
 
 
+def checkpoint_range(text, section, sections):
+    """Agreement ends at the next checkpoint or its Checkpoints section's end.
+
+    Ordinary headings never truncate an attempt. Keep discovery's heading-based
+    inventory unchanged, and preserve the original start of the body's text.
+    """
+    start, body = section[2], section[3] - len(section[4])
+    end = next((s[3] for s in sections if s[0] == 'Checkpoints' and s[1] == 2 and s[2] < start < s[3]), len(text))
+    end = next((s[2] for s in sections if start < s[2] < end and checkpoint_heading(s[0])), end)
+    return (*section[:3], end, text[body:end])
+
+
 def unmark(text, offsets=False):
     """Remove inline presentation; resolve alone needs character offsets preserved."""
     return re.sub(r'<[^>\r\n]*>|\]\([^\r\n)]*\)|[*`~\[\]\\]|_{2,}|(?<!\w)_(?=\w)|(?<=\w)_(?!\w)',
                   lambda m: ' ' * len(m[0]) if offsets else '', text)
+
+
+def evidence_spans(line):
+    """Links and path/URL tokens are evidence, never sources of field labels."""
+    spans = [m.span() for m in re.finditer(r'!?\[[^\]\r\n]*\](?:\([^\r\n)]*\)|\[[^\]\r\n]*\])|<[^\s<>]+:[^<>]*>', line)]
+    for match in re.finditer(r'\S+', line):
+        token = match[0].strip('`*_<>"\'(),;')
+        if (len(token) > 1 and not token.endswith(':') and
+                (re.search(r'[/\\]', token) or re.fullmatch(r'\S+\.[A-Za-z0-9]+', token))):
+            spans.append(match.span())
+    return spans
+
+
+def evidence_mask(line):
+    """Hide evidence from label recognition while preserving original offsets."""
+    chars = list(line)
+    for start, end in evidence_spans(line):
+        chars[start:end] = ' ' * (end - start)
+    return ''.join(chars)
+
+
+def field_text(line):
+    return unmark(evidence_mask(line), offsets=True)
 
 
 def fields(body, offsets=False, masked=True):
@@ -307,7 +342,7 @@ def fields(body, offsets=False, masked=True):
     """
     offset = 0
     for line in (markdown(body)[0] if masked else body).splitlines(keepends=True):
-        clean = unmark(line, offsets).rstrip('\r\n')
+        clean = field_text(line).rstrip('\r\n')
         value = r'([^;|\r\n]*?)(?= · |[;|]|$)'
         pattern = (r'(?:^[ \t]*(?:>[ \t]*)*(?:[-+][ \t]+|\d+[.)][ \t]+)?|[;|]| · )'
                    r'([\w /._-]+(?:\([^\r\n)]*\)[ \t]*)?):' + value)
@@ -316,28 +351,29 @@ def fields(body, offsets=False, masked=True):
             label = re.sub(r'\([^)]*\)', '', match[1]).strip().lower()
             label = re.sub(r'[\s/._-]', '', label)
             if label not in ('outcome', 'finaloutcome', 'outcomereadback'):
-                entries.append((label, match[2], match.start(2)))
+                entries.append((label, match.start(2), match.end(2)))
         # Outcome fields can occur anywhere on a compound line, not just its start.
         outcome = (r'\b(?:final[ \t]+)?outcome(?:[ \t]*/[ \t]*read-back)?'
                    r'[ \t]*(?:\([^\r\n)]*\)[ \t]*)?:' + value)
-        entries.extend(('outcome', m[1], m.start(1)) for m in re.finditer(outcome, clean, re.I))
-        for label, value, start in sorted(entries, key=lambda entry: entry[2]):
+        entries.extend(('outcome', m.start(1), m.end(1)) for m in re.finditer(outcome, clean, re.I))
+        for label, start, end in sorted(entries, key=lambda entry: entry[1]):
+            value = unmark(line[start:end], offsets=offsets)
             yield label, value, offset + start, offset, line.rstrip('\r\n')
         offset += len(line)
 
 
-def own_outcome(body):
+def own_outcome(body, receipt_ids=()):
     outcomes = OUTCOME.findall(own_body(body).replace('\r\n', '\n'))
     if len(outcomes) != 1:
         return None
     outcome = outcomes[0][0]
-    return outcome if scout_agreement(body, outcome) else None
+    return outcome if scout_agreement(body, outcome, receipt_ids) else None
 
 
-def status_fields(body, nested=False):
+def status_fields(body, nested=False, receipt_ids=()):
     """Lexical pending lint: backtick spans and the writer's JSON delta strings exempt."""
     # Equal-length backtick runs delimit a span; triple fence lines have no closer.
-    visible = re.sub(r'(?<!`)(`+)(?!`)[^\r\n]*?(?<!`)\1(?!`)', '', mask_receipt_delta(body))
+    visible = re.sub(r'(?<!`)(`+)(?!`)[^\r\n]*?(?<!`)\1(?!`)', '', mask_receipt_delta(body, receipt_ids))
     if re.search(r'\bpending\b', visible, re.I) or re.search(r'\bpending\b', unmark(visible), re.I):
         yield 'pending', 0, 0
 
@@ -347,7 +383,13 @@ def marked_receipts(text):
         r'<!-- scout-repair:([^\r\n]+?) -->(.*?)<!-- /scout-repair:\1 -->', text, re.S)]
 
 
-def mask_receipt_delta(text):
+def task_receipts(task):
+    # Repair IDs are generated independently; never infer them from a filename.
+    # The route requires every checkpoint marker to be recorded in this task.
+    return set(re.findall(r'<!-- scout-repair:([\w.-]+) -->', read(task)))
+
+
+def mask_receipt_delta(text, receipt_ids=()):
     """Mask exactly the two JSON strings written by Repair.checkpoint, in paired receipts.
 
     Preserve offsets and every other character, including other quoted business
@@ -358,6 +400,8 @@ def mask_receipt_delta(text):
                        r') → (' + string + r')(?=;)', re.M)
 
     def receipt(match):
+        if match[1] not in receipt_ids:
+            return match[0]
         def values(row):
             value = row[0]
             for group in (2, 1):
@@ -417,8 +461,10 @@ def resolve(task, record):
     if not header_matches(original, task) or log.stat().st_nlink != 1:
         raise OSError('resolve refused: log header does not name this task or file is shared')
     owners = {a: i for i in record['items'] for a in i['attempts']}
+    receipt_ids = task_receipts(task)
     sections = headings(original)
-    matches = [(s, CHECKPOINT.fullmatch(original[s[2]:].splitlines()[0])) for s in sections]
+    matches = [(checkpoint_range(original, s, sections), m) for s in sections
+               if (m := CHECKPOINT.fullmatch(original[s[2]:].splitlines()[0]))]
     changes, updated = [], original
     for section, match in reversed(matches):
         if not match or match[2] not in owners or owners[match[2]]['disposition'] not in DISPOSITIONS:
@@ -426,7 +472,7 @@ def resolve(task, record):
         if sum(bool(m and m[2] == match[2]) for _, m in matches) != 1:
             continue
         body = section_body(original, section)
-        outcome = own_outcome(body)
+        outcome = own_outcome(body, receipt_ids)
         if outcome is None or (match[1] != 'PENDING' and match[1] != outcome):
             continue
         start, end = section[2:4]
@@ -437,6 +483,8 @@ def resolve(task, record):
             if label == 'outcome' and not OUTCOME.fullmatch(line):
                 last = first + len(value)
                 raw = block[prefix + first:prefix + last]
+                if not unmark(raw).strip() or evidence_spans(raw):
+                    continue
                 # Preserve label closures and balanced value markup, not qualifiers.
                 lead = re.match(r'[ \t*_`~]*', raw)[0]
                 opening = re.search(r'[*_`~]*$', lead)[0]
@@ -469,6 +517,7 @@ def resolve(task, record):
 
 
 def check(task, record):
+    receipt_ids = task_receipts(task)
     findings, warnings = [], []
     def issue(rule, message, path=task, line=1, warning=False):
         (warnings if warning else findings).append(f'{path}:{line}: {rule}: ' + ('warning: ' if warning else '') + message)
@@ -565,6 +614,8 @@ def check(task, record):
         text = read(log)
         visible, _ = markdown(text)
         sections = headings(text)
+        owned = [checkpoint_range(text, s, sections) for s in sections
+                 if CHECKPOINT.fullmatch(text[s[2]:].splitlines()[0])]
         header = document_header(text).lstrip('\ufeff \t\r\n')
         if (not re.match(r'^# Change Log — .+ — \d{4}-\d\d-\d\d \d{4}\r?$', header, re.M) or
                 not header_matches(text, task) or not re.search(r'^Org: \S.+$', header, re.M) or
@@ -576,13 +627,12 @@ def check(task, record):
             required.append((2, 'Script Deliverables'))
         if any(i['attempts'] for i in items.values()):
             required.append((2, 'Checkpoints'))
-        if any(CHECKPOINT.fullmatch(text[s[2]:].splitlines()[0]) and
-               own_outcome(section_body(text, s)) in ('applied', 'failed', 'unverified') and
-               existing_classification(text[s[2]:s[3]]) for s in sections):
+        if any(own_outcome(section_body(text, s), receipt_ids) in ('applied', 'failed', 'unverified') and
+               existing_classification(text[s[2]:s[3]]) for s in owned):
             required.append((2, 'Existing Component Before-State and Direct Repairs'))
         for section in sections:
             if section[1] == 2 and section[0].startswith('Existing Component Before-State and Direct Repairs'):
-                if any(status_fields(text[section[2]:section[3]], nested=True)):
+                if any(status_fields(text[section[2]:section[3]], nested=True, receipt_ids=receipt_ids)):
                     issue('checkpoint', 'pending before-state status fields', log)
         for level, name in required:
             found = [s for s in sections if s[1] == level and (re.sub(r' \([^()]*\)$', '', s[0]) == re.sub(r' \([^()]*\)$', '', name) or s[0].startswith(name + ' —'))]
@@ -618,19 +668,19 @@ def check(task, record):
                     (item['disposition'] == 'omitted' and item['attempts'])):
                 issue('checkpoint', item['id'] + ' attempt count disagrees with disposition', log)
             for attempt in item['attempts']:
-                candidates = [s for s in sections if (m := CHECKPOINT.fullmatch(text[s[2]:].splitlines()[0])) and m[2] == attempt]
+                candidates = [s for s in owned if (m := CHECKPOINT.fullmatch(text[s[2]:].splitlines()[0])) and m[2] == attempt]
                 valid = len(candidates) == 1
                 if valid:
                     section = candidates[0]
                     match = CHECKPOINT.fullmatch(text[section[2]:].splitlines()[0])
                     body = section_body(text, section)
-                    outcome = own_outcome(body)
+                    outcome = own_outcome(body, receipt_ids)
                     if ((attempted and attempt == item['attempts'][-1]) or item['disposition'] in ('already_satisfied', 'blocked')) and outcome != item['disposition']:
                         issue('checkpoint', item['id'] + ' attempt outcome disagrees with disposition', log)
                     valid = (bool(checkpoint_sections) and checkpoint_sections[0][2] < section[2] < checkpoint_sections[0][3]
                              and checkpoint_sections[0][3] == len(text))
                     if item['disposition'] in DISPOSITIONS:
-                        valid &= outcome is not None and match[1] == outcome and not any(status_fields(text[section[2]:section[3]], nested=True))
+                        valid &= outcome is not None and match[1] == outcome and not any(status_fields(text[section[2]:section[3]], nested=True, receipt_ids=receipt_ids))
                     else:
                         valid &= match[1] == 'PENDING'
                 if not valid:
@@ -805,23 +855,48 @@ def receipt_outcome(value):
     return None
 
 
-def scout_agreement(body, outcome):
-    """Resolve/check ONLY: one own canonical line plus strict full-body agreement.
+def paragraph_line(line):
+    """Indent and structural boundaries for labelled paragraph values."""
+    plain = line.rstrip('\r\n').expandtabs(4)
+    while re.match(r'^[ ]*>', plain):
+        plain = re.sub(r'^([ ]*)> ?', r'\1', plain, count=1)
+    indent = len(plain) - len(plain.lstrip())
+    content = plain.lstrip()
+    boundary = (not content or bool(re.match(r'#{1,6}(?:\s|$)|`{3,}|~{3,}|(?:=+|-+)\s*$', content)))
+    labelled = ':' in evidence_mask(content) or '|' in evidence_mask(content)
+    item = bool(re.match(r'(?:[-+*]|\d+[.)])\s+', content))
+    return indent, labelled or item, boundary
 
-    No fences are masked. Paired report receipts map their Outcome / read-back
-    field; the remaining content gets the lexical pending lint (only the writer's
-    JSON delta strings are masked). Elsewhere each valued outcome field must be
-    exact, and EVERY disposition word in labelled lines/continuations must agree.
-    Only own pending outcome fields that resolve can rewrite exactly are allowed.
-    Unknown values/conflicts/unrewritable fields cannot authorize a final heading.
+
+def paragraph_tail(lines, index):
+    """Lazy/deeper continuations end at structure or a same/shallow peer field."""
+    indent = paragraph_line(lines[index])[0]
+    result = []
+    for line in lines[index + 1:]:
+        depth, peer, boundary = paragraph_line(line)
+        if boundary or (peer and depth <= indent):
+            break
+        result.append(line)
+    return result
+
+
+def scout_agreement(body, outcome, receipt_ids=()):
+    """One own canonical line plus agreement through the next checkpoint boundary.
+
+    Labelled paragraph values include lazy/deeper continuations. Every disposition
+    word there agrees. Outcome values are stricter: every word, item labels aside,
+    is the canonical outcome. Only a single-line pending field at an exact writable
+    own offset is exempt. Evidence links/paths are never field labels or rewrite
+    targets. Paired report outcomes map by the route; only task-recorded markers
+    authorize the JSON delta exemption. Discovery has its separate fixed rule.
     """
     writable_lines = {offset for label, _, _, offset, _ in fields(own_body(body), offsets=True) if label == 'outcome'}
     receipts = list(re.finditer(r'<!-- scout-repair:([^\r\n]+?) -->(.*?)<!-- /scout-repair:\1 -->', body, re.S))
-    offset = 0
     normal = lambda value: value.translate(str.maketrans('', '', '*_`'))
     final = normal(outcome)
     words = r'\b(?:' + '|'.join(normal(value) for value in DISPOSITIONS) + r')\b'
-    lines = mask_receipt_delta(body).splitlines(keepends=True)
+    lines = mask_receipt_delta(body, receipt_ids).splitlines(keepends=True)
+    offset = 0
     for n, line in enumerate(lines):
         raw = line.rstrip('\r\n')
         canonical = OUTCOME.fullmatch(raw)
@@ -829,49 +904,37 @@ def scout_agreement(body, outcome):
             return False
         source = canonical[2] if canonical else raw
         receipt = any(m.start(2) <= offset < m.end(2) for m in receipts)
-        entries = list(fields(source if receipt else normal(source), masked=False))
-        outcome_fields = [(value.strip(), start) for label, value, start, _, _ in entries if label == 'outcome']
+        outcome_fields = [value.strip() for label, value, *_ in fields(source if receipt else normal(source), masked=False)
+                          if label == 'outcome']
         cells = [cell.strip() for cell in normal(source).strip().strip('|').split('|')]
         table = len(cells) > 1 and any(label == 'outcome' and not value.strip()
                                      for label, value, *_ in fields(cells[0] + ':', masked=False))
         if table:
-            outcome_fields.append((cells[1], 0))
-        mapped = receipt and re.match(r'^- Outcome / read-back:', unmark(source))
+            outcome_fields.append(cells[1])
         if receipt:
-            if outcome_fields and (not mapped or any(receipt_outcome(value) != outcome for value, _ in outcome_fields)):
+            mapped = re.match(r'^- Outcome / read-back:', unmark(source))
+            if outcome_fields and (not mapped or any(receipt_outcome(value) != outcome for value in outcome_fields)):
                 return False
             offset += len(line)
             continue
-        if outcome_fields:
-            for following in lines[n + 1:]:
-                if not following.startswith((' ', '\t', '>')):
-                    break
-                content = following[len(container_prefix(following)):].strip()
-                if (not content or content.startswith(('#', '```', '~~~', '<!--')) or
-                        list(fields(normal(content), masked=False))):
-                    break
-                value = re.split(r' · |[;|]', normal(content), maxsplit=1)[0].strip()
-                if value.lower() not in (final, final + '.'):
-                    return False
-        for value, _ in outcome_fields:
-            if not value:
-                continue
-            if any(word.lower() != final for word in re.findall(words, value, re.I)):
+        tail = paragraph_tail(lines, n) if ':' in evidence_mask(source) or table or outcome_fields else []
+        for value in outcome_fields:
+            if any(word.lower() != final for word in re.findall(words, normal(value), re.I)):
                 return False
             if re.match(r'pending\b', value, re.I):
-                writable = [v for label, v, _, _, _ in fields(source, offsets=True) if label == 'outcome']
-                if table or canonical or offset not in writable_lines or len(writable) != len(outcome_fields):
+                writable = [v for label, v, *_ in fields(raw, offsets=True) if label == 'outcome']
+                if (tail or table or canonical or offset not in writable_lines or
+                        len(writable) != len(outcome_fields) or any(evidence_spans(v) for v in writable)):
                     return False
-            elif value.lower() not in (final, final + '.'):
+                continue
+            content = normal(unmark(value + '\n' + ''.join(tail)))
+            content = re.sub(r'\bI\d+\s*:', '', content, flags=re.I)
+            if any(word.lower() != final for word in re.findall(r'\w+', content)):
                 return False
-        # Read labelled values and indented/list continuations, including evidence
-        # after a canonical line. Outcome fields above have their own exact rule.
         plain = normal(source)
-        if outcome_fields:
-            plain = re.sub(r'\b(?:final\s+)?outcome(?:\s*/\s*read-back)?\s*(?:\([^)]*\)\s*)?:[^;|]*?(?= · |[;|]|$)', '', plain, flags=re.I)
-        labelled = ':' in plain or '|' in plain
+        labelled = ':' in evidence_mask(source) or '|' in evidence_mask(source)
         continuation = bool(re.match(r'^(?:[ \t]+|>[ \t]*|[-+][ \t]+|\d+[.)][ \t]+)', plain))
-        if (labelled or continuation) and any(word.lower() != final for word in re.findall(words, plain, re.I)):
+        if (labelled or continuation) and any(word.lower() != final for word in re.findall(words, plain + '\n' + ''.join(map(normal, tail)), re.I)):
             return False
         offset += len(line)
     return True
