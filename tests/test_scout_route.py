@@ -236,7 +236,7 @@ class ScoutRouteTests(unittest.TestCase):
     def test_target_resume_and_recovery_boundaries(self):
         for forbidden in ('switch-org.md', 'sf config set', 'sf alias set', 'sf org login', '--set-default'):
             self.assertNotIn(forbidden, self.command)
-        for instruction in ('Before every write, each retry included, and every read-back supporting a disposition',
+        for instruction in ('Before every write (retries too) and every read-back supporting a disposition',
                             'stop writing', 'any item with an attempted write is `unverified`, never `blocked`',
                             'never in `audit-*.md`', 'PENDING — component repair',
                             'without resolving, cleaning or relabelling',
@@ -290,6 +290,95 @@ class ScoutRouteTests(unittest.TestCase):
 
     def test_r5_f16_route_limits_legacy_final_outcomes_to_component_repair(self):
         self.phrases(self.command, 'A legacy component repair heading with a final outcome is resolved')
+
+
+class BuildRouteTests(unittest.TestCase):
+    """W10: the complex-plan route (prompts/scout/build.md), pinned by key phrases (A8)."""
+
+    def setUp(self):
+        self.command = COMMAND.read_text()
+        self.build = (ROOT / 'prompts/scout/build.md').read_text()
+
+    def phrases(self, text, *phrases):
+        for phrase in phrases:
+            self.assertIn(phrase, text)
+
+    def test_command_points_to_build_and_keeps_writes_serial(self):
+        self.phrases(self.command, 'With several items or any gated or Docs-gated item, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/build.md` before the first write',
+                     'authoring may run in parallel, org writes stay serial')
+        self.phrases(self.build, 'Only the orchestrator writes to the org, the task record and the log',
+                     'Dispatch at most four authoring workers at once', 'never write to the org, run pilots or runtime tests',
+                     '"authored; live validation pending"', 'Pilots and runtime tests run here')
+
+    def test_rb1_cross_customer_reuse_needs_the_se(self):
+        self.phrases(self.command, "Never template from another customer folder's source, records or wording",
+                     'offer such a build by folder name', "reuse it only on the SE's yes", "scan copies for that customer's content")
+
+    def test_rb2_every_retry_is_bound(self):
+        self.phrases(self.command, 'Before every write (retries too)', 'Never automatically retry a write')
+        self.phrases(self.build, 'Run `check`, also before any retry')
+
+    def test_rb3_retry_records_the_error_rule(self):
+        self.phrases(self.build, "Never retry automatically: a retry is a new attempt after K7's error rule",
+                     'recording the covering lesson or the Docs search of the verbatim error')
+
+    def test_rb4_record_shape_and_rb5_beat_surfaces(self):
+        self.phrases(self.build, "Match each on-screen noun to the record's shape", 'a "logged call" is a Task with `TaskSubtype = Call`',
+                     'list the UI surfaces it touches', 'a new object whose beat shows its form needs its layout')
+
+    def test_plan_order_and_queued_job_rule(self):
+        self.phrases(self.build, 'scripts/scout_history.py plan --task [T]', 'a cycle exits 3',
+                     "While any job isn't terminal, the write slot stays occupied: no org mutation of any kind",
+                     "A timed-out job stays `unverified` with its job ID and launch receipt",
+                     'A read-back never settles a job that may still land',
+                     'apply the delta to current source', 'keep the draft')
+
+    def test_prerequisites_and_failures_block_dependents(self):
+        self.phrases(self.build, "Proceed only when every prerequisite is `applied` or `already_satisfied`",
+                     'unless an approved amendment replaces the dependency',
+                     'A failed, blocked or unverified item blocks its dependents; independent items and beats carry on',
+                     "an item withdrawn before its write becomes `omitted`")
+
+    def test_companion_permission_set_order(self):
+        self.phrases(self.build, 'Write the companion permission set after the items it grants settle',
+                     "omit failed items' grants and name them in the log",
+                     "A Service Agent's backing-action grants precede its validation probe")
+
+    def test_contract_table_has_one_row_per_type(self):
+        for row in ('| Object, field, record type |', '| Permission set |', '| App, tab |', '| Layout |',
+                    '| Record page field section |', '| List view |', '| Sharing rules |', '| Report, report type |',
+                    '| Existing report filter |', '| Data |', '| Email-to-Case |', '| Flow |', '| Apex |', '| LWC |',
+                    '| Agentforce |', '| Anything else |'):
+            self.assertIn(row, self.build)
+        self.phrases(self.build, 'ignore its envelopes, ledgers, output formats, phase topology and model choices',
+                     'A Flow item records its frozen validation mode and every required test',
+                     "An Agentforce item references the evaluator's evidence file, with one obligation per required action and assertion")
+
+    def test_rehearsal_rule_and_its_exclusions(self):
+        self.phrases(self.build, 'Rehearse a live flip only in anonymous Apex inside an always-rolled-back savepoint',
+                     'when Docs show every effect is undone',
+                     'A flip that publishes a Publish Immediately event, makes a callout or starts async work goes to visual QA',
+                     'A required flip with no result is `unverified`', "Record each live flip's expected ID in the block before executing it")
+
+    def test_beat_verdicts_and_overall(self):
+        self.phrases(self.build, '`verified` when every item is `applied` or `already_satisfied` with no visual QA pending',
+                     '`visual_qa` when the only gaps are visual QA', '`unverified` when evidence is missing',
+                     '`failed` when a claim or rehearsal failed',
+                     'A `failed` or `unverified` beat makes Overall `UNRESOLVED`; a `visual_qa` beat makes it `FINISHED_WITH_EXCEPTIONS`',
+                     'never drop a required proof-moment claim')
+
+    def test_conditional_log_sections_and_resume(self):
+        self.phrases(self.build, "with per-type sections only under the template's conditions",
+                     "Agent Not Live only when an agent isn't live", 'Execution Order Check whenever a flow deploys',
+                     'settle any non-terminal job first, then run `plan` for the unsettled items')
+
+    def test_no_scope_caps_and_docs_gated_classification(self):
+        self.phrases(self.build, 'No envelope, item cap or one-spec rule applies', 'fuzzy matching rules are authorable',
+                     'UI-only goes on the SE\'s checklist with a fetched citation naming the exact operation',
+                     'Such a task needs `story` with beats, even on the complete-brief path')
+
+    def test_history_reread_rule(self):
+        self.phrases(self.command, 'unless this session read it since its last compaction')
 
 
 if __name__ == '__main__':
