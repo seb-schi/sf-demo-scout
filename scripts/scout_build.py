@@ -586,9 +586,16 @@ def beat_verdict(record, beat):
     return 'verified', []
 
 
+def storied(record):
+    """RC, from the live trial (B3): beats exist on the open-ended path or when the task records a story. A complete
+    brief has no story, so its complex route keeps every other rule but no beat rules."""
+    return bool(record.get('story')) or record.get('path') == 'open-ended'
+
+
 def beats(record):
-    """F8: the one computation of beat verdicts that `render`, Overall and `check` all use; None for a simple task."""
-    if not is_complex(record):
+    """F8: the one computation of beat verdicts that `render`, Overall and `check` all use; None for a simple task,
+    or for a complex one without a story (a complete brief)."""
+    if not is_complex(record) or not storied(record):
         return None
     return [(b['id'],) + beat_verdict(record, b) for b in (record.get('story') or {}).get('beats') or []]
 
@@ -894,10 +901,12 @@ def check_findings(record, folder, checkpoints=(), section_names=(), task_visibl
     findings += [('log-type-sections', m) for m in type_section_findings(record, checkpoints, section_names, folder)]
     if record.get('complex') is False and derived_complex(record):
         findings.append(('story', '"complex":false, but this task has three or more items or a gated or Docs-gated type'))
-    verdicts = beats(record)
-    if verdicts is None:
+    if not is_complex(record):
         return findings
     findings += [('grounding', m) for m in retry_findings(record, checkpoints)]
+    verdicts = beats(record)
+    if verdicts is None:  # a complete brief without a story: no beat rules (the live trial, B3)
+        return findings
     if not verdicts:
         return findings + [('story', 'a complex task needs story beats')]
     if not any(b.get('proof_moment') for b in record['story']['beats']):

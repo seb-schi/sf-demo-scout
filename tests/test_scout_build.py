@@ -260,7 +260,7 @@ class BeatTests(Harness):
         self.assertIn('overall: expected UNRESOLVED', output)
         self.assertIn('B1 records verified but its evidence gives unverified', output)
         self.complex_record()
-        self.data['story'] = None
+        self.data.update(story=None, path='open-ended')  # RC changed this: beat rules need a story or the open-ended path (the live trial, B3)
         self.save()
         rendered = self.run_cli('render')[1]
         self.assertIn('Overall: UNRESOLVED', rendered)
@@ -277,7 +277,7 @@ class BeatTests(Harness):
 
     def test_complex_task_needs_beats_and_keeps_proof_claims(self):
         self.complex_record()
-        self.data['story'] = None
+        self.data.update(story=None, path='open-ended')  # RC changed this: beat rules need a story or the open-ended path (the live trial, B3)
         self.save()
         self.assertIn('a complex task needs story beats', self.assert_rule('story'))
         self.complex_record(claims=(('Two rows', 'I1', 'dropped'),), verification='verified')
@@ -290,8 +290,12 @@ class BeatTests(Harness):
         self.passes()  # two autonomous items stay simple
         self.data['items'] += items(('I3', 'applied', ()))
         self.save()
+        self.passes()  # RC changed this: a three-item complete brief is complex, but has no story to verify (the live trial, B3)
+        self.data['path'] = 'open-ended'
+        self.save()
         self.assertIn('a complex task needs story beats', self.assert_rule('story'))
         self.assertIn('Overall: UNRESOLVED', self.run_cli('render')[1])
+        self.data['path'] = 'complete-brief'
         self.data['complex'] = False
         self.save()
         self.assertIn('"complex":false, but this task has three or more items or a gated or Docs-gated type', self.assert_rule('story'))
@@ -299,6 +303,7 @@ class BeatTests(Harness):
             with self.subTest(spelling=spelling):
                 self.data = base.record()
                 self.data['items'][0].update(type=spelling, category='autonomous', grounding=[dict(DOCS)])
+                self.data['path'] = 'open-ended'  # RC changed this: beat rules need a story or the open-ended path (the live trial, B3)
                 self.save()
                 self.assertIn('a complex task needs story beats', self.assert_rule('story'))
 
@@ -1120,6 +1125,16 @@ class ReleaseCandidateTests(Harness):
         return ('```text\n<!-- scout-repair:repair-k3x9q2ab -->\n### %s\n- **Outcome / read-back:** %s; mutation=`succeeded`; acceptance=`passed`; '
                 '`x/readback.json`\n- **Receipts / remaining action:** `x/result.json`; `x/deploy-start.json`; `%s`; `resolved`\n'
                 '<!-- /scout-repair:repair-k3x9q2ab -->\n```\n') % (outcome, outcome, DEPLOY)
+
+    def test_a_complex_complete_brief_without_a_story_has_no_beat_rules(self):
+        """The live trial (B3): a three-item complete brief is complex, but the route gives it no story."""
+        self.data['items'] = items(('I1', 'applied', ()), ('I2', 'applied', ()), ('I3', 'applied', ()))
+        self.save()
+        self.passes()
+        self.assertNotIn('Beats:', self.run_cli('render')[1])
+        self.data['items'][1]['attempts'] = ['A2', 'A9']
+        self.save(cp('A1') + cp('A2', 'failed', '- Error: failed first write.\n') + cp('A9', at='2026-10-13 12:10') + cp('A3'))
+        self.assertIn('I2 retried in A9 after failed A2', self.assert_rule('grounding'))  # the complex route's other rules still apply
 
     def test_a_read_back_receipt_releases_its_job_and_an_unverified_one_holds_it(self):
         self.save(cp('A1', body=self.receipt('applied')))
