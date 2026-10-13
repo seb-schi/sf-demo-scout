@@ -1,6 +1,6 @@
 ---
 name: agentforce-generate
-description: "Build, modify, optimize, debug, and deploy agents with Agentforce Agent Script. TRIGGER when: user creates, modifies, optimizes, or asks about .agent files or aiAuthoringBundle metadata; changes agent behavior, responses, or conversation logic; designs agent actions, tools, subagents, or flow control; writes or reviews an Agent Spec; wants to optimize, improve, or refactor an agent; previews, debugs, deploys, publishes, or tests agents; uses Agent Script CLI commands (sf agent generate/preview/publish/test); registers/creates/lists/updates/deletes MCP servers, whitelists/approves MCP tools, fetches MCP assets, or configures MCP authentication (sf agent mcp). DO NOT TRIGGER when: Apex development, Flow building, Prompt Template authoring, Experience Cloud configuration, or general Salesforce CLI tasks unrelated to Agent Script."
+description: "Build, modify, audit, repair, optimize, debug, and deploy agents with Agentforce Agent Script. TRIGGER when: user creates, reviews, or changes .agent files or aiAuthoringBundle metadata; asks to fix AgentScript, audit an existing agent, run an AgentScript health check, common-pitfall review, or baseline-versus-candidate repair loop; changes a response, action, subagent, route, state flow, or Agent Spec; migrates or upgrades a legacy GenAiPlannerBundle Agentforce agent (NOT an Einstein Bot) to an aiAuthoringBundle (Agent Script) agent; previews, debugs, deploys, publishes, or tests agents; uses sf agent generate/preview/publish/test; or manages Agentforce MCP servers, tools, assets, or authentication. DO NOT TRIGGER when: Apex, Flow, Prompt Template, Experience Cloud, or general Salesforce CLI work is unrelated to Agent Script; the source is an Einstein Bot — agentforce-bot-upgrade is a separate, unbundled upstream skill; or the primary input is a production session or trace ID rather than an agent artifact."
 metadata:
   version: "0.11"
   minApiVersion: "66.0"
@@ -450,6 +450,7 @@ Read [CLI for Agents](references/salesforce-cli-for-agents.md) for exact command
     `sf agent preview start --json --api-name <Developer_Name>`
     Use `--api-name`, not `--authoring-bundle`.
 7. **Configure end-user access** — ONLY for employee agents. Read [Agent Access Guide](references/agent-access-guide.md) to configure perms and assign access.
+8. **Voice agents — telephony wiring is a separate, opt-in step.** Never auto-wire a channel after publishing. It creates routing flows, a queue, and an active `MessagingChannel` and consumes a provisioned phone number. Proceed only when the user explicitly requests it and supplies a provisioned number; confirm the number is Live before any write. Follow [Headless Telephony CLI](references/voice-telephony-cli.md).
 
 #### Reference Files
 
@@ -546,6 +547,26 @@ Read [CLI for Agents](references/salesforce-cli-for-agents.md) for exact command
    Agent Spec as test coverage baseline
 4. **agentforce-test** skill — test spec YAML format, expectations,
    metrics, test design methodology, and test spec template
+
+### Migrate a Legacy Agent to Agent Script
+
+User wants to upgrade a legacy `GenAiPlannerBundle` agent into an NGA `AiAuthoringBundle` (Agent Script) agent. May say "migrate my legacy agent", "upgrade to the new builder", "convert agent", "start migration", or mention `genAiPlannerBundle` / `aiAuthoringBundle` migration. (Distinct from Einstein **Bot** upgrades — this covers existing Agentforce **agents**. To convert an Einstein **Bot** into a new agent, the upstream **agentforce-bot-upgrade** skill is not bundled with Scout; treat that workflow as an external handoff.)
+
+#### Required Steps
+
+Read [Upgrade a Legacy Agent to Agent Script](references/upgrade-legacy-agent-to-agentscript.md) for the full workflow, exact commands, and the NGA-vs-legacy discriminator. In brief:
+
+1. **Set up the project** — **Confirm the target org via a selectable menu — never assume the default org** (show `sf org list`, mark the default, require an explicit pick). Confirm a DX project (create one if needed); run all retrieves from inside it.
+2. **Pick the legacy agent version** — Two-screen selection: choose the agent, then a **non-NGA** version. Exclude versions whose planner `PlannerType` is `Atlas__ConcurrentMultiAgentOrchestration` (already NGA).
+3. **Migrate via the Connect API** — POST the chosen `botVersionId` to `migrateAgentToNga`. Mutating call; confirm org + id first. Run it in a **subagent** so the large response (inline `agentScript`) does not bloat context — return only `bundleVersionApiName` (+ `conversionWarnings`, `agentResponse`).
+4. **Retrieve the new bundle** — Pull the `AiAuthoringBundle` into the project (by `bundleVersionApiName`, or map `bundleVersionId → fullName` as fallback).
+5. **Analyze, optimize, iterate** — The migration is a mechanical transform that ignores Agent Script primitives. Hand off to **Comprehend an Existing Agent**, then **Optimize an Agent**, then validate/preview.
+
+#### Reference Files
+
+1. [Upgrade a Legacy Agent to Agent Script](references/upgrade-legacy-agent-to-agentscript.md) — full step-by-step workflow, commands, and discriminator logic
+2. [Legacy vs NGA Regression Eval](references/legacy-nga-regression-eval.md) — comparison method; the upstream trial runner and analyzer are deliberately not bundled. Do not fetch or run them through Scout.
+3. [Core Language](references/agent-script-core-language.md) — read the migrated `.agent` structure
 
 ### Optimize an Agent
 

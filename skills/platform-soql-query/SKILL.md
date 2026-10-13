@@ -1,8 +1,22 @@
 ---
 name: platform-soql-query
-description: "SOQL query generation, optimization, and analysis with 100-point scoring. Use this skill when the user needs SOQL/SOSL authoring or optimization: natural-language-to-query generation, relationship queries, aggregates, query-plan analysis, and performance or safety improvements for Salesforce queries. TRIGGER when: user writes, optimizes, or debugs SOQL/SOSL queries, touches .soql files, or asks about relationship queries, aggregates, or query performance. DO NOT TRIGGER when: bulk data operations (use platform-data-manage), Apex DML logic (use platform-apex-generate), or report/dashboard queries."
+description: "Use when the user needs SOQL/SOSL authoring or optimization: natural-language-to-query generation, relationship queries, aggregates, query-plan/selectivity analysis, and performance or safety improvements. TRIGGER when the user writes, optimizes, or debugs SOQL/SOSL, touches .soql files, or asks about relationship queries, aggregates, or query performance. DO NOT TRIGGER for bulk data operations (use platform-data-manage), Apex DML logic (use platform-apex-generate), or report/dashboard queries."
 metadata:
   version: "1.1"
+  domains: ["Platform"]
+  relatedSkills:
+    - "experience-lwc-generate"
+    - "platform-apex-generate"
+    - "platform-apex-logs-debug"
+    - "platform-apex-test-run"
+    - "platform-data-manage"
+  cliTools:
+    - tool: ["jq"]
+      semver: ">=1.6.0"
+    - tool: ["python3"]
+      semver: ">=3.10.0"
+    - tool: ["sf"]
+      semver: ">=2.0.0"
 ---
 
 # platform-soql-query: Salesforce SOQL Query Expert
@@ -90,7 +104,7 @@ When finishing, report in this order:
 
 Suggested shape — use `references/soql-syntax-reference.md` for exact syntax:
 
-```
+```text
 Query goal: <summary>
 Query: <soql or sosl>
 Design: <relationship / aggregate / filter choices>
@@ -108,6 +122,7 @@ Next step: <run in platform-data-manage or embed in Apex>
 | embed the query in services/selectors | [platform-apex-generate](../platform-apex-generate/SKILL.md) | implementation context |
 | analyze slow-query symptoms from logs | [platform-apex-logs-debug](../platform-apex-logs-debug/SKILL.md) | runtime evidence |
 | wire query-backed UI | [experience-lwc-generate](../experience-lwc-generate/SKILL.md) | frontend integration |
+| validate query behavior in tests | [platform-apex-test-run](../platform-apex-test-run/SKILL.md) | test coverage for query logic |
 
 ---
 
