@@ -1,4 +1,6 @@
 """Scout 2.0.1: the fresh rc1 review's F2, F4 and F5, reproduced first, as W13's plan gate revised them."""
+from datetime import datetime
+import os
 from pathlib import Path
 import sys
 import unittest
@@ -7,16 +9,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import test_scout_history as base
 from test_scout_build import BULK, DEPLOY, DOCS, Harness, complex_story, cp, items, job
 
-LATER = 'changes-2026-10-14-0900-example.md'
+LATER = 'changes-2026-11-20-0900-example.md'  # round 3 (M1): past every job's retention; the window tests set their own
 
 
-def later_log(folder, receipts, org=base.ORG, user=base.USER, header=None, newline='\n', body=''):
+def later_log(folder, receipts, org=base.ORG, user=base.USER, header=None, newline='\n', body='', name=LATER):
     """A later task's change log in `folder`, holding only its reconciliation receipts."""
     folder.mkdir(parents=True, exist_ok=True)
     header = 'Org: %s (%s)\n' % (user, org) if header is None else header
-    text = ('# Change Log — Example — 2026-10-14 0900\n%sTask record: task-2026-10-14-0900-example.md\n\n%s'
+    text = ('# Change Log — Example — later\n%sTask record: task-later-example.md\n\n%s'
             '## Reconciled Jobs\n%s\n## Checkpoints\n' % (header, body, ''.join('- reconciled: %s\n' % r for r in receipts)))
-    (folder / LATER).write_bytes(text.replace('\n', newline).encode('utf-8'))
+    (folder / name).write_bytes(text.replace('\n', newline).encode('utf-8'))
 
 
 class ReconciliationTests(Harness):
@@ -86,9 +88,37 @@ class ReconciliationTests(Harness):
                 self.assertEqual(self.rows(), [(None, ['apply script'])] if settled else [(['apply script'], None)])
 
     def test_a_legacy_checkpoints_job_settles_by_its_id(self):
+        """Round 3 (M2): with no time recorded, its log's modification time bounds the launch; edits only delay it."""
         self.save('### PENDING — component repair\n- Deploy %s submitted.\n' % DEPLOY)
         self.assertEqual(self.rows(), [([DEPLOY], None)])
         later_log(self.folder, ['job %s; status: not found; read-back: the field is absent' % DEPLOY])
+        for written, settled in ((datetime(2026, 10, 1, 9, 0), True), (datetime(2026, 11, 1, 9, 0), False)):
+            with self.subTest(written=written):
+                os.utime(self.log, (written.timestamp(), written.timestamp()))
+                self.assertEqual(self.rows(), [(None, [DEPLOY])] if settled else [([DEPLOY], None)])
+
+    def test_not_found_counts_only_past_the_jobs_retention(self):
+        """Round 3 (M1): 31 days after a deploy's launch, 8 after a Bulk job's, counted to the receipt log's own time."""
+        for reference, name, settled in ((DEPLOY, 'changes-2026-10-14-0900-example.md', False),
+                                         (DEPLOY, 'changes-2026-11-13-1100-example.md', False),
+                                         (DEPLOY, 'changes-2026-11-13-1300-example.md', True),
+                                         (BULK, 'changes-2026-10-21-1100-example.md', False),
+                                         (BULK, 'changes-2026-10-21-1300-example.md', True),
+                                         (DEPLOY, 'changes-later-example.md', False)):  # no time in the name
+            with self.subTest(reference=reference, name=name):
+                for old in self.folder.glob('changes-*-example.md'):
+                    if old != self.log:
+                        old.unlink()
+                self.open_job(reference)
+                later_log(self.folder, ['job %s; status: not found; read-back: absent' % reference], name=name)
+                self.assertEqual(self.rows(), [(None, [reference])] if settled else [([reference], None)])
+
+    def test_a_refreshed_sandboxs_old_job_is_certainly_not_found(self):
+        """Round 3 (M2): the job's own log names another org ID, so the bound org can't have it, whatever its age."""
+        self.open_job()
+        self.log.write_text(self.log.read_text().replace('(%s)' % base.ORG, '(00D000000000002EAA)', 1))
+        later_log(self.folder, ['job %s; status: not found; read-back: the field is absent' % DEPLOY],
+                  name='changes-2026-10-14-0900-example.md')
         self.assertEqual(self.rows(), [(None, [DEPLOY])])
 
     def test_only_the_logs_own_header_names_the_org(self):
@@ -99,7 +129,9 @@ class ReconciliationTests(Harness):
                 ('Org: Other (other@example.test, 00D000000000002EAA)\n', '## Notes\nCopied from %s.\n\n' % base.ORG, False),
                 ('', '## Notes\nOrg: %s (%s)\n\n' % (base.USER, base.ORG), False),  # a section's line is no header
                 ('Org: Demo (%s)\n' % base.USER, '', True),  # the template's header names the username only
-                ('Org: Demo (%s)\n' % base.ORG, '', True)):
+                ('Org: Demo (%s)\n' % base.ORG, '', True),
+                ('Org: Demo (%s)\nOrg ID: 00D000000000002EAA\n' % base.USER, '', False),  # round 3 (R2-F1): a split header
+                ('Org: Demo (%s)\nOrg ID: %s\n' % (base.USER, base.ORG), '', True)):
             with self.subTest(header=header, body=body):
                 self.open_job()
                 later_log(self.folder, receipt, header=header, body=body)
@@ -165,10 +197,11 @@ class ReconciliationTests(Harness):
                 (self.folder / LATER).unlink()
 
     def test_an_agent_publish_settles_only_by_its_versions_status(self):
-        """Round 2 (N3): a publish always has a status to read, so `unavailable` never settles one."""
+        """Round 2 (N3) and round 3 (M3): a publish settles by its family's words, or, when no version of the agent
+        exists, by `unavailable` with its read-back."""
         key = 'changes-2026-10-13-1200-example.md · attempt A1 · agent publish'
-        for status, settled in (('unavailable; read-back: version 3 Inactive', False), ('Completed', False),
-                                ('JobComplete', False), ('Active', True), ('NeedsUICommit', True)):
+        for status, settled in (('unavailable; read-back: no BotVersion exists', True), ('unavailable', False),
+                                ('Completed', False), ('JobComplete', False), ('Active', True), ('NeedsUICommit', True)):
             with self.subTest(status=status):
                 self.open_job('agent publish', 'Publishing')
                 later_log(self.folder, ['%s; status: %s' % (key, status)])

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
 import os
@@ -835,20 +836,23 @@ ORG_IDS = re.compile(r'(?<![A-Za-z0-9])00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?(?![
 
 
 def names_bound_org(text, org, username):
-    """2.0.1 (F2, round 2): the log's own header names the bound org, by its ID or, on a line naming no org ID, by
-    its username; a header naming another org ID disqualifies the log. Mentions elsewhere never count."""
-    found = False
-    for line in re.findall(r'(?im)^(?:Org|Target Org|Bound org ID):([^\r\n]*)', document_header(text)):
-        ids = {match[:15] for match in ORG_IDS.findall(line)}
-        if ids - {org[:15]}:
-            return False
-        found |= bool(ids) or bool(username and re.search(r'(?<![\w@.\-])' + re.escape(username) + r'(?![\w@.\-])', line))
-    return found
+    """2.0.1 (F2, rounds 2 and 3): the log's own header names the bound org: its ID anywhere in the header or, with no
+    org ID there, its username on an `Org:` line. Any other org ID in the header, on any line, disqualifies the log.
+    Mentions below the header never count."""
+    header = document_header(text)
+    ids = {match[:15] for match in ORG_IDS.findall(header)}
+    if ids - {org[:15]}:
+        return False
+    if ids:
+        return True
+    return bool(username) and any(re.search(r'(?<![\w@.\-])' + re.escape(username) + r'(?![\w@.\-])', line)
+                                  for line in re.findall(r'(?im)^(?:Org|Target Org):([^\r\n]*)', header))
 
 
 def reconciliations(directory, org, username):
     """2.0.1 (F2): every bulleted `reconciled:` line outside fences in the bound org's change logs, across folders, as
-    (key, status, read-back), its `*` and backticks stripped as on job lines. Unreadable logs and folders add nothing."""
+    (key, status, read-back, the log's own time), its `*` and backticks stripped as on job lines. Unreadable logs and
+    folders add nothing."""
     found = []
     try:
         folders = sorted(directory.iterdir())
@@ -872,7 +876,7 @@ def reconciliations(directory, org, username):
                 bullet = re.match(r'[ \t]*[-*+][ \t]+', line)
                 match = bullet and RECONCILED.fullmatch(re.sub(r'[*`]', '', line[bullet.end():]))
                 if match:
-                    found.append((' '.join(match[1].split()), match[2].strip(), (match[3] or '').strip()))
+                    found.append((' '.join(match[1].split()), match[2].strip(), (match[3] or '').strip(), log_moment(log.name)))
     return found
 
 
@@ -883,27 +887,66 @@ def receipt_key(job, log, attempt):
     return None if attempt is None else ' · '.join((log, 'attempt ' + attempt, ' '.join(job['ref'].split())))
 
 
-def settled_by(job, log, attempt, receipts):
+# 2.0.1 (round 3, M1): Salesforce reports a deploy for 30 days after it completes and keeps a Bulk job for seven, so a
+# `not found` counts only once that long has passed since the launch, plus a day; the receipt log's own time is "now".
+RETENTION = {'0Af': timedelta(days=31), '750': timedelta(days=8)}
+
+
+def log_moment(name):
+    """Round 3 (M1): a change log's own time, from its `changes-YYYY-MM-DD-HHmm` name, read as local time."""
+    match = re.match(r'changes-(\d{4})-(\d\d)-(\d\d)-(\d\d)(\d\d)', name)
+    try:
+        return datetime(*map(int, match.groups())).astimezone() if match else None
+    except (ValueError, OverflowError):
+        return None
+
+
+def launch_moment(job, stamp, path):
+    """Round 3 (M1, M2): when the job launched, at the latest: its `launched:` time, else its heading's minute, else, for
+    a checkpoint without times, its log's modification time, which edits and copies only make later."""
+    moment = job.get('launched_at')
+    if moment is None and stamp:
+        try:
+            moment = datetime.strptime(stamp, '%Y-%m-%d %H:%M')
+        except ValueError:
+            moment = None
+    if moment is None:
+        try:
+            moment = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            return None
+    return moment.astimezone() if moment.tzinfo is None else moment
+
+
+def settled_by(job, log, attempt, receipts, launched=None, foreign=False):
     """2.0.1 (F2): a receipt settles the job when it names it and records a status read that leaves nothing to land.
 
     It names a job ID by `job <ID>` (the first 15 characters match) and a submission without one by exactly
     `<log filename> · attempt <ID> · <label>`. A terminal word for the job's family settles it, as in its own
-    checkpoint. So does Salesforce's answer that it has no such job (`not found`, an ID only) or that a submission has
-    no status to read (`unavailable`, a submission only, never an agent publish, whose version always has one), each
-    with its read-back. Whether a `not found` is past Salesforce's retention is the route's check (`reconcile.md`)."""
+    checkpoint. So does Salesforce's answer that it has no such job (`not found`, an ID only), with its read-back,
+    once the receipt log's time is past the job's retention from `launched` (round 3, M1), or at once when the job's
+    own log names another org (`foreign`, a refreshed sandbox; M2). A submission with no status to read settles by
+    `unavailable` with its read-back; the route says when (`reconcile.md`)."""
     identified = bool(BUILD.JOB_ID.fullmatch(job['ref']))
     family = BUILD.VOCABULARY.get(job['vocabulary'])
     words = family[1] if family else tuple(w for _, vocabulary in BUILD.VOCABULARY.values() for w in vocabulary)
-    fallback = 'not found' if identified else None if job['vocabulary'] == 'agentforce' else 'unavailable'
     expected = None if identified else receipt_key(job, log, attempt)
-    for key, status, readback in receipts:
+    for key, status, readback, at in receipts:
         if identified:
             named = re.fullmatch(r'job[ \t]+(\S+)', key)
             if not named or not BUILD.JOB_ID.fullmatch(named[1]) or named[1][:15] != job['ref'][:15]:
                 continue
         elif key != expected:
             continue
-        if status.lower() in {w.lower() for w in words} or (fallback and status.lower() == fallback and readback):
+        status = status.lower()
+        if status in {w.lower() for w in words}:
+            return True
+        if not readback:
+            continue
+        if not identified and status == 'unavailable':
+            return True
+        if identified and status == 'not found' and (foreign or (
+                launched is not None and at is not None and at - launched > RETENTION[job['vocabulary']])):
             return True
     return False
 
@@ -963,7 +1006,9 @@ def pending(directory, org, username):
                         held = [job for job in held if job['explicit']]  # a bare ID in settled history is a settled deploy
                     elif not own:
                         held = [job for job in held if BUILD.JOB_ID.fullmatch(job['ref'])]
-                    done = [settled_by(job, path.name, own[2] if own else None, receipts) for job in held]
+                    foreign = bool({m[:15] for m in ORG_IDS.findall(document_header(text))} - {org[:15]})
+                    done = [settled_by(job, path.name, own[2] if own else None, receipts,
+                                       launch_moment(job, own[3] if own else None, path), foreign) for job in held]
                     held, settled = [j for j, d in zip(held, done) if not d], [j for j, d in zip(held, done) if d]
                     if held:
                         row['open_jobs'] = [job['ref'] for job in held]

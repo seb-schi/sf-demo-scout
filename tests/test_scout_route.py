@@ -27,7 +27,7 @@ class ScoutRouteTests(unittest.TestCase):
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
         caps = {'scout.md': 2275, 'history.md': 1005, 'discovery.md': 1100, 'build.md': 1325, 'prep.md': 900,  # W10 C9 and W9 C5
-                'reconcile.md': 290}  # 2.0.1: the handover's form moved to history.md; reconcile.md is new (W13)
+                'reconcile.md': 335}  # 2.0.1: the handover's form moved to history.md; reconcile.md is new (W13)
         for path in [COMMAND, *optional]:
             self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)
         text = '\n'.join(p.read_text() for p in [COMMAND, *optional])
@@ -368,16 +368,16 @@ class BuildRouteTests(unittest.TestCase):
                      'per job (a non-terminal status in backticks)')
         reconcile = (ROOT / 'prompts/scout/reconcile.md').read_text()  # 2.0.1 (W13 R1): another task's job, settled for good
         self.phrases(reconcile, 'with the exact name for its receipt under `receipt_keys`',
-                     '`sf data bulk results --job-id <ID> --target-org [BOUND_USERNAME] --json`',
+                     '`sf data bulk results --job-id <ID> --target-org [BOUND_USERNAME] --json`, run from a fresh scratch folder',
                      "names the bound org in its header, as the template's `Org:` line does",
                      'under `## Reconciled Jobs`, above the final `## Checkpoints`',
                      '`- reconciled: <its receipt key>; status: <the answer>; read-back: <what the job changed, as you read it now>`',
-                     '`InvalidDeployIdError`, but only past Salesforce\'s retention: more than 31 days',
-                     'or with neither time recorded, Salesforce may still have the job, so the answer means the read was wrong',
-                     'no process of it still runs', 'An agent publish always has a status to read',
+                     '`pending` accepts it once Salesforce can no longer report the job: more than 31 days after a deploy\'s launch',
+                     'or at once when the job\'s own log names another org ID (a refreshed sandbox)',
+                     'or an agent publish when no version of that agent exists', 'no process of it still runs',
                      'Those two need the read-back. Any other answer, an error included, settles nothing: stop and tell the SE',
                      'Then rerun `pending`, and write only once every entry shows under `reconciled_jobs`',
-                     "Never edit the other task's records")
+                     "stop and tell the SE the read may be wrong or the job too recent", "Never edit the other task's records")
         self.phrases(self.command, 'A prefix proves no identity. Use `sf alias list --json` if needed.')  # 2.0.1 (F7, N4)
 
     def test_prerequisites_and_failures_block_dependents(self):
