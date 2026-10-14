@@ -19,6 +19,10 @@ Run `resolve --task [T]`, then `check --task [T]`. Applied/failed/unverified req
 
 Exit 0 permits handover; warnings disclose Docs-unavailable grounding or SE sections causing map excess. Exit 2 means fix usage; exit 3 lists findings: fix and recheck up to twice. If still failing, or exit 4 (couldn't read), record why history is incomplete in the task and make the handover's first line **History incomplete: [reason]**. Never present incomplete history as complete.
 
+## Hand over
+
+Send one outcome-first message: verified items; visual QA; each uncompleted item with disposition, reason and next step; manual checklist; any copy scan; task/log paths. Then the Demo Story and history block, with proposed decisions and lessons for yes/edit/skip. A task with a story tells its beats as `${CLAUDE_PLUGIN_ROOT}/prompts/scout/discovery.md` §"Tell the verified story" says, reread after compaction: each with persona, click path, record, KP, verified claims and climax, the proof moment marked, unfulfilled beats labelled planned/unverified. A bounded change gets one line naming the beat it serves. Write neither without the SE's answer. Follow this file through the post-answer check/receipt.
+
 ## The map and one history question
 
 Propose material decisions: amendments, confirmations, new/existing forks, gated choices, cuts as `[REJECTED]`, items kept without a moment, app and language choices. Change the arc only if flow changed. With neither change, leave the map untouched: “map unchanged”.

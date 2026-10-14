@@ -36,7 +36,7 @@ TYPE_SECTIONS = {'flow': ('Flows Deployed', 'Execution Order Check'), 'apex': ('
 
 # F2: each executor family's explicit terminal vocabulary. Job IDs key by prefix; submissions without one by item family.
 JOB_ID = re.compile(r'(?<![A-Za-z0-9])(?:0Af|750)[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?(?![A-Za-z0-9])')
-VOCABULARY = {'0Af': ('Metadata API deploy', ('Succeeded', 'SucceededPartial', 'Failed', 'Canceled')),
+VOCABULARY = {'0Af': ('Metadata API deploy', ('Succeeded', 'SucceededPartial', 'Failed', 'Canceled', 'FinalizingDeployFailed')),
               '750': ('Bulk job', ('JobComplete', 'Failed', 'Aborted')),
               'agentforce': ('Agentforce publish', ('Active', 'Inactive', 'NeedsUICommit', 'Failed')),
               'emailtocase': ('Email-to-Case apply script', ('Completed', 'Failed'))}
@@ -499,6 +499,13 @@ def write_order_findings(record, checkpoints):
     return problems
 
 
+def degraded(entry):
+    """2.0.1 (F5): with Docs unavailable, W3's degraded entry stands in for the Docs search: `ungrounded`, an empty ref
+    and a verdict starting `Docs unavailable`. `check` already warns on it."""
+    return (entry['source'] == 'ungrounded' and not entry['ref'].strip()
+            and entry['verdict'].strip().lower().startswith('docs unavailable'))
+
+
 def retry_findings(record, checkpoints):
     """RB3, F5 and R2-F5: a retry, the attempt that ran next after a failed one on the same item, cites its covering
     lesson or Docs search. The attempts array lists them in the order they ran, as W3's last-outcome rule assumes."""
@@ -513,9 +520,11 @@ def retry_findings(record, checkpoints):
         for previous, attempt in zip(chronology, chronology[1:]):
             if states[previous]['outcome'] != 'failed':
                 continue
-            if not any(e.get('attempt') == attempt and e['source'] in ('lesson', 'docs') and e['ref'].strip() for e in item['grounding']):
+            if not any(e.get('attempt') == attempt and (e['source'] in ('lesson', 'docs') and e['ref'].strip() or degraded(e))
+                       for e in item['grounding']):
                 problems.append('%s retried in %s after failed %s without a grounding entry {"attempt":"%s"} citing the covering '
-                                'lesson or the Docs search of the verbatim error (source lesson or docs, with its ref)'
+                                'lesson or the Docs search of the verbatim error (source lesson or docs, with its ref; '
+                                'with Docs unavailable, an ungrounded entry whose verdict starts "Docs unavailable")'
                                 % (item['id'], attempt, previous, attempt))
         for entry in item['grounding']:
             if 'attempt' in entry and entry['attempt'] not in item['attempts']:

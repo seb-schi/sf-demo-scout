@@ -26,7 +26,8 @@ class ScoutRouteTests(unittest.TestCase):
 
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
-        caps = {'scout.md': 2310, 'history.md': 900, 'discovery.md': 1100, 'build.md': 1300, 'prep.md': 900}  # W10 C9 and W9 C5
+        caps = {'scout.md': 2275, 'history.md': 1005, 'discovery.md': 1100, 'build.md': 1325, 'prep.md': 900,  # W10 C9 and W9 C5
+                'reconcile.md': 225}  # 2.0.1: the handover's form moved to history.md; reconcile.md is new (W13)
         for path in [COMMAND, *optional]:
             self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)
         text = '\n'.join(p.read_text() for p in [COMMAND, *optional])
@@ -130,8 +131,13 @@ class ScoutRouteTests(unittest.TestCase):
                      'persona, click path, record, KP, verified claims and climax',
                      'mark the proof moment', 'Label unfulfilled beats planned/unverified',
                      "map's Narrative Arc")
-        self.phrases(self.command, 'Send one outcome-first message',
-                     'Then the Demo Story (one line naming the beat served) and history block')
+        # 2.0.1 (F6, F3): the handover's form moved to history.md, and its Demo Story clause follows discovery.md again.
+        self.phrases(self.history, 'Send one outcome-first message', 'Then the Demo Story and history block',
+                     'A task with a story tells its beats as', '§"Tell the verified story" says, reread after compaction',
+                     'persona, click path, record, KP, verified claims and climax', 'the proof moment marked',
+                     'unfulfilled beats labelled planned/unverified', 'A bounded change gets one line naming the beat it serves')
+        self.phrases(self.command, "history.md gives the handover's form")
+        self.assertNotIn('outcome-first', self.command)
 
     def test_k6_lessons_require_yes_and_skip_extra_offers(self):
         self.phrases(self.history, 'propose 1–3 lessons', 'yes, edit or skip', 'Write only on yes or edit',
@@ -187,7 +193,7 @@ class ScoutRouteTests(unittest.TestCase):
 
     def test_complete_brief_startup_budget_and_report_checkpoint_adapter(self):
         startup = [COMMAND, ROOT / 'prompts/host-runtime.md', ROOT / 'prompts/workspace-bootstrap.md']
-        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3100)  # RC: +82 from main's shipped worker-model and zsh fixes
+        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3060)  # 2.0.1: down from 3,100 (F3); the packages' 3,000 awaits the user's U1
         self.phrases(self.command, 'log explicitly as `--change-log`',
                      'marked receipt block fenced and its evidence unchanged')
 
@@ -293,7 +299,7 @@ class ScoutRouteTests(unittest.TestCase):
     def test_r4_f18_complete_brief_availability_without_readiness(self):
         self.phrases(self.command, 'Check exposed Docs tools; do not load readiness before this message')
         startup = [COMMAND, ROOT / 'prompts/host-runtime.md', ROOT / 'prompts/workspace-bootstrap.md']
-        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3100)  # RC: +82 from main's shipped worker-model and zsh fixes
+        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3060)  # 2.0.1: down from 3,100 (F3); the packages' 3,000 awaits the user's U1
 
     def test_r4_f19_stamps_come_from_clock(self):
         self.phrases(self.command, 'Stamp records from `date`, never an estimate')
@@ -329,7 +335,8 @@ class BuildRouteTests(unittest.TestCase):
         self.phrases(self.command, "Read other customers' folders only for the history and conflict checks named here",
                      "copy their source, records, seed data or wording only on the SE's yes to an offer naming its folder",
                      "scan copies for that customer's content")
-        handover = self.command.split('## Verification and handover')[1]
+        history = (ROOT / 'prompts/scout/history.md').read_text()
+        handover = history.split('## Hand over')[1].split('\n## ')[0]  # 2.0.1: the handover's form lives in history.md
         self.phrases(handover, 'any copy scan')
 
     def test_rb2_every_retry_is_bound(self):
@@ -353,10 +360,18 @@ class BuildRouteTests(unittest.TestCase):
                      'apply the delta to current source', 'keep the draft',
                      '`open_jobs` and `ready`, the items writable now',
                      "Its checkpoint's `job:` line (an ID, else the executor) records `launched:` and `settled:`; only a terminal `status:` settles it",
-                     '`Succeeded|SucceededPartial|Failed|Canceled`', '`JobComplete|Failed|Aborted`', '`Completed|Failed`',
+                     '`Succeeded|SucceededPartial|Failed|Canceled|FinalizingDeployFailed`', '`JobComplete|Failed|Aborted`', '`Completed|Failed`',
                      '`Active|Inactive|NeedsUICommit|Failed`')
         self.phrases(self.command, '`- job:<ID>;status:<terminal>;launched:<YYYY-MM-DDTHH:MM:SS>;settled:<…>` per job',
-                     "Settle every `open_jobs` entry `pending` reports with a status read before writing, or stop and tell the SE")
+                     'Settle every `open_jobs` entry `pending` reports with a status read before writing, recorded per '
+                     '`${CLAUDE_PLUGIN_ROOT}/prompts/scout/reconcile.md`, or stop and tell the SE',
+                     'per job (a non-terminal status in backticks)')
+        reconcile = (ROOT / 'prompts/scout/reconcile.md').read_text()  # 2.0.1 (W13 R1): another task's job, settled for good
+        self.phrases(reconcile, 'under `## Reconciled Jobs`, above the final `## Checkpoints` in this task\'s change log',
+                     '`- reconciled: job <ID>; status: <the answer>; read-back: <what the job changed, as you read it now>`',
+                     '`<its log\'s filename> · attempt <ID> · <its job label>`', '`InvalidDeployIdError`',
+                     'Those two need the read-back. Any other answer, an error included, settles nothing: stop and tell the SE',
+                     "Never edit the other task's records")
 
     def test_prerequisites_and_failures_block_dependents(self):
         self.phrases(self.build, "Proceed only when every prerequisite is `applied` or `already_satisfied`",
@@ -366,7 +381,7 @@ class BuildRouteTests(unittest.TestCase):
 
     def test_companion_permission_set_order(self):
         self.phrases(self.build, 'Write the companion permission set after the items it grants settle',
-                     "omit failed items' grants and name them in the log",
+                     "omit failed items' grants, drop those items from the set's `depends_on` and name them in the log",
                      "A Service Agent's backing-action grants precede its validation probe")
 
     def test_contract_table_has_one_row_per_type_family(self):
@@ -406,7 +421,8 @@ class BuildRouteTests(unittest.TestCase):
     def test_no_scope_caps_and_docs_gated_classification(self):
         self.phrases(self.build, 'No envelope, item cap or one-spec rule applies', 'fuzzy matching rules are authorable',
                      'UI-only goes on the SE\'s checklist with a fetched citation naming the exact operation',
-                     'Such a task needs `story` with beats, even on the complete-brief path')
+                     'It needs `story` with beats on the open-ended path or when the task records one; complete briefs invent none',
+                     "record W3's degraded entry instead: `ungrounded`, empty ref, verdict starting `Docs unavailable`")
 
     def test_rb6_deletes_always_get_their_own_confirmation(self):
         self.phrases(self.command, 'counts as its confirmation, except for deletes',

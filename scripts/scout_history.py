@@ -828,8 +828,65 @@ def checkpoint_heading(title):
                 re.match(r'^(?:' + '|'.join(DISPOSITIONS) + r') — component repair · attempt ', title))
 
 
+# 2.0.1 (F2): a later task settles another task's open job in its own change log, never by editing the other's records.
+RECONCILED = re.compile(r'(?im)^[ \t]*[-*+][ \t]+reconciled:[ \t]*([^;\r\n]+?)[ \t]*;[ \t]*status:[ \t]*([^;\r\n]+?)[ \t]*'
+                        r'(?:;[ \t]*read-back:[ \t]*([^\r\n]*?))?[ \t]*$')
+
+
+def reconciliations(directory, org, username):
+    """2.0.1 (F2): every `- reconciled:` line in the bound org's change logs, across folders, as (key, status, read-back).
+
+    A log counts only when it names the bound org, as `pending`'s folders do. Unreadable logs and folders add nothing."""
+    identity = r'(?<![A-Za-z0-9])' + re.escape(org[:15]) + r'(?:[A-Za-z0-9]{3})?(?![A-Za-z0-9])'
+    found = []
+    try:
+        folders = sorted(directory.iterdir())
+    except OSError:
+        return found
+    for folder in folders:
+        if folder.is_symlink() or not folder.is_dir():
+            continue
+        try:
+            logs = sorted(p for p in folder.iterdir() if re.fullmatch(r'changes-.*\.md', p.name))
+        except OSError:
+            continue
+        for log in logs:
+            try:
+                text = read(log)
+            except (OSError, UnicodeError):
+                continue
+            if re.search(identity, text) or (username and re.search(r'(?<![\w@.\-])' + re.escape(username) + r'(?![\w@.\-])', text)):
+                found += [(' '.join(m[1].split()), m[2].strip(), (m[3] or '').strip()) for m in RECONCILED.finditer(text)]
+    return found
+
+
+def settled_by(job, log, attempt, receipts):
+    """2.0.1 (F2): a receipt settles the job when it names it and records a status read that leaves nothing to land.
+
+    It names a job ID by `job <ID>` (the first 15 characters match) and a submission without one by
+    `<log filename> · attempt <ID> · <label>`. A terminal word for the job's family settles it. So does Salesforce's
+    answer that it has no such job (`not found`, an ID only) or no status to read (`unavailable`, a submission only),
+    each with its read-back."""
+    identified = bool(BUILD.JOB_ID.fullmatch(job['ref']))
+    if identified:
+        words, fallback = BUILD.VOCABULARY[job['vocabulary']][1], 'not found'
+    else:
+        words, fallback = tuple(w for _, family in BUILD.VOCABULARY.values() for w in family), 'unavailable'
+    for key, status, readback in receipts:
+        if identified:
+            named = re.fullmatch(r'job[ \t]+(\S+)', key)
+            if not named or not BUILD.JOB_ID.fullmatch(named[1]) or named[1][:15] != job['ref'][:15]:
+                continue
+        elif attempt is None or key.lower() != ' · '.join((log, 'attempt ' + attempt, ' '.join(job['ref'].split()))).lower():
+            continue
+        if status.lower() in {w.lower() for w in words} or (status.lower() == fallback and readback):
+            return True
+    return False
+
+
 def pending(directory, org, username):
     incomplete = False
+    receipts = reconciliations(directory, org, username)
     for folder in sorted(directory.iterdir()):
         if folder.is_symlink():
             print(json.dumps({'state': 'incomplete', 'path': str(folder), 'reason': 'symlink folder refused'}))
@@ -882,8 +939,12 @@ def pending(directory, org, username):
                         held = [job for job in held if job['explicit']]  # a bare ID in settled history is a settled deploy
                     elif not own:
                         held = [job for job in held if BUILD.JOB_ID.fullmatch(job['ref'])]
+                    done = [settled_by(job, path.name, own[2] if own else None, receipts) for job in held]
+                    held, settled = [j for j, d in zip(held, done) if not d], [j for j, d in zip(held, done) if d]
                     if held:
                         row['open_jobs'] = [job['ref'] for job in held]
+                    if settled:
+                        row['reconciled_jobs'] = [job['ref'] for job in settled]
                 print(json.dumps(row))
             # Fail closed when a deeply nested/indented heading escaped inventory.
             # Title spans prevent duplicates, including multi-line setext titles.
