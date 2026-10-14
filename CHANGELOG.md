@@ -2,6 +2,14 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-10-14 (Scout 2.0.1)
+
+- **An interrupted deploy no longer blocks an org for good.** If a session ended while a deploy or bulk data load was still running, the next session still checks that job before writing. It now records what it found in its own change log, so later sessions don't check again. When Salesforce no longer has the job, or the job has no status to read, Scout reads back what it changed instead of stopping every write in that org.
+- **Two more deploy states are recognized.** A deploy that fails while finalizing counts as failed, and a queued deploy can be recorded as `Pending`.
+- **Two honest records now pass the history check:** a retry while Salesforce Docs is unavailable, and a companion permission set that leaves out a failed item's grants.
+- **The handover's Demo Story fits the task.** A task with a story gets its verified beats; a small change gets one line naming the beat it serves. A complete brief is never given an invented story.
+- **Naming an org by username finds its customer folder,** because Scout can look up the org's alias.
+
 ## 2026-10-14 (Scout 2.0)
 
 The biggest update since Scout became a Claude Code plugin. `/scout` replaces the two-step sparring-and-building flow with one session that spars, builds, checks and preps your demo. It's built for Opus 5.5 and later.
