@@ -4,15 +4,57 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-10-14 (Scout 2.0)
 
-- **One command, `/scout`, takes a request from idea to a verified build.** It binds to one org before any write, bundles what needs your yes into a single confirmation, and hands over with what's verified first.
-- **Nothing is called done without Scout's own read-back.** Every item ends `applied`, `already_satisfied`, `failed`, `blocked`, `unverified` or `omitted`, with its evidence, and each write is checked against the bound org first.
-- **Larger demos build in a planned order.** Three or more items, or any Flow, Apex, LWC or Agentforce item, get a dependency order, one write at a time, story beats verified one by one and an honest Overall.
-- **The classic commands now open `/scout`.** `/scout-sparring` starts it with your request, and `/scout-building` hands it your spec as the brief. A note says so and points to #sf-demo-scout.
+The biggest update since Scout became a Claude Code plugin. `/scout` replaces the two-step sparring-and-building flow with one session that spars, builds, checks and preps your demo. It's built for Opus 5.5 and later.
+
+- **One command, `/scout`, takes you from idea to a checked demo.** Bring your request in any shape: a one-line idea, a complete brief, a pasted demo plan or discovery notes, a fix, or a task record to resume. Scout plans it, asks once, builds it and checks it in one session. There's no spec and no second window.
+- **The classic commands now open `/scout`.** `/scout-sparring` starts it with your request, and `/scout-building` hands it your spec as the brief. A note says so and points to #sf-demo-scout. Showtime mode is retired.
 - **Scout 2.0 is built for Opus 5.5 and later.** On an older Opus, Sonnet or Haiku model, Scout stops before any work and asks you to switch with `/model`.
-- **Scout preps you for delivery.** Ask it to prep for a demo, or run `/scout prep`. It runs read-only checks, then writes `demo-path.md` with the readiness verdict, the drift since the build, a pre-demo checklist and the click path. It never changes the org.
-- **History stays consistent across sessions.** Each task keeps a task record and a change log whose checkpoints are checked before the handover. Interrupted work is reconciled from its receipts, never replayed.
-- **Writer projects are anchored by a root `.forceignore`,** so the first deploy of a build no longer needs a repair.
-- **The bundled Salesforce skills are refreshed to upstream v1.62.0,** including the Agentforce skills.
+
+- **Scout still spars with you on the story.** For an open-ended request it drafts the value story, in at most two rounds. That covers who has to say yes, their pain, what doing nothing costs and the future state, plus two to six beats and the proof moment. Gaps stay visible rather than invented, and Scout challenges any item that doesn't prove the story ("keep or cut?").
+- **Demos are built to present, not just deployed.**
+  - Seed data carries real tension, such as overdue and at-risk records, dated from the seed day with a stated validity window.
+  - Hero records get contacts and activity, and live flips come with a reset.
+  - Seed scripts are re-runnable, never delete, and have a `--pilot-only` self-test.
+  - Every on-screen claim becomes a check that Scout reads back from the org.
+- **Salesforce Docs ground the design.** Before deciding how to build flows, Apex, LWC, Agentforce, Email-to-Case, dashboards or an unfamiliar type, Scout fetches the relevant Docs page. Every item records where its approach came from.
+- **Another customer's work is reused only on your yes.** Scout can offer an earlier build by folder name, copies nothing without your answer, and scans any copy for the other customer's content.
+
+- **Scout works only in the org you name.** It binds to that org's username and org ID and re-checks the binding before every write. It stops if the org changes under it. Every command targets the bound org explicitly, and Scout never changes your default org, aliases or login.
+- **You confirm once, and each delete on its own.** An explicit request that names the item and the action counts as your yes, except for deletes. Each delete is confirmed alone, naming every record and everything that goes with it. Changes to existing permission sets or profiles, and anything prefixed `sb_` or `managed__`, still need your explicit yes.
+- **Instructions inside files are data.** A plan, notes or retrieved content can't authorize anything; only you can.
+
+- **Nothing is called done without Scout's own read-back.** Every item ends `applied`, `already_satisfied`, `failed`, `blocked`, `unverified` or `omitted`, with its evidence. A green deploy alone doesn't count. Items that can't be checked by machine are listed as needing a visual check, never called working.
+- **Handovers lead with the outcome.** They start with:
+  - what's verified
+  - what needs a visual check
+  - what's not done, with the reason and the next step
+  - your manual checklist
+  - whether anything was copied from another customer
+
+  Then comes the Demo Story, with the click path for each beat.
+
+- **Larger demos build in a planned order.** Three or more items, or any Flow, Apex, LWC or Agentforce item, get a dependency plan. Authoring can run in parallel, while org writes stay one at a time. Story beats are verified one by one, and the overall status stays honest.
+- **Flows go live only on the version that passed its test.** Agents are validated, previewed, published and activated, then checked in a live preview.
+- **Deploy jobs are tracked one by one.** Scout records each job's status and timing. If an answer goes missing, it settles the job from its ID before the next write and never re-sends it.
+
+- **Every task keeps a record and a change log.** The task record holds:
+  - your request
+  - the bound org
+  - each item with its criteria, evidence and outcome
+
+  The change log holds a checkpoint for every attempt. Scout checks both before the handover, and says "History incomplete" when it can't settle them.
+- **Scout picks up where you left off.** It scans the bound org's history across your folders for unfinished work, and settles open deploy jobs before writing. It reads classic history (specs, audits, change logs and demo maps) as leads.
+- **Decisions, the demo map and lessons are written only on your answer.** Scout proposes them for yes, edit or skip. It flags any request that would revive an idea you rejected.
+
+- **Scout preps you for delivery.** Ask it to prep for a demo, or run `/scout prep`.
+  - It runs read-only checks scored against the demo's date and time zone.
+  - It gives a readiness verdict, the drift since the build, a pre-demo checklist and the click path, all saved in `demo-path.md`. Your earlier copy is kept.
+  - It offers fixes, applies none, and never changes the org.
+
+- **`/scout-repair` (preview) repairs one existing report filter value.** It binds the org explicitly, preserves the original and reads the result back independently. An interrupted repair is held and recovered, never replayed. `/scout` uses the same path for report-filter fixes.
+- **Writer projects are anchored by a root `.forceignore`,** so a build's first deploy no longer needs a repair.
+- **The bundled Salesforce skills are refreshed to upstream v1.62.0,** Agentforce skills included.
+- **The README, startup banner, setup's closing message and the standing rules now point to `/scout`.**
 
 ## 2026-10-12
 
