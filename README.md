@@ -1,8 +1,9 @@
 # SF Demo Scout
 
-A Claude Code plugin for Salesforce Solution Engineers. Scout audits your
-demo org, spars with you on the scenario, and deploys the configuration —
-so you ship a CLI-driven demo this week instead of next quarter.
+A Claude Code plugin for Salesforce Solution Engineers. Run `/scout` and say
+what you need: Scout spars with you on the demo story, builds it in your demo
+org, checks every piece there, and preps you for delivery, all in one session.
+Scout 2.0 is built for Opus 5.5 and later.
 
 Scout's `sf` prerequisite is the Salesforce CLI installed on your Mac. Its
 Salesforce DX MCP integration is a separate adapter, launched by each host from
@@ -19,18 +20,21 @@ landscape doesn't help: a dozen MCP servers, community skill repos, half a
 dozen ways to stand up Claude Code. The cost of starting is high, and the
 cost of starting wrong is higher.
 
-Scout is the on-ramp. One command stands up everything you need, and from
-there it does three things:
+Scout is the on-ramp. Setup stands up everything you need, and from there
+`/scout` does four things:
 
-1. **Audits the org you're connected to** — a complete snapshot of what
-   already exists, so you build into reality instead of around it.
-2. **Spars with you on the scenario** — guided discovery from customer
-   notes, Salesforce Docs, and Slack, through to a structured deployment
-   spec you approve — where the real work is deciding what to leave out,
-   not just what to include.
-3. **Builds the configuration** — an Opus orchestrator spawns Sonnet
-   sub-agents that deploy in phases, validate each step against the live
-   org, and produce a change log with rollback commands.
+1. **Works in the org you name.** It looks at exactly what your request
+   touches (a full audit when you ask), so you build into reality instead of
+   around it, and it never changes your defaults or login.
+2. **Spars with you on the story.** From a one-liner or your discovery notes
+   to a proposal with a clear "wow" moment, and pushback on anything that
+   doesn't earn its place, because the real work is deciding what to leave out.
+3. **Builds and checks the configuration.** In dependency order, one write at
+   a time. It reads every item back in the org before calling it done, logs
+   every change with rollback evidence, and asks before deleting or changing
+   anything sensitive.
+4. **Preps you for delivery.** The click path through your story, and a
+   read-only readiness check before you present.
 
 Scout works because the [official Salesforce deployment
 skills](https://github.com/forcedotcom/sf-skills) are baked in, with an
@@ -41,55 +45,38 @@ vibe-coding the platform layer — you're driving it.
 
 ## How it works
 
-Two Opus-driven conversations feeding a Sonnet-executed build, with a
-single spec file as the only contract between them — sparring is its sole
-writer, building its sole reader. That one seam is what keeps a
-multi-agent system legible enough to trust on demo day.
+One session from idea to a checked demo. The 5.5 models carry the whole job;
+Scout supplies the Salesforce playbook (bundled skills, deployment rules,
+Salesforce Docs) and the SE rigour (org binding, confirmations, read-back,
+per-customer history).
 
 ```mermaid
 flowchart TD
     SE(["👤 Solution Engineer"])
 
-    subgraph SPAR["/scout-sparring · Opus"]
-        A["`Audit the live org
-_parallel Sonnet sub-agents_`"]
-        D["`Discover the need
-+ research official docs`"]
-        P["`Propose the scenario
+    subgraph SCOUT["/scout · one session"]
+        B["`Bind to your org
+_and read its history_`"]
+        S["`Spar on the story
 **— and what to leave out**`"]
-        A --> D --> P
+        Y{"`your yes`"}
+        W["`Build in dependency order
+_one write at a time_`"]
+        R["`Read back every item
+in the org`"]
+        B --> S --> Y --> W --> R
     end
 
-    SPEC[["`📄 demo spec
-**the one contract**`"]]
+    OUT["`✅ Handover: verified · needs a look · left
++ change log + demo map`"]
+    PREP["`🎬 Prep before the meeting
+readiness check + click path`"]
 
-    subgraph BUILD["/scout-building · Opus orchestrator"]
-        S1["`Phase 1
-structural metadata`"]
-        S2["`Phase 2
-flows · Apex · LWC`"]
-        S3["`Phase 3
-Agentforce agents`"]
-        G{"`success signal
-to verify against?`"}
-        S1 --> S2 --> S3 --> G
-    end
+    SE --> SCOUT
+    R --> OUT --> PREP
 
-    OUT["`✅ Deployed org
-+ change log + rollback`"]
-    MAN["`🧑‍💻 Deployed + QA checklist
-you confirm the visual result`"]
-
-    SE --> SPAR
-    P -->|"SE approves"| SPEC
-    SPEC -->|"Sonnet sub-agents build in phases"| BUILD
-    G -->|"yes — auto-verified in a fix-loop"| OUT
-    G -->|"no — deployed, but flagged for your QA"| MAN
-
-    classDef opus fill:#e8eefc,stroke:#3b5ba5,color:#1a2a4a;
-    classDef contract fill:#fff4e0,stroke:#c9821a,color:#5a3a08;
-    class SPAR,BUILD opus;
-    class SPEC contract;
+    classDef scout fill:#e8eefc,stroke:#3b5ba5,color:#1a2a4a;
+    class SCOUT scout;
 ```
 
 ## What Scout builds — and what it leaves to you
@@ -102,12 +89,11 @@ reliably than most of us do by hand.
 So the scarce discipline has moved. When everything is buildable, the
 question that decides whether a demo lands is no longer *can we build
 this* — it's *what's worth building, and what to leave out*. That judgment
-doesn't automate, and it's the whole reason `/scout-sparring` comes first:
-the point of a sparring session is to decide what **not** to build before
-a line is deployed.
+doesn't automate, and it's the whole reason `/scout` spars first: the point
+of sparring is to decide what **not** to build before a line is deployed.
 
 Building, by contrast, is deliberately low-friction. Once you've approved
-the spec, Scout goes as far as the platform allows without stopping to
+the proposal, Scout goes as far as the platform allows without stopping to
 re-litigate the plan — the second-guessing already happened, with you, in
 sparring. The one thing it never does is *pretend*: where it can check its
 own work (a deploy read-back, a passing test, a fired agent action) it
@@ -131,12 +117,6 @@ Paths, CompactLayouts, and ListViews. A full new `RecordPage` is composed
 manually by the SE in App Builder, where the complete page can be arranged and
 previewed safely.
 
-**Showtime** mode collapses the loop for live discovery: it turns a
-conversation happening in front of the customer into one of five tightly scoped
-scenario envelopes. It aims to deploy the approved slice during the meeting;
-the actual result is whatever the scoped completion evidence supports, with
-remaining QA, blocked work, and failures kept visible.
-
 ## Install
 
 Inside Claude Code, run these four commands in order:
@@ -154,19 +134,20 @@ Salesforce CLI install, SFDX scaffold, shell environment, and Slack MCP
 registration + auth. The vetted Salesforce skills ship bundled in the
 plugin itself — installed at `/plugin install`, no separate sync step.
 
-After setup, kick off your first demo with `/scout-sparring`.
+After setup, kick off your first demo with `/scout`.
 
 > **Full setup guide with videos and screenshots:**
 > [Demo Scout Canvas](https://salesforce.enterprise.slack.com/docs/T01G0063H29/F0AQP1A7YMD)
 > (internal Salesforce link)
 
-## The three commands
+## The commands
 
 | Command | What it does |
 |---|---|
-| `/scout-sparring` | Guided sparring + spec generation (Opus; Sonnet sub-agents audit your org). Connects or switches your active org inline at startup. |
-| `/scout-building` | Org deployment from a completed spec (Opus orchestrates, Sonnet sub-agents build) |
+| `/scout` | Scout 2.0: spar, build, fix or prep a demo in one session, in the org you name. Built for Opus 5.5 and later. |
 | `/scout-setup` | Setup, updates, and repairs |
+
+`/scout-sparring` and `/scout-building` are the classic command names. They now open `/scout`; `/scout-building` hands it your spec as the brief.
 
 ## Updates
 

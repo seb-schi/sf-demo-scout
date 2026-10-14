@@ -2,12 +2,14 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
-## 2026-10-14 (Scout 2.0 release candidate)
+## 2026-10-14 (Scout 2.0)
 
-- **One command, `/scout`, takes a request from idea to a verified build.** It binds to one org before any write, bundles what needs your yes into a single confirmation, and hands over with what's verified first. `/scout-sparring` and `/scout-building` stay available.
+- **One command, `/scout`, takes a request from idea to a verified build.** It binds to one org before any write, bundles what needs your yes into a single confirmation, and hands over with what's verified first.
 - **Nothing is called done without Scout's own read-back.** Every item ends `applied`, `already_satisfied`, `failed`, `blocked`, `unverified` or `omitted`, with its evidence, and each write is checked against the bound org first.
 - **Larger demos build in a planned order.** Three or more items, or any Flow, Apex, LWC or Agentforce item, get a dependency order, one write at a time, story beats verified one by one and an honest Overall.
-- **`/scout prep` checks a built demo before the meeting.** It runs read-only checks, then writes `demo-path.md` with the readiness verdict, the drift since the build, a pre-demo checklist and the click path. It never changes the org.
+- **The classic commands now open `/scout`.** `/scout-sparring` starts it with your request, and `/scout-building` hands it your spec as the brief. A note says so and points to #sf-demo-scout.
+- **Scout 2.0 is built for Opus 5.5 and later.** On an older Opus, Sonnet or Haiku model, Scout stops before any work and asks you to switch with `/model`.
+- **Scout preps you for delivery.** Ask it to prep for a demo, or run `/scout prep`. It runs read-only checks, then writes `demo-path.md` with the readiness verdict, the drift since the build, a pre-demo checklist and the click path. It never changes the org.
 - **History stays consistent across sessions.** Each task keeps a task record and a change log whose checkpoints are checked before the handover. Interrupted work is reconciled from its receipts, never replayed.
 - **Writer projects are anchored by a root `.forceignore`,** so the first deploy of a build no longer needs a repair.
 - **The bundled Salesforce skills are refreshed to upstream v1.62.0,** including the Agentforce skills.

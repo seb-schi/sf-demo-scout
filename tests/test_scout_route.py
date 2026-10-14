@@ -217,12 +217,16 @@ class ScoutRouteTests(unittest.TestCase):
         self.assertIn('metadata read-back only', self.command)
 
     def test_client_notice_worker_mirror_and_allowed_tools(self):
-        notice = 'Scout is built for the 5.5 models. Run `/model` to switch.'
-        self.assertEqual(self.command.count(notice), 1)
+        # 2026-10-14: Scout 2.0 names Opus 5.5 as its target (the user's ruling), and an older Opus, Sonnet or Haiku
+        # model stops before any work. Workers still mirror the session model below.
+        gate = ('if this session identifies an Opus, Sonnet or Haiku model older than 5.5, send only “Scout 2.0 is built '
+                'for Opus 5.5 and later. Run `/model`, pick Opus 5.5, then run `/scout` again.” and stop.')
+        self.assertEqual(self.command.count(gate), 1)
         self.assertEqual(self.command.count('passes `model` set to the alias of the orchestrator'), 1)
         self.assertIn('if that family is unknown, omit the argument', self.command)
         self.assertIn('CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1', self.command)
-        self.assertNotRegex(self.command, r'(?i)sonnet|opus|haiku|model\s*=\s*["\']')
+        rest = self.command.replace(gate, '')
+        self.assertNotRegex(rest, r'(?i)sonnet|opus|haiku|model\s*=\s*["\']')
         frontmatter = self.command.split('---')[1]
         tools = re.search(r'^allowed-tools: (.+)$', frontmatter, re.M)[1].split(', ')
         self.assertEqual(set(tools), {'Read','Grep','Glob','Write','Edit','Bash','Agent','AskUserQuestion',

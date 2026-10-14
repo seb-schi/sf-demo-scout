@@ -18,7 +18,7 @@ The fixed Claude wording below applies only to Claude.
 
 > "✓ Scout is set up and ready. Workspace at `~/claude-projects/sf-demo-scout/`.
 >
-> FYI — run `/scout-sparring` next to start a demo; if no org is connected yet, it'll offer to connect one for you."
+> FYI — run `/scout` next to spar on or build a demo, naming your demo org. Connect the org first if it isn't yet."
 
 **If STATE was REFRESH:**
 

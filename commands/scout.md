@@ -13,7 +13,7 @@ Complete the request in this session; no fresh window or acknowledgement pauses.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md`, resolve its absolute root, then run the read-only gate in `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md`. On `CHECK_FAILED`, absent success evidence or nonzero exit, stop with the diagnostic. Use the verified workspace on every call.
 
-On Claude only, if this session identifies its model as older than 5.5, begin: “Scout is built for the 5.5 models. Run `/model` to switch.” Say what you will inspect. Check exposed Docs tools; do not load readiness before this message; if unavailable, say so in this first SE-facing message. Read `orgs/lessons/INDEX.md` if present, without creating it; load topic files only when relevant.
+On Claude only, if this session identifies an Opus, Sonnet or Haiku model older than 5.5, send only “Scout 2.0 is built for Opus 5.5 and later. Run `/model`, pick Opus 5.5, then run `/scout` again.” and stop. Say what you will inspect. Check exposed Docs tools; do not load readiness before this message; if unavailable, say so in this first SE-facing message. Read `orgs/lessons/INDEX.md` if present, without creating it; load topic files only when relevant.
 
 Use the named selector; otherwise read the default with `sf config get target-org --json`; confirm its use below. If unavailable, ask. Run:
 

@@ -122,7 +122,7 @@ class AuditRouteContractTests(unittest.TestCase):
         barrier = resolve_reference(BARRIER_REF)
         self.assertEqual(barrier.title, "Phase C — AUDIT-READY barrier")
 
-        sparring = read("commands/scout-sparring.md")
+        sparring = read("prompts/classic/scout-sparring.md")
         assert_reference_order(
             self,
             sparring,
@@ -185,7 +185,7 @@ class AuditRouteContractTests(unittest.TestCase):
             )
 
     def test_reused_iteration_reconciles_after_sync_read_and_before_questions(self) -> None:
-        sparring = read("commands/scout-sparring.md")
+        sparring = read("prompts/classic/scout-sparring.md")
         self.assertLess(
             sparring.index("set `AUDIT_MODE = reused`, read that selected audit"),
             sparring.index("execute Stage 3i"),
@@ -201,7 +201,7 @@ class AuditRouteContractTests(unittest.TestCase):
         self.assertIn("execute", reused)
 
     def test_audit_modes_keep_reuse_and_explicit_skip_distinct(self) -> None:
-        sparring = read("commands/scout-sparring.md")
+        sparring = read("prompts/classic/scout-sparring.md")
         rows = markdown_table(sparring, "Audit route states")
         actual = {
             row["Branch"]: (

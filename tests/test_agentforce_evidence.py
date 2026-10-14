@@ -384,7 +384,7 @@ class AgentforcePromptWiringTests(unittest.TestCase):
         self.assertNotIn("If no action invocation was confirmed", phase)
 
     def test_orchestrator_records_gate_digest_and_independent_runtime_context(self):
-        command = (ROOT / "commands" / "scout-building.md").read_text(encoding="utf-8")
+        command = (ROOT / "prompts" / "classic" / "scout-building.md").read_text(encoding="utf-8")
         validation = (ROOT / "prompts" / "building" / "sub-agent-validation.md").read_text(
             encoding="utf-8"
         )

@@ -449,7 +449,7 @@ elif [ -n "$DEFAULT_ORG" ]; then
     LOCAL_CONFIG=".sf/config.json"
     OUTPUT+="## ⚠️ Configured target-org '$DEFAULT_ORG' is not in the connected org list.\n"
     OUTPUT+="   This usually means a stale entry in $LOCAL_CONFIG (local scope overrides global).\n"
-    OUTPUT+="   Fix: run /scout-sparring or /scout-building — they connect or switch the org inline — or edit $LOCAL_CONFIG manually.\n\n"
+    OUTPUT+="   Fix: name the org in your /scout request (Scout works in it without changing your defaults), or edit $LOCAL_CONFIG manually.\n\n"
   else
     ALIAS_KEY="$(PYTHONDONTWRITEBYTECODE=1 python3 -B "$STARTUP_EVIDENCE" key "$DEFAULT_ORG" 2>/dev/null)"
     DISPLAY_KEY="org-display-$ALIAS_KEY"
@@ -473,7 +473,7 @@ elif [ -n "$DEFAULT_ORG" ]; then
         OUTPUT+="- **Org ID:** $ORG_ID\n"
         OUTPUT+="- **Instance:** $INSTANCE_URL\n"
         if [ -n "$ORG_COUNT" ]; then
-          OUTPUT+="$ORG_COUNT org(s) available. To switch, say 'switch' when /scout-sparring or /scout-building asks.\n\n"
+          OUTPUT+="$ORG_COUNT org(s) available. To work in another, name it in your /scout request.\n\n"
         else
           OUTPUT+="Connected org count unavailable.\n\n"
         fi
@@ -499,7 +499,7 @@ elif [ -n "$DEFAULT_ORG" ]; then
                 OUTPUT+="  - $CUSTOMER: audit $AUDIT_FILE (${AUDIT_AGE}d ago) ✅\n"
               fi
             else
-              OUTPUT+="  - $CUSTOMER: no audit found — run /scout-sparring\n"
+              OUTPUT+="  - $CUSTOMER: no audit found (/scout runs one when you ask)\n"
             fi
             LATEST_CHANGES=$(ls -t "$FOLDER"/changes-*.md 2>/dev/null | head -1)
             if [ -n "$LATEST_CHANGES" ]; then
@@ -508,7 +508,7 @@ elif [ -n "$DEFAULT_ORG" ]; then
           done
           OUTPUT+="\n"
         else
-          OUTPUT+="## ℹ️ No customer folders for $DEFAULT_ORG — run /scout-sparring to create one.\n\n"
+          OUTPUT+="## ℹ️ No customer folders for $DEFAULT_ORG — run /scout to create one.\n\n"
         fi
       else
         CONNECTED_STATUS="$(evidence_field "$DISPLAY_KEY" display connected_status "$DEFAULT_ORG")"
@@ -529,13 +529,8 @@ fi
 # --- 7. Ready ---
 OUTPUT+="---\n"
 OUTPUT+="**Ready.**\n"
-if [ "$SCOUT_ACTIVE_HOST" = "claude" ]; then
-  OUTPUT+="  /scout-sparring  — Opus discovery sparring + spec generation\n"
-  OUTPUT+="  /scout-building  — Opus orchestrator for org deployment\n"
-else
-  OUTPUT+="  /scout-sparring  — discovery sparring + spec generation\n"
-  OUTPUT+="  /scout-building  — orchestrator for org deployment\n"
-fi
+OUTPUT+="  /scout           — Scout 2.0: spar, build, fix or prep a demo in one session\n"
 OUTPUT+="  /scout-setup     — install, refresh, or repair Scout\n"
+OUTPUT+="  (/scout-sparring and /scout-building are classic names; they now open /scout.)\n"
 
 scout_finish_context inside

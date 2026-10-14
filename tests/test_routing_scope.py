@@ -14,7 +14,7 @@ class RoutingAndScopeContractTests(unittest.TestCase):
     """Static source-contract checks; these do not prove live model or org behavior."""
 
     def test_phase_selection_uses_the_complete_phase_input_table(self):
-        command = read("commands/scout-building.md")
+        command = read("prompts/classic/scout-building.md")
         phase1 = read("prompts/building/phase1.md")
         analysis = command[
             command.index("### Phase Analysis") : command.index(
@@ -74,7 +74,7 @@ class RoutingAndScopeContractTests(unittest.TestCase):
                 self.assertIn(heading, phase2_row)
 
     def test_email_agent_work_is_phase3_only_and_channel_wiring_fails_closed(self):
-        command = read("commands/scout-building.md")
+        command = read("prompts/classic/scout-building.md")
         phase1 = read("prompts/building/phase1.md")
         phase3 = read("prompts/building/phase3.md")
         skill = read("skills/service-email-to-case-configure/SKILL.md")
@@ -109,7 +109,7 @@ class RoutingAndScopeContractTests(unittest.TestCase):
         self.assertIn("exact Agent API name", spec)
 
     def test_sparring_uses_exact_scout_skill_membership_and_provenance(self):
-        sparring = read("commands/scout-sparring.md")
+        sparring = read("prompts/classic/scout-sparring.md")
         shipped = {
             path.parent.name
             for path in (ROOT / "skills").glob("*/SKILL.md")
@@ -126,7 +126,7 @@ class RoutingAndScopeContractTests(unittest.TestCase):
         self.assertNotIn("Judge by family", sparring)
 
     def test_build_scope_is_injected_verbatim_and_controls_every_execution_stage(self):
-        command = read("commands/scout-building.md")
+        command = read("prompts/classic/scout-building.md")
         for name in ("phase1.md", "phase2.md", "phase3.md"):
             with self.subTest(name=name):
                 self.assertIn("{{BUILD_SCOPE}}", read(f"prompts/building/{name}"))
@@ -147,7 +147,7 @@ class RoutingAndScopeContractTests(unittest.TestCase):
         self.assertIn("verbatim", command)
 
     def test_showtime_scope_never_defaults_to_ordinary(self):
-        command = read("commands/scout-building.md")
+        command = read("prompts/classic/scout-building.md")
         showtime = read("prompts/sparring/showtime.md")
         spec = read("prompts/spec-template.md")
         self.assertIn("any Showtime marker or Showtime PoC evidence", command)
@@ -159,7 +159,7 @@ class RoutingAndScopeContractTests(unittest.TestCase):
         self.assertIn("Ordinary-build Apex fallback authorization", spec)
 
     def test_no_apex_and_fallback_authority_are_explicit_and_ledger_bound(self):
-        command = read("commands/scout-building.md")
+        command = read("prompts/classic/scout-building.md")
         phase3 = read("prompts/building/phase3.md")
         for text in (command, phase3):
             self.assertIn("Explicit no-Apex", text)

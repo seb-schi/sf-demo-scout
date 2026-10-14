@@ -1787,12 +1787,12 @@ class StaticPromptWiringTests(unittest.TestCase):
                 self.assertIn("{{EXPECTED_COMPLETION_LEDGER}}", text)
 
     def test_orchestrator_wires_helper_and_common_fragment(self):
-        text = (ROOT / "commands" / "scout-building.md").read_text(encoding="utf-8")
+        text = (ROOT / "prompts" / "classic" / "scout-building.md").read_text(encoding="utf-8")
         self.assertIn("scripts/build-completion.py", text)
         self.assertIn("prompts/building/completion-contract.md", text)
 
     def test_ledger_freeze_follows_workspace_prep_and_settles_calibration_once(self):
-        text = (ROOT / "commands" / "scout-building.md").read_text(encoding="utf-8")
+        text = (ROOT / "prompts" / "classic" / "scout-building.md").read_text(encoding="utf-8")
         self.assertLess(text.index("### Workspace Prep"), text.index("### Settle Calibration and Freeze"))
         self.assertLess(text.index("### Settle Calibration and Freeze"), text.index("### Phase Prep Procedure"))
         self.assertIn("Complete that allowed\nannotation before hashing", text)
@@ -1840,7 +1840,7 @@ class StaticPromptWiringTests(unittest.TestCase):
         self.assertIn("unsupported", completion)
 
     def test_later_phases_use_reconciled_prerequisite_dispositions(self):
-        text = (ROOT / "commands" / "scout-building.md").read_text(encoding="utf-8")
+        text = (ROOT / "prompts" / "classic" / "scout-building.md").read_text(encoding="utf-8")
         self.assertIn("Use reconciled item dispositions", text)
         self.assertIn("needed prerequisite", text)
         self.assertIn("Unrelated AWAITING_QA", text)

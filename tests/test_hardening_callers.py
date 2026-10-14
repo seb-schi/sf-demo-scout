@@ -60,13 +60,13 @@ class HardeningCallerTests(unittest.TestCase):
             self.assertIn("explicit permission or policy rejection", materialized)
             self.assertIn("directory", materialized)
             self.assertNotIn('directory` = `$HOME/claude-projects/sf-demo-scout`', materialized)
-        for caller in ("commands/scout-building.md", "prompts/sparring/audit-orchestration.md",
+        for caller in ("prompts/classic/scout-building.md", "prompts/sparring/audit-orchestration.md",
                        "prompts/building/direct-repair.md", "prompts/cross-org-extract.md"):
             self.assertIn("prompts/operation-safety.md", self.read(caller))
 
     def test_existing_agent_handoff_between_distinct_owned_projects(self):
         preflight = self.read("prompts/building/agentforce-editability.md")
-        caller = self.read("commands/scout-building.md")
+        caller = self.read("prompts/classic/scout-building.md")
         preserve = next(block for block in re.findall(r"```bash\n(.*?)\n\s*```", preflight, re.S)
                         if "AGENT_PREFLIGHT_PATH" in block)
         stage = next(block for block in re.findall(r"```bash\n(.*?)\n\s*```", caller, re.S)
@@ -124,7 +124,7 @@ class HardeningCallerTests(unittest.TestCase):
         showtime = self.read("prompts/sparring/showtime.md")
         self.assertNotIn("[ORG_FOLDER]/.audit-progress.log", showtime)
         self.assertIn("[AUDIT_RUN_DIR]/.audit-progress.log", showtime)
-        for caller in ("commands/scout-building.md", "prompts/sparring/audit-orchestration.md"):
+        for caller in ("prompts/classic/scout-building.md", "prompts/sparring/audit-orchestration.md"):
             text = self.read(caller)
             self.assertNotRegex(text, r"find[^\n]*-delete|rm -rf|deny-rule-safe")
             self.assertNotIn("2>/dev/null || true", text)
@@ -141,7 +141,7 @@ class HardeningCallerTests(unittest.TestCase):
                             selected.index("## Deployment Rules"))
             self.assertIn("component-preedit", selected)
             self.assertNotIn(".xml.preedit", selected)
-        caller = self.read("commands/scout-building.md")
+        caller = self.read("prompts/classic/scout-building.md")
         self.assertIn("all selected Phase 1 metadata", caller)
 
     def test_handover_opens_with_actual_disposition(self):

@@ -92,7 +92,7 @@ This demo isn't locked. Pick the door that fits:
 
 **Quick tweak, fix, or tinker — stay right here.** Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? Just tell Claude what you want changed in this session — it'll use Scout's compact direct-repair route and the relevant Salesforce skill (`sf-flow`, `experience-lwc-generate`, `platform-data-manage`, and friends), then append the attempt and outcome to this org's change log automatically. These edits won't be written back to the spec — and that's fine for iteration.
 
-**New scenario or structural rework — run `/scout-sparring`.** A different headline, a new agent, a story rebuild, anything you want captured in a clean spec with a fresh talk track and click path. Open a new Claude Code session and run `/scout-sparring` (iteration intent — and if you know the scenario cold, just tell Scout to move fast). It writes a new spec; `/scout-building` re-deploys over the top. Iterating an existing demo is a first-class Scout capability — not a restart.
+**New scenario or structural rework — run `/scout`.** A different headline, a new agent, a story rebuild: open a new Claude Code session and run `/scout` with the change (and if you know the scenario cold, just tell Scout to move fast). It spars on the story first, then builds and checks each item, keeping this folder's history.
 
 **Your Files**
 All files for this demo live in one folder. To open it in Finder:

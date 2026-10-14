@@ -3,7 +3,7 @@ Scout's standing rules for SE sessions and their workers. When developing Scout 
 # SF Demo Scout standing rules
 
 ## Org
-Read org identity from `sf config get target-org` at runtime. Startup displays the active org, username and connection status. Use `/scout-sparring` or `/scout-building` to connect or switch inline; `/scout-setup` handles setup. These are personal demo orgs: explain destructive operations beforehand and obtain the confirmations below before acting.
+Read org identity from `sf config get target-org` at runtime. Startup displays the active org, username and connection status. `/scout` works in the org its request names, without changing defaults; `/scout-setup` handles setup. These are personal demo orgs: explain destructive operations beforehand and obtain the confirmations below before acting.
 
 ## MCP tools
 Apply `prompts/host-runtime.md` and `prompts/mcp-readiness.md` before checking or using integrations. Connections are optional and managed by the active host. Prefer discovered MCP tools; use `sf` CLI when DX MCP is unavailable. The machine's CLI and the host-launched `@salesforce/mcp` adapter are separate installations.

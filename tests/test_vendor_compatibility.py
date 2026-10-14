@@ -163,7 +163,7 @@ class VendorCompatibilityContractTests(unittest.TestCase):
         self.assertIn("not auth, license, runtime, or action readiness", agentforce)
 
     def test_report_only_materialization_excludes_unselected_sections_and_resolves_paths(self):
-        command = read("commands/scout-building.md")
+        command = read("prompts/classic/scout-building.md")
         reference = read("prompts/building/vendor-compatibility.md")
         phase1_row = next(
             line for line in command.splitlines() if line.startswith("     | Phase 1 |")
@@ -182,7 +182,7 @@ class VendorCompatibilityContractTests(unittest.TestCase):
                 self.assertNotIn(f"## {excluded}", materialized)
 
     def test_orchestrator_materializes_selected_sections_into_every_phase(self):
-        command = read("commands/scout-building.md")
+        command = read("prompts/classic/scout-building.md")
         self.assertIn("prompts/building/vendor-compatibility.md", command)
         self.assertIn("common preamble plus only", command)
         for selection in (

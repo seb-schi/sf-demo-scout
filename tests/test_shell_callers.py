@@ -357,7 +357,7 @@ print("WORKSPACE_READY")
                     self.assertEqual(self.read_calls(), expected)
 
     def test_sparring_and_building_share_read_only_bootstrap_contract(self) -> None:
-        for relative in ("commands/scout-sparring.md", "commands/scout-building.md"):
+        for relative in ("prompts/classic/scout-sparring.md", "prompts/classic/scout-building.md"):
             with self.subTest(relative=relative):
                 text = (ROOT / relative).read_text(encoding="utf-8")
                 bootstrap = text.index("${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md")

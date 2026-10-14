@@ -298,7 +298,7 @@ class BuildAssetsContractTests(unittest.TestCase):
         self.assertLess(modify.index("--kind agent-preedit"), invoke)
         self.assertLess(modify.index("Record the current active version number"), invoke)
         self.assertIn("preedit_snapshot", modify)
-        caller = (REPOSITORY / "commands/scout-building.md").read_text()
+        caller = (REPOSITORY / "prompts/classic/scout-building.md").read_text()
         cleanup = caller[caller.index("Workspace cleanup (after the change log is written).") :]
         self.assertIn("preedit_snapshot", cleanup)
         self.assertIn("agent-preedit", cleanup)
@@ -579,7 +579,7 @@ for _ in range(2):
 
     def test_static_prior_recovery_guard_and_final_retention_keep_recovery_visible(self):
         """Static delivery only; the executable fixtures test original-byte protection."""
-        prompt = (REPOSITORY / "commands/scout-building.md").read_text(encoding="utf-8")
+        prompt = (REPOSITORY / "prompts/classic/scout-building.md").read_text(encoding="utf-8")
         startup = prompt[prompt.index("A previous build's retained recovery source is not disposable."):
                          prompt.index("### Phase Analysis")]
         for behavior in ("unresolved recovery-preservation / cleanup-withheld",
