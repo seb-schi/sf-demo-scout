@@ -829,15 +829,26 @@ def checkpoint_heading(title):
 
 
 # 2.0.1 (F2): a later task settles another task's open job in its own change log, never by editing the other's records.
-RECONCILED = re.compile(r'(?im)^[ \t]*[-*+][ \t]+reconciled:[ \t]*([^;\r\n]+?)[ \t]*;[ \t]*status:[ \t]*([^;\r\n]+?)[ \t]*'
-                        r'(?:;[ \t]*read-back:[ \t]*([^\r\n]*?))?[ \t]*$')
+RECONCILED = re.compile(r'(?i)reconciled:[ \t]*([^;]+?)[ \t]*;[ \t]*status:[ \t]*([^;]+?)[ \t]*'
+                        r'(?:;[ \t]*read-back:[ \t]*(.*?))?[ \t]*')
+ORG_IDS = re.compile(r'(?<![A-Za-z0-9])00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?(?![A-Za-z0-9])')
+
+
+def names_bound_org(text, org, username):
+    """2.0.1 (F2, round 2): the log's own header names the bound org, by its ID or, on a line naming no org ID, by
+    its username; a header naming another org ID disqualifies the log. Mentions elsewhere never count."""
+    found = False
+    for line in re.findall(r'(?im)^(?:Org|Target Org|Bound org ID):([^\r\n]*)', document_header(text)):
+        ids = {match[:15] for match in ORG_IDS.findall(line)}
+        if ids - {org[:15]}:
+            return False
+        found |= bool(ids) or bool(username and re.search(r'(?<![\w@.\-])' + re.escape(username) + r'(?![\w@.\-])', line))
+    return found
 
 
 def reconciliations(directory, org, username):
-    """2.0.1 (F2): every `- reconciled:` line in the bound org's change logs, across folders, as (key, status, read-back).
-
-    A log counts only when it names the bound org, as `pending`'s folders do. Unreadable logs and folders add nothing."""
-    identity = r'(?<![A-Za-z0-9])' + re.escape(org[:15]) + r'(?:[A-Za-z0-9]{3})?(?![A-Za-z0-9])'
+    """2.0.1 (F2): every bulleted `reconciled:` line outside fences in the bound org's change logs, across folders, as
+    (key, status, read-back), its `*` and backticks stripped as on job lines. Unreadable logs and folders add nothing."""
     found = []
     try:
         folders = sorted(directory.iterdir())
@@ -855,31 +866,44 @@ def reconciliations(directory, org, username):
                 text = read(log)
             except (OSError, UnicodeError):
                 continue
-            if re.search(identity, text) or (username and re.search(r'(?<![\w@.\-])' + re.escape(username) + r'(?![\w@.\-])', text)):
-                found += [(' '.join(m[1].split()), m[2].strip(), (m[3] or '').strip()) for m in RECONCILED.finditer(text)]
+            if not names_bound_org(text, org, username):
+                continue
+            for line in markdown(text)[0].splitlines():  # round 2: markup goes as on job lines; CRLF goes with the split
+                bullet = re.match(r'[ \t]*[-*+][ \t]+', line)
+                match = bullet and RECONCILED.fullmatch(re.sub(r'[*`]', '', line[bullet.end():]))
+                if match:
+                    found.append((' '.join(match[1].split()), match[2].strip(), (match[3] or '').strip()))
     return found
+
+
+def receipt_key(job, log, attempt):
+    """Round 2 (N1): the exact name a receipt gives this job, which `pending` prints under `receipt_keys`."""
+    if BUILD.JOB_ID.fullmatch(job['ref']):
+        return 'job ' + job['ref']
+    return None if attempt is None else ' · '.join((log, 'attempt ' + attempt, ' '.join(job['ref'].split())))
 
 
 def settled_by(job, log, attempt, receipts):
     """2.0.1 (F2): a receipt settles the job when it names it and records a status read that leaves nothing to land.
 
-    It names a job ID by `job <ID>` (the first 15 characters match) and a submission without one by
-    `<log filename> · attempt <ID> · <label>`. A terminal word for the job's family settles it. So does Salesforce's
-    answer that it has no such job (`not found`, an ID only) or no status to read (`unavailable`, a submission only),
-    each with its read-back."""
+    It names a job ID by `job <ID>` (the first 15 characters match) and a submission without one by exactly
+    `<log filename> · attempt <ID> · <label>`. A terminal word for the job's family settles it, as in its own
+    checkpoint. So does Salesforce's answer that it has no such job (`not found`, an ID only) or that a submission has
+    no status to read (`unavailable`, a submission only, never an agent publish, whose version always has one), each
+    with its read-back. Whether a `not found` is past Salesforce's retention is the route's check (`reconcile.md`)."""
     identified = bool(BUILD.JOB_ID.fullmatch(job['ref']))
-    if identified:
-        words, fallback = BUILD.VOCABULARY[job['vocabulary']][1], 'not found'
-    else:
-        words, fallback = tuple(w for _, family in BUILD.VOCABULARY.values() for w in family), 'unavailable'
+    family = BUILD.VOCABULARY.get(job['vocabulary'])
+    words = family[1] if family else tuple(w for _, vocabulary in BUILD.VOCABULARY.values() for w in vocabulary)
+    fallback = 'not found' if identified else None if job['vocabulary'] == 'agentforce' else 'unavailable'
+    expected = None if identified else receipt_key(job, log, attempt)
     for key, status, readback in receipts:
         if identified:
             named = re.fullmatch(r'job[ \t]+(\S+)', key)
             if not named or not BUILD.JOB_ID.fullmatch(named[1]) or named[1][:15] != job['ref'][:15]:
                 continue
-        elif attempt is None or key.lower() != ' · '.join((log, 'attempt ' + attempt, ' '.join(job['ref'].split()))).lower():
+        elif key != expected:
             continue
-        if status.lower() in {w.lower() for w in words} or (status.lower() == fallback and readback):
+        if status.lower() in {w.lower() for w in words} or (fallback and status.lower() == fallback and readback):
             return True
     return False
 
@@ -943,6 +967,7 @@ def pending(directory, org, username):
                     held, settled = [j for j, d in zip(held, done) if not d], [j for j, d in zip(held, done) if d]
                     if held:
                         row['open_jobs'] = [job['ref'] for job in held]
+                        row['receipt_keys'] = [receipt_key(job, path.name, own[2] if own else None) for job in held]
                     if settled:
                         row['reconciled_jobs'] = [job['ref'] for job in settled]
                 print(json.dumps(row))

@@ -10,19 +10,21 @@ from test_scout_build import BULK, DEPLOY, DOCS, Harness, complex_story, cp, ite
 LATER = 'changes-2026-10-14-0900-example.md'
 
 
-def later_log(folder, receipts, org=base.ORG, user=base.USER):
+def later_log(folder, receipts, org=base.ORG, user=base.USER, header=None, newline='\n', body=''):
     """A later task's change log in `folder`, holding only its reconciliation receipts."""
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / LATER).write_text('# Change Log — Example — 2026-10-14 0900\nOrg: %s (%s)\nTask record: task-2026-10-14-0900-example.md\n\n'
-                                '## Reconciled Jobs\n%s\n## Checkpoints\n' % (user, org, ''.join('- reconciled: %s\n' % r for r in receipts)))
+    header = 'Org: %s (%s)\n' % (user, org) if header is None else header
+    text = ('# Change Log — Example — 2026-10-14 0900\n%sTask record: task-2026-10-14-0900-example.md\n\n%s'
+            '## Reconciled Jobs\n%s\n## Checkpoints\n' % (header, body, ''.join('- reconciled: %s\n' % r for r in receipts)))
+    (folder / LATER).write_bytes(text.replace('\n', newline).encode('utf-8'))
 
 
 class ReconciliationTests(Harness):
     """F2 (R1–R3): a later task's receipt settles another task's job for good; anything else leaves it open."""
 
     def rows(self):
-        return [(r.get('open_jobs'), r.get('reconciled_jobs'))
-                for r in base.ScoutHistoryTests.pending_rows(self) if r.get('file') == str(self.log)]
+        return [(r.get('open_jobs'), r.get('reconciled_jobs'))  # with --username, as the route runs it
+                for r in base.ScoutHistoryTests.pending_rows(self, base.USER) if r.get('file') == str(self.log)]
 
     def open_job(self, reference=DEPLOY, status='InProgress'):
         self.data['items'][0].update(disposition='unverified', reason='Timed out; never terminal')
@@ -89,6 +91,89 @@ class ReconciliationTests(Harness):
         later_log(self.folder, ['job %s; status: not found; read-back: the field is absent' % DEPLOY])
         self.assertEqual(self.rows(), [(None, [DEPLOY])])
 
+    def test_only_the_logs_own_header_names_the_org(self):
+        """Round 2 (F2): mentions elsewhere, or a header naming another org, never admit a log's receipts."""
+        receipt = ['job %s; status: not found; read-back: the field is absent' % DEPLOY]
+        for header, body, settled in (
+                ('Org: Demo (%s, 00D000000000002EAA)\n' % base.USER, '', False),  # same username, another org's ID
+                ('Org: Other (other@example.test, 00D000000000002EAA)\n', '## Notes\nCopied from %s.\n\n' % base.ORG, False),
+                ('', '## Notes\nOrg: %s (%s)\n\n' % (base.USER, base.ORG), False),  # a section's line is no header
+                ('Org: Demo (%s)\n' % base.USER, '', True),  # the template's header names the username only
+                ('Org: Demo (%s)\n' % base.ORG, '', True)):
+            with self.subTest(header=header, body=body):
+                self.open_job()
+                later_log(self.folder, receipt, header=header, body=body)
+                self.assertEqual(self.rows(), [(None, [DEPLOY])] if settled else [([DEPLOY], None)])
+
+    def test_a_submission_settles_only_by_its_own_familys_words(self):
+        """Round 2 (F3): a label that names its family keeps that family's terminal words."""
+        key = 'changes-2026-10-13-1200-example.md · attempt A1 · Email-to-Case apply script'
+        for status, settled in (('Active', False), ('Completed', True)):
+            with self.subTest(status=status):
+                self.open_job('Email-to-Case apply script', 'Running')
+                later_log(self.folder, ['%s; status: %s; read-back: enableEmailToCase true' % (key, status)])
+                label = 'Email-to-Case apply script'
+                self.assertEqual(self.rows(), [(None, [label])] if settled else [([label], None)])
+
+    def test_the_key_is_exact_apart_from_spacing(self):
+        """Round 2 (F4): the filename, attempt and label match exactly; only runs of spaces fold."""
+        key = 'changes-2026-10-13-1200-example.md · attempt A1 · apply script'
+        for name, settled in ((key, True), (key.replace(' · ', '  ·  '), True), (key.replace('A1', 'a1'), False),
+                              (key.replace('apply script', 'Apply script'), False)):
+            with self.subTest(name=name):
+                self.open_job('apply script', 'Running')
+                later_log(self.folder, ['%s; status: unavailable; read-back: enableEmailToCase true' % name])
+                self.assertEqual(self.rows(), [(None, ['apply script'])] if settled else [(['apply script'], None)])
+
+    def test_crlf_line_endings_keep_a_receipt(self):
+        """Round 2 (F5)."""
+        self.open_job()
+        later_log(self.folder, ['job %s; status: not found; read-back: the field is absent' % DEPLOY], newline='\r\n')
+        self.assertEqual(self.rows(), [(None, [DEPLOY])])
+
+    def test_a_fenced_receipt_settles_nothing(self):
+        """Round 2 (C2): a quoted or drafted receipt inside a fence isn't a status read."""
+        self.open_job()
+        later_log(self.folder, [], body='Draft, not yet read:\n```\n- reconciled: job %s; status: Succeeded\n```\n\n' % DEPLOY)
+        self.assertEqual(self.rows(), [([DEPLOY], None)])
+
+    def test_markup_on_a_receipt_is_stripped_as_on_job_lines(self):
+        """Round 2 (N1): backticks and bold don't hide a receipt, and an asterisk bullet still counts."""
+        for line in ('- reconciled: job `%s`; status: `not found`; read-back: `Region__c` absent' % DEPLOY,
+                     '- reconciled: job **%s**; status: **Succeeded**' % DEPLOY,
+                     '- **reconciled:** job %s; status: Succeeded' % DEPLOY,
+                     '* reconciled: job %s; status: Succeeded' % DEPLOY):
+            with self.subTest(line=line):
+                self.open_job()
+                later_log(self.folder, [], body='## Notes\nNone.\n\n')
+                text = (self.folder / LATER).read_text().replace('## Reconciled Jobs\n', '## Reconciled Jobs\n' + line + '\n', 1)
+                (self.folder / LATER).write_text(text)
+                self.assertEqual(self.rows(), [(None, [DEPLOY])])
+
+    def test_pending_prints_each_open_jobs_receipt_key(self):
+        """Round 2 (N1): the exact name to copy, for a job ID, a submission, and an ID outside 0Af and 750."""
+        rows = lambda: [r for r in base.ScoutHistoryTests.pending_rows(self, base.USER) if r.get('file') == str(self.log)]  # noqa: E731
+        for reference, key in ((DEPLOY, 'job ' + DEPLOY),
+                               ('apply script', 'changes-2026-10-13-1200-example.md · attempt A1 · apply script'),
+                               ('707Ka00000AbCdE', 'changes-2026-10-13-1200-example.md · attempt A1 · 707Ka00000AbCdE')):
+            with self.subTest(reference=reference):
+                self.open_job(reference, 'Running')
+                self.assertEqual([r.get('receipt_keys') for r in rows()], [[key]])
+                later_log(self.folder, ['%s; status: unavailable; read-back: no rows' % key if not key.startswith('job ')
+                                        else '%s; status: Succeeded' % key])
+                self.assertEqual([(r.get('open_jobs'), r.get('reconciled_jobs')) for r in rows()], [(None, [reference])])
+                (self.folder / LATER).unlink()
+
+    def test_an_agent_publish_settles_only_by_its_versions_status(self):
+        """Round 2 (N3): a publish always has a status to read, so `unavailable` never settles one."""
+        key = 'changes-2026-10-13-1200-example.md · attempt A1 · agent publish'
+        for status, settled in (('unavailable; read-back: version 3 Inactive', False), ('Completed', False),
+                                ('JobComplete', False), ('Active', True), ('NeedsUICommit', True)):
+            with self.subTest(status=status):
+                self.open_job('agent publish', 'Publishing')
+                later_log(self.folder, ['%s; status: %s' % (key, status)])
+                self.assertEqual(self.rows(), [(None, ['agent publish'])] if settled else [(['agent publish'], None)])
+
     def test_check_accepts_a_log_carrying_the_section(self):
         self.save()
         self.log.write_text(self.log.read_text().replace(
@@ -114,21 +199,32 @@ class StatusWordTests(Harness):
 
     def test_pending_outside_backticks_is_still_a_finding(self):
         for body in (job(DEPLOY, 'Pending', '2026-10-13T12:00:00'),
-                     job(DEPLOY, '`Pending`', '2026-10-13T12:00:00') + '- Verification: applied; job: %s; status: pending\n' % DEPLOY,
                      '- job: %s; status: Succeeded (read-back pending); launched: 2026-10-13T12:00:00; settled: 2026-10-13T12:02:00\n' % DEPLOY):
             with self.subTest(body=body):
                 self.unverified(body)
                 self.assertIn('unsettled outcome/fields', self.run_cli('check')[1])
+
+    def test_x5s_compound_line_on_a_settled_attempt(self):
+        """Round 2 (N5): X5's shape, an applied attempt whose job settled. Only the lint decides it."""
+        settled = job(DEPLOY, 'Succeeded', '2026-10-13T12:00:00', '2026-10-13T12:02:00')
+        for word, passes in (('pending', False), ('`pending`', True)):
+            with self.subTest(word=word):
+                self.save(cp('A1', 'applied', settled + '- Verification: applied; job: %s; status: %s\n' % (DEPLOY, word)))
+                code, output = self.run_cli('check')
+                self.assertEqual(code == 0, passes, output)
 
 
 class HonestRecordTests(Harness):
     """F5: two records the route asks for, which `check` must accept."""
 
     def retry(self, entry):
+        """Round 2 (F6): the whole session is degraded, so the design entry is degraded too, and each attempt has its
+        own deploy."""
         complex_story(self.data)
-        self.data['items'][0].update(attempts=['A1', 'A2'], grounding=[DOCS, dict(entry, attempt='A2')])
+        design = dict(assumption='Field metadata', source='ungrounded', ref='', verdict='Docs unavailable: search failed')
+        self.data['items'][0].update(attempts=['A1', 'A2'], grounding=[design, dict(entry, attempt='A2')])
         self.save(cp('A1', 'failed', job(DEPLOY, 'Failed', '2026-10-13T12:00:00', '2026-10-13T12:02:00')) +
-                  cp('A2', 'applied', job(DEPLOY[:-3] + 'AAA', 'Succeeded', '2026-10-13T12:05:00', '2026-10-13T12:07:00'),
+                  cp('A2', 'applied', job('0AfKa00000jEyAAKAS', 'Succeeded', '2026-10-13T12:05:00', '2026-10-13T12:07:00'),
                      at='2026-10-13 12:05'))
         return self.run_cli('check')
 
