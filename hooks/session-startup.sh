@@ -391,9 +391,9 @@ elif [ "$SCOUT_ACTIVE_HOST" = "claude" ] && { [ "$MCP_STATUS" = "fresh" ] || [ "
   SLACK_STATE="$(evidence_field mcp-list mcp state '')"
   if [ "$SLACK_STATE" = "authentication_required" ]; then
     OUTPUT+="## ℹ️ Slack MCP needs authentication ($(evidence_age_label mcp-list mcp '')).\n"
-    OUTPUT+="   Run \`/mcp\` in this session, select 'slack', choose 'Authenticate'.\n\n"
+    OUTPUT+="   Run \`/mcp\`, select 'slack', choose 'Authenticate'. From the desktop app, do it in Terminal: \`claude\`, then \`/mcp\`.\n\n"
   elif [ "$SLACK_STATE" = "disabled" ] || [ "$SLACK_STATE" = "failed" ] || [ "$SLACK_STATE" = "pending" ]; then
-    OUTPUT+="## ℹ️ Slack MCP reports $SLACK_STATE ($(evidence_age_label mcp-list mcp '')). Inspect the existing entry in \`/mcp\`.\n\n"
+    OUTPUT+="## ℹ️ Slack MCP reports $SLACK_STATE ($(evidence_age_label mcp-list mcp '')). Inspect the existing entry in \`/mcp\` (from the desktop app, in Terminal: \`claude\`, then \`/mcp\`).\n\n"
   fi
 elif [ "$SCOUT_ACTIVE_HOST" = "claude" ] && command -v claude >/dev/null 2>&1 && [ "$HELPER_READY" -eq 1 ] && [ "$CACHE_READY" -eq 1 ]; then
   OUTPUT+="## ℹ️ Slack MCP connection check unavailable ($(failure_reason "$MCP_STATUS")).\n\n"

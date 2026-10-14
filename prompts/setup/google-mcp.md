@@ -30,6 +30,8 @@ The registration commands and `/mcp` authentication instructions below are
 **Claude-only**. On Codex use its installed connector/MCP controls and the
 organization-approved configuration; do not run or offer `claude mcp add`,
 Claude OAuth flags, or DevBar authentication as a Codex policy remedy.
+On Claude, if the SE works in the desktop app and `/mcp` isn't available there,
+they run `claude` in Terminal and use `/mcp` there; both share the connection.
 For an unknown host, report unknown and do not offer a host-specific command.
 
 Registration and transport do not prove provider authentication or required

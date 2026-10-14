@@ -5,7 +5,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 GATE = ("On Claude, when this session identifies its model as an Opus, Sonnet or Haiku model older than 5.5, send only "
-        "“Heads-up: this is a Classic command, and Scout 2.0 is built for Opus 5.5 and later. Run `/model`, pick Opus 5.5, "
+        "“Heads-up: this is a Classic command, and Scout 2.0 is built for Opus 5.5 and later. Pick Opus 5.5 (model picker or `/model`), "
         "then run `/scout` with your {}. Details in #sf-demo-scout.” and stop.")
 
 

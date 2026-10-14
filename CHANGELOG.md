@@ -2,6 +2,10 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-10-14 (Scout 2.0.2)
+
+- **Model and Slack hints that work in the desktop app.** When Scout asks you to switch to Opus 5.5, it now points to the model picker as well as `/model`. When Slack or Google needs authenticating, it tells you to use Terminal (`claude`, then `/mcp`) if `/mcp` isn't available in the desktop app.
+
 ## 2026-10-14 (Scout 2.0.1)
 
 - **An interrupted deploy no longer blocks an org for good.** If a session ended while a deploy or bulk data load was still running, the next session still checks that job before writing. It now records what it found in its own change log, so later sessions don't check again. When Salesforce no longer has the job, or the job has no status to read, Scout reads back what it changed instead of stopping every write in that org.
@@ -12,7 +16,7 @@ Check your last `update.sh` date against the headers below to see what you misse
 
 ## 2026-10-14 (Scout 2.0)
 
-The biggest update since Scout became a Claude Code plugin. `/scout` replaces the two-step sparring-and-building flow with one session that spars, builds, checks and preps your demo. It's built for Opus 5.5 and later.
+The biggest update since Scout launched. `/scout` replaces the two-step sparring-and-building flow with one session that spars, builds, checks, and preps your demo. It's built for Opus 5.5 and later.
 
 - **One command, `/scout`, takes you from idea to a checked demo.** Bring your request in any shape: a one-line idea, a complete brief, a pasted demo plan or discovery notes, a fix, or a task record to resume. Scout plans it, asks once, builds it and checks it in one session. There's no spec and no second window.
 - **The classic commands now open `/scout`.** `/scout-sparring` starts it with your request, and `/scout-building` hands it your spec as the brief. A note says so and points to #sf-demo-scout. Showtime mode is retired.

@@ -226,7 +226,7 @@ class ScoutRouteTests(unittest.TestCase):
         # 2026-10-14: Scout 2.0 names Opus 5.5 as its target (the user's ruling), and an older Opus, Sonnet or Haiku
         # model stops before any work. Workers still mirror the session model below.
         gate = ('if this session identifies an Opus, Sonnet or Haiku model older than 5.5, send only “Scout 2.0 is built '
-                'for Opus 5.5 and later. Run `/model`, pick Opus 5.5, then run `/scout` again.” and stop.')
+                'for Opus 5.5 and later. Pick Opus 5.5 (model picker or `/model`), then run `/scout` again.” and stop.')
         self.assertEqual(self.command.count(gate), 1)
         self.assertEqual(self.command.count('passes `model` set to the alias of the orchestrator'), 1)
         self.assertIn('if that family is unknown, omit the argument', self.command)
