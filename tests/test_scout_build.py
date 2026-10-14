@@ -823,7 +823,7 @@ class JobTests(Harness):
 
 
 class Round3Tests(Harness):
-    """W10 round 3: Astra's round-2 findings R2-F1 to R2-F12, and candidates C1 and C4 as ruled."""
+    """W10 round 3: the round-2 review findings R2-F1 to R2-F12, and candidates C1 and C4 as ruled."""
 
     def test_r2_f1_job_lines_count_inside_fences(self):
         self.save(cp('A1', body='```text\n' + job(DEPLOY, 'Succeeded', '2026-10-13T12:00:00', '2026-10-13T12:05:00') + '```\n'))
@@ -951,7 +951,7 @@ class Round3Tests(Harness):
 
 
 class Round4Tests(Harness):
-    """W10 round 4: Astra's round-3 findings R3-F1 to R3-F7, and candidates C1, C2 and C4 as ruled."""
+    """W10 round 4: the round-3 review findings R3-F1 to R3-F7, and candidates C1, C2 and C4 as ruled."""
 
     def test_r3_f1_an_executor_label_never_merges_submissions(self):
         EvidenceTests.agent(self)
@@ -1044,7 +1044,7 @@ class Round4Tests(Harness):
 
 
 class Round5Tests(Harness):
-    """W10 round 5: Astra's round-4 findings R4-F1 to R4-F7, and candidates C1 and C2, under the realistic threat model."""
+    """W10 round 5: the round-4 review findings R4-F1 to R4-F7, and candidates C1 and C2, under the realistic threat model."""
 
     def test_r4_f1_a_complex_story_needs_its_proof_moment(self):
         complex_story(self.data)
@@ -1145,7 +1145,7 @@ class ReleaseCandidateTests(Harness):
 
 
 class FinalRoundTests(Harness):
-    """W10's final round (review rule 10): Astra's last-pass findings R5-F1 to R5-F3 and candidates C1 to C5, all in scope."""
+    """W10's final round (review rule 10): the last-pass review findings R5-F1 to R5-F3 and candidates C1 to C5, all in scope."""
 
     def test_r5_f1_an_incomparable_amendment_keeps_the_certain_order(self):
         self.data['items'] = items(('I1', 'applied', ()), ('I2', 'applied', ('I1',)))

@@ -988,7 +988,7 @@ class FixMatrixTests(FakeCli):
 
 
 class Round3Tests(FakeCli):
-    """W9 round 3: Astra's round-2 findings R01–R12 and candidates R13, R14, R16 and R17, as ruled."""
+    """W9 round 3: the round-2 review findings R01–R12 and candidates R13, R14, R16 and R17, as ruled."""
     verdict = VerdictTests.verdict
     outcome = VerdictTests.outcome
 
@@ -1117,7 +1117,7 @@ class Round3Tests(FakeCli):
 
 
 class Round4Tests(FakeCli):
-    """W9 round 4: Astra's round-3 findings Q02, Q03, Q06, Q08–Q11 and candidates C01 and C02, as ruled. Q01, Q04, Q05 and Q07
+    """W9 round 4: the round-3 review findings Q02, Q03, Q06, Q08–Q11 and candidates C01 and C02, as ruled. Q01, Q04, Q05 and Q07
     are crafted races outside the realistic threat model (Decisions, round 5)."""
     verdict = VerdictTests.verdict
 
