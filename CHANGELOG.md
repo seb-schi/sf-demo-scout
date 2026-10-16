@@ -2,6 +2,12 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-10-16 (Scout 2.1.2)
+
+- **Scout tries harder.** When a deploy, an Apex test or its own records check fails, Scout finds the cause and keeps going while each attempt fixes something new: up to ten deploy attempts, ten test runs and ten repair rounds for its own records, where it used to stop after two or three. It still never re-sends a write with an unknown outcome, never deletes without your yes, and never goes beyond what you approved.
+- **The demo flow on a Slack canvas.** After the handover, Scout offers to put the demo flow on a Slack canvas in your own Slack: each beat's click path, records and proof moment, and the checks to do before you present. It isn't posted anywhere; you decide whether to share it.
+- **No more "History incomplete" over dry runs.** Salesforce's deploy skill checks each deploy with a dry run first. Scout now records those dry runs the way it records every deploy, so its history check settles them instead of reporting the history as incomplete.
+
 ## 2026-10-16 (Scout 2.1.1)
 
 - **Scout opens Salesforce's login page for you again.** If the org you want isn't connected yet, or its login has expired, Scout offers to open Salesforce's login page in your browser, as the classic commands did. You sign in there, and Scout never sees your password. It never re-points an existing alias, checks that a renewed login is still the same user, and leaves your default org as it is.

@@ -94,6 +94,12 @@ class OverridesContractTests(unittest.TestCase):
         self.assertIn("ask the SE to run `/reload-plugins`, and resume the same task once readiness passes", install)
         self.assertIn("A no leaves the build items blocked; read-only work goes on.", install)
 
+    def test_a_dry_run_is_recorded_like_any_deploy_job(self):
+        # The official deploy skill validates first; a free-form dry-run receipt left the history check unsettled.
+        hooks = section(self.reference, "The official hooks")
+        self.assertIn("A dry run is a job too: give its ID its own `job:` line with `status:`, `launched:` and `settled:`", hooks)
+        self.assertIn("its terminal status settles it", hooks)
+
     def test_other_plugins_are_offered_one_build_need_at_a_time(self):
         offer = section(self.reference, "Other official plugins")
         for phrase in ("`inspect` lists them under `optional`", "falls squarely in one of those areas",

@@ -1,7 +1,7 @@
 {
   "name": "sf-demo-scout",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for SE demo orgs",
-  "version": "2026.10.16-scout-2.1.1",
+  "version": "2026.10.16-scout-2.1.2",
   "author": {
     "name": "Sebastian Schickhoff"
   },

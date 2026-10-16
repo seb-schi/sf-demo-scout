@@ -2,7 +2,7 @@
 name: demo-deployment-rules
 description: >
   Canonical deployment rules for Flows, Apex, LWC, Agentforce, Page Layouts,
-  Queues, and Picklists in SF Demo Prep. Pattern-gated 3-attempt rule, known
+  Queues, and Picklists in SF Demo Prep. Pattern-gated attempt rule, known
   deploy-error patterns, rollback commands, and per-category deployment procedures.
   TRIGGER when: a phase sub-agent needs deployment rules outside its inlined
   scope, or needs to verify rollback command syntax.
@@ -17,20 +17,19 @@ One home per category:
 - **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `salesforce-development:platform-apex-generate`, `experience-lwc:experience-lwc-generate`, `agentforce-adlc:agentforce-generate`). This skill file carries the rollback commands, the attempt-rule meta-rule, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline. The Known Deploy-Error Patterns catalog lives in `references/deploy-error-patterns.md` (loaded on demand on a deploy failure).
 - **Cross-phase** — Script Deliverable Rules (below) apply to any sub-agent producing a reusable shell / language script, regardless of phase.
 
-**Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix —
+**Attempt rule (pattern-gated, at most 10 attempts):** every retry must carry a *new* fix —
 never redeploy unchanged metadata, it fails identically.
 - **Attempt 1** — deploy. On failure, check the error against the **Known
   Deploy-Error Patterns** section below.
-- **Attempt 2** — if the error **matched a pattern**, apply the documented fix
-  and redeploy. If **no pattern matched**, follow the Unfamiliar-errors path,
-  then redeploy.
-- **Attempt 3** — allowed ONLY if attempt 2 surfaced a *different* error that
-  also carries a new fix (a different matched pattern, or a docs-consult
-  insight). Apply it and redeploy.
-- **STOP** when an attempt fails with no new fix available, or after attempt 3.
-  Record the item as SKIPPED in your JSON output with the error message and
-  the pattern id(s) tried, and continue with remaining items. Do not wrestle
-  with a broken deploy.
+- **Each next attempt** — if the error **matched a pattern**, apply the
+  documented fix and redeploy. If **no pattern matched**, follow the
+  Unfamiliar-errors path, then redeploy. Keep going while each attempt surfaces
+  a *different* error that carries a new fix: a matched pattern, a Docs insight,
+  or the cause read from the org, its logs or the deploy's component failures.
+- **STOP** when an attempt fails with an error you already tried to fix, when no
+  new fix is available, when the fix needs something outside the approved scope,
+  or after attempt 10. Record the item as SKIPPED in your JSON output with the
+  error message and the pattern id(s) tried, and continue with remaining items.
 
 **Unfamiliar errors:** if the error message is not self-evident, not already
 in a loaded `orgs/lessons/` topic, and not matched by a Known Deploy-Error Pattern, invoke

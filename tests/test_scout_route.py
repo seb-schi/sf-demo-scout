@@ -50,17 +50,58 @@ class ScoutRouteTests(unittest.TestCase):
             self.assertIn(phrase, connect)
         self.assertNotIn('device-code', connect)  # the installed Salesforce CLI has no device login
 
+    def test_the_handover_offers_the_demo_flow_as_a_slack_canvas(self):
+        # The classic building step 6c offered this; /scout asks once after the handover, in the SE's own Slack.
+        history = (ROOT / 'prompts/scout/history.md').read_text()
+        self.assertIn('and the offer in `${CLAUDE_PLUGIN_ROOT}/prompts/scout/demo-canvas.md`', history)
+        canvas = (ROOT / 'prompts/scout/demo-canvas.md').read_text()
+        for phrase in ('when the task has a Demo Story and this session exposes a Slack tool',
+                       'a CLI listing alone doesn\'t establish the tool', 'Otherwise skip this silently',
+                       'creates a standalone canvas without posting it to a channel', '**Ask once,** with the history question',
+                       '"Shall I put the demo flow on a Slack canvas for you? It\'s your own canvas, not posted to any channel; you decide whether to share it."',
+                       '**On a yes, create one canvas**', '`Demo flow — [Customer] — [YYYY-MM-DD]`',
+                       'persona and login, click path, record and proof moment', '"Before you present"',
+                       'Never include passwords, tokens or org IDs', 'Never post the canvas to a channel or share it',
+                       'Record the link in the task record', "and don't retry"):
+            self.assertIn(phrase, canvas)
+        self.assertNotIn('nobody sees it', canvas.lower())  # the tool doesn't establish who can see a canvas
+
+    def test_scout_persists_while_each_attempt_makes_progress(self):
+        rules = (ROOT / 'AGENTS.md').read_text()
+        self.assertIn('Keep going while each attempt makes progress, with a new fix each time.', rules)
+        self.assertIn('never retry a write whose outcome is unknown', rules)
+        self.assertIn('until they pass, while each run fixes something new, at most ten runs', rules)
+        deploy = (ROOT / 'skills/demo-deployment-rules/SKILL.md').read_text()
+        self.assertIn('**Attempt rule (pattern-gated, at most 10 attempts):**', deploy)
+        for clause in ('when an attempt fails with an error you already tried to fix', 'when no\n  new fix is available',
+                       'when the fix needs something outside the approved scope', 'or after attempt 10'):
+            self.assertIn(clause, deploy)
+        self.assertNotIn('Do not wrestle', deploy)
+        self.assertIn("override lower ones in Scout's phase prompts and in an official skill's own fix loop", rules)
+        self.assertIn('count the actual deploys and test runs, nested loops included', rules)
+        for phase in ('phase1.md', 'phase2.md', 'phase3.md'):  # the procedures Scout executes carry the same limits
+            text = (ROOT / 'prompts/building' / phase).read_text()
+            self.assertIn('**Attempt rule (pattern-gated, at most 10 attempts):**', text, phase)
+            self.assertNotIn('max 3', text, phase)
+            self.assertNotIn('after attempt 3', text, phase)
+        phase2 = (ROOT / 'prompts/building/phase2.md').read_text()
+        self.assertIn('Count every deploy and every test run inside that loop against the limits in AGENTS.md', phase2)
+        self.assertNotIn('one salesforce-development:platform-apex-test-run loop counts as one attempt', phase2)
+        self.assertIn('keep\n        repairing while each one fixes a different failure, within the deploy attempt', phase2)  # FlowTest repairs
+        self.assertNotIn('3-attempt', (ROOT / 'prompts/building/phase1.md').read_text())
+
     def test_discovery_asks_once_before_pulling_in_slack_and_google(self):
         self.phrases(self.discovery, 'ask once, as you begin discovery, whether the SE would like you to pull in what Slack and Google have on them',
                      'search them read-only', 'attributed leads', '§"Epistemic Framing"', 'On a no, or when neither is connected, carry on without')
 
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
-        caps = {'scout.md': 2285, 'history.md': 1005, 'discovery.md': 1100, 'build.md': 1340, 'prep.md': 900,  # W10 C9 and W9 C5;
+        caps = {'scout.md': 2285, 'history.md': 1015, 'discovery.md': 1100, 'build.md': 1340, 'prep.md': 900,  # W10 C9 and W9 C5;
                 # W19: build.md +15 for the hosted Flow route's two pointers
                 'reconcile.md': 335,  # 2.0.1: the handover's form moved to history.md; reconcile.md is new (W13)
                 'hosted-flow.md': 860,  # W19: the hosted Flow route, loaded only for Flow items
-                'connect-org.md': 440}  # 2.1.1: the browser login, loaded only for an org that isn't connected
+                'connect-org.md': 440,  # 2.1.1: the browser login, loaded only for an org that isn't connected
+                'demo-canvas.md': 260}  # 2.1.2: the demo flow as a Slack canvas, loaded after the handover
         for path in [COMMAND, *optional]:
             self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)
         text = '\n'.join(p.read_text() for p in [COMMAND, *optional])
@@ -92,8 +133,11 @@ class ScoutRouteTests(unittest.TestCase):
                        'new per-task change log before the first checkpoint',
                        '### PENDING — component repair · attempt <ID> · <YYYY-MM-DD HH:MM>',
                        '- **Outcome: <disposition>.** <evidence>', 'Run items in `depends_on` order',
-                       'Send the handover only after exit 0', 'fix and recheck up to twice', 'History incomplete:'):
+                       'Send the handover only after exit 0', 'History incomplete:'):
             self.assertIn(phrase, self.command)
+        history = (ROOT / 'prompts/scout/history.md').read_text()
+        for phrase in ('fix and recheck while each round clears one, up to ten rounds', 'If a round clears none'):
+            self.assertIn(phrase, history)  # 2.1.2: the rounds live in history.md alone
         self.assertLess(self.command.index('After the last disposition'), self.command.index('/prompts/scout/history.md'))
         self.assertGreater(self.command.index('/prompts/scout/history.md'), self.command.index('Assign exactly one disposition'))
         for phrase in ('Run `resolve --task [T]`, then `check --task [T]`', 'Verified — Applied This Build',

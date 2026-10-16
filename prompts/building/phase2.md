@@ -35,7 +35,7 @@ Invoke these skills via the Skill tool when you need detailed rules:
 - `salesforce-development:platform-apex-generate` — Apex generation rules (fflib layered architecture, mandatory `run_code_analyzer`) (invoke only if Apex is in scope)
 - `experience-lwc:experience-lwc-generate` — LWC scaffolding with PICKLES methodology and 165-point scoring (invoke before generating any LWC bundle — SLDS 2, accessibility, wire patterns)
 - `salesforce-development:platform-apex-test-generate` — Apex test-class authoring (templates, @TestSetup patterns, naming) (invoke whenever Apex is in scope — author a test for every class/trigger; a failing test never blocks the deploy)
-- `salesforce-development:platform-apex-test-run` — Apex test execution and agentic test-fix loops (invoke when Apex deployment tests fail — up to 3 automated fix iterations before recording failure)
+- `salesforce-development:platform-apex-test-run` — Apex test execution and agentic test-fix loops (invoke when Apex deployment tests fail; AGENTS.md's Apex rule sets how many runs: up to ten in all, while each fixes something new)
 - `salesforce-development:platform-apex-logs-debug` — debug-log analysis and runtime-failure forensics (invoke as the escalation when `salesforce-development:platform-apex-test-run` exhausts its fix loop, or ad-hoc for governor-limit / stack-trace analysis)
 - `salesforce-code-quality:dx-code-analyzer-run` — deeper/configurable static scan via the `sf code-analyzer run` CLI (engine selection, auto-fix, diff-only). The in-pipeline scan stays the MCP `run_code_analyzer` tool — invoke this skill only when the MCP tool is unavailable or a richer scan is wanted (requires the Code Analyzer CLI plugin)
 - `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
@@ -52,7 +52,7 @@ The absolute helper is `{{ASSET_HELPER}}` and the durable rollback directory is
 
 ## Deployment Rules
 
-**Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix — never redeploy unchanged metadata. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill (Pattern D covers the misleading LWC1210 literal/apiVersion-66 error). If it matches, apply the documented fix and redeploy (attempt 2); a different matching error on attempt 2 earns attempt 3. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record FAILED (with error + any pattern id tried) when an attempt fails with no new fix, or after attempt 3.
+**Attempt rule (pattern-gated, at most 10 attempts):** every retry must carry a *new* fix — never redeploy unchanged metadata. The `demo-deployment-rules` skill's attempt rule and AGENTS.md's Persist rule govern, and override any lower limit here or in an official skill's own loop. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill (Pattern D covers the misleading LWC1210 literal/apiVersion-66 error). If it matches, apply the documented fix and redeploy; each later attempt needs a *different* error that carries a new fix. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record FAILED (with error + any pattern id tried) when an attempt fails with an error already tried, when no new fix is available, when the fix needs something outside the approved scope, or after attempt 10.
 
 **Unfamiliar errors:** if the error message is not self-evident and not matched by a Known Deploy-Error Pattern, invoke the `demo-docs-consultation` skill before the next attempt. Record the consultation in `docs_consulted`.
 
@@ -115,9 +115,10 @@ Reference guides: skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotc
         completion contract's `tests[]` / `version_result` shape; worker rows use
         `flow_tests[]`. Missing correlation leaves AWAITING_QA/INCOMPLETE.
      4. Classify a failure before repair: Flow defect, fixture/assertion defect,
-        execution-tool failure, policy refusal, or missing evidence. At most one
-        repair attempt with a recorded discriminating hypothesis and concrete change
-        after the initial failure. A Flow fix creates a newly attributed Draft and
+        execution-tool failure, policy refusal, or missing evidence. Each repair
+        attempt needs a recorded discriminating hypothesis and a concrete change; keep
+        repairing while each one fixes a different failure, within the deploy attempt
+        rule's ten attempts, and stop when a failure repeats. A Flow fix creates a newly attributed Draft and
         requires all tests against it. A fixture/assertion fix preserves the same
         behavioral obligation and may test the same Flow version; retain original
         failed test metadata/results. An execution-tool fix changes only that route;
@@ -269,7 +270,7 @@ is recorded in `issues` and **NEVER blocks the deploy** — the demo/build ships
 2. Run `run_code_analyzer` before deploying when MCP is available. Record high-severity findings in `issues`. **If the MCP tool is unavailable, or the SE wants a deeper/configurable scan (engine selection, auto-fix, diff-only), invoke `salesforce-code-quality:dx-code-analyzer-run` only after its own prerequisite checks succeed.** Preserve any failed prerequisite and the resulting scan gap in `discovery_notes`; do not install tools, delegate to an absent configurator, disable required engines, or claim the missing coverage ran. If neither route is available, record `scan not run/unverified` and leave required scan acceptance unresolved. Do NOT replace the MCP call as the default — it is faster and returns structured findings.
 3. **Author an Apex test class for every Apex class/trigger deployed.** Invoke `salesforce-development:platform-apex-test-generate` for templates, `@TestSetup` / `TestDataFactory` patterns, and naming. Deploy the test alongside the class, run it, and record pass/fail in `issues`. A failing or low-coverage test does NOT block the deploy — record it and continue.
 4. If the spec's Platform Constraints section flags any object with restrictions, follow the dynamic SOQL pattern below for that object.
-5. If compile or runtime tests fail on the first deploy attempt, invoke `salesforce-development:platform-apex-test-run` before the next attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). The attempt rule still applies: one salesforce-development:platform-apex-test-run loop counts as one attempt. **If the `salesforce-development:platform-apex-test-run` loop exhausts its iterations without resolving the failure, invoke `salesforce-development:platform-apex-logs-debug` for deeper runtime-log forensics before recording the affected item FAILED.**
+5. If compile or runtime tests fail on the first deploy attempt, invoke `salesforce-development:platform-apex-test-run` before the next attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). Count every deploy and every test run inside that loop against the limits in AGENTS.md (at most ten test runs for the item, and the deploy attempt rule above), carrying what's left into the next loop; the skill's own lower iteration limit doesn't stop Scout while runs still make progress. **Use `salesforce-development:platform-apex-logs-debug` whenever the test output doesn't show the cause, and before recording the affected item FAILED.**
 6. Rollback: restore incumbent Apex source plus its companion from the verified first `component-preedit` artifact. Delete only exact class/trigger/test identities whose prior absence was positively established, after the explicit destructive-action guard.
 
 **InvocableMethod pattern (for Agentforce backing actions).** Use this template:

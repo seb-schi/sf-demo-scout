@@ -17,6 +17,8 @@ A solution-agnostic knowledge cartridge publishes `INTEGRATING.md` and `KNOWLEDG
 
 ## Build Boundaries
 
+**Persist.** When an attempt fails, find the cause: the error text, the Docs, debug logs, the org's own state. Keep going while each attempt makes progress, with a new fix each time. Stop only when an attempt fails the same way as an earlier one, the fix needs something outside the approved scope, or a rule here says stop. Each attempt is still its own checked write; never retry a write whose outcome is unknown. These limits override lower ones in Scout's phase prompts and in an official skill's own fix loop; count the actual deploys and test runs, nested loops included.
+
 ### Autonomous: proceed without SE input
 - Custom objects, fields and record types; new permission sets; assignment of new or existing permission sets; Lightning apps and custom tabs; queues with object routing.
 - Business Processes: stage/status subsets for Opportunity, Lead, Case and Solution, all using `BusinessProcess` metadata.
@@ -37,7 +39,7 @@ A solution-agnostic knowledge cartridge publishes `INTEGRATING.md` and `KNOWLEDG
 - Subflows: autolaunched flows invoked by a parent; deploy subflows before their parents in the same phase.
 - Scheduled flows: ask the SE for `<startDate>`, `<startTime>` and `<frequency>` during sparring for demo-day precision.
 - Platform-event-triggered flows: have the SE confirm that `<eventType>` exists in the audit or ships in the same deployment.
-- Apex: triggers, classes and invocable actions, including multiple classes and cross-object work. Author tests, run and self-fix via `salesforce-development:platform-apex-test-run` for up to three iterations, then use `salesforce-development:platform-apex-logs-debug` on exhaustion. A failing or low-coverage test does not block deployment: ship and report test-unvalidated work for the SE to finish in this session. Use the test signal and bounded loop, not a complexity cutoff.
+- Apex: triggers, classes and invocable actions, including multiple classes and cross-object work. Author tests, then run and fix them via `salesforce-development:platform-apex-test-run` until they pass, while each run fixes something new, at most ten runs; use `salesforce-development:platform-apex-logs-debug` whenever the test output doesn't show the cause. A failing or low-coverage test does not block deployment: ship and report test-unvalidated work for the SE to finish in this session. Use the test signal and bounded loop, not a complexity cutoff.
 - Simple demo-specific LWC. Complex/multi-component LWC follows Docs-Gated; visual results have no build-time validation loop.
 - Agentforce via Agent Script: subagents, actions, backing Apex, publish, activate and smoke test.
 - Email-to-Case base: `CaseSettings` and routing addresses via `service-engagement:service-email-to-case-configure`'s two-phase Metadata API script, rather than a plain deploy. For production, obtain SE confirmation before enabling this permanent, org-wide change. Phase 3 owns separately approved email-agent entitlement probes and creation. Channel assignment stays manual/`BLOCKED` unless the SE explicitly approves an installed external skill for it. The skill's `accessCheck` names HasEmailToCase and CustomizeApplication, but Scout does not enforce that field generically; the apply script's fail-closed validation and production guard provide the backstop.

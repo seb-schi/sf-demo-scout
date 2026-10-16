@@ -672,6 +672,22 @@ class JobTests(Harness):
         self.two(settled, second, ('applied', 'applied'))
         self.passes()
 
+    def test_a_dry_run_and_its_deploy_each_settle_on_their_own_job_lines(self):
+        """2.1.2: Salesforce's deploy skill validates with --dry-run first. Each job gets its own line and settles on its
+        terminal status; a dry-run ID in free form is an unsettled job, the live finding behind the fix."""
+        dry = '0AfKa00000iDxYYKAS'
+        checked = ('2026-10-13T12:00:05', '2026-10-13T12:00:09')
+        deployed = ('2026-10-13T12:01:00', '2026-10-13T12:01:30')
+        self.data = base.record()
+        self.data['items'][0]['disposition'] = 'applied'
+        self.save(cp('A1', 'applied', '- dry run (check-only) first\n' + job(dry, 'Succeeded', *checked)
+                     + job(DEPLOY, 'Succeeded', *deployed)))
+        self.passes()
+        self.save(cp('A1', 'applied', '- dry-run: %s Succeeded\n' % dry + job(DEPLOY, 'Succeeded', *deployed)))
+        found = self.assert_rule('plan')
+        self.assertIn('A1 records job %s without a launched: time' % dry, found)
+        self.assertIn('I1 is applied, but attempt A1 has an unsettled job', found)
+
     def test_a_job_settles_only_with_a_terminal_status_field(self):
         """F1 and F2: an applied, already_satisfied or failed item can't carry an unsettled job."""
         launched = '2026-10-13T12:00:05'
