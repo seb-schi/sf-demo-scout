@@ -8,7 +8,7 @@ Read-only CLI integration has been exercised; live repair/restore is not validat
 
 1. Resolve the user's org selector and existing customer directory in a verified
    Scout workspace. Review affected unresolved tasks/change logs and relevant report
-   rules (`platform-report-generate`, `building/vendor-compatibility.md`). Resolve
+   rules (`salesforce-development:platform-report-generate`, `building/official-skill-overrides.md`). Resolve
    affected legacy PENDING work before starting another mutation. Read the original
    request clause by clause; a metadata result cannot discharge requested UI/runtime
    behavior. Coverage/history notes are optional, not a substitute for this review.

@@ -1,4 +1,4 @@
-<!-- Parent: sf-flow/SKILL.md | Cross-ref: experience-lwc-generate/SKILL.md -->
+<!-- Parent: sf-flow/SKILL.md | Cross-ref: experience-lwc:experience-lwc-generate -->
 # Form Building Guide
 
 > **Source**: Salesforce Architect Decision Guide — Build Forms

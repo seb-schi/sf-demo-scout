@@ -50,9 +50,9 @@ installs followed by missing, old, malformed, or failing probes; missing brew or
 npm; invalid selectors; and distinct missing-npx versus failed-cache outcomes.
 No fixture runs Homebrew, npm, npx, a registry request, or a real host runtime.
 
-Prerequisites are Python 3.9+, PyYAML, Git, `/bin/bash`, standard POSIX/macOS shell
+Prerequisites are Python 3.9+, Git, `/bin/bash`, standard POSIX/macOS shell
 utilities, and a real `/bin/zsh`. The shell-repair tests execute `zsh -f -n`
-against both original and staged temporary files. Missing Git, zsh or PyYAML
+against both original and staged temporary files. Missing Git or zsh
 fails clearly; no prerequisite is reported as a skipped pass.
 
 Install Python dependencies into a development virtual environment using
@@ -113,28 +113,24 @@ judgments, not properties proved by a note. Read-only org/report integration is
 recorded separately from the fixtures. Actual report write/restore and one-report
 terminal receipts remain a live acceptance gate.
 
-## Vendoring verification and recovery limits
+## Official plugins (Scout 2.1)
 
-`tests/test_vendor.py` runs the shipped `scripts/vendor-skills.sh` entrypoint in
-temporary plugin fixtures. Its Git executable copies a local synthetic upstream,
-so the suite never fetches the real repository or changes the working tree's
-skills. Failure injectors act outside the production script and exercise clone,
-staged-copy, publication, rollback, post-publication backup cleanup, symlink,
-and lock failures. One offline test uses real Git with isolated config to prove a
-full pinned SHA wins after the local upstream branch advances. Tests also require
-hidden/nested-file copying, obsolete-file removal, the full policy roster, and
-truthful partial-result counts.
-
-The vendoring command handles SIGINT, SIGTERM, and SIGHUP during ordinary
-operation and restores the previous tree when publication fails. If restoration
-also fails, it leaves the old backup in place and prints its exact recovery path.
-If cleanup fails after a replacement is installed, `BACKUP_PATH` identifies any
-remaining old-backup material; cleanup may already have removed part of it, so
-that path is diagnostic and is not claimed as a complete recovery tree.
-SIGKILL, process-host failure, and power loss cannot be trapped; they may leave a
-private stage, backup, or `.vendor-skills.lock`. The command never guesses that a
-lock is stale or deletes it automatically. A maintainer must inspect those paths
-and recover or remove them manually before rerunning.
+Scout no longer copies Salesforce's skills; it drives the official plugins from
+Salesforce's GitHub marketplace. `test_setup_official_plugins.py` runs the setup
+script against a fake `claude` CLI: registration under any local name, auto-update,
+the core set, first-need installs, duplicate copies, failures and other hosts.
+`test_scout_official.py` checks the resolver against synthetic Claude config
+folders (GitHub-only, every supported source form, switched-off and duplicate
+copies, unreadable records, the Codex checkout and the trial source mode), skill
+verification and the coexistence check with a fake `sf`. `test_official_overrides.py`
+pins the driving contract. When `SCOUT_SF_SKILLS_CHECKOUT` names a local checkout of
+Salesforce's sf-skills repository, it also checks every qualified name, capability-map
+entry and cross-plugin handoff against it, and runs two official hooks from that
+checkout with stubbed tools: the production gate (`sf-deploy-gate prod-check`, with a
+fake `sf` classifying the org as production) and the LWC plugin's Write/Edit
+validator (with a fake `npx`). Without the variable, those checks are skipped and
+say so. None of these tests install a plugin, contact a marketplace or a Salesforce
+org, or use the network.
 
 ## Historical assertion map
 

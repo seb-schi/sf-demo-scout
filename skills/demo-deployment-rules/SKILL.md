@@ -14,7 +14,7 @@ description: >
 
 One home per category:
 - **Phase 1** (Queues, Picklists, Page Layouts, Lightning Record Page field sections, Business Processes, Paths) — rules live inlined under IF markers in `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md`. This skill file does NOT duplicate them. If a Phase 1 sub-agent needs a rule, it reads its own prompt.
-- **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `platform-apex-generate`, `experience-lwc-generate`, `agentforce-generate`). This skill file carries the rollback commands, the attempt-rule meta-rule, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline. The Known Deploy-Error Patterns catalog lives in `references/deploy-error-patterns.md` (loaded on demand on a deploy failure).
+- **Phase 2 and Phase 3** (Flows, Apex, LWC, Agentforce) — phase prompts delegate to external skills (`sf-flow`, `salesforce-development:platform-apex-generate`, `experience-lwc:experience-lwc-generate`, `agentforce-adlc:agentforce-generate`). This skill file carries the rollback commands, the attempt-rule meta-rule, unfamiliar-error escalation, and Script Deliverable Rules that the phase prompts reference but do not inline. The Known Deploy-Error Patterns catalog lives in `references/deploy-error-patterns.md` (loaded on demand on a deploy failure).
 - **Cross-phase** — Script Deliverable Rules (below) apply to any sub-agent producing a reusable shell / language script, regardless of phase.
 
 **Attempt rule (max 3, pattern-gated):** every retry must carry a *new* fix —
@@ -185,12 +185,12 @@ Autonomous-with-SE-gate flow scope matches `sf-flow`'s full trigger spectrum: re
 
 Scope: triggers, classes, and invocable actions — multi-class and cross-object
 are in scope. No "complexity" cutoff; the gate is the test signal + the bounded
-fix-loop (`platform-apex-test-run` → `platform-apex-logs-debug`), not a size label.
+fix-loop (`salesforce-development:platform-apex-test-run` → `salesforce-development:platform-apex-logs-debug`), not a size label.
 Author a test class for every class/trigger; a failing / low-coverage test is
 recorded in `issues` and NEVER blocks the deploy (the build ships test-unvalidated
 for the SE to finish in this session).
 
-1. Invoke `platform-apex-generate` skill for generation rules.
+1. Invoke `salesforce-development:platform-apex-generate` skill for generation rules.
 2. Run `run_code_analyzer` before deploying (if MCP available). Record any
    high-severity findings in `issues`.
 3. Rollback commands:
@@ -215,14 +215,14 @@ components.
 ## Agentforce Rules (Phase 3)
 
 Two paths depending on whether the agent is new or already exists in the
-org. Both use the ADLC skill suite (`agentforce-generate`,
-`agentforce-test`, `agentforce-observe`).
+org. Both use the ADLC skill suite (`agentforce-adlc:agentforce-generate`,
+`agentforce-adlc:agentforce-test`, `agentforce-adlc:agentforce-observe`).
 
 ### New Agent (Agent Script path)
 
 Scope: single agent, topic-based routing with Apex or Flow backing actions.
 
-1. Invoke `agentforce-generate` skill — follow its "Create an Agent"
+1. Invoke `agentforce-adlc:agentforce-generate` skill — follow its "Create an Agent"
    workflow.
 2. Check for existing agents via MCP `retrieve_metadata` — flag conflicts
    in `issues`.
@@ -240,7 +240,7 @@ For agents already in the org (e.g., SDO/IDO pre-installed agents). Every
 publish creates a new version; previous versions remain activatable, so
 rollback is instant via `sf agent activate --version-number N`.
 
-1. Invoke `agentforce-generate` skill — follow its "Modify an Existing
+1. Invoke `agentforce-adlc:agentforce-generate` skill — follow its "Modify an Existing
    Agent" workflow.
 2. Note the current active version number before any changes (rollback
    target).
@@ -253,9 +253,9 @@ rollback is instant via `sf agent activate --version-number N`.
 
 ### Smoke Test (after activate — both paths)
 
-After the agent is activated, run the official agent test suite using the `agentforce-test` skill. Prefer Mode B (Testing Center) — build the `test-spec.yaml` from the spec's Agent test cases and run it:
+After the agent is activated, run the official agent test suite using the `agentforce-adlc:agentforce-test` skill. Prefer Mode B (Testing Center) — build the `test-spec.yaml` from the spec's Agent test cases and run it:
 
-1. Build `test-spec.yaml` in the official format (delegate the schema to `agentforce-test`: `basic-test-spec.yaml` + `guardrail-test-spec.yaml` are authoritative). Map each spec test-case row to `utterance` / `expectedTopic` / `expectedActions` (Level-2 invocation names) / `expectedOutcome`. Include at least one guardrail/off-topic row. **Never attach the `instruction_following` / `conciseness` / `completeness` metrics** (UI crash / score-0 / routing penalty) — rely on `expectedOutcome` (LLM-as-judge).
+1. Build `test-spec.yaml` in the official format (delegate the schema to `agentforce-adlc:agentforce-test`: `basic-test-spec.yaml` + `guardrail-test-spec.yaml` are authoritative). Map each spec test-case row to `utterance` / `expectedTopic` / `expectedActions` (Level-2 invocation names) / `expectedOutcome`. Include at least one guardrail/off-topic row. **Never attach the `instruction_following` / `conciseness` / `completeness` metrics** (UI crash / score-0 / routing penalty) — rely on `expectedOutcome` (LLM-as-judge).
 2. Create: `sf agent test create --json --spec test-spec.yaml --api-name [Suite] -o [alias]`
 3. Run: `sf agent test run --json --api-name [Suite] --wait 10 --result-format json -o [alias]`
 4. Results: `sf agent test results --json --job-id [runId] -o [alias]` (use `--job-id` from the run output, NEVER `--use-most-recent`). Filter the guardrail false-negative: a `topic_assertion` FAILURE on a row with empty `expectedTopic` is spurious.

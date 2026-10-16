@@ -1541,9 +1541,9 @@ class EnhancedFlowValidator:
         # Deployment reminder - always shown when approved
         if not results['critical_issues']:
             report.append("")
-            report.append("📦 NEXT STEP - Follow platform-metadata-deploy and the caller contract:")
+            report.append("📦 NEXT STEP - Follow salesforce-development:platform-metadata-deploy and the caller contract:")
             report.append("─"*70)
-            report.append("   Skill(skill=\"platform-metadata-deploy\")")
+            report.append("   Skill(skill=\"salesforce-development:platform-metadata-deploy\")")
             report.append("   Request: \"Deploy flow to [target-org] with --dry-run first\"")
             report.append("")
             report.append("   Preserve the approved scope, originals, required tests, and activation gate")

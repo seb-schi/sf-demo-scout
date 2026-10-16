@@ -7,10 +7,10 @@ This document details how sf-flow fits into the multi-skill workflow for Salesfo
 
 ## Standard Orchestration Order
 
-1. Confirm referenced objects and fields. For missing, approved dependencies use `platform-custom-object-generate` and `platform-custom-field-generate`.
+1. Confirm referenced objects and fields. For missing, approved dependencies use `salesforce-development:platform-custom-object-generate` and `salesforce-development:platform-custom-field-generate`.
 2. Author the Flow and eligible FlowTests with `sf-flow`.
-3. Use `platform-metadata-deploy` for the authorized deployment; preserve the caller's exact-version test and activation gate.
-4. Use `platform-data-manage` only for separately in-scope data setup or bulk verification.
+3. Use `salesforce-development:platform-metadata-deploy` for the authorized deployment; preserve the caller's exact-version test and activation gate.
+4. Use `salesforce-development:platform-data-manage` only for separately in-scope data setup or bulk verification.
 
 Existing schema does not need to be recreated. An unavailable or unapproved dependency is a gap to report, not permission to add it.
 
@@ -63,7 +63,7 @@ See `references/triangle-pattern.md` for detailed Flow XML patterns.
 
 When building agents with Flow actions:
 
-Use `platform-apex-generate` for approved invocable actions, `sf-flow` for the Flow wrapper, `platform-metadata-deploy` for deployment, and `agentforce-generate` for Agent Script authoring and lifecycle guidance. Deploy dependencies before their consumers; the caller controls publication and activation.
+Use `salesforce-development:platform-apex-generate` for approved invocable actions, `sf-flow` for the Flow wrapper, `salesforce-development:platform-metadata-deploy` for deployment, and `agentforce-adlc:agentforce-generate` for Agent Script authoring and lifecycle guidance. Deploy dependencies before their consumers; the caller controls publication and activation.
 
 External authentication, Named Credentials, and External Services require their own confirmed supported route and approved scope. This skill does not depend on absent `sf-connected-apps` or `sf-integration` skills.
 
@@ -111,7 +111,7 @@ actions:
 | Error | Cause | Fix |
 |-------|-------|-----|
 | "Internal Error" on publish | Variable name mismatch | Match Flow var names exactly |
-| "Flow not found" | Flow not deployed | platform-metadata-deploy before agentforce-generate |
+| "Flow not found" | Flow not deployed | salesforce-development:platform-metadata-deploy before agentforce-adlc:agentforce-generate |
 | Agent can't read output | Missing `isOutput: true` | Add output flag to Flow variable |
 
 ---
@@ -120,15 +120,15 @@ actions:
 
 | From Skill | To sf-flow | When |
 |------------|------------|------|
-| agentforce-generate | → sf-flow | "Create Autolaunched Flow for agent action" |
-| platform-apex-generate | → sf-flow | "Create Flow wrapper for Apex logic" |
+| agentforce-adlc:agentforce-generate | → sf-flow | "Create Autolaunched Flow for agent action" |
+| salesforce-development:platform-apex-generate | → sf-flow | "Create Flow wrapper for Apex logic" |
 | Approved integration work | → sf-flow | Create an HTTP Callout Flow after its dependencies are confirmed |
 
 | From sf-flow | To Skill | When |
 |--------------|----------|------|
-| sf-flow | → platform-custom-object-generate / platform-custom-field-generate | verify Invoice__c fields using an approved describe tool |
-| sf-flow | → platform-metadata-deploy | "Deploy flow with --dry-run" |
-| sf-flow | → platform-data-manage | "Create 200 test Accounts" (after deploy) |
+| sf-flow | → salesforce-development:platform-custom-object-generate / salesforce-development:platform-custom-field-generate | verify Invoice__c fields using an approved describe tool |
+| sf-flow | → salesforce-development:platform-metadata-deploy | "Deploy flow with --dry-run" |
+| sf-flow | → salesforce-development:platform-data-manage | "Create 200 test Accounts" (after deploy) |
 
 ---
 
@@ -166,4 +166,4 @@ When deploying Flows that reference Apex or LWC:
 | Triangle pattern (Flow perspective) | `sf-flow/references/triangle-pattern.md` |
 | LWC integration | `sf-flow/references/lwc-integration-guide.md` |
 | Apex action template | `sf-flow/assets/apex-action-template.xml` |
-| agentforce-generate | `agentforce-generate/SKILL.md` |
+| Agentforce agents | `agentforce-adlc:agentforce-generate` (Salesforce's official plugin) |

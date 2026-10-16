@@ -4,7 +4,7 @@ description: >
   Creates and validates Salesforce Flows with 110-point scoring.
   TRIGGER when: user builds or edits record-triggered, screen, autolaunched, or
   scheduled flows, or touches .flow-meta.xml files.
-  DO NOT TRIGGER when: Apex automation (use platform-apex-generate), process builder migration
+  DO NOT TRIGGER when: Apex automation (use salesforce-development:platform-apex-generate), process builder migration
   questions only, or non-Flow declarative configuration.
 license: MIT
 metadata:
@@ -26,10 +26,10 @@ Use `sf-flow` when the work involves:
 - Flow-specific bulk safety, fault paths, and subflow orchestration
 
 Delegate elsewhere when the user is:
-- writing Apex-first automation → [platform-apex-generate](../platform-apex-generate/SKILL.md)
-- creating objects / fields first → [platform-custom-object-generate](../platform-custom-object-generate/SKILL.md) / [platform-custom-field-generate](../platform-custom-field-generate/SKILL.md)
-- deploying metadata → [platform-metadata-deploy](../platform-metadata-deploy/SKILL.md)
-- seeding post-deploy test data → [platform-data-manage](../platform-data-manage/SKILL.md)
+- writing Apex-first automation → `salesforce-development:platform-apex-generate`
+- creating objects / fields first → `salesforce-development:platform-custom-object-generate` / `salesforce-development:platform-custom-field-generate`
+- deploying metadata → `salesforce-development:platform-metadata-deploy`
+- seeding post-deploy test data → `salesforce-development:platform-data-manage`
 
 Handoffs identify capability; they do not expand approved work. Verify existing schema before creating dependencies. If a required skill or permission is unavailable, preserve the gap for the caller rather than installing tools or starting unrelated schema/agent work.
 
@@ -92,8 +92,8 @@ Focus on:
 For eligible FlowTests, read [FlowTest authoring](references/flowtest-authoring.md) and use its canonical templates. Keep caller-specific acceptance and activation rules in the caller.
 
 Use:
-- [platform-metadata-deploy](../platform-metadata-deploy/SKILL.md) for deploy / dry-run
-- [platform-data-manage](../platform-data-manage/SKILL.md) for high-volume test data
+- `salesforce-development:platform-metadata-deploy` for deploy / dry-run
+- `salesforce-development:platform-data-manage` for high-volume test data
 
 ---
 
@@ -150,12 +150,12 @@ Read [FlowTest authoring and diagnosis](references/flowtest-authoring.md) before
 
 | Need | Delegate to | Reason |
 |---|---|---|
-| create objects / fields first | [platform-custom-object-generate](../platform-custom-object-generate/SKILL.md) / [platform-custom-field-generate](../platform-custom-field-generate/SKILL.md) | approved schema dependency |
-| deploy / activate flow | [platform-metadata-deploy](../platform-metadata-deploy/SKILL.md) | safe deployment sequence |
-| create realistic bulk test data | [platform-data-manage](../platform-data-manage/SKILL.md) | post-deploy verification |
-| create Apex actions / invocables | [platform-apex-generate](../platform-apex-generate/SKILL.md) | imperative logic |
-| embed LWC in a screen flow | [experience-lwc-generate](../experience-lwc-generate/SKILL.md) | custom UI components |
-| expose Flow to Agentforce | [agentforce-generate](../agentforce-generate/SKILL.md) | agent action orchestration |
+| create objects / fields first | `salesforce-development:platform-custom-object-generate` / `salesforce-development:platform-custom-field-generate` | approved schema dependency |
+| deploy / activate flow | `salesforce-development:platform-metadata-deploy` | safe deployment sequence |
+| create realistic bulk test data | `salesforce-development:platform-data-manage` | post-deploy verification |
+| create Apex actions / invocables | `salesforce-development:platform-apex-generate` | imperative logic |
+| embed LWC in a screen flow | `experience-lwc:experience-lwc-generate` | custom UI components |
+| expose Flow to Agentforce | `agentforce-adlc:agentforce-generate` | agent action orchestration |
 
 ---
 

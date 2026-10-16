@@ -14,6 +14,8 @@ Do not emit Claude-tab, Opus, model-pin, or shell-repair notices for skipped
 Claude steps. Workspace readiness does not establish DX or optional MCP readiness.
 The fixed Claude wording below applies only to Claude.
 
+On Claude, when the official-plugins step's last line is `OFFICIAL_READINESS blocked …`, or that step printed no `OFFICIAL_READINESS` line at all, replace "is set up and ready" with "is set up, but building needs Salesforce's official plugins: see the note below", and keep that step's lines as the note. When it reported `restart=needed`, end with "Run `/reload-plugins` (or restart Claude Code) before building."
+
 **If STATE was FRESH:**
 
 > "✓ Scout is set up and ready. Workspace at `~/claude-projects/sf-demo-scout/`.

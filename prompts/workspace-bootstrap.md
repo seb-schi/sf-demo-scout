@@ -1,6 +1,6 @@
 # Workspace Bootstrap
 
-Shared fragment Read by `/scout-sparring` and `/scout-building` as their first step. Single read-only Bash gate — two explicit outcomes — one tool call.
+Shared fragment Read by `/scout-sparring` and `/scout-building` as their first step. Single read-only Bash gate: two explicit outcomes, one tool call.
 
 ## Step 1: Sanity gate
 
@@ -8,13 +8,13 @@ Apply `prompts/host-runtime.md`; substitute `[SCOUT_HOST]` with the active
 `claude` or `codex` host. Unknown host is a check failure, not a Claude fallback.
 Resolve `${CLAUDE_PLUGIN_ROOT}` to the absolute active Scout plugin directory,
 then run this whole fence as written with that literal path substituted. The
-quoted heredoc makes the check use `/bin/bash` even when the parent tool shell is
-zsh. This gate is read-only: it never creates the workspace or configuration.
+quoted heredoc runs the check in `/bin/bash`, even when the parent shell is
+zsh. This gate is read-only and never creates the workspace or configuration.
 
 ```bash
 /bin/bash <<'SCOUT_WORKSPACE_BOOTSTRAP_BASH'
-WORKSPACE="$HOME/claude-projects/sf-demo-scout"
-CONFIG="$HOME/.config/sf-demo-scout/config.json"
+WORKSPACE="${SCOUT_WORKSPACE:-$HOME/claude-projects/sf-demo-scout}"
+CONFIG="${SCOUT_CONFIG_FILE:-$HOME/.config/sf-demo-scout/config.json}"
 WORKSPACE_HELPER="[PLUGIN_ROOT]/scripts/setup-workspace.py"
 PYTHON_EXE=$(/usr/bin/which python3 2>/dev/null || true)
 case "$PYTHON_EXE" in ""|/*) ;; *) PYTHON_EXE="$PWD/$PYTHON_EXE" ;; esac
@@ -34,7 +34,7 @@ fi
   --workspace "$WORKSPACE" --config "$CONFIG" --host "[SCOUT_HOST]"
 VERIFY_STATUS=$?
 if [ "$VERIFY_STATUS" -eq 0 ]; then
-  echo "STATE=OK"
+  echo "STATE=OK WORKSPACE=$WORKSPACE"
   exit 0
 fi
 echo "STATE=CHECK_FAILED"
@@ -61,7 +61,7 @@ success evidence.
 ## After bootstrap
 
 Do not rely on shell working-directory state persisting between tool calls. The
-parent command must set `$HOME/claude-projects/sf-demo-scout` as the working
+parent command must set the printed `WORKSPACE` as the working
 directory for each subsequent shell call, or begin that call with a checked
 `cd` to the workspace. All subsequent `orgs/...` refs (including
 `orgs/lessons/`) resolve against that explicit working directory.

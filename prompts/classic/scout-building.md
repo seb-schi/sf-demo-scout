@@ -20,7 +20,7 @@ and write the change log.
 The loaded demo spec and org audit are your ONLY inputs. If the SE pastes or uploads new external context mid-session — a PDF, a doc, requirements, notes, anything that is not the spec or the audit — STOP. Do not reinterpret it, do not fold it into the deployment, and never create, modify, or delete metadata or records on its basis. Respond:
 
 > "I can't fold that into this build — mid-deployment context can't override the spec the sub-agents are running off. Two ways to handle it:
-> - **Small tweak or fix** (a field, a picklist value, a flow trigger, seeded data) — let this build finish, then just tell Claude what you want changed in this session. It'll use the bundled Salesforce skills (`sf-flow`, `platform-data-manage`, and friends) to make the edit live against the org. Won't be written back to the spec — fine for iteration.
+> - **Small tweak or fix** (a field, a picklist value, a flow trigger, seeded data) — let this build finish, then just tell Claude what you want changed in this session. It'll use the bundled Salesforce skills (`sf-flow`, `salesforce-development:platform-data-manage`, and friends) to make the edit live against the org. Won't be written back to the spec — fine for iteration.
 > - **New scenario or structural rework** — take it back to `/scout-sparring` to revise the spec, then re-run `/scout-building`."
 
 This is a hard stop, not a judgment call — nothing new gets deployed on the basis of a mid-build request *during this build*. The live-tweak door (the small-tweak route above) is for after the build completes, in the SE's own session.
@@ -400,12 +400,13 @@ Every phase follows the same prep flow. Per-phase inputs are in the table below.
    - **`{{BUILD_SCOPE}}` (all three phases).** Substitute the exact BUILD_SCOPE block
      derived during Phase Analysis, verbatim. Never let a phase widen or reinterpret it.
    - **`{{VENDOR_COMPATIBILITY}}` (all three phases).** Read
-     `${CLAUDE_PLUGIN_ROOT}/prompts/building/vendor-compatibility.md` and materialize
-     its common preamble plus only the applicable named sections from this table:
+     `${CLAUDE_PLUGIN_ROOT}/prompts/building/official-skill-overrides.md` and materialize
+     its common preamble, `The official hooks`, `Binding and confirmation` and
+     `Cross-plugin handoffs`, plus only the applicable named sections from this table:
 
      | Phase | Include when selected |
      |-------|-----------------------|
-     | Phase 1 | `Report tools` for Reports, `Validation formulas` for Validation Rules, and `FlexiPage scope` for Lightning Record Page work |
+     | Phase 1 | `Report tools` for Reports, `Validation formulas` for Validation Rules, `FlexiPage scope` for Lightning Record Page work, and `Email-to-Case scope` for Email-to-Case |
      | Phase 2 | `Flow scope` for Flow work and `Analyzer prerequisites` for Apex or LWC scans |
      | Phase 3 | `Agentforce prerequisites and precedence` for Agentforce work and `Analyzer prerequisites` for backing-action scans |
 
@@ -559,9 +560,10 @@ an agent).** Require an unambiguous link from each routing address's exact
 `routingName` to one exact Agent API name in the Agentforce section. A missing or
 ambiguous link blocks only that email-agent/channel obligation; Phase 1's base
 Email-to-Case settings and routing addresses remain independently accountable.
-Before the Phase 3 SE gate, resolve the absolute installed path to
-`${CLAUDE_PLUGIN_ROOT}/skills/service-email-to-case-configure/scripts/check-agent-email-capability.sh`
-and run it with the target alias. Exit 0 permits the scoped agent work to reach the
+Before the Phase 3 SE gate, take the `service-engagement` root from
+`python3 -B "${CLAUDE_PLUGIN_ROOT}/scripts/scout_official.py" resolve --host [SCOUT_HOST] --plugin service-engagement`
+(any state but `installed` blocks this probe) and run its
+`skills/service-email-to-case-configure/scripts/check-agent-email-capability.sh` with the target alias. Exit 0 permits the scoped agent work to reach the
 normal Phase 3 gate. Exit 3 means entitlement unavailable; any other nonzero means
 the probe is unavailable or errored. In either nonzero case, make no agent/email
 wiring change and keep the affected obligations BLOCKED with the exact result.
@@ -754,7 +756,7 @@ After the notification fires, emit this as the FINAL message of the session — 
 > ---
 > 💡 **This demo isn't locked — you can change it right now.**
 >
-> Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? **Just tell me what to change, right here in this session** — I'll reach for the right Salesforce skill (`sf-flow`, `experience-lwc-generate`, `platform-data-manage`, and friends) and make the edit live against your org. Fast and free-wheeling; these tweaks aren't written back to the spec, which is exactly right for iteration.
+> Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? **Just tell me what to change, right here in this session** — I'll reach for the right Salesforce skill (`sf-flow`, `experience-lwc:experience-lwc-generate`, `salesforce-development:platform-data-manage`, and friends) and make the edit live against your org. Fast and free-wheeling; these tweaks aren't written back to the spec, which is exactly right for iteration.
 >
 > 📝 **Each repair is logged automatically** — I'll append the attempt and outcome to this org's change log so your next `/scout-sparring` session picks it up automatically (that's where the running demo picture is kept current).
 >

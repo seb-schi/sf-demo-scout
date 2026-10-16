@@ -559,7 +559,7 @@ Even for simple pass-through flows, add at least one assignment:
 
 ### Deployment
 - **Problem**: Deployment without the caller's scope, preservation, and validation checks
-- **Solution**: Use platform-metadata-deploy guidance and the caller-approved CLI/MCP path
+- **Solution**: Use salesforce-development:platform-metadata-deploy guidance and the caller-approved CLI/MCP path
 
 ### $Record Context
 - **Problem**: Confusing Flow's `$Record` with Process Builder's `$Record__c`

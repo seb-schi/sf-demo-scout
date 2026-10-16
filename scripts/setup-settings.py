@@ -15,6 +15,7 @@ import shutil
 import stat
 import sys
 import tempfile
+import time
 from typing import Callable, NoReturn
 
 
@@ -634,6 +635,125 @@ def run_aisuite(path: Path) -> str:
     )
 
 
+WORKSPACE_ENV_KEYS = {"SF_DISABLE_PLUGIN_MATCH": "1"}  # the official plugin's recommender off in Scout's workspace
+
+
+def guarded_json_update(path: Path, prefix: str, suffix: str, change: Callable[[dict[str, object]], str | None]) -> str:
+    """Apply one narrow change to a strict JSON settings file, never over a newer save: back up under a unique name,
+    re-read just before replacing (abort when the file changed meanwhile), validate, and restore only while the
+    file still holds Scout's bytes."""
+    label = path.name
+    try:
+        original, mode = read_regular(path)
+    except FileNotFoundError:
+        return f"{prefix}_ABSENT[{label}]"
+    except SettingsError as error:
+        return f"{prefix}_UNSAFE_FILE[{label}]: {error}"
+    try:
+        data = load_strict_json(original)
+    except SettingsError as error:
+        return f"{prefix}_PARSE_ERROR[{label}]: {error}"
+    outcome = change(data)
+    if outcome is not None:
+        return f"{prefix}_{outcome}[{label}]"
+    replacement = json_bytes(data)
+    stamp = f"{path.name}{suffix}-{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
+    temporary = None
+    try:
+        for attempt in range(100):  # exclusive and unique: an earlier backup, even from this same second, is kept
+            backup = path.with_name(stamp if attempt == 0 else f"{stamp}-{attempt}")
+            try:
+                with open(backup, "xb") as stream:
+                    stream.write(original)
+                break
+            except FileExistsError:
+                continue
+        else:
+            return f"{prefix}_WRITE_FAILED[{label}]: no free backup name"
+        os.chmod(backup, mode)
+        descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(replacement)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, mode)
+        if path.read_bytes() != original:
+            return f"{prefix}_CHANGED_MEANWHILE[{label}]: rerun setup"
+        os.replace(temporary, path)
+        temporary = None
+    except OSError as error:
+        return f"{prefix}_WRITE_FAILED[{label}]: {error}"
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
+    try:
+        load_strict_json(path.read_bytes())
+    except (OSError, SettingsError):
+        try:
+            if path.read_bytes() == replacement:  # still Scout's write: put the original back
+                path.write_bytes(original)
+                return f"{prefix}_POST_WRITE_FAILED[{label}]: original restored; backup {backup.name}"
+        except OSError:
+            pass
+        return f"{prefix}_POST_WRITE_FAILED[{label}]: left as found; backup {backup.name}"
+    return f"{prefix}_SET[{label}]"
+
+
+def run_marketplace_autoupdate(path: Path, name: str) -> str:
+    """Turn auto-update on for one declared marketplace; the entry must already exist (setup registers it first)."""
+    def change(data: dict[str, object]) -> str | None:
+        entry = data.get("extraKnownMarketplaces", {}).get(name) if isinstance(data.get("extraKnownMarketplaces"), dict) else None
+        if not isinstance(entry, dict):
+            return "NO_ENTRY"
+        if entry.get("autoUpdate") is True:
+            return "ALREADY"
+        entry["autoUpdate"] = True
+        return None
+    return guarded_json_update(path, "AUTOUPDATE", ".scout-bak-autoupdate", change)
+
+
+def run_marketplace_ref(path: Path, name: str, ref: str | None, expect_ref: str | None = None,
+                        expect_source: dict | None = None) -> str:
+    """Remove (ref None) or restore one declared marketplace's pinned ref, compare-and-set: removal only while the
+    ref is still `expect_ref`, restoration only while the source is still exactly `expect_source` (Scout's own
+    post-unpin form). Anything else is the SE's newer choice, kept as found (CHANGED). Claude Code accepts a re-add
+    only from the source this entry lists, so setup changes the entry first."""
+    def change(data: dict[str, object]) -> str | None:
+        entry = data.get("extraKnownMarketplaces", {}).get(name) if isinstance(data.get("extraKnownMarketplaces"), dict) else None
+        source = entry.get("source") if isinstance(entry, dict) else None
+        if not isinstance(source, dict):
+            return "NO_ENTRY"
+        if ref is None:
+            if "ref" not in source:
+                return "ALREADY"
+            if expect_ref is not None and source.get("ref") != expect_ref:
+                return "CHANGED"
+            del source["ref"]
+        else:
+            if source.get("ref") == ref:
+                return "ALREADY"
+            if expect_source is not None and source != expect_source:
+                return "CHANGED"
+            source["ref"] = ref
+        return None
+    return guarded_json_update(path, "UNPIN" if ref is None else "REPIN", ".scout-bak-unpin", change)
+
+
+def run_workspace_env(path: Path, key: str) -> str:
+    """Set one allowlisted env value in Scout's own workspace settings."""
+    if key not in WORKSPACE_ENV_KEYS:
+        return f"ENV_KEY_NOT_ALLOWED[{key}]"
+    def change(data: dict[str, object]) -> str | None:
+        environment = data.setdefault("env", {})
+        if not isinstance(environment, dict):
+            return "UNSAFE_ENV"
+        if environment.get(key) == WORKSPACE_ENV_KEYS[key]:
+            return "ALREADY"
+        environment[key] = WORKSPACE_ENV_KEYS[key]
+        return None
+    return guarded_json_update(path, "ENV", ".scout-bak-env", change)
+
+
 def die(message: str) -> NoReturn:
     print(message)
     raise SystemExit(2)
@@ -641,8 +761,14 @@ def die(message: str) -> NoReturn:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("json-pins", "vscode-pins", "aisuite-hooks"))
+    parser.add_argument("command", choices=("json-pins", "vscode-pins", "aisuite-hooks", "marketplace-autoupdate",
+                                            "marketplace-unpin", "marketplace-repin", "workspace-env"))
     parser.add_argument("--settings", required=True)
+    parser.add_argument("--name", default="salesforce", help="marketplace-autoupdate: the declared marketplace")
+    parser.add_argument("--key", default="SF_DISABLE_PLUGIN_MATCH", help="workspace-env: an allowlisted env key")
+    parser.add_argument("--ref", help="marketplace-repin: the ref to restore after a failed unpin")
+    parser.add_argument("--expect-ref", help="marketplace-unpin: remove the ref only while it's still this one")
+    parser.add_argument("--expect-source", help="marketplace-repin: restore only while the source is still this JSON")
     return parser.parse_args()
 
 
@@ -656,6 +782,20 @@ def main() -> int:
         outcome = run_json_pins(path)
     elif arguments.command == "vscode-pins":
         outcome = run_vscode(path)
+    elif arguments.command == "marketplace-autoupdate":
+        outcome = run_marketplace_autoupdate(path, arguments.name)
+    elif arguments.command == "marketplace-unpin":
+        outcome = run_marketplace_ref(path, arguments.name, None, expect_ref=arguments.expect_ref)
+    elif arguments.command == "marketplace-repin":
+        if not arguments.ref:
+            die("SETTINGS_INVALID_ARGUMENT: marketplace-repin needs --ref")
+        try:
+            expected = json.loads(arguments.expect_source) if arguments.expect_source else None
+        except ValueError:
+            die("SETTINGS_INVALID_ARGUMENT: --expect-source must be JSON")
+        outcome = run_marketplace_ref(path, arguments.name, arguments.ref, expect_source=expected)
+    elif arguments.command == "workspace-env":
+        outcome = run_workspace_env(path, arguments.key)
     else:
         outcome = run_aisuite(path)
     print(outcome)

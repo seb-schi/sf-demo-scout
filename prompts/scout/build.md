@@ -3,7 +3,7 @@
 `commands/scout.md` routes complex plans here and still governs targeting, confirmation, dispositions and history. It needs `story` with beats on the open-ended path or when the task records one; complete briefs invent none.
 
 ## The plan, in the proposal
-Show beats, then items, then write order; each item shows type, category, `depends_on` and the claims it backs. For each beat, list the UI surfaces it touches (form, list view, record page, app navigation, report, agent); each is an item or `already_satisfied` with its query, so a new object whose beat shows its form needs its layout. Confirm gated categories once, inside the bundled confirmation. Classify Docs-gated items first: UI-only goes on the SE's checklist with a fetched citation naming the exact operation; authorable with no build-time signal is flagged for visual QA; fuzzy matching rules are authorable. No envelope, item cap or one-spec rule applies; platform facts stay Docs-gated dispositions. Tell the SE the items, gated categories and rough duration, then one line per item, never waiting. Record each live flip's expected ID in the block before executing it.
+Show beats, then items, then write order; each item shows type, category, `depends_on` and the claims it backs. For each beat, list the UI surfaces it touches (form, list view, record page, app navigation, report, agent); each is an item or `already_satisfied` with its query, so a new object whose beat shows its form needs its layout. Confirm gated categories once, inside the bundled confirmation. Flow items first follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/hosted-flow.md` §"Inspection"; its lines join that confirmation. Classify Docs-gated items first: UI-only goes on the SE's checklist with a fetched citation naming the exact operation; authorable with no build-time signal is flagged for visual QA; fuzzy matching rules are authorable. No envelope, item cap or one-spec rule applies; platform facts stay Docs-gated dispositions. Tell the SE the items, gated categories and rough duration, then one line per item, never waiting. Record each live flip's expected ID in the block before executing it.
 
 ## Author in parallel, write in series
 Run `python3 [PLUGIN_ROOT_ABS]/scripts/scout_history.py plan --task [T]`: it prints the write order (a topological order of `depends_on`; a cycle exits 3, so fix the plan with the SE), the authoring layers, `open_jobs` and `ready`, the items writable now.
@@ -27,24 +27,24 @@ Take each source's technical rules; ignore its envelopes, ledgers, output format
 
 Type family | Procedure | Completion signal
 ---|---|---
-Object, field, record type | `platform-custom-object-generate`, `platform-custom-field-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Picklist Value Additions" | read-back
-Permission set | `platform-permission-set-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Companion Permission Set — MANDATORY" | grants and assignment
+Object, field, record type | `salesforce-development:platform-custom-object-generate`, `salesforce-development:platform-custom-field-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Picklist Value Additions" | read-back
+Permission set | `salesforce-development:platform-permission-set-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Companion Permission Set — MANDATORY" | grants and assignment
 App, tab | Docs: Metadata API `CustomApplication`, `CustomTab` | read-back
 Queue, business process, path | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Queue Rules", §"Business Process Rules", §"Path Rules" | read-back
 Layout | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Page Layout Rules" | placement read-back
 Record page field section | `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Lightning Record Page — Field Section Add Rules" | read-back, then visual QA
-Validation rule | `platform-validation-rule-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Validation Rule Rules" | read-back
-List view | `platform-list-view-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"List View Rules" | read-back and results
-Sharing rules | `platform-sharing-rules-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Sharing Rule Rules" | merged read-back
-Report, report type | `platform-report-generate`, `platform-custom-report-type-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Report Rules", §"Custom Report Type Rules" | read-back and a run
+Validation rule | `salesforce-development:platform-validation-rule-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Validation Rule Rules" | read-back
+List view | `salesforce-development:platform-list-view-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"List View Rules" | read-back and results
+Sharing rules | `salesforce-development:platform-sharing-rules-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Sharing Rule Rules" | merged read-back
+Report, report type | `salesforce-development:platform-report-generate`, `salesforce-development:platform-custom-report-type-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Report Rules", §"Custom Report Type Rules" | read-back and a run
 Existing report filter | `${CLAUDE_PLUGIN_ROOT}/prompts/building/scout-2-repair.md` §"Scout 2.0 existing-report repair" | the helper's read-back
-Custom setting, metadata type | `platform-custom-setting-generate`, `platform-custom-metadata-type-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Custom Setting Rules", §"Custom Metadata Type Rules" | read-back
-Data | `platform-data-manage`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Salesforce Data Seeding Quirks" | each claim's read-back
-Email-to-Case | `service-email-to-case-configure`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Email-to-Case Rules" | the script's verification
-Flow | `sf-flow`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` §"Flow Rules"; `${CLAUDE_PLUGIN_ROOT}/prompts/building/sub-agent-validation.md` §"Phase-2 Flow Evidence" | exact-version tests and activation
-Apex | `platform-apex-generate`, `platform-apex-test-generate`, `platform-apex-test-run`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` §"Apex Rules" | passing tests, bounded fix loop
-LWC | `experience-lwc-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` §"LWC Rules" | read-back, then visual QA
-Agentforce | `agentforce-generate`, `agentforce-test`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` §"New Agent (Agent Script path)", §"Modify Existing Agent (version-safe path)", §"Smoke Test + Validation Gate (after activate — both paths)"; `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` §"Validation Gate — REQUIRED before reporting an agent working" | smoke test and gate; preview gaps to visual QA
+Custom setting, metadata type | `salesforce-development:platform-custom-setting-generate`, `salesforce-development:platform-custom-metadata-type-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Custom Setting Rules", §"Custom Metadata Type Rules" | read-back
+Data | `salesforce-development:platform-data-manage`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Salesforce Data Seeding Quirks" | each claim's read-back
+Email-to-Case | `service-engagement:service-email-to-case-configure`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md` §"Email-to-Case Rules" | the script's verification
+Flow | `${CLAUDE_PLUGIN_ROOT}/prompts/scout/hosted-flow.md`, else `sf-flow`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` §"Flow Rules"; `${CLAUDE_PLUGIN_ROOT}/prompts/building/sub-agent-validation.md` §"Phase-2 Flow Evidence" | exact-version tests and activation
+Apex | `salesforce-development:platform-apex-generate`, `salesforce-development:platform-apex-test-generate`, `salesforce-development:platform-apex-test-run`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` §"Apex Rules" | passing tests, bounded fix loop
+LWC | `experience-lwc:experience-lwc-generate`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` §"LWC Rules" | read-back, then visual QA
+Agentforce | `agentforce-adlc:agentforce-generate`, `agentforce-adlc:agentforce-test`; `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` §"New Agent (Agent Script path)", §"Modify Existing Agent (version-safe path)", §"Smoke Test + Validation Gate (after activate — both paths)"; `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md` §"Validation Gate — REQUIRED before reporting an agent working" | smoke test and gate; preview gaps to visual QA
 Anything else | `${CLAUDE_PLUGIN_ROOT}/AGENTS.md` §"Docs-Gated: attempt metadata-authorable work" | its Docs-cited disposition
 
 A Flow item records its frozen validation mode and every required test. An Agentforce item references the evaluator's evidence file, with one obligation per required action and assertion, each with its own inputs. An `unavailable` test or invocation is visual QA, never a pass.

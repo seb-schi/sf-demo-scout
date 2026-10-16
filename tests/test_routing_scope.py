@@ -77,7 +77,7 @@ class RoutingAndScopeContractTests(unittest.TestCase):
         command = read("prompts/classic/scout-building.md")
         phase1 = read("prompts/building/phase1.md")
         phase3 = read("prompts/building/phase3.md")
-        skill = read("skills/service-email-to-case-configure/SKILL.md")
+        skill = read("prompts/building/official-skill-overrides.md")  # W20: Scout's scope edit lives here now
         spec = read("prompts/spec-template.md")
 
         email_rules = phase1[
@@ -102,7 +102,7 @@ class RoutingAndScopeContractTests(unittest.TestCase):
         self.assertIn("VERIFIED base Email-to-Case prerequisite", phase3)
         self.assertEqual(1, phase3.count("{{PRIOR_PHASES_SUMMARY}}"))
         self.assertIn("manual channel assignment", phase3)
-        self.assertIn("never creates or modifies Agentforce agents", skill)
+        self.assertIn("never creates or modifies Agentforce agents and never assigns channels", skill)
         self.assertIn("--confirm-production", email_rules)
         self.assertIn("production-org confirmation required", email_rules)
         self.assertIn("Base Email-to-Case", spec)
@@ -115,8 +115,8 @@ class RoutingAndScopeContractTests(unittest.TestCase):
             for path in (ROOT / "skills").glob("*/SKILL.md")
             if path.is_file()
         }
-        self.assertIn("service-email-to-case-configure", shipped)
-        self.assertNotIn("service-agentforce-channel-configure", shipped)
+        # W20: Scout ships only its own skills; Salesforce's come from its official plugins.
+        self.assertEqual(shipped, {"demo-deployment-rules", "demo-docs-consultation", "demo-org-audit", "sf-flow"})
         self.assertIn("${CLAUDE_PLUGIN_ROOT}/skills/*/SKILL.md", sparring)
         self.assertIn("provider/path provenance", sparring)
         self.assertIn("same basename", sparring)

@@ -27,5 +27,8 @@
       "Bash(git push -f *)"
     ]
   },
-  "showThinkingSummaries": true
+  "showThinkingSummaries": true,
+  "env": {
+    "SF_DISABLE_PLUGIN_MATCH": "1"
+  }
 }

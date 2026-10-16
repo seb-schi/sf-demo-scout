@@ -474,9 +474,9 @@ Pass Flow context to LWC using record context:
 
 | Integration | See Also |
 |-------------|----------|
-| LWC Component Setup | [experience-lwc-generate/references/flow-integration-guide.md](../../experience-lwc-generate/references/flow-integration-guide.md) |
+| LWC Component Setup | `experience-lwc:experience-lwc-generate`, its `references/flow-integration-guide.md` |
 | Full Triangle Architecture | [triangle-pattern.md](triangle-pattern.md) |
-| LWC FlowAttributeChangeEvent | [experience-lwc-generate/assets/flow-screen-component/](../../experience-lwc-generate/assets/flow-screen-component/) |
+| LWC FlowAttributeChangeEvent | `experience-lwc:experience-lwc-generate`, its `assets/flow-screen-component/` |
 
 ---
 

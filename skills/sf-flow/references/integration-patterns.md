@@ -37,7 +37,7 @@ Embed custom Lightning Web Components in Flow Screens for rich, interactive UIs.
 | Resource | Location |
 |----------|----------|
 | LWC Integration Guide | [references/lwc-integration-guide.md](../references/lwc-integration-guide.md) |
-| LWC Component Setup | [experience-lwc-generate/references/flow-integration-guide.md](../../experience-lwc-generate/references/flow-integration-guide.md) |
+| LWC Component Setup | `experience-lwc:experience-lwc-generate`, its `references/flow-integration-guide.md` |
 | Triangle Architecture | [references/triangle-pattern.md](../references/triangle-pattern.md) |
 
 ---
@@ -72,5 +72,5 @@ Call Apex `@InvocableMethod` classes from Flow for complex business logic.
 | Resource | Location |
 |----------|----------|
 | Apex Action Template | `assets/apex-action-template.xml` |
-| Apex @InvocableMethod Guide | [platform-apex-generate/SKILL.md](../../platform-apex-generate/SKILL.md) |
+| Apex @InvocableMethod Guide | `salesforce-development:platform-apex-generate` |
 | Triangle Architecture | [references/triangle-pattern.md](../references/triangle-pattern.md) |

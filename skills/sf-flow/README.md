@@ -14,7 +14,7 @@ Creates and validates Salesforce Flows with 110-point scoring and Spring '26 bes
 
 ## Scout maintenance
 
-Scout keeps this skill as a permanent hand-managed fork under `policy: frozen` in `skills-manifest.yaml`; upstream replacement is disabled because its successor requires hosted-only tooling. Local maintenance on 2026-09-22 added API-66 [FlowTest authoring](references/flowtest-authoring.md), reusable test templates, bounded diagnosis, and current bundled handoffs. Install and update it with Scout, not an upstream skill installer.
+Scout keeps this skill as its own hand-managed Flow fallback. Its upstream successor, `salesforce-development:automation-flow-generate`, runs Salesforce's hosted generator through the session's default org, so Scout reaches that generator only through its own org-bound hosted route (`prompts/scout/hosted-flow.md`) and keeps this skill for everything else. Local maintenance on 2026-09-22 added API-66 [FlowTest authoring](references/flowtest-authoring.md), reusable test templates, bounded diagnosis, and current bundled handoffs. Install and update it with Scout, not an upstream skill installer.
 
 ## Quick Start
 
@@ -78,15 +78,15 @@ The skill generates:
 
 | Related Skill | When to Use |
 |---------------|-------------|
-| platform-apex-generate | Create @InvocableMethod for complex logic |
-| experience-lwc-generate | Create screen components for custom UI |
-| platform-custom-object-generate / platform-custom-field-generate | Deploy custom objects BEFORE flows |
-| platform-metadata-deploy | Deploy flows to org |
+| salesforce-development:platform-apex-generate | Create @InvocableMethod for complex logic |
+| experience-lwc:experience-lwc-generate | Create screen components for custom UI |
+| salesforce-development:platform-custom-object-generate / salesforce-development:platform-custom-field-generate | Deploy custom objects BEFORE flows |
+| salesforce-development:platform-metadata-deploy | Deploy flows to org |
 
 ## Orchestration Order
 
 ```
-sf-flow → platform-metadata-deploy → platform-data-manage
+sf-flow → salesforce-development:platform-metadata-deploy → salesforce-development:platform-data-manage
 ```
 
 Always deploy custom objects/fields BEFORE flows that reference them.

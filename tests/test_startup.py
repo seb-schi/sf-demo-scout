@@ -11,12 +11,27 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
 HOOK = ROOT / "hooks" / "session-startup.sh"
 HELPER = ROOT / "scripts" / "startup-evidence.py"
 SLUGIFY = ROOT / "scripts" / "slugify.py"
+
+
+def official_config(config: Path, *, ready: bool) -> Path:
+    """A Claude config folder with Salesforce's official plugin set up from GitHub, or with nothing."""
+    (config / "plugins").mkdir(parents=True, exist_ok=True)
+    if ready:
+        root = config / "cache/salesforce/salesforce-development/2.4.0"
+        root.mkdir(parents=True, exist_ok=True)
+        (config / "plugins/known_marketplaces.json").write_text(json.dumps(
+            {"salesforce": {"source": {"source": "git", "url": "https://github.com/forcedotcom/sf-skills.git"}}}))
+        (config / "plugins/installed_plugins.json").write_text(json.dumps({"version": 2, "plugins": {
+            "salesforce-development@salesforce": [{"scope": "user", "installPath": str(root)}]}}))
+        (config / "settings.json").write_text(json.dumps({"enabledPlugins": {"salesforce-development@salesforce": True}}))
+    return config
 
 
 class StartupFixture:
@@ -36,6 +51,8 @@ class StartupFixture:
         self.settings.write_text('{"env":{"ANTHROPIC_AUTH_TOKEN":"synthetic"}}')
         self.scout_config.write_text("{}")
         self.log = base / "calls.log"
+        # The machine's own Claude config never leaks in: by default the official plugin is set up, so no notice.
+        self.claude_config = official_config(base / "claude-config", ready=True)
         self._write_cli_stubs()
         self.write_config("QA A")
         self.write_list([{"alias": "QA A", "username": "qa-a@example.invalid"}])
@@ -158,6 +175,7 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
             # The timeout fixture sleeps five seconds, so a three-second bound
             # still exercises the real process-group timeout/cleanup path.
             SCOUT_NETWORK_TIMEOUT="3",
+            CLAUDE_CONFIG_DIR=str(self.claude_config),
             PWD=str(workdir),
         )
         if nocache:
@@ -298,6 +316,21 @@ class StartupEvidenceTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "")
         self.assertFalse(self.fx.cache.exists())
+
+    def test_the_setup_notice_also_reaches_an_se_outside_the_workspace(self) -> None:
+        # After Scout updates, an SE who starts Claude in another folder still learns that setup is needed;
+        # the org probes stay workspace-only.
+        outside = self.fx.base / "outside"
+        outside.mkdir()
+        notice = "Scout builds with Salesforce's official plugins, which aren't set up yet. Run `/scout-setup` once."
+        self.fx.claude_config = official_config(self.fx.base / "claude-config-empty", ready=False)
+        result = self.fx.run(cwd=outside)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "## ℹ️ " + notice)
+        self.assertEqual(self.fx.run(cwd=outside, host="codex").stdout, "")
+        self.assertFalse(self.fx.log.exists())  # no org or MCP probes outside the workspace
+        self.assertFalse(self.fx.cache.exists())
+        self.assertEqual(self.fx.run(nocache=True).stdout.count(notice), 1)
 
     def test_default_runtime_works_when_tmpdir_is_unset(self) -> None:
         result = self.fx.run(nocache=True, default_runtime=True)
@@ -530,6 +563,58 @@ class StartupEvidenceTests(unittest.TestCase):
         for path in self.fx.cache.iterdir():
             if path.is_file():
                 self.assertNotIn("RAW_SECRET", path.read_text())
+
+    def test_official_plugin_notice_on_claude_only(self) -> None:
+        config = official_config(self.fx.base / "claude-config-notice", ready=False)
+        self.fx.claude_config = config
+        notice = "Scout builds with Salesforce's official plugins, which aren't set up yet"
+        self.assertIn(notice, self.fx.run(nocache=True).stdout)
+        self.assertNotIn(notice, self.fx.run(nocache=True, host="codex").stdout)
+        root = config / "cache/salesforce/salesforce-development/2.4.0"
+        root.mkdir(parents=True)
+        (config / "plugins/known_marketplaces.json").write_text(json.dumps(
+            {"salesforce": {"source": {"source": "git", "url": "https://github.com/forcedotcom/sf-skills.git"}}}))
+        (config / "plugins/installed_plugins.json").write_text(json.dumps({"version": 2, "plugins": {
+            "salesforce-development@salesforce": [{"scope": "user", "installPath": str(root)}],
+            "salesforce-development@claude-plugins-official": [{"scope": "user", "installPath": str(root)}]}}))
+        enabled = {"salesforce-development@salesforce": True}
+        (config / "settings.json").write_text(json.dumps({"enabledPlugins": enabled}))
+        output = self.fx.run(nocache=True).stdout
+        self.assertNotIn(notice, output)
+        self.assertNotIn("Two copies", output)
+        enabled["salesforce-development@claude-plugins-official"] = True
+        (config / "settings.json").write_text(json.dumps({"enabledPlugins": enabled}))
+        self.assertIn("Two copies of Salesforce's official plugin are switched on", self.fx.run(nocache=True).stdout)
+
+    def test_the_notice_judges_the_folder_the_session_started_in(self) -> None:
+        # Both copies are switched on for the user, but this project switches Anthropic's off: no "two copies" here.
+        config = official_config(self.fx.base / "claude-config-two", ready=True)
+        enabled = {"salesforce-development@salesforce": True, "salesforce-development@claude-plugins-official": True}
+        (config / "settings.json").write_text(json.dumps({"enabledPlugins": enabled}))
+        anthropic = config / "cache/claude-plugins-official/salesforce-development/2.3.0"
+        anthropic.mkdir(parents=True)
+        records = json.loads((config / "plugins/installed_plugins.json").read_text())
+        records["plugins"]["salesforce-development@claude-plugins-official"] = [
+            {"scope": "user", "installPath": str(anthropic)}]
+        (config / "plugins/installed_plugins.json").write_text(json.dumps(records))
+        self.fx.claude_config = config
+        project, other = self.fx.base / "project", self.fx.base / "other"
+        (project / ".claude").mkdir(parents=True)
+        other.mkdir()
+        (project / ".claude/settings.json").write_text(json.dumps(
+            {"enabledPlugins": {"salesforce-development@claude-plugins-official": False}}))
+        self.assertEqual(self.fx.run(cwd=project).stdout, "")
+        self.assertIn("Two copies of Salesforce's official plugin are switched on", self.fx.run(cwd=other).stdout)
+
+    def test_a_stalled_resolver_never_stalls_startup_or_shows_a_false_notice(self) -> None:
+        slow = self.fx.base / "slow_official.py"
+        slow.write_text("import time\ntime.sleep(30)\n")
+        started = time.monotonic()
+        with mock.patch.dict(os.environ, {"SCOUT_OFFICIAL_SCRIPT": str(slow)}):
+            result = self.fx.run(nocache=True)
+        self.assertLess(time.monotonic() - started, 15)  # the 3-second bound plus its termination grace, not 30
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("Salesforce's official plugin", result.stdout)
 
     def test_unknown_host_does_not_infer_claude_or_authentication(self) -> None:
         self.fx.settings.unlink()

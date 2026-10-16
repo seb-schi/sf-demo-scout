@@ -2,6 +2,18 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-10-16 (Scout 2.1)
+
+- **Flows from Salesforce's own Flow generator.** When the official `salesforce-development` plugin is installed, Scout can have Salesforce's hosted metadata-experts server generate a Flow. Scout then checks, deploys, tests and activates it as usual. Scout's own Flow skill stays the fallback.
+- **Scout can switch the server on for you.** If the server isn't active in the org, Scout offers to activate it as its own line in the plan's confirmation. Activation applies to the whole org, the server is in beta, and Salesforce may bill its use. Scout acts only on your explicit yes, and reads the setting back.
+- **A warning when the official plugin would get in the way.** Scout tells you before building if the official plugin's auto-deploy is on, or if its deploy check would block because no working default org is set where your session started. In that case Scout asks, in plain words, whether to make the task's org your default. It changes it only on your yes, and never touches your logins or aliases.
+- **Scout now drives Salesforce's official plugins instead of copying their skills.** `/scout-setup` installs the five Scout uses from Salesforce's own GitHub marketplace, once, and switches auto-update on, so you always get Salesforce's latest skills: the core platform and code-quality plugins, plus Agentforce, Lightning Web Components, and Email-to-Case and messaging. If one ever goes missing, Scout offers to reinstall it when a build needs it. Scout's 25 copied skills are gone. Note that Salesforce's LWC plugin runs a quick style check whenever Claude writes a web file (HTML, CSS or JavaScript), in any folder.
+- **Scout takes charge of Salesforce plugins you already have.** If your Salesforce marketplace is fixed to an older release, or Anthropic's copy is also switched on, `/scout-setup` asks once and then switches you to Salesforce's latest, naming every plugin that changes. Personal copies of Salesforce skills (for example from `npx skills add`) are only reported: Scout never moves or deletes them.
+- **Other official plugins only when a build needs them.** Salesforce publishes more plugins, such as one for Omni-Channel routing. When a build falls in one of their areas, Scout offers that one plugin in its confirmation. It never installs them all, because each one makes every Claude session a little heavier.
+- **Scout checks the official plugins before every build.** If one isn't installed, is switched off, or appears twice, Scout says so and names the fix. Items that need a missing plugin are reported as blocked; everything else still builds.
+- **Scout follows the official plugin's own checks.** It loads Salesforce's query, retrieve and test skills where the official plugin expects them. For an org the plugin treats as production, it asks you once per task before deploying.
+- **The change log says why, and with what.** Each change records the criterion it serves and the skill, helper or command that made it.
+
 ## 2026-10-14 (Scout 2.0.2)
 
 - **Model and Slack hints that work in the desktop app.** When Scout asks you to switch to Opus 5.5, it now points to the model picker as well as `/model`. When Slack or Google needs authenticating, it tells you to use Terminal (`claude`, then `/mcp`) if `/mcp` isn't available in the desktop app.

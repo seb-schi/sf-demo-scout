@@ -24,10 +24,22 @@ class ScoutRouteTests(unittest.TestCase):
         for phrase in phrases:
             self.assertIn(phrase, text)
 
+    def test_hosted_flow_route_ordering_and_consent(self):  # W19 F1, F2, F12
+        self.phrases(self.command, 'read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/build.md` before proposing or writing')
+        proposal = (ROOT / 'prompts/scout/build.md').read_text().split('## Author in parallel')[0]
+        self.assertIn('prompts/scout/hosted-flow.md` §"Inspection"; its lines join that confirmation', proposal)
+        hosted = (ROOT / 'prompts/scout/hosted-flow.md').read_text()
+        for phrase in ('Before proposing, for each Flow item', "Approving the Flow doesn't approve activation",
+                       'no answer or an unclear one means no activation', 'still ask the activation line on its own',
+                       "step 3's Draft deployment and exact version attribution", 'A candidate number is never reused'):
+            self.assertIn(phrase, hosted)
+
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
-        caps = {'scout.md': 2275, 'history.md': 1005, 'discovery.md': 1100, 'build.md': 1325, 'prep.md': 900,  # W10 C9 and W9 C5
-                'reconcile.md': 335}  # 2.0.1: the handover's form moved to history.md; reconcile.md is new (W13)
+        caps = {'scout.md': 2275, 'history.md': 1005, 'discovery.md': 1100, 'build.md': 1340, 'prep.md': 900,  # W10 C9 and W9 C5;
+                # W19: build.md +15 for the hosted Flow route's two pointers
+                'reconcile.md': 335,  # 2.0.1: the handover's form moved to history.md; reconcile.md is new (W13)
+                'hosted-flow.md': 860}  # W19: the hosted Flow route, loaded only for Flow items
         for path in [COMMAND, *optional]:
             self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)
         text = '\n'.join(p.read_text() for p in [COMMAND, *optional])
@@ -324,7 +336,7 @@ class BuildRouteTests(unittest.TestCase):
             self.assertIn(phrase, text)
 
     def test_command_points_to_build_and_keeps_writes_serial(self):
-        self.phrases(self.command, 'With three or more items or any gated or Docs-gated item, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/build.md` before the first write',
+        self.phrases(self.command, 'With three or more items or any gated or Docs-gated item, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/build.md` before proposing or writing',
                      'authoring may run in parallel, org writes stay serial')
         self.phrases(self.build, '`commands/scout.md` routes complex plans here and still governs targeting, confirmation, dispositions and history',
                      'Only the orchestrator writes to the org, the task record and the log',

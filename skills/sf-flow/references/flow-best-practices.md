@@ -117,7 +117,7 @@ Sketch your Flow logic before building. Recommended tools:
 
 | Dependency Type | Check Before Building |
 |-----------------|----------------------|
-| Custom Objects/Fields | Do they exist? Create with platform-custom-object-generate / platform-custom-field-generate first |
+| Custom Objects/Fields | Do they exist? Create with salesforce-development:platform-custom-object-generate / salesforce-development:platform-custom-field-generate first |
 | Custom Metadata Types | Bypass settings, thresholds, config values |
 | Permission Sets | Required for System Mode considerations |
 | External Systems | Callout endpoints, credentials |
@@ -1364,7 +1364,7 @@ original end date is null (new contracts)."
 ### Testing & Deployment
 - [ ] Test with bulk data (200+ records)
 - [ ] Keep flows in Draft until fully tested
-- [ ] **Use platform-metadata-deploy guidance** and the caller-approved CLI/MCP deployment path
+- [ ] **Use salesforce-development:platform-metadata-deploy guidance** and the caller-approved CLI/MCP deployment path
 
 ---
 

@@ -25,7 +25,8 @@ Scout is the on-ramp. Setup stands up everything you need, and from there
 
 1. **Works in the org you name.** It looks at exactly what your request
    touches (a full audit when you ask), so you build into reality instead of
-   around it, and it never changes your defaults or login.
+   around it. It never changes your login, and changes your default org only
+   on your yes, when Salesforce's deploy check needs one.
 2. **Spars with you on the story.** From a one-liner or your discovery notes
    to a proposal with a clear "wow" moment, and pushback on anything that
    doesn't earn its place, because the real work is deciding what to leave out.
@@ -36,19 +37,20 @@ Scout is the on-ramp. Setup stands up everything you need, and from there
 4. **Preps you for delivery.** The click path through your story, and a
    read-only readiness check before you present.
 
-Scout works because the [official Salesforce deployment
-skills](https://github.com/forcedotcom/sf-skills) are baked in, with an
+Scout works because it drives Salesforce's [official Claude
+plugins](https://github.com/forcedotcom/sf-skills), installed from
+Salesforce's own GitHub marketplace and kept current by auto-update, with an
 orchestration layer for SEs on top. Rather than improvising Apex, Flow
 XML, or agent metadata from training data, it uses the same authoring
-rules and validation patterns the platform team publishes. You're not
-vibe-coding the platform layer — you're driving it.
+rules and validation patterns the platform team publishes, the day they
+publish them. You're not vibe-coding the platform layer — you're driving it.
 
 ## How it works
 
 One session from idea to a checked demo. The 5.5 models carry the whole job;
-Scout supplies the Salesforce playbook (bundled skills, deployment rules,
-Salesforce Docs) and the SE rigour (org binding, confirmations, read-back,
-per-customer history).
+Scout supplies the Salesforce playbook (Salesforce's official skills, deployment
+rules, Salesforce Docs) and the SE rigour (org binding, confirmations, read-back,
+per-customer history, and a log of what was done, with which skill, and why).
 
 ```mermaid
 flowchart TD
@@ -131,8 +133,9 @@ Inside Claude Code, run these four commands in order:
 When prompted on the install step, select `Install for you (user scope)`.
 `/scout-setup` handles all prerequisites: Homebrew check, Node / Python /
 Salesforce CLI install, SFDX scaffold, shell environment, and Slack MCP
-registration + auth. The vetted Salesforce skills ship bundled in the
-plugin itself — installed at `/plugin install`, no separate sync step.
+registration + auth. It also installs Salesforce's official Claude plugins
+from Salesforce's own GitHub marketplace, with auto-update on, so Scout always
+drives Salesforce's latest skills.
 
 After setup, kick off your first demo with `/scout`.
 

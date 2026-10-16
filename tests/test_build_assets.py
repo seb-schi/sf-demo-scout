@@ -294,7 +294,7 @@ class BuildAssetsContractTests(unittest.TestCase):
         phase = (REPOSITORY / "prompts/building/phase3.md").read_text()
         modify = phase[phase.index("### Modify Existing Agent"):phase.index("### Smoke Test")]
         self.assertNotIn("2>/dev/null || true", modify)
-        invoke = modify.index("Invoke `agentforce-generate`")
+        invoke = modify.index("Invoke `agentforce-adlc:agentforce-generate`")
         self.assertLess(modify.index("--kind agent-preedit"), invoke)
         self.assertLess(modify.index("Record the current active version number"), invoke)
         self.assertIn("preedit_snapshot", modify)

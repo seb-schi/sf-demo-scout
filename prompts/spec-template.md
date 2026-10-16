@@ -126,7 +126,7 @@ One `BusinessProcess` Metadata API type covers Sales / Lead / Support / Solution
 - Filters (if any): [field operation value, e.g. `StageName equals "Closed Won"`]
 
 ### Sharing Rules (if applicable)
-Scope: record-level access via `sharingCriteriaRules`, `sharingOwnerRules`, or `sharingGuestRules` (the `platform-sharing-rules-generate` skill). A sharing rule is **inert unless the object's org-wide default (OWD) is restrictive** (`Private` or `Public Read Only`) — capture the OWD prerequisite per object below.
+Scope: record-level access via `sharingCriteriaRules`, `sharingOwnerRules`, or `sharingGuestRules` (the `salesforce-development:platform-sharing-rules-generate` skill). A sharing rule is **inert unless the object's org-wide default (OWD) is restrictive** (`Private` or `Public Read Only`) — capture the OWD prerequisite per object below.
 - Object: [SObject API — standard or custom]
 - OWD prerequisite:
   - **Custom object (in this spec):** Scout sets `<sharingModel>` to [`Private` | `ReadWrite` if M-D → `ControlledByParent`] in the object metadata — autonomous, deployed in the same phase. Sharing rule is meaningful only if `Private`.
@@ -141,7 +141,7 @@ Scope: record-level access via `sharingCriteriaRules`, `sharingOwnerRules`, or `
 - ⚠️ If object is **Account**: rule MUST include `<accountSettings>` (case/contact/opportunity access — default all `None`)
 
 ### Custom Report Type (if applicable)
-Scope: a report type exposing one primary object + up to 3 related objects (4 total in the join chain) to the report builder (the `platform-custom-report-type-generate` skill). Each object contributes its own field section; join semantics decide whether related records are required (inner) or optional (outer).
+Scope: a report type exposing one primary object + up to 3 related objects (4 total in the join chain) to the report builder (the `salesforce-development:platform-custom-report-type-generate` skill). Each object contributes its own field section; join semantics decide whether related records are required (inner) or optional (outer).
 - Report Type: [DeveloperName], Label: [masterLabel]
 - Category: [Accounts & Contacts | Opportunities | Customer Support Reports | Activities | ... | Other Reports] (valid category value — the skill's `references/category-values.md` is authoritative)
 - Description: [one line shown in the report-type chooser]
@@ -159,21 +159,21 @@ Scope: a report type exposing one primary object + up to 3 related objects (4 to
     - [Field__c] → checked / unchecked
 
 ### Custom Settings (if applicable)
-Scope: a Custom Setting (`platform-custom-setting-generate` skill) — a `CustomObject` with `<customSettingsType>` (`Hierarchy` for per-profile/per-user overridable config, `List` for a small keyed reference table). Use for feature flags, kill switches, trigger-bypass toggles, per-profile limits, debug flags a Flow or Apex reads. NOT for secrets (Named Credential), NOT for cross-org-deployable reference data (Custom Metadata Types below), NOT for business records (custom object).
+Scope: a Custom Setting (`salesforce-development:platform-custom-setting-generate` skill) — a `CustomObject` with `<customSettingsType>` (`Hierarchy` for per-profile/per-user overridable config, `List` for a small keyed reference table). Use for feature flags, kill switches, trigger-bypass toggles, per-profile limits, debug flags a Flow or Apex reads. NOT for secrets (Named Credential), NOT for cross-org-deployable reference data (Custom Metadata Types below), NOT for business records (custom object).
 - Custom Setting: [ApiName]__c, Type: [Hierarchy | List], Label: [Label]
 - Fields: [FieldApiName]__c ([Checkbox | Currency | Date | DateTime | Email | Number | Percent | Phone | Text | TextArea | Url]) — [purpose]. NO Picklist / Formula / Lookup (unsupported on custom settings).
 - Values (data, not metadata — seeded via `sf data create record`, not deployed): [e.g. "org-default row: Enable_Beta__c=false" | "profile override: System Administrator → Enable_Beta__c=true"]
 - Consumed by: [the Apex class / Flow that reads it — name it so the dependency is explicit]
 
 ### Custom Metadata Types (if applicable)
-Scope: a Custom Metadata Type (`platform-custom-metadata-type-generate` skill) — `__mdt` type + fields + deployable `.md-meta.xml` records. Use for reference/config data that ships between orgs, or an admin-maintained mapping / lookup / crosswalk table (one record per pair). Records ARE metadata (they deploy); custom-setting values are not.
+Scope: a Custom Metadata Type (`salesforce-development:platform-custom-metadata-type-generate` skill) — `__mdt` type + fields + deployable `.md-meta.xml` records. Use for reference/config data that ships between orgs, or an admin-maintained mapping / lookup / crosswalk table (one record per pair). Records ARE metadata (they deploy); custom-setting values are not.
 - Custom Metadata Type: [ApiName]__mdt, Label: [Label], Plural: [Plural Label]
 - Fields: [FieldApiName]__c ([Checkbox | Date | DateTime | Email | Number | Percent | Phone | Picklist | Text | TextArea | LongTextArea | Url | MetadataRelationship]) — [purpose]. NO Currency / Formula. For a relationship, write `MetadataRelationship` (never Lookup) with `<referenceTo>` = another `__mdt` / `EntityDefinition` / `FieldDefinition`.
 - Records: [DeveloperName] → { [FieldApiName]__c: [value], ... } — one record per row; DeveloperName derived deterministically from the key label (≤40 chars, alphanumeric + underscore).
 - Consumed by: [the Apex class / Flow that reads it via getAll() / getInstance() — name it]
 
 ### Reports (if applicable)
-Scope: a Lightning Report (`.report-meta.xml`) in a folder (the `platform-report-generate` skill). Reports run on a standard report type (e.g. `Opportunity`, `CaseList`, `LeadList`, `AccountList`) or a deployed Custom Report Type from the section above. Columns use platform report column names, NOT raw API field names.
+Scope: a Lightning Report (`.report-meta.xml`) in a folder (the `salesforce-development:platform-report-generate` skill). Reports run on a standard report type (e.g. `Opportunity`, `CaseList`, `LeadList`, `AccountList`) or a deployed Custom Report Type from the section above. Columns use platform report column names, NOT raw API field names.
 - Report: [Report Name (max 40 chars)], API/DeveloperName: [DeveloperName]
 - Folder: [FolderName] — [new (Scout creates it + AllInternalUsers share) | existing (Scout deploys the report only, does not touch the folder)]
 - Report type: [Opportunity | CaseList | LeadList | AccountList | ... standard | deployed Custom Report Type DeveloperName]
@@ -188,7 +188,7 @@ Scope: a Lightning Report (`.report-meta.xml`) in a folder (the `platform-report
 - Chart (optional, Summary/Matrix only): [chart type — see the skill's `references/chart-types.md`]
 
 ### Email-to-Case (if applicable)
-Scope: Base Email-to-Case only (`service-email-to-case-configure` skill) — the `CaseSettings` singleton's `emailToCase` block + routing addresses, applied via the skill's two-phase Metadata API script. Enabling it is permanent and org-wide (cannot be turned off once on) — ⚠️ SE CONFIRMATION REQUIRED if the target org is production (Gated tier; sandboxes/scratch/trials do not need it).
+Scope: Base Email-to-Case only (`service-engagement:service-email-to-case-configure` skill) — the `CaseSettings` singleton's `emailToCase` block + routing addresses, applied via the skill's two-phase Metadata API script. Enabling it is permanent and org-wide (cannot be turned off once on) — ⚠️ SE CONFIRMATION REQUIRED if the target org is production (Gated tier; sandboxes/scratch/trials do not need it).
 - Routing address(es): [routingName], type: [EmailToCase | Outlook | GmailOAuth], caseOrigin: [value], casePriority: [value], customer-facing email: [address — elicited fresh each session, never reused]
 - Per-address Default Case Owner (optional): [type: User/Queue + value] — omit to fall to org default / assignment rules
 - Optional toggles (default on unless the SE opts out): Enable HTML email, Eliminate duplicate attachments, Show word count in composer, Notify case owners on new emails, Enable Email Drafts
@@ -231,7 +231,7 @@ Scope: appending existing fields into the field-bearing leaf Facet of an existin
 - ⚠️ If the audit's `columns` array for the named section contains a column with `facet_uuid: null` (opaque structure), this section is NOT eligible for autonomous deploy — route to the LRP SE Manual section below.
 
 ### Lightning Record Page — SE Manual (App Builder)
-Scope: anything beyond appending into an existing field section. Use when audit reports `composition_class: mixed` AND the field belongs in something other than a field section, OR `custom` / `unretrievable`, OR the spec needs new sections, repositioning, components, tabset edits, or dynamic-form regions, OR **an entire new-from-scratch `RecordPage`** (whole-page authoring is SE Manual — the `platform-flexipage-generate` deploy loop is non-convergent for new pages; see Scout's `AGENTS.md` docs-gated disposition 2's named exception). Scout deploys the underlying metadata (LWC bundles, Path components, QuickActions); the SE composes the page in App Builder, where there is a live preview.
+Scope: anything beyond appending into an existing field section. Use when audit reports `composition_class: mixed` AND the field belongs in something other than a field section, OR `custom` / `unretrievable`, OR the spec needs new sections, repositioning, components, tabset edits, or dynamic-form regions, OR **an entire new-from-scratch `RecordPage`** (whole-page authoring is SE Manual — the `salesforce-development:platform-flexipage-generate` deploy loop is non-convergent for new pages; see Scout's `AGENTS.md` docs-gated disposition 2's named exception). Scout deploys the underlying metadata (LWC bundles, Path components, QuickActions); the SE composes the page in App Builder, where there is a live preview.
 - [Object] — [LRP name] — Composition: [field_section | mixed | custom | unretrievable] — Why SE Manual: [section creation / reposition / new component / dynamic-form region / unretrievable composition]
 - Components / fields to add: [list]
 
@@ -330,7 +330,7 @@ these named components immediately before their phase, including on retry.
 - Email channel disposition (if applicable): [manual/BLOCKED, or exact installed External Skill approved above]
 - Existing agents in org: (from audit — note conflicts)
 - If modifying existing: current version v[N], rollback: `sf agent activate --api-name [AgentName] --version [N] --target-org [alias]`
-- Agent test cases: table below — 4-8 rows that become the official `sf agent test` spec (Testing Center). Columns map 1:1 to the `agentforce-test` skill's YAML fields. **MUST include at least one guardrail/off-topic row** (leave `expectedTopic` empty, describe the decline in `expectedOutcome`) — mirror the skill's `guardrail-test-spec.yaml`.
+- Agent test cases: table below — 4-8 rows that become the official `sf agent test` spec (Testing Center). Columns map 1:1 to the `agentforce-adlc:agentforce-test` skill's YAML fields. **MUST include at least one guardrail/off-topic row** (leave `expectedTopic` empty, describe the decline in `expectedOutcome`) — mirror the skill's `guardrail-test-spec.yaml`.
 
   | # | Utterance | expectedTopic | expectedActions | expectedOutcome |
   |---|-----------|---------------|-----------------|-----------------|
@@ -338,7 +338,7 @@ these named components immediately before their phase, including on retry.
   | 2 | [action-exercising message] | [topic] | [action] | [observable effect described] |
   | 3 | [off-topic / guardrail message] | (leave empty) | (none) | [declines gracefully, stays on-domain, no hallucination] |
 
-  Notes: `expectedActions` uses **Level-2 invocation names** (from `reasoning: actions:`), NOT Level-1 definition names; it is a flat list and assertion is superset-match. Always fill `expectedOutcome` — LLM-as-judge is the most reliable assertion. For guardrail rows leave `expectedTopic` empty and rely on `expectedOutcome`. The `agentforce-test` skill's `basic-test-spec.yaml` + `guardrail-test-spec.yaml` are the authoritative templates — do not hand-invent field names.
+  Notes: `expectedActions` uses **Level-2 invocation names** (from `reasoning: actions:`), NOT Level-1 definition names; it is a flat list and assertion is superset-match. Always fill `expectedOutcome` — LLM-as-judge is the most reliable assertion. For guardrail rows leave `expectedTopic` empty and rely on `expectedOutcome`. The `agentforce-adlc:agentforce-test` skill's `basic-test-spec.yaml` + `guardrail-test-spec.yaml` are the authoritative templates — do not hand-invent field names.
 - **Running-user access (Service Agents only):** if Type is `AgentforceServiceAgent`, the agent
   executes as a dedicated running user, so every backing action is gated by that user's access.
   Phase 3 auto-grants it access to the backing Apex/Flow, the RecordTypes the backing code inserts,

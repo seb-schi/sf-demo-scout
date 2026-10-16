@@ -37,7 +37,11 @@ case "$SCOUT_RULES_ROOT" in
 esac
 
 scout_legacy_context() {
-  [ "$1" != inside ] || printf '%b\n' "$OUTPUT"
+  if [ "$1" = inside ]; then
+    printf '%b\n' "$OUTPUT"
+  elif [ -n "$SCOUT_OFFICIAL_NOTICE" ]; then
+    printf '%b' "$SCOUT_OFFICIAL_NOTICE"
+  fi
 }
 scout_finish_context() {
   local scope="$1" context bounded
@@ -61,6 +65,53 @@ scout_finish_context() {
   fi
   scout_legacy_context "$scope" | scout_emit_context || scout_legacy_context "$scope"
 }
+# Resolve helpers relative to this shipped hook. Overrides are narrow test seams.
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MCP_STATUS_SCRIPT="${SCOUT_MCP_STATUS_SCRIPT:-$HOOK_DIR/../scripts/setup-mcp-status.py}"
+SCOUT_ACTIVE_HOST="unknown"
+if command -v python3 >/dev/null 2>&1 && [ -f "$MCP_STATUS_SCRIPT" ]; then
+  SCOUT_ACTIVE_HOST="$(python3 -B "$MCP_STATUS_SCRIPT" --detect-host 2>/dev/null)"
+fi
+
+run_bounded() {
+  local secs="$1" dest="$2"
+  shift 2
+  perl -e '
+    my $secs = shift;
+    my $pid = fork();
+    exit 125 unless defined $pid;
+    if ($pid == 0) { setpgrp(0,0); exec @ARGV or exit 127 }
+    $SIG{ALRM} = sub {
+      kill "TERM", -$pid; sleep 1; kill "KILL", -$pid;
+      waitpid($pid, 0); exit 124;
+    };
+    alarm $secs;
+    waitpid($pid, 0);
+    alarm 0;
+    my $status = $?;
+    exit(128 + ($status & 127)) if ($status & 127);
+    exit($status >> 8);
+  ' "$secs" "$@" >"$dest" 2>/dev/null
+}
+
+# Salesforce's official plugins, which Scout builds with (Claude only; never blocks). A client notice, so it applies in
+# every folder: an SE whose Scout updated while they work outside the workspace still learns that setup is needed.
+SCOUT_OFFICIAL_NOTICE=""
+OFFICIAL_SCRIPT="${SCOUT_OFFICIAL_SCRIPT:-$HOOK_DIR/../scripts/scout_official.py}"
+if [ "$SCOUT_ACTIVE_HOST" = "claude" ] && command -v python3 >/dev/null 2>&1 && [ -f "$OFFICIAL_SCRIPT" ] \
+    && OFFICIAL_OUT="$(mktemp "${TMPDIR:-/tmp}/scout-official.XXXXXX" 2>/dev/null)"; then
+  # Local reads only, but bounded anyway: a stalled config folder must never stall the session start.
+  PYTHONDONTWRITEBYTECODE=1 run_bounded 3 "$OFFICIAL_OUT" python3 -B "$OFFICIAL_SCRIPT" resolve --host claude \
+    --plugin salesforce-development --launch-dir "$PWD"
+  OFFICIAL_STATE="$(python3 -B -c 'import json, sys; print(json.load(open(sys.argv[1]))["state"])' "$OFFICIAL_OUT" 2>/dev/null)"
+  rm -f "$OFFICIAL_OUT"
+  case "$OFFICIAL_STATE" in
+    installed|"") ;;
+    conflict) SCOUT_OFFICIAL_NOTICE="## ℹ️ Two copies of Salesforce's official plugin are switched on. Run \`/scout-setup\` to switch the extra one off.\n\n" ;;
+    *) SCOUT_OFFICIAL_NOTICE="## ℹ️ Scout builds with Salesforce's official plugins, which aren't set up yet. Run \`/scout-setup\` once.\n\n" ;;
+  esac
+fi
+
 SCOUT_WORKSPACE="${SCOUT_WORKSPACE:-$HOME/claude-projects/sf-demo-scout}"
 if [ "$PWD" != "$SCOUT_WORKSPACE" ]; then
   scout_finish_context outside
@@ -70,15 +121,8 @@ fi
 OUTPUT=""
 umask 077
 
-# Resolve helpers relative to this shipped hook. Overrides are narrow test seams.
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SLUGIFY="${SCOUT_SLUGIFY:-$HOOK_DIR/../scripts/slugify.py}"
 STARTUP_EVIDENCE="${SCOUT_STARTUP_EVIDENCE:-$HOOK_DIR/../scripts/startup-evidence.py}"
-MCP_STATUS_SCRIPT="${SCOUT_MCP_STATUS_SCRIPT:-$HOOK_DIR/../scripts/setup-mcp-status.py}"
-SCOUT_ACTIVE_HOST="unknown"
-if command -v python3 >/dev/null 2>&1 && [ -f "$MCP_STATUS_SCRIPT" ]; then
-  SCOUT_ACTIVE_HOST="$(python3 -B "$MCP_STATUS_SCRIPT" --detect-host 2>/dev/null)"
-fi
 CACHE_DIR="${SCOUT_CACHE_DIR:-$HOME/.cache/sf-demo-scout}"
 RUNTIME_BASE="${SCOUT_RUNTIME_DIR:-${TMPDIR:-/tmp}}"
 SETTINGS_FILE="${SCOUT_SETTINGS_FILE:-$HOME/.claude/settings.json}"
@@ -153,26 +197,6 @@ fi
 
 # Run a command with stdout at $2 and preserve its status. The child gets its
 # own process group so timeout cleanup includes wrapper grandchildren.
-run_bounded() {
-  local secs="$1" dest="$2"
-  shift 2
-  perl -e '
-    my $secs = shift;
-    my $pid = fork();
-    exit 125 unless defined $pid;
-    if ($pid == 0) { setpgrp(0,0); exec @ARGV or exit 127 }
-    $SIG{ALRM} = sub {
-      kill "TERM", -$pid; sleep 1; kill "KILL", -$pid;
-      waitpid($pid, 0); exit 124;
-    };
-    alarm $secs;
-    waitpid($pid, 0);
-    alarm 0;
-    my $status = $?;
-    exit(128 + ($status & 127)) if ($status & 127);
-    exit($status >> 8);
-  ' "$secs" "$@" >"$dest" 2>/dev/null
-}
 
 cache_path() { printf '%s/%s.json\n' "$CACHE_DIR" "$1"; }
 status_path() { printf '%s/%s.status\n' "$RUN_DIR" "$1"; }
@@ -343,6 +367,9 @@ if [ "$SCOUT_ACTIVE_HOST" = "claude" ]; then
     OUTPUT+="   Run the Claude Code installer first: see the 'Installing Claude Code for Solutions' canvas.\n\n"
   fi
 fi
+
+# --- 1b. Salesforce's official plugins: the notice computed before the workspace gate ---
+OUTPUT+="$SCOUT_OFFICIAL_NOTICE"
 
 CONFIG_STATUS="unavailable"
 LIST_STATUS="unavailable"

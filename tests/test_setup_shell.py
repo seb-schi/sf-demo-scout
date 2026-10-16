@@ -32,7 +32,7 @@ class SetupShellTests(unittest.TestCase):
                 result = subprocess.run(['/bin/zsh', '-f', '-n'], input=source, text=True, capture_output=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 count += 1
-        self.assertEqual(count, 48)
+        self.assertEqual(count, 50)  # W20: +2 in prompts/setup/official-plugins.md
 
     def test_setup_command_has_one_whole_fence_rule(self):
         command = (ROOT / 'commands/scout-setup.md').read_text()

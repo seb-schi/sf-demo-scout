@@ -102,6 +102,10 @@ on PATH can differ from the desktop/IDE client identified by its executable path
 - Other `SF_CLI_NOT_NPM_OWNED` / `CLAUDE_CLI_NOT_NPM_OWNED` — one-line note that the active executable belongs to another installation, so Scout left it to that installation's updater. Do not call this an error.
 - `SF_CLI_OWNERSHIP_UNVERIFIED` / `CLAUDE_CLI_OWNERSHIP_UNVERIFIED` — one-line note that npm ownership could not be proved, so Scout safely skipped the update. Name an installer only for the proved native-path case above; otherwise do not imply which installer owns it.
 
+## b.5: Salesforce's official plugins
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/official-plugins.md` and execute it. Carry its non-silent lines into the done summary.
+
 ## c: Slack MCP
 
 First read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-dx-mcp.md` and run

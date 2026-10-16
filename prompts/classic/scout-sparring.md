@@ -283,6 +283,8 @@ by another plugin is not proof of Scout ownership. If the local inventory is
 missing or unreadable, bundled status is unknown: do not call the candidate bundled
 or offer it as external until provenance is resolved. This is local file inspection,
 not a new runtime helper or cached policy list.
+Skills of Salesforce's official plugins that Scout routes to (`assets/official-capabilities.json`, by
+their qualified names) are Scout's own routes, not external skills.
 
 **When the scenario's domain matches an installed external skill, surface it and offer — do not assume use.** If a build category in your proposal (Flow, Apex, LWC, Agentforce, data, config) sits in a domain a non-bundled skill clearly covers, name the skill and offer it as a standalone message:
 

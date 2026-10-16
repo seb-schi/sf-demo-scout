@@ -336,6 +336,10 @@ Surface inline:
 - `AUTOUPDATE_NO_SETTINGS` / `AUTOUPDATE_NO_MARKETPLACES` / `AUTOUPDATE_NO_SCOUT_ENTRY` — silent (the marketplace add step writes these; absence means setup is being run in an unexpected state, not Scout's problem).
 - Any error variant — one-line note, proceed.
 
+## g.6: Salesforce's official plugins
+
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/official-plugins.md` and execute it. Carry its non-silent lines into the done summary.
+
 ## h: Slack MCP
 
 First read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-dx-mcp.md` and run

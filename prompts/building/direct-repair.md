@@ -18,9 +18,10 @@ and the shared operation-safety block for this repair. Retain its source at fini
    state, or required permission is genuinely ambiguous. Do not start a scenario
    interview, create a new spec/ledger, or restart the phased build for a filter,
    value, trigger, seed, or similarly bounded repair.
-2. Read `${CLAUDE_PLUGIN_ROOT}/prompts/building/vendor-compatibility.md` before
-   resolving or invoking a vendor skill. Apply its common preamble plus only the
-   applicable named sections, resolving reference paths to absolute installed paths.
+2. Read `${CLAUDE_PLUGIN_ROOT}/prompts/building/official-skill-overrides.md` before
+   resolving or invoking an official skill. Run its §"Readiness" inspection before any
+   source write, then apply its common preamble, §"The official hooks" and only the
+   applicable named overrides, resolving reference paths to absolute installed paths.
    If an approved Agentforce repair applies, also load
    `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` and the canonical
    `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md`; otherwise do not load either Agentforce file.
@@ -49,7 +50,7 @@ and the shared operation-safety block for this repair. Retain its source at fini
 5. Deploy only the frozen delta, then perform targeted read-back. Preserve Report
    filter values and logic, unrelated incumbent content, and the Phase 2 exact Flow
    test/version/activation contract. Do not infer success from a deploy receipt.
-6. For a bounded record-data repair, invoke `platform-data-manage` and write a pending
+6. For a bounded record-data repair, invoke `salesforce-development:platform-data-manage` and write a pending
    row before mutation with exact object, record IDs/stable keys, fields, typed before
    values, and requested after values. Do not use the metadata snapshot helper. Read
    back those same records/fields; rollback restores only recorded field values and
