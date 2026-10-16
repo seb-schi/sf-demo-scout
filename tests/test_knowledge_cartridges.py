@@ -196,7 +196,7 @@ class KnowledgeCartridgeTests(unittest.TestCase):
         ).replace("/absolute/native/session/directory", str(session))
         result = subprocess.run(
             ["/bin/bash", "-c", command], cwd=self.base,
-            env={**os.environ, "PATH": f"{binary}:/usr/bin:/bin",
+            env={**os.environ, "PATH": f"{binary}:/usr/bin:/bin", "CLAUDE_CODE_EXECPATH": "",
                  "SCOUT_EXPECTED_SESSION": str(session),
                  "SCOUT_TEST_INVENTORY": json.dumps([self.row(selected)])},
             capture_output=True, text=True, check=False,
@@ -205,6 +205,62 @@ class KnowledgeCartridgeTests(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout)["cartridges"][0]["root"], str(selected))
         self.assertNotIn("sort -V", prompt)
         self.assertNotIn('find "$HOME/.claude/plugins/cache"', prompt)
+
+    def test_a_desktop_only_se_reads_the_inventory_through_the_apps_own_binary(self) -> None:
+        # No `claude` on the PATH: the running client's bundled binary answers instead.
+        selected = self.cartridge("provider/knowledge/1.0.0")
+        session = self.base / "desktop session"
+        session.mkdir()
+        app = self.base / "Claude.app"
+        app.mkdir()
+        desktop = app / "claude"
+        desktop.write_text(
+            '#!/bin/sh\n[ "$*" = "--version" ] && { echo "2.1.295 (Claude Code)"; exit 0; }\n'
+            '[ "$*" = "plugin list --json" ] || exit 97\nprintf "%s" "$SCOUT_TEST_INVENTORY"\n'
+        )
+        desktop.chmod(0o700)
+        result = subprocess.run(
+            [sys.executable, "-B", str(SCRIPT), "--claude", "--directory", str(session)], cwd=self.base,
+            env={"PATH": "/usr/bin:/bin", "HOME": str(self.base), "CLAUDE_CODE_EXECPATH": str(desktop),
+                 "SCOUT_TEST_INVENTORY": json.dumps([self.row(selected)])},
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["cartridges"][0]["root"], str(selected))
+
+    def test_a_running_client_that_isnt_claude_never_gets_the_inventory_command(self) -> None:
+        selected = self.cartridge("provider/knowledge/1.0.0")
+        session = self.base / "npm session"
+        session.mkdir()
+        sentinel = self.base / "node-received-inventory"
+        node = self.base / "node"
+        node.write_text('#!/bin/sh\n[ "$*" = "--version" ] && { echo "v22.11.0"; exit 0; }\n'
+                        f'touch "{sentinel}"; exit 97\n')
+        node.chmod(0o700)
+        binary = self.base / "bin"
+        binary.mkdir()
+        stub = binary / "claude"
+        stub.write_text('#!/bin/sh\n[ "$*" = "plugin list --json" ] || exit 97\nprintf "%s" "$SCOUT_TEST_INVENTORY"\n')
+        stub.chmod(0o700)
+        result = subprocess.run(
+            [sys.executable, "-B", str(SCRIPT), "--claude", "--directory", str(session)], cwd=self.base,
+            env={"PATH": f"{binary}:/usr/bin:/bin", "HOME": str(self.base), "CLAUDE_CODE_EXECPATH": str(node),
+                 "SCOUT_TEST_INVENTORY": json.dumps([self.row(selected)])},
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["cartridges"][0]["root"], str(selected))
+        self.assertFalse(sentinel.exists())
+
+    def test_a_probe_that_fails_or_stalls_falls_back_to_the_path(self) -> None:
+        failures = (subprocess.CompletedProcess([], 1, "2.1.295 (Claude Code)", ""),
+                    subprocess.TimeoutExpired("claude", 30), OSError("exec format error"))
+        for failure in failures:
+            with self.subTest(failure=type(failure).__name__), \
+                    patch.dict(os.environ, {"CLAUDE_CODE_EXECPATH": sys.executable}), \
+                    patch.object(MODULE.subprocess, "run",
+                                 **({"side_effect": failure} if isinstance(failure, BaseException) else {"return_value": failure})):
+                self.assertEqual(MODULE.claude_command(), "claude")
 
 
 if __name__ == "__main__":

@@ -191,7 +191,7 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
             env=env,
             text=True,
             capture_output=True,
-            timeout=15,
+            timeout=30,  # a loaded machine (a review or second suite running) can pass 15 s on the 100-folder fixture
             check=False,
         )
 

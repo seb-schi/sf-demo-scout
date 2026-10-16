@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -99,6 +100,21 @@ def selected_cartridges(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {"status": "ok", "cartridges": cartridges, "unavailable": unavailable}
 
 
+def claude_command() -> str:
+    """The running client's own Claude Code binary when it is one, else `claude` from the PATH. A desktop-only SE has
+    no `claude` command; the app's bundled binary reads the same plugin inventory."""
+    running = os.environ.get("CLAUDE_CODE_EXECPATH", "")
+    if os.path.isabs(running) and os.access(running, os.X_OK):
+        try:
+            probe = subprocess.run([running, "--version"], stdin=subprocess.DEVNULL, capture_output=True,
+                                   text=True, errors="replace", timeout=30)
+            if probe.returncode == 0 and str(probe.stdout).strip().endswith("(Claude Code)"):
+                return running
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return "claude"
+
+
 def claude_inventory(directory: str) -> bytes:
     path = Path(directory)
     if not path.is_absolute():
@@ -108,7 +124,7 @@ def claude_inventory(directory: str) -> bytes:
         if not path.is_dir():
             raise InventoryError("session directory is not a directory")
         result = subprocess.run(
-            ["claude", "plugin", "list", "--json"], cwd=path,
+            [claude_command(), "plugin", "list", "--json"], cwd=path,
             capture_output=True, check=False, timeout=20,
         )
     except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:

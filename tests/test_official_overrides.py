@@ -75,13 +75,24 @@ class OverridesContractTests(unittest.TestCase):
 
     def test_first_need_install_is_named_approved_reloaded_and_resumed(self):
         install = section(self.reference, "Missing-plugin repair")
-        self.assertIn("Setup installs all five plugins, so this only repairs one", install)
+        self.assertIn("Otherwise this repairs one plugin that failed to install, was removed or was switched off", install)
         self.assertIn("the bundled confirmation names it in one line", install)
         self.assertIn("in any project, not only Scout's", install)
         self.assertIn("setup-official-plugins.py\" --host [SCOUT_HOST] --plugins <plugin>", install)
         self.assertIn("Record the task as waiting for the reload in the change log", install)
         self.assertIn("resume that same task only after readiness and coexistence pass again", install)
         self.assertIn("A decline or a failure leaves those items blocked", install)
+
+    def test_an_se_without_the_plugins_gets_them_installed_on_one_yes(self):
+        # Right after an update from 2.0, nothing is set up: /scout offers the install itself instead of sending
+        # the SE to /scout-setup, then asks for the reload and resumes.
+        install = section(self.reference, "Missing-plugin repair")
+        self.assertIn("When the plugins aren't set up at all (`setup-needed`", install)
+        self.assertIn("Shall I install them now? It takes about a minute, and they keep themselves up to date.", install)
+        self.assertIn("run the two bash blocks of `prompts/setup/official-plugins.md`, as setup does", install)
+        self.assertIn("a 10-minute timeout", install)
+        self.assertIn("ask the SE to run `/reload-plugins`, and resume the same task once readiness passes", install)
+        self.assertIn("A no leaves the build items blocked; read-only work goes on.", install)
 
     def test_other_plugins_are_offered_one_build_need_at_a_time(self):
         offer = section(self.reference, "Other official plugins")

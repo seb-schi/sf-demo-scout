@@ -34,12 +34,33 @@ class ScoutRouteTests(unittest.TestCase):
                        "step 3's Draft deployment and exact version attribution", 'A candidate number is never reused'):
             self.assertIn(phrase, hosted)
 
+    def test_an_org_that_isnt_connected_gets_salesforces_login_page(self):
+        # The classic commands opened the browser login; /scout offers it too, without touching existing logins.
+        self.assertIn('to connect an org or renew its login, follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/connect-org.md`',
+                      self.command)
+        self.assertIn('Keep defaults, aliases and existing logins unchanged', self.command)
+        connect = (ROOT / 'prompts/scout/connect-org.md').read_text()
+        for phrase in ("Shall I open Salesforce's login page in your browser?", 'I never see your password',
+                       'so no existing alias is re-pointed', 'To renew a login, note the username the alias names, and pass no alias at all',
+                       'load `salesforce-development:login` first', "its `sf org display` check is replaced by Scout's binding",
+                       'Never run a raw `sf org list` or `sf org display`', 'sf org login web --instance-url [URL]',
+                       'with `--alias [alias]` only for a new org', 'in the background',
+                       'Leave out `--json`, so no token is printed', 'never add `--set-default`', 'https://test.salesforce.com',
+                       'the bound username must be the one noted in step 2', 'A no changes nothing'):
+            self.assertIn(phrase, connect)
+        self.assertNotIn('device-code', connect)  # the installed Salesforce CLI has no device login
+
+    def test_discovery_asks_once_before_pulling_in_slack_and_google(self):
+        self.phrases(self.discovery, 'ask once, as you begin discovery, whether the SE would like you to pull in what Slack and Google have on them',
+                     'search them read-only', 'attributed leads', '§"Epistemic Framing"', 'On a no, or when neither is connected, carry on without')
+
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
-        caps = {'scout.md': 2275, 'history.md': 1005, 'discovery.md': 1100, 'build.md': 1340, 'prep.md': 900,  # W10 C9 and W9 C5;
+        caps = {'scout.md': 2285, 'history.md': 1005, 'discovery.md': 1100, 'build.md': 1340, 'prep.md': 900,  # W10 C9 and W9 C5;
                 # W19: build.md +15 for the hosted Flow route's two pointers
                 'reconcile.md': 335,  # 2.0.1: the handover's form moved to history.md; reconcile.md is new (W13)
-                'hosted-flow.md': 860}  # W19: the hosted Flow route, loaded only for Flow items
+                'hosted-flow.md': 860,  # W19: the hosted Flow route, loaded only for Flow items
+                'connect-org.md': 440}  # 2.1.1: the browser login, loaded only for an org that isn't connected
         for path in [COMMAND, *optional]:
             self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)
         text = '\n'.join(p.read_text() for p in [COMMAND, *optional])
@@ -205,7 +226,7 @@ class ScoutRouteTests(unittest.TestCase):
 
     def test_complete_brief_startup_budget_and_report_checkpoint_adapter(self):
         startup = [COMMAND, ROOT / 'prompts/host-runtime.md', ROOT / 'prompts/workspace-bootstrap.md']
-        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3060)  # 2.0.1: down from 3,100 (F3); the packages' 3,000 awaits the user's U1
+        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3071)  # 2.0.1: down from 3,100 (F3); 2.1.1: +11 for the browser-login pointer; the packages' 3,000 awaits the user's U1
         self.phrases(self.command, 'log explicitly as `--change-log`',
                      'marked receipt block fenced and its evidence unchanged')
 
@@ -311,7 +332,7 @@ class ScoutRouteTests(unittest.TestCase):
     def test_r4_f18_complete_brief_availability_without_readiness(self):
         self.phrases(self.command, 'Check exposed Docs tools; do not load readiness before this message')
         startup = [COMMAND, ROOT / 'prompts/host-runtime.md', ROOT / 'prompts/workspace-bootstrap.md']
-        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3060)  # 2.0.1: down from 3,100 (F3); the packages' 3,000 awaits the user's U1
+        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3071)  # 2.0.1: down from 3,100 (F3); 2.1.1: +11 for the browser-login pointer; the packages' 3,000 awaits the user's U1
 
     def test_r4_f19_stamps_come_from_clock(self):
         self.phrases(self.command, 'Stamp records from `date`, never an estimate')

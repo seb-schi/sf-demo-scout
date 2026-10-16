@@ -15,13 +15,13 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md`, resolve its absolute root,
 
 On Claude only, if this session identifies an Opus, Sonnet or Haiku model older than 5.5, send only “Scout 2.0 is built for Opus 5.5 and later. Pick Opus 5.5 (model picker or `/model`), then run `/scout` again.” and stop. Say what you will inspect. Check exposed Docs tools; do not load readiness before this message; if unavailable, say so in this first SE-facing message. Read `orgs/lessons/INDEX.md` if present, without creating it; load topic files only when relevant.
 
-Use the named selector; otherwise read the default with `sf config get target-org --json`; confirm its use below. If unavailable, ask. Run:
+Use the named selector; otherwise read the default with `sf config get target-org --json` and confirm it below. If unavailable, ask; to connect an org or renew its login, follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/connect-org.md`. Run:
 
 ```text
 python3 [PLUGIN_ROOT_ABS]/scripts/scout_target.py bind --selector [SELECTOR]
 ```
 
-Require exit 0; preserve the returned selector, username and org ID. From this point every org-directed `sf` call carries `--target-org [BOUND_USERNAME]`. Never call Salesforce DX MCP org tools, even when the bound org is the default. Wherever a file says MCP, the active or default org, `sf config get target-org`, or to omit `--target-org`, use `sf … --target-org [BOUND_USERNAME]`. Keep defaults, aliases and authentication unchanged; a different target needs the SE to name it and a new binding.
+Require exit 0; preserve the returned selector, username and org ID. From this point every org-directed `sf` call carries `--target-org [BOUND_USERNAME]`. Never call Salesforce DX MCP org tools, even when the bound org is the default. Wherever a file says MCP, the active or default org, `sf config get target-org`, or to omit `--target-org`, use `sf … --target-org [BOUND_USERNAME]`. Keep defaults, aliases and existing logins unchanged; a different target needs the SE to name it and a new binding.
 
 Before every write (retries too) and every read-back supporting a disposition, run:
 

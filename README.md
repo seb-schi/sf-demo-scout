@@ -25,8 +25,9 @@ Scout is the on-ramp. Setup stands up everything you need, and from there
 
 1. **Works in the org you name.** It looks at exactly what your request
    touches (a full audit when you ask), so you build into reality instead of
-   around it. It never changes your login, and changes your default org only
-   on your yes, when Salesforce's deploy check needs one.
+   around it. If the org isn't connected yet, it opens Salesforce's login page
+   for you. It never changes your existing logins, and changes your default org
+   only on your yes, when Salesforce's deploy check needs one.
 2. **Spars with you on the story.** From a one-liner or your discovery notes
    to a proposal with a clear "wow" moment, and pushback on anything that
    doesn't earn its place, because the real work is deciding what to leave out.

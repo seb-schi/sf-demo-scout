@@ -2,6 +2,13 @@
 
 Check your last `update.sh` date against the headers below to see what you missed.
 
+## 2026-10-16 (Scout 2.1.1)
+
+- **Scout opens Salesforce's login page for you again.** If the org you want isn't connected yet, or its login has expired, Scout offers to open Salesforce's login page in your browser, as the classic commands did. You sign in there, and Scout never sees your password. It never re-points an existing alias, checks that a renewed login is still the same user, and leaves your default org as it is.
+- **Scout installs Salesforce's plugins for you.** If they aren't set up yet, for example right after this update, `/scout` offers to install them in one line, instead of sending you to `/scout-setup`. Then run `/reload-plugins` and Scout carries on.
+- **Scout can pull in what Slack and Google know about your customer.** When your request names a customer, Scout asks once whether to search Slack and Google for them, read-only. On your yes it digs in, and uses what it finds as leads with their sources, never as facts.
+- **Industry knowledge packs work in the desktop app too.** Scout finds an installed knowledge pack, such as the Life Sciences Booster Pack, through the desktop app's own Claude Code, so it no longer needs the `claude` command in Terminal.
+
 ## 2026-10-16 (Scout 2.1)
 
 - **Flows from Salesforce's own Flow generator.** When the official `salesforce-development` plugin is installed, Scout can have Salesforce's hosted metadata-experts server generate a Flow. Scout then checks, deploys, tests and activates it as usual. Scout's own Flow skill stays the fallback.
