@@ -39,7 +39,7 @@ or excluded work remains BLOCKED.
 Invoke these skills via the Skill tool:
 - `agentforce-adlc:agentforce-generate` — agent spec, validation, preview, publish, activate
 - `agentforce-adlc:agentforce-test` — official agent testing after activate: builds + runs a Testing Center suite (Mode B: `sf agent test create/run/results`) from the spec's Agent test cases, with Mode A `sf agent preview` as fallback. Authoritative for the test-spec YAML schema + Testing Center metric landmines.
-- `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP
+- `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` — read it for the decision tree on when to consult Salesforce Docs
 {{EXTERNAL_SKILLS}}
 
 {{IMPORTED_ASSETS}}
@@ -48,7 +48,7 @@ Invoke these skills via the Skill tool:
 
 **Attempt rule (pattern-gated, at most 10 attempts):** every retry must carry a *new* fix — never redeploy unchanged metadata. The `demo-deployment-rules` skill's attempt rule and AGENTS.md's Persist rule govern, and override any lower limit here or in an official skill's own loop. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill (Agentforce deploys none of the covered component types, so in practice the Unfamiliar-errors route supplies each new fix). If it matches, apply the documented fix and redeploy; each later attempt needs a *different* error that carries a new fix. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record FAILED (with error + any pattern id tried) when an attempt fails with an error already tried, when no new fix is available, when the fix needs something outside the approved scope, or after attempt 10.
 
-**Unfamiliar errors:** if the error message is not self-evident and not matched by a Known Deploy-Error Pattern, invoke the `demo-docs-consultation` skill before the next attempt. Record the consultation in `docs_consulted`.
+**Unfamiliar errors:** if the error message is not self-evident and not matched by a Known Deploy-Error Pattern, read `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` (§"When to Consult — YES" and §"How to Cite") before the next attempt. Record the consultation in `docs_consulted`.
 
 **Standard action and bounded fallback:** attempt every spec-named standard action
 first, then validate and preview an exercising utterance. Explicit no-Apex and

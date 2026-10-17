@@ -2,7 +2,7 @@
 
 One living doc per org: `[ORG_FOLDER]/demo-architecture.md` (no timestamp — it is the single cumulative record, rewritten in place, NOT a per-session snapshot). This is the counterpart to the timestamped `demo-spec-*.md` files: a spec is a point-in-time build order; this doc is the demo as it stands now.
 
-**Authored by sparring only.** `/scout-building` never writes it. It captures the synthesis ACROSS specs and change logs — it does NOT duplicate the per-session spec's build instructions, and it does NOT duplicate the change logs' build ledger (what objects/fields/flows were deployed). If you are tempted to list deployed metadata here, stop — point at the change log instead.
+**Authored by `/scout`**, through its history step (`prompts/scout/history.md`). It captures the synthesis ACROSS specs and change logs — it does NOT duplicate the per-session spec's build instructions, and it does NOT duplicate the change logs' build ledger (what objects/fields/flows were deployed). If you are tempted to list deployed metadata here, stop — point at the change log instead.
 
 ## This doc is a MAP, not a LOG — size discipline is the whole point
 
@@ -17,7 +17,7 @@ A map that costs as much to read as the territory has failed. This doc exists so
 
 ```markdown
 # Demo Architecture — [Customer Name]
-Last reconciled: [YYYY-MM-DD HHmm] by /scout-sparring
+Last reconciled: [YYYY-MM-DD HHmm] by /scout
 Target Org: [alias] ([username])
 Reconciled through: [most-recent change-log filename folded in, or "none — created from discovery"]
 

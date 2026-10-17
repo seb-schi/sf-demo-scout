@@ -37,11 +37,10 @@ On yes/edit, write only the confirmed entries and arc; decisions become `confirm
 
 ## Lessons need the SE's yes
 
-For a repeatable trap, propose 1–3 lessons in the history block using `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-maintenance.md` §"Propose Lessons (building)": yes, edit or skip. Write only on yes or edit, following §"Append Format" and §"Routing — which topic file"; on excess length, run §"Per-Topic Review (replaces the old global 25-line trim)" with its separate approval for pruning. If absent, that yes also covers `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-bootstrap.md` §"Step 1: Ensure the lessons directory + INDEX exist (idempotent)". Record lessons as `proposed`, `written` or `skipped`. Skip Slack Upstream and Legacy Drain offers.
+For a repeatable trap, propose 1–3 lessons in the history block using `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-maintenance.md` §"Propose Lessons (building)": yes, edit or skip. Write only on yes or edit, following §"Append Format" and §"Routing — which topic file"; on excess length, run §"Per-Topic Review (replaces the old global 25-line trim)" with its separate approval for pruning. If absent, that yes also covers `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-bootstrap.md` §"Step 1: Ensure the lessons directory + INDEX exist (idempotent)". Record lessons as `proposed`, `written` or `skipped`.
 
 ## Precedence
 
 - This per-task log rule overrides `${CLAUDE_PLUGIN_ROOT}/prompts/building/component-rollback.md`'s append-to-existing-log instruction.
 - The outcome heading rule overrides that file's heading rule; only unresolved checkpoints keep PENDING.
-- `/scout` is the architecture template's second author despite “Authored by sparring only.”
 - Every SE-authored/non-template section stays byte-identical, in place; this overrides deleting legacy banners. Never move, prune, rename, re-index or rewrite other files.

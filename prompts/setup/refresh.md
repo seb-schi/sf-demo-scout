@@ -30,9 +30,9 @@ command -v npx >/dev/null 2>&1 && echo "NPX_PRESENT" || echo "NPX_ABSENT"
   installation's own updater. Not an error."
 - `NPX_ABSENT` — surface a warning (does NOT block setup): "⚠️ `npx` isn't on your
   PATH, but the Salesforce DX MCP server launches via `npx -y @salesforce/mcp`. It
-  will fail to start each session (`ENOENT: npx not found`), so the DX MCP
-  metadata/SOQL/deploy tools won't be available — Scout falls back to the `sf` CLI
-  where it can. To restore the MCP: install a Node that bundles npm/npx (e.g. `brew
+  will fail to start each session (`ENOENT: npx not found`), so its LWC guidance
+  and code-analysis tools won't be available; Scout's org work uses the `sf` CLI
+  either way. To restore the MCP: install a Node that bundles npm/npx (e.g. `brew
   install node`) and make sure it precedes the DevBar Node on your PATH, then start a fresh session in the active host."
 - `NPM_PRESENT` / `NPX_PRESENT` — silent; proceed.
 

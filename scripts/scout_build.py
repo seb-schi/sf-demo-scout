@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Complex-plan rules for /scout (W10): write order, readiness, job settlement, beat verdicts, evidence references.
+"""Complex-plan rules for /scout: write order, readiness, job settlement, beat verdicts, evidence references.
 
 Pure functions over a parsed scout-items record and the task log's checkpoints; `scout_history.py` calls them for
 `plan`, `render` and `check`. Standard library only, Python 3.9 or newer, and safe under -S.
@@ -21,20 +21,20 @@ GATE = Path(__file__).resolve().parents[1] / 'prompts/building/agentforce-valida
 UNAVAILABLE_INVOCATION = 'current invocation evidence is unavailable'  # agentforce_evidence.py's reason, pinned by a test
 EVIDENCE_LIMIT = 4 * 1024 * 1024
 
-# F7: W3's autonomous type table; scout_history.py hands over its own, so the two never drift.
+# The autonomous type table; scout_history.py hands over its own, so the two never drift.
 KNOWN_TYPES, TYPE_ALIASES = frozenset(), {}
 
-# C3: type families by keyword, first match wins, so no spelling bypasses a type-conditioned rule.
+# Type families by keyword, first match wins, so no spelling bypasses a type-conditioned rule.
 FAMILIES = (('flow', ('flow',)), ('agentforce', ('agent', 'bot', 'genai', 'aiauthoring')), ('apex', ('apex', 'trigger')),
             ('lwc', ('lwc', 'lightningcomponentbundle', 'lightningwebcomponent')), ('emailtocase', ('emailtocase', 'casesettings')))
 GATED = tuple(name for name, _ in FAMILIES)
 
-# F14: sections the change-log template asks for whenever an item of the family was attempted.
+# Sections the change-log template asks for whenever an item of the family was attempted.
 TYPE_SECTIONS = {'flow': ('Flows Deployed', 'Execution Order Check'), 'apex': ('Apex Deployed',), 'lwc': ('LWC Deployed',),
                  'agentforce': ('Agentforce Deployed', 'Agentforce Current-Test Evidence'),
-                 'businessprocess': ('Business Processes Deployed',), 'pathassistant': ('Paths Deployed',)}  # R3-F6
+                 'businessprocess': ('Business Processes Deployed',), 'pathassistant': ('Paths Deployed',)}
 
-# F2: each executor family's explicit terminal vocabulary. Job IDs key by prefix; submissions without one by item family.
+# Each executor family's explicit terminal vocabulary. Job IDs key by prefix; submissions without one by item family.
 JOB_ID = re.compile(r'(?<![A-Za-z0-9])(?:0Af|750)[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?(?![A-Za-z0-9])')
 VOCABULARY = {'0Af': ('Metadata API deploy', ('Succeeded', 'SucceededPartial', 'Failed', 'Canceled', 'FinalizingDeployFailed')),
               '750': ('Bulk job', ('JobComplete', 'Failed', 'Aborted')),
@@ -57,12 +57,12 @@ def _text(value):
 
 
 def _positive(value):
-    """F10: a version is a positive integer, never a bool or a float."""
+    """A version is a positive integer, never a bool or a float."""
     return type(value) is int and value > 0
 
 
 def family(item_type):
-    """C3: the item's type family (flow, agentforce, apex, lwc, emailtocase), or its letters for any other type."""
+    """The item's type family (flow, agentforce, apex, lwc, emailtocase), or its letters for any other type."""
     kind = re.sub(r'[^a-z]', '', item_type.lower())
     for name, keys in FAMILIES:
         if any(key in kind.replace('workflow', '') for key in keys):
@@ -71,23 +71,23 @@ def family(item_type):
 
 
 def autonomous(item):
-    """F7: a type outside every gated family that W3 lists as known; anything else is gated or Docs-gated."""
+    """A type outside every gated family that the base route lists as known; anything else is gated or Docs-gated."""
     kind = re.sub(r'[^a-z]', '', item['type'].lower())
     return family(item['type']) not in GATED and TYPE_ALIASES.get(kind, kind) in KNOWN_TYPES
 
 
 def derived_complex(record):
-    """F7: three or more items, or any gated or Docs-gated type."""
+    """Three or more items, or any gated or Docs-gated type."""
     return len(record['items']) >= 3 or not all(autonomous(i) for i in record['items'])
 
 
 def is_complex(record):
-    """F7: complexity is derived, never trusted; `"complex":true` can add it but `false` can't remove it."""
+    """Complexity is derived, never trusted; `"complex":true` can add it but `false` can't remove it."""
     return record.get('complex') is True or derived_complex(record)
 
 
 def validate(record):
-    """Check the W10 block fields; raise ValueError naming the first problem."""
+    """Check the complex-plan block fields; raise ValueError naming the first problem."""
     if 'complex' in record and type(record['complex']) is not bool:
         raise ValueError('invalid complex flag')
     flips = set()
@@ -142,10 +142,10 @@ def validate(record):
                 seen.add(obligation['id'])
 
 
-# ---- Jobs, settlement and the serial write slot (X5, F1-F3) ----
+# ---- Jobs, settlement and the serial write slot ----
 
 def _moment(value):
-    """F3: an ISO time with seconds, optionally zoned; None when malformed."""
+    """An ISO time with seconds, optionally zoned; None when malformed."""
     match = ISO.fullmatch(re.sub(r'\s*\([^()]*\)$', '', value.strip()))
     if not match:
         return None
@@ -153,14 +153,14 @@ def _moment(value):
     offset = 0
     if match[8] not in (None, 'Z'):
         hours, minutes = int(match[8][1:3]), int(match[8][-2:])
-        if hours > 23 or minutes > 59:  # R2-F11: +00:90 is not an offset
+        if hours > 23 or minutes > 59:  # +00:90 is not an offset
             return None
         offset = int(match[8][0] + '1') * (hours * 60 + minutes)
     try:
         zone = timezone(timedelta(minutes=offset)) if match[8] else None
         moment = datetime(year, month, day, hour, minute, second, int((match[7] or '0').ljust(6, '0')[:6]), zone)
         if zone:
-            moment.astimezone(timezone.utc)  # R3-F7: out of range in UTC is malformed, never a crash
+            moment.astimezone(timezone.utc)  # Out of range in UTC is malformed, never a crash
         return moment
     except (ValueError, OverflowError):
         return None
@@ -193,9 +193,9 @@ def _fields(text):
 
 
 def checkpoint_state(checkpoint, item):
-    """F1-F3: one checkpoint's jobs and submissions, whether each settled, its times and its format problems.
+    """One checkpoint's jobs and submissions, whether each settled, its times and its format problems.
 
-    Job lines, their fields and job IDs count wherever they appear, fences included (R2-F1: a fenced receipt
+    Job lines, their fields and job IDs count wherever they appear, fences included (a fenced receipt
     is still a submission). Settlement is positive: a terminal word from the family's vocabulary in a `status:`
     field on the same checkpoint. Checkpoint-level fields apply to a lone job. A submission without an ID takes
     its item's family, or its own label's when no item owns the attempt (`pending`, on another task's log).
@@ -209,7 +209,7 @@ def checkpoint_state(checkpoint, item):
                                     'explicit': False})
         job['explicit'] |= explicit  # recorded on a `job:` line, not only mentioned
         return job
-    for number, line in enumerate(lines):  # R3-F1: an executor label is no identity; each such line is its own submission
+    for number, line in enumerate(lines):  # An executor label is no identity; each such line is its own submission
         targets = [entry(i[:15], i, i[:3], True) for i in line['ids']] or [
             entry('~%d:%s' % (number, line['ref'].lower()), line['ref'] or 'submission', kind or family(line['ref']), True)]
         for job in targets:
@@ -218,7 +218,7 @@ def checkpoint_state(checkpoint, item):
                     job[key] = line[key]
     for match in JOB_ID.finditer(checkpoint['raw']):
         entry(match[0][:15], match[0], match[0][:3])
-    for key, outcome in (checkpoint.get('receipt_jobs') or {}).items():  # RC: a report receipt settles its own deploy
+    for key, outcome in (checkpoint.get('receipt_jobs') or {}).items():  # A report receipt settles its own deploy
         job = jobs.get(key)
         if job is not None and not job['explicit']:
             job.update(receipt=True, status='receipt: %s' % outcome)
@@ -239,7 +239,7 @@ def checkpoint_state(checkpoint, item):
                 job['why'] = 'the report receipt is %s' % job['status'][9:]
             continue
         name, words = VOCABULARY.get(job['vocabulary'], (None, ()))
-        if item is None and name is None and job['explicit']:  # R4-F5: no owner to name the family, so any terminal word
+        if item is None and name is None and job['explicit']:  # No owner to name the family, so any terminal word
             name, words = 'submission', tuple(w for _, family_words in VOCABULARY.values() for w in family_words)
         status = _word(job['status'])
         job['terminal'] = any(status is not None and status.lower() == w.lower() for w in words)
@@ -289,7 +289,7 @@ def _start(state, exclude):
 
 
 def _slot(job):
-    """F3: a job's hold on the write slot, (launched, settled), settled None while open; None when unknown."""
+    """A job's hold on the write slot, (launched, settled), settled None while open; None when unknown."""
     if not job['launched_at']:
         return None
     if not job['terminal']:
@@ -298,7 +298,7 @@ def _slot(job):
 
 
 def _within(slot, window):
-    """F3: True when a start window certainly falls inside a slot, False when certainly not, None if unknown."""
+    """True when a start window certainly falls inside a slot, False when certainly not, None if unknown."""
     begin, end = slot
     earliest, latest = window
     if not _comparable(begin, earliest, end):
@@ -311,10 +311,10 @@ def _within(slot, window):
 
 
 def _starts(state, holder_state, holder):
-    """F3 and R2-F3: what in `state` claims the slot, as (who, window): each of its own jobs' launch, or for an
+    """What in `state` claims the slot, as (who, window): each of its own jobs' launch, or for an
     attempt that records no job of its own its start. The holder's job, cited again by a later attempt, is the
     same job. Only an attempt that records no submission and is already_satisfied wrote nothing."""
-    shared = {k for k in holder_state['jobs'] if not k.startswith('~')} if state is not holder_state else set()  # R3-F2
+    shared = {k for k in holder_state['jobs'] if not k.startswith('~')} if state is not holder_state else set()
     own = [j for k, j in state['jobs'].items() if j is not holder and k not in shared]
     if own:
         name = (lambda j: '%s (job %s)' % (state['attempt'], j['ref'])) if state is holder_state else (lambda j: state['attempt'])
@@ -325,7 +325,7 @@ def _starts(state, holder_state, holder):
 
 
 def job_findings(record, checkpoints):
-    """X5 and F1-F3: settlement, launch and settle times, and the one serial write slot across every attempt."""
+    """Settlement, launch and settle times, and the one serial write slot across every attempt."""
     owners = {a: i for i in record['items'] for a in i['attempts']}
     states = [checkpoint_state(c, owners.get(c['attempt'])) for c in checkpoints]
     problems = [p for s in states for p in s['problems']]
@@ -337,7 +337,7 @@ def job_findings(record, checkpoints):
         item = owners.get(state['attempt'])
         if state['jobs'] and (state['outcome'] == 'already_satisfied' or (item and item['disposition'] == 'already_satisfied')):
             problems.append('%s records a submission (%s), so it wrote; already_satisfied means nothing was written'
-                            % (state['attempt'], next(iter(state['jobs'].values()))['ref']))  # R3-C2
+                            % (state['attempt'], next(iter(state['jobs'].values()))['ref']))
         if item and item['disposition'] in ('applied', 'already_satisfied', 'failed') and state['open']:
             job = state['open'][0]
             problems.append('%s is %s, but attempt %s has an unsettled job (%s: %s); it stays unverified until a terminal status'
@@ -360,7 +360,7 @@ def job_findings(record, checkpoints):
 
 
 def open_jobs(record, checkpoints):
-    """C1: every job this task's log hasn't settled, with its attempt and item."""
+    """Every job this task's log hasn't settled, with its attempt and item."""
     owners = {a: i for i in record['items'] for a in i['attempts']}
     result = []
     for checkpoint in checkpoints:
@@ -368,12 +368,12 @@ def open_jobs(record, checkpoints):
         state = checkpoint_state(checkpoint, item)
         for job in state['open']:
             result.append({'attempt': checkpoint['attempt'], 'item': item['id'] if item else None, 'job': job['ref']})
-        if not state['jobs'] and checkpoint.get('outcome') is None:  # R5-C1: in flight, no receipt yet: reconcile first
+        if not state['jobs'] and checkpoint.get('outcome') is None:  # In flight, no receipt yet: reconcile first
             result.append({'attempt': checkpoint['attempt'], 'item': item['id'] if item else None, 'job': 'in flight, no outcome recorded'})
     return result
 
 
-# ---- Plan and write order (C3, C1, X22, F4) ----
+# ---- Plan and write order ----
 
 def order(record):
     """The topological write order of depends_on and the authoring layers; CycleError on a cycle or unknown ID."""
@@ -399,7 +399,7 @@ def order(record):
 def plan(record, checkpoints=()):
     """Write order, authoring layers, the blocked and unsettled remainder, open jobs, and what is ready to write.
 
-    C1: `ready` holds unattempted items whose prerequisites are all applied or already_satisfied, and is empty
+    `ready` holds unattempted items whose prerequisites are all applied or already_satisfied, and is empty
     while any job is open; `next` stays the whole unsettled remainder.
     """
     items = {i['id']: i for i in record['items']}
@@ -444,7 +444,7 @@ def _settle(state):
 
 
 def _chronology(item, states):
-    """R2-F5 and R3-F3: an item's attempts in the order they ran. Each pair whose recorded start windows are comparable
+    """An item's attempts in the order they ran. Each pair whose recorded start windows are comparable
     and disjoint is ordered by time; every other pair keeps log order. Uncertain or incomparable windows never
     disable a certain comparison, nor turn an earliest possible time into a definite order."""
     present = sorted((a for a in item['attempts'] if a in states), key=lambda a: states[a]['position'])
@@ -463,7 +463,7 @@ def _chronology(item, states):
 
 
 def write_order_findings(record, checkpoints):
-    """X22, F4 and R2-F4: a dependent's first attempt starts after its prerequisite's first settling attempt settled.
+    """A dependent's first attempt starts after its prerequisite's first settling attempt settled.
     Recorded times decide when they are certain; log position decides the rest."""
     items = {i['id']: i for i in record['items']}
     states = _states(record, checkpoints)
@@ -485,7 +485,7 @@ def write_order_findings(record, checkpoints):
             first = states[_chronology(item, states)[0]]  # the dependent's first attempt, in the order they ran
             start = _start(first, set())
 
-            def after(state):  # R5-F1: did this settling attempt settle after the dependent started? Certain times decide.
+            def after(state):  # Did this settling attempt settle after the dependent started? Certain times decide.
                 settled = _settle(state)
                 if start and settled and _comparable(start[0], settled[0]):
                     if start[1] < settled[0]:
@@ -500,15 +500,15 @@ def write_order_findings(record, checkpoints):
 
 
 def degraded(entry):
-    """2.0.1 (F5): with Docs unavailable, W3's degraded entry stands in for the Docs search: `ungrounded`, an empty ref
+    """With Docs unavailable, the Docs-unavailable entry stands in for the Docs search: `ungrounded`, an empty ref
     and a verdict starting `Docs unavailable`. `check` already warns on it."""
     return (entry['source'] == 'ungrounded' and not entry['ref'].strip()
             and entry['verdict'].strip().lower().startswith('docs unavailable'))
 
 
 def retry_findings(record, checkpoints):
-    """RB3, F5 and R2-F5: a retry, the attempt that ran next after a failed one on the same item, cites its covering
-    lesson or Docs search. The attempts array lists them in the order they ran, as W3's last-outcome rule assumes."""
+    """A retry, the attempt that ran next after a failed one on the same item, cites its covering
+    lesson or Docs search. The attempts array lists them in the order they ran, as the last-outcome rule assumes."""
     states = _states(record, checkpoints)
     problems = []
     for item in record['items']:
@@ -532,10 +532,10 @@ def retry_findings(record, checkpoints):
     return problems
 
 
-# ---- Beats and the beat-aware Overall (X1, X2, X21, F6, F8, F9) ----
+# ---- Beats and the beat-aware Overall ----
 
 def _active(claim):
-    """F9 and C6: a dropped claim marked `"required":false` is history, not an obligation; claims default to required."""
+    """A dropped claim marked `"required":false` is history, not an obligation; claims default to required."""
     return not (claim.get('result') == 'dropped' and claim.get('required') is False)
 
 
@@ -552,14 +552,14 @@ def beat_verdict(record, beat):
     reasons = {verdict: [] for verdict in VERDICTS}
     if not _text((beat.get('verification') or {}).get('evidence')):
         reasons['unverified'].append(beat['id'] + ' records no verification evidence')
-    if beat.get('proof_moment') and not any(_active(c) for c in beat['claims']):  # R2-F2: withdrawal never erases the proof
+    if beat.get('proof_moment') and not any(_active(c) for c in beat['claims']):  # Withdrawal never erases the proof
         reasons['unverified'].append(beat['id'] + ' is the proof moment but has no active claim')
     items = {i['id']: i for i in record['items']}
     for claim in beat['claims']:
         result = claim.get('result')
         if _active(claim) and (claim.get('item') not in items or not _text(items[claim['item']].get('readback'))
                                or not _text(claim.get('text'))):
-            reasons['unverified'].append('claim has no text, or no existing item with a read-back: ' + str(claim.get('text'))[:60])  # R3-F5, R4-F2
+            reasons['unverified'].append('claim has no text, or no existing item with a read-back: ' + str(claim.get('text'))[:60])
         if result == 'failed':
             reasons['failed'].append('claim failed: ' + claim['text'][:60])
         elif result is None:
@@ -574,7 +574,7 @@ def beat_verdict(record, beat):
         elif result is None:
             reasons['unverified'].append(flip + ' has no rehearsal result')
         elif result == 'not_rehearsable' and not _text(rehearsal['evidence']):
-            reasons['unverified'].append(flip + ' is not rehearsable without a stated reason')  # R5-C5
+            reasons['unverified'].append(flip + ' is not rehearsable without a stated reason')
         elif result == 'not_rehearsable':
             reasons['visual_qa'].append(flip + ' could not be rehearsed safely')
         elif not _text(rehearsal['evidence']):
@@ -582,11 +582,11 @@ def beat_verdict(record, beat):
     history = {c.get('item') for c in beat['claims'] if not _active(c)} - {c.get('item') for c in beat['claims'] if _active(c)}
     for item in beat_items(record, beat):
         if item['disposition'] == 'omitted' and item['id'] in history:
-            continue  # R5-C2: withdrawn with the optional claim that alone named it
+            continue  # Withdrawn with the optional claim that alone named it
         if item['disposition'] not in SETTLED_OK:
             reasons['unverified'].append(item['id'] + ' is ' + str(item['disposition']))
         elif not _text(item.get('evidence')):
-            reasons['unverified'].append(item['id'] + ' records no evidence')  # R4-F2
+            reasons['unverified'].append(item['id'] + ' records no evidence')
         elif item['visual_qa']:
             reasons['visual_qa'].append(item['id'] + ' awaits visual QA')
     for verdict in ('failed', 'unverified', 'visual_qa'):
@@ -596,13 +596,13 @@ def beat_verdict(record, beat):
 
 
 def storied(record):
-    """RC, from the live trial (B3): beats exist on the open-ended path or when the task records a story. A complete
+    """From a live trial: beats exist on the open-ended path or when the task records a story. A complete
     brief has no story, so its complex route keeps every other rule but no beat rules."""
     return bool(record.get('story')) or record.get('path') == 'open-ended'
 
 
 def beats(record):
-    """F8: the one computation of beat verdicts that `render`, Overall and `check` all use; None for a simple task,
+    """The one computation of beat verdicts that `render`, Overall and `check` all use; None for a simple task,
     or for a complex one without a story (a complete brief)."""
     if not is_complex(record) or not storied(record):
         return None
@@ -610,13 +610,13 @@ def beats(record):
 
 
 def overall(record, base):
-    """X2 and F8: a failed or unverified beat, or a complex task without beats, is UNRESOLVED; visual QA is an exception."""
+    """A failed or unverified beat, or a complex task without beats, is UNRESOLVED; visual QA is an exception."""
     verdicts = beats(record)
     if verdicts is None:
         return base
     found = {verdict for _, verdict, _ in verdicts}
     proof = any(b.get('proof_moment') for b in (record.get('story') or {}).get('beats') or [])
-    if base == 'UNRESOLVED' or not verdicts or found & {'failed', 'unverified'} or not proof:  # R4-F1: no proof moment, no clean Overall
+    if base == 'UNRESOLVED' or not verdicts or found & {'failed', 'unverified'} or not proof:  # No proof moment, no clean Overall
         return 'UNRESOLVED'
     if base == 'FINISHED_WITH_EXCEPTIONS' or 'visual_qa' in found:
         return 'FINISHED_WITH_EXCEPTIONS'
@@ -630,7 +630,7 @@ def beats_line(record):
     return 'Beats: ' + ('; '.join('%s %s' % (identifier, verdict) for identifier, verdict, _ in verdicts) or 'none recorded')
 
 
-# ---- Evidence references (X9, C2, C5, F10-F13, F15) ----
+# ---- Evidence references ----
 
 def _unique(pairs):
     result = {}
@@ -668,7 +668,7 @@ def _assessor():
 
 
 def bound_orgs(task_visible):
-    """C2, R2-F8 and R3-F4: the org IDs of the task record's binding, outside fences, as 15-character keys.
+    """The org IDs of the task record's binding, outside fences, as 15-character keys.
 
     The binding is where Scout records it: a header line, before the first `##` section, whose label starts with
     Bound, Binding, Target or Org (as `pending` reads a folder's org); or any line of a section so titled. Every
@@ -678,10 +678,10 @@ def bound_orgs(task_visible):
     for line in task_visible.splitlines():
         heading = re.match(r'^(#{1,6})[ \t]+\S', line)
         if heading:
-            if len(heading[1]) == 1:  # R5-F3: the first `#` is the record's title; a later one ends every scope
+            if len(heading[1]) == 1:  # The first `#` is the record's title; a later one ends every scope
                 section = 'other' if titled or section != 'header' else 'header'
                 titled = True
-            elif len(heading[1]) == 2:  # R4-F3: deeper headings inherit their `##` section's scope
+            elif len(heading[1]) == 2:  # Deeper headings inherit their `##` section's scope
                 section = 'binding' if BINDING_SECTION.match(line) else 'other'
             elif section == 'header':
                 section = 'other'
@@ -718,7 +718,7 @@ def _flow_findings(folder, item, orgs):
     if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
         return ['evidence file needs a "flow_tests" list of objects']
     required = set(flow['required_tests'])
-    for n, row in enumerate(rows, 1):  # R2-F9: rows beyond the required ones still need their shape; required rows meet their contract below
+    for n, row in enumerate(rows, 1):  # Rows beyond the required ones still need their shape; required rows meet their contract below
         if isinstance(row.get('test'), str) and row['test'] in required:
             continue
         if (not _text(row.get('test')) or not _text(row.get('flow_api_name')) or not _positive(row.get('version'))
@@ -752,7 +752,7 @@ def _flow_findings(folder, item, orgs):
         return problems
     if unavailable:
         return [] if item['visual_qa'] and not carries else ['Flow test %s is documented unavailable: visual QA, never a pass; record "visual_qa":true%s' % (', '.join(unavailable), carries)]
-    if (not item['visual_qa'] or 'active_version' in flow) and flow.get('active_version') != flow['version']:  # R5-F2
+    if (not item['visual_qa'] or 'active_version' in flow) and flow.get('active_version') != flow['version']:
         return ['Flow active_version %s, read back after activation, must equal version %d' % (flow.get('active_version'), flow['version'])]
     return []
 
@@ -815,9 +815,9 @@ def _agent_findings(folder, item):
 
 
 def evidence_findings(folder, item, orgs=()):
-    """X9: Flow and Agentforce items reference their contract's mandatory evidence.
+    """Flow and Agentforce items reference their contract's mandatory evidence.
 
-    C5: only items with attempts, or already_satisfied ones (F11), owe it. F12: a documented unavailability is
+    Only items with attempts, or already_satisfied ones, owe it. A documented unavailability is
     visual QA, never a pass.
     """
     kind = family(item['type'])
@@ -827,7 +827,7 @@ def evidence_findings(folder, item, orgs=()):
 
 
 def unavailable_runtime(folder, item):
-    """F12 and F14: does an Agentforce item rest on a documented unavailable runtime (actions unverified in preview)?"""
+    """Does an Agentforce item rest on a documented unavailable runtime (actions unverified in preview)?"""
     if family(item['type']) != 'agentforce' or item['disposition'] not in SETTLED_OK or not item['visual_qa']:
         return False
     try:
@@ -838,28 +838,28 @@ def unavailable_runtime(folder, item):
                                               and r['invocation'].get('status') == 'unavailable' for r in runtimes.values())
 
 
-# ---- Log sections (C6, F14) ----
+# ---- Log sections ----
 
 def _has(section_names, name):
     return any(s == name or s.startswith(name + ' (') or s.startswith(name + ' —') for s in section_names)
 
 
 def agent_live(item, states):
-    """F14 and R2-F6: an attempted agent is live when its last recorded publish settled Active, whatever its
+    """An attempted agent is live when its last recorded publish settled Active, whatever its
     behavioural verification found."""
     publishes = []
     for attempt in _chronology(item, states):
         jobs = [j for j in states[attempt]['jobs'].values() if j['vocabulary'] == 'agentforce']
         if len(jobs) > 1 and all(j['launched_at'] for j in jobs) and _comparable(*(j['launched_at'] for j in jobs)):
-            jobs.sort(key=lambda j: _sort_key(j['launched_at']))  # R3-C1: by recorded launch, line order breaking ties
+            jobs.sort(key=lambda j: _sort_key(j['launched_at']))  # By recorded launch, line order breaking ties
         publishes += jobs
     if len(publishes) > 1 and all(j['launched_at'] for j in publishes) and _comparable(*(j['launched_at'] for j in publishes)):
-        publishes.sort(key=lambda j: _sort_key(j['launched_at']))  # R4-C2: across attempts too, when every launch is known
+        publishes.sort(key=lambda j: _sort_key(j['launched_at']))  # Across attempts too, when every launch is known
     return bool(publishes) and publishes[-1]['terminal'] and _word(publishes[-1]['status']).lower() == 'active'
 
 
 def section_family(item_type):
-    """R4-F4: the type family that decides a section, after W3's aliases and a plural spelling (`Path`, `Business Processes`)."""
+    """The type family that decides a section, after the type aliases and a plural spelling (`Path`, `Business Processes`)."""
     kind = family(item_type)
     if kind in GATED:
         return kind
@@ -867,12 +867,12 @@ def section_family(item_type):
         canonical = TYPE_ALIASES.get(form, form)
         if canonical in TYPE_SECTIONS:
             return canonical
-    return 'businessprocess' if 'businessprocess' in kind else kind  # R5-C4: "Support Business Process" and the like
+    return 'businessprocess' if 'businessprocess' in kind else kind  # "Support Business Process" and the like
 
 
 def type_section_findings(record, checkpoints, section_names, folder=None):
-    """F14: the change-log template's own conditions decide each section, never the final disposition.
-    Sections count at the template's own level, `##` (R2-C4); the caller passes those names."""
+    """The change-log template's own conditions decide each section, never the final disposition.
+    Sections count at the template's own level, `##`; the caller passes those names."""
     existing = {c['attempt'] for c in checkpoints if c.get('existing')}
     states = _states(record, checkpoints)
     problems = []
@@ -895,8 +895,8 @@ def type_section_findings(record, checkpoints, section_names, folder=None):
 
 
 def check_findings(record, folder, checkpoints=(), section_names=(), task_visible=''):
-    """All W10 rules as (rule, message) pairs. Every task gets the job, order, evidence and section rules;
-    complex tasks (F7) also get the beat, story and retry rules."""
+    """All complex-plan rules as (rule, message) pairs. Every task gets the job, order, evidence and section rules;
+    complex tasks also get the beat, story and retry rules."""
     checkpoints = list(checkpoints)
     findings = [('plan', m) for m in write_order_findings(record, checkpoints)]
     findings += [('plan', m) for m in job_findings(record, checkpoints)]
@@ -914,12 +914,12 @@ def check_findings(record, folder, checkpoints=(), section_names=(), task_visibl
         return findings
     findings += [('grounding', m) for m in retry_findings(record, checkpoints)]
     verdicts = beats(record)
-    if verdicts is None:  # a complete brief without a story: no beat rules (the live trial, B3)
+    if verdicts is None:  # a complete brief without a story: no beat rules (seen in a live trial)
         return findings
     if not verdicts:
         return findings + [('story', 'a complex task needs story beats')]
     if not any(b.get('proof_moment') for b in record['story']['beats']):
-        findings.append(('story', 'a complex story needs its proof-moment beat'))  # R4-F1
+        findings.append(('story', 'a complex story needs its proof-moment beat'))
     for beat, (identifier, verdict, reasons) in zip(record['story']['beats'], verdicts):
         if any(c.get('result') == 'dropped' and _active(c) for c in beat['claims']):
             findings.append(('story', '%s drops a required %sclaim' % (identifier, 'proof-moment ' if beat['proof_moment'] else '')))

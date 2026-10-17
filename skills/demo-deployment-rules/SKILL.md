@@ -1,13 +1,8 @@
 ---
 name: demo-deployment-rules
 description: >
-  Canonical deployment rules for Flows, Apex, LWC, Agentforce, Page Layouts,
-  Queues, and Picklists in SF Demo Prep. Pattern-gated attempt rule, known
-  deploy-error patterns, rollback commands, and per-category deployment procedures.
-  TRIGGER when: a phase sub-agent needs deployment rules outside its inlined
-  scope, or needs to verify rollback command syntax.
-  DO NOT TRIGGER when: deploying metadata (phase prompts inline the relevant
-  rules), during sparring, or for permission set generation.
+  Scout's deployment reference: known deploy-error patterns, script deliverable rules, rollback and per-type deployment rules. /scout and its workers read it by path; it is not invoked on its own.
+disable-model-invocation: true
 ---
 
 # Deployment Rules — Canonical Reference
@@ -28,12 +23,14 @@ never redeploy unchanged metadata, it fails identically.
   or the cause read from the org, its logs or the deploy's component failures.
 - **STOP** when an attempt fails with an error you already tried to fix, when no
   new fix is available, when the fix needs something outside the approved scope,
-  or after attempt 10. Record the item as SKIPPED in your JSON output with the
-  error message and the pattern id(s) tried, and continue with remaining items.
+  or after attempt 10. When the last attempt failed conclusively, record the item
+  as `failed` with the error message, the pattern IDs tried, the state left and
+  whether rollback occurred, and continue with the remaining items. A write whose
+  outcome isn't settled stays `unverified` with its pending evidence; never resend it.
 
 **Unfamiliar errors:** if the error message is not self-evident, not already
-in a loaded `orgs/lessons/` topic, and not matched by a Known Deploy-Error Pattern, invoke
-the `demo-docs-consultation` skill before the next attempt. Record the
+in a loaded `orgs/lessons/` topic, and not matched by a Known Deploy-Error Pattern, read
+`${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` before the next attempt. Record the
 consultation in `docs_consulted`.
 
 ---
@@ -53,7 +50,7 @@ componentInstance; Pattern B — design-time component not found), PermissionSet
 (Pattern C — FLS on a required / master-detail field), and LWC (Pattern D —
 literal in template expression / apiVersion-66). Pattern B removes a component
 the SE must re-add via Lightning App Builder → SE Manual Checklist. To extend
-the catalog, add a new pattern there via `/project-sparring`; org-*specific*
+the catalog, propose a new pattern to Scout's maintainers; org-*specific*
 gotchas still go to `orgs/lessons/` (topic-clustered).
 
 ---

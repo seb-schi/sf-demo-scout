@@ -1,6 +1,6 @@
 # Scout 2.0 existing-report repair
 
-Opt-in preview; shared helper `[PLUGIN_ROOT]/scripts/scout-repair.py`. It uses
+`/scout` routes an existing report's filter change here; the shared helper is `[PLUGIN_ROOT]/scripts/scout-repair.py`. It uses
 Python 3.9+ and its standard library, plus an existing authenticated Salesforce CLI.
 No package installation is needed. Missing authentication, CLI or permission is a
 reported limitation; never change managed routing or switch tools to evade refusal.

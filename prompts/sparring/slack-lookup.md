@@ -50,7 +50,7 @@ For each named canvas (cap at 3):
 
 ## Output
 
-**Sub-agent return contract.** This procedure is normally dispatched as a sub-agent (see scout-sparring.md "Slack & Google Workspace lookup handling"). Return ONLY the compact attributed findings — never the raw canvas or channel text. Format each finding as `[#channel] or [canvas title], [date]: [author] — [quoted or paraphrased point].` If a named source could not be located or read, return a one-line note saying so. The caller (the orchestrator) keeps your return as Stage 5 context; the raw payloads must die in your context, not the caller's.
+**Sub-agent return contract.** This procedure is normally dispatched as a sub-agent. Return ONLY the compact attributed findings — never the raw canvas or channel text. Format each finding as `[#channel] or [canvas title], [date]: [author] — [quoted or paraphrased point].` If a named source could not be located or read, return a one-line note saying so. The caller (the orchestrator) keeps your return as Stage 5 context; the raw payloads must die in your context, not the caller's.
 
 Findings feed Stage 5 scenario proposal as **context only** — attributed,
 never asserted. Canvas findings may directly shape demo storylines or
@@ -58,8 +58,7 @@ scenario integration (that is their intended use); channel findings
 remain background colour. SE knowledge and Salesforce docs remain
 authoritative in the spec body.
 
-Findings also get referenced in the spec's Slack References section
-(see spec-template.md) as a 1-line synthesis per source.
+Findings also go into the task record as a 1-line synthesis per source.
 
 ## Notes
 

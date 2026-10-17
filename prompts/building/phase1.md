@@ -40,7 +40,7 @@ Invoke these skills via the Skill tool when you need detailed metadata rules:
 - `salesforce-development:platform-custom-setting-generate` — Custom Setting metadata (a `CustomObject` with `<customSettingsType>` — Hierarchy or List): feature flags, kill switches, trigger-bypass toggles, per-profile/per-user config a Flow or Apex reads — invoke when the spec has a Custom Settings section.
 - `salesforce-development:platform-custom-metadata-type-generate` — Custom Metadata Type (`__mdt`) authoring: the type definition, fields (incl. `MetadataRelationship`), and deployable `.md-meta.xml` records — deployable reference / mapping / crosswalk config — invoke when the spec has a Custom Metadata Types section.
 - `service-engagement:service-email-to-case-configure` — base Email-to-Case only (org-wide `CaseSettings` + routing addresses) via the Metadata API, applied through the skill's own two-phase script (never a plain deploy) — invoke when the spec has an Email-to-Case section. Agent creation and channel assignment belong to Phase 3.
-- `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
+- `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` — read it for the decision tree on when to consult Salesforce Docs (on unfamiliar deploy errors)
 {{EXTERNAL_SKILLS}}
 
 {{IMPORTED_ASSETS}}
@@ -56,10 +56,10 @@ The absolute helper is `{{ASSET_HELPER}}` and the durable rollback directory is
 
 **Attempt rule (pattern-gated, at most 10 attempts):** every retry must carry a *new* fix — never redeploy unchanged metadata. The `demo-deployment-rules` skill's attempt rule and AGENTS.md's Persist rule govern, and override any lower limit here or in an official skill's own loop. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill. If it matches, apply the documented fix and redeploy; each later attempt needs a *different* error that carries a new fix. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record FAILED (with error + any pattern id tried) when an attempt fails with an error already tried, when no new fix is available, when the fix needs something outside the approved scope, or after attempt 10. Pattern B (FlexiPage record-detail) leaves the deployed item AWAITING_QA and creates a separate BLOCKED SE Manual Checklist obligation for the component the SE must re-add.
 
-**Unfamiliar errors:** if the error message is not self-evident, not already in the spec's Platform Constraints section, and not matched by a Known Deploy-Error Pattern, invoke the `demo-docs-consultation` skill before the next attempt. Record the consultation in `docs_consulted`.
+**Unfamiliar errors:** if the error message is not self-evident, not already in the spec's Platform Constraints section, and not matched by a Known Deploy-Error Pattern, read `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` (§"When to Consult — YES" and §"How to Cite") before the next attempt. Record the consultation in `docs_consulted`.
 
 <!-- IF:DATA_SEEDING -->
-**Script deliverables:** if any Data Seeding item in this spec produces a reusable shell or language script (e.g., a bulk seed script the SE can re-run after a re-spin), invoke the `demo-deployment-rules` skill and read "Script Deliverable Rules" BEFORE finalizing the deliverable. The rule block covers Pattern B (idempotent default), mandatory `--pilot-only` self-test against the live org, bash 3.2 portability, and how self-test bugs split between `issues` and `discovery_notes`.
+**Script deliverables:** if any Data Seeding item in this spec produces a reusable shell or language script (e.g., a bulk seed script the SE can re-run after a re-spin), read `${CLAUDE_PLUGIN_ROOT}/skills/demo-deployment-rules/SKILL.md` §"Script Deliverable Rules (cross-phase)" BEFORE finalizing the deliverable. The rule block covers Pattern B (idempotent default), mandatory `--pilot-only` self-test against the live org, bash 3.2 portability, and how self-test bugs split between `issues` and `discovery_notes`.
 
 **Calibration is already settled by the orchestrator.** For any seed ledger item with
 `acceptance.calibration`, use its resolved value exactly as injected in
@@ -164,7 +164,7 @@ Scope: declarative `ValidationRule` metadata on any object. Invoke the `salesfor
 ### List View Rules
 Scope: `ListView` metadata on any object (shared all-users or specific filter scope). Invoke the `salesforce-development:platform-list-view-generate` skill before authoring.
 1. Invoke `salesforce-development:platform-list-view-generate` for the metadata shape + filter-column rules.
-2. ListView is a child of the object's `.object-meta.xml` in source format but deploys as its own `ListView` metadata type: member name is `[Object].[ListViewApiName]`.
+2. In source format each list view is its own file, `objects/[Object]/listViews/[ListViewApiName].listView-meta.xml`, as the skill writes it; it deploys as the `ListView` type with member name `[Object].[ListViewApiName]`.
 3. `<filterScope>` is one of `Everything`, `Mine`, `Queue` (or others per object). Columns reference field API names. Filters use `<filters>` with `field`/`operation`/`value`.
 4. Deploy, then verify the list view appears: `retrieve_metadata` for `ListView` member `[Object].[ApiName]` and confirm it round-trips.
 5. Rollback: restore incumbent exact members from the first verified `component-preedit` artifact and read back original content. Delete only exact positively proven-new identities after the explicit destructive-action guard; unknown classification blocks rollback.
@@ -428,8 +428,9 @@ Canonical rules — apply all five:
 - `TabVisibility`: `Visible` for new custom tabs (NOT `DefaultOn` — `DefaultOn` is Profile-only)
 - `AppVisibility`: `visible=true` for new Lightning apps
 
-Assign via MCP `assign_permission_set`. If unavailable, fall back to the `sf data query` /
-`sf data create record` path using the alias from `sf config get target-org`.
+Assign with the CLI in the bound org: load `salesforce-development:platform-soql-query`, query the
+permission set's and the user's IDs with `sf data query --target-org [BOUND_USERNAME]`, then run
+`sf data create record --sobject PermissionSetAssignment --values "PermissionSetId=[PS_ID] AssigneeId=[USER_ID]" --target-org [BOUND_USERNAME]`.
 <!-- /IF:PERMSET -->
 
 {{COMPLETION_CONTRACT}}

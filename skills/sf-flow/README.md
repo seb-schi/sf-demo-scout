@@ -5,7 +5,7 @@ Creates and validates Salesforce Flows with 110-point scoring and Spring '26 bes
 ## Features
 
 - **Flow Generation**: Create record-triggered, screen, autolaunched, and scheduled flows
-- **110-Point Scoring**: Automated validation across 6 categories
+- **110-Point Scoring**: Validation across 6 categories, scored by the model with the Score Guide in `SKILL.md`
 - **Template Library**: Pre-built patterns for common flow types
 - **Bulk Safety**: Automatic checks for 251+ record handling
 - **Element Library**: Complete Wait, Loop, Get Records, Transform patterns

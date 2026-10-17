@@ -1,6 +1,6 @@
 # Agentforce Editability Pre-Flight
 
-Read + executed by `scout-building.md` Step 5 Phase 3 (orchestrator context, NOT a sub-agent) — **only when the spec modifies an existing agent.** Net-new-agent builds never read this file: the caller has already classified net-new vs modify-existing inline and takes the Agent-Script path directly.
+The editability pre-flight for changing an existing agent, run by the orchestrator (NOT a sub-agent) — **only when the task modifies an existing agent.** Net-new agents never need it; they take the Agent-Script path directly. `prompts/building/phase3.md`'s modify path assumes this pre-flight has run.
 
 **Run this BEFORE the Phase 3 SE gate, before any sub-agent spawn.** The failure this prevents: two consecutive builds shipped a dead topic because the sub-agent hand-patched a compiled `GenAiPlannerBundle` on a UI-built agent (added topic/action graph references but not the matching `localActions/<topic>/<action>/{input,output}/schema.json` folders — so the actions can't resolve at runtime, yet deploy reports SUCCESS and the agent stays Active). Determine editability ONCE here.
 
@@ -74,4 +74,4 @@ Require success and verify the returned artifact. Retain it as
 This immutable transfer uses existing preservation machinery; it does not replace
 Phase 3's required `agent-preedit` snapshot and original active-version record.
 On failure, block the affected edit and retain all parent source. Then return to
-`scout-building.md` Phase 3 for its SE gate and explicit source handoff.
+the caller for its SE gate and explicit source handoff.

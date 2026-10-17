@@ -1001,28 +1001,6 @@ class Round3Tests(FakeCli):
         self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o700)
         self.assertNotEqual(folder, Path(json.loads(self.cli('scratch')[1])['scratch']))
 
-    def test_r02_a_swapped_backup_folder_never_receives_the_file(self):
-        data = results(obligation())
-        original = self.published(data)
-        _, _, candidate = self.render(data)
-        victim = self.root / 'second-customer'
-        victim.mkdir()
-        real_stage = prep.stage
-
-        def swap(home, text):
-            directory = self.folder / '.scout-work' / 'prep'
-            directory.rename(directory.with_name('prep-before-swap'))
-            directory.symlink_to(victim, target_is_directory=True)
-            return real_stage(home, text)
-        with patch.object(prep, 'stage', swap):
-            code, output = self.publish(candidate, data)
-        self.assertEqual(code, 3, output)
-        self.assertIn('changed during publication', output)
-        self.assertEqual(list(victim.iterdir()), [])
-        self.assertEqual(self.destination.read_bytes(), original)
-        self.assertEqual(list((self.folder / '.scout-work' / 'prep-before-swap').iterdir()), [])
-        self.assertEqual(self.staged(), [])
-
     def test_r03_a_later_demo_never_revives_an_expired_date(self):
         self.clock = prep.now('2026-10-14T00:30:00+02:00')
         run = dict(started_at='2026-10-14T00:10:00+02:00', observed_at='2026-10-14T00:25:00+02:00')

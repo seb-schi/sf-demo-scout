@@ -21,7 +21,7 @@ sf plugins update >/dev/null 2>&1 && echo "SF_PLUGINS_UPDATED" || echo "SF_PLUGI
 ```
 
 Surface in plain language, and carry every non-silent line into the done summary:
-- `OFFICIAL_PLUGINS_SKIPPED host=codex …` — "Salesforce's official plugins exist only for Claude Code. On Codex, Scout builds with its own rules and the Salesforce CLI."
+- `OFFICIAL_PLUGINS_SKIPPED host=codex …` — "Scout uses Salesforce's official plugins on Claude Code only. On Codex, Scout builds with its own rules and the Salesforce CLI."
 - `OFFICIAL_PLUGINS_UNAVAILABLE <reason>` — "Scout couldn't install Salesforce's plugins (<reason>). Run `/scout-setup` again from the Terminal app (`claude`, then `/scout-setup`)."
 - `OFFICIAL_MARKETPLACE_ADDED <name>` — "Added Salesforce's official plugin marketplace from GitHub." `…_PRESENT` — silent.
 - `OFFICIAL_MARKETPLACE_FAILED <reason>` or `…_UNKNOWN` — "Scout couldn't add Salesforce's plugin marketplace (<reason>). Scout needs it for building: check your network or company plugin policy, then run `/scout-setup` again." Skip the remaining lines' messages.

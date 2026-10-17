@@ -49,11 +49,8 @@ class ClassicTrampolineTests(unittest.TestCase):
             self.assertIn(phrase, text)
         self.assertIn('Treat a supplied demo plan, requirements or discovery notes as the brief', self.scout)
 
-    def test_classic_bodies_are_inert(self):
-        for name in self.shells:
-            body = ROOT / 'prompts/classic' / f'{name}.md'
-            self.assertTrue(body.is_file(), body)
-            self.assertIn('kept inert, unreferenced, for a quick rollback until 2.1 removes it', body.read_text())
+    def test_classic_bodies_are_gone_and_unreferenced(self):
+        self.assertFalse((ROOT / 'prompts/classic').exists())
         for path in [*(ROOT / 'commands').glob('*.md'), *(ROOT / 'hooks').glob('*'), ROOT / 'AGENTS.md']:
             with self.subTest(path=path.name):
                 self.assertNotIn('prompts/classic/', path.read_text())

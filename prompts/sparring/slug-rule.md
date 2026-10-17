@@ -1,8 +1,8 @@
 # Folder-Slug Rule (shared)
 
 The single source of truth for turning a Salesforce org alias or a customer
-name into a folder-safe slug. Read by `customer-normalization.md` (sparring)
-and `scout-building.md` so both derive identical folder names. Do NOT
+name into a folder-safe slug. Read by `customer-normalization.md`, so every
+folder name derives the same way. Do NOT
 re-implement this rule inline anywhere — reference this file.
 
 ## Slug transform
@@ -20,11 +20,11 @@ Apply to a single token (an alias OR a customer name — never the combined path
    the first 40) has no whole segment to fall back to — hard-cut it at 40.
 
 Worked examples — follow exactly:
-- `Deutsche Fachpflege` → `deutsche-fachpflege`
-- `L'Oréal` → `l-oreal`
-- `AT&T` → `at-t`
+- `Nordlicht Fachpflege` → `nordlicht-fachpflege`
+- `L'Étoile` → `l-etoile`
+- `A&Z` → `a-z`
 - `Example CPQ` → `example-cpq`
-- `3M` → `3m`
+- `7K` → `7k`
 
 ## ORG_FOLDER
 
@@ -53,9 +53,6 @@ canonical **executable** implementation of the transform above, including the
 worked examples by fixtures, and `hooks/session-startup.sh` calls it to match
 customer folders by the alias slug.
 
-The prompt-based folder **writers** (`customer-normalization.md`,
-`scout-building.md`) still apply this documented rule directly — they do NOT yet
-call the helper. So this rule text remains the shared contract those consumers
-follow; the helper is the reference the startup hook executes, not (yet) a single
-implementation shared by all callers. Converting the writers to execute the
-helper is planned follow-up work, out of scope for this change.
+The prompt-based folder **writer** (`customer-normalization.md`) still applies
+this documented rule directly and doesn't call the helper yet, so this text stays
+the shared contract; the helper is what the startup hook runs.

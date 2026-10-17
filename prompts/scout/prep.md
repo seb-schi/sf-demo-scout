@@ -12,7 +12,7 @@ Build one results file in scratch, `results.json`:
 Each obligation is `{"key":"<task-file>#<B2/claim1|I3|FL1|manual2|…>","kind":"claim|item|flip|checkpoint|job|manual|config|persona|visual_qa","beat":"B2","required":true,"proof_moment":false,"text":"…","valid_until":"YYYY-MM-DD"|null,"superseded_by":null,"supersession_source":null,"result":null}`. Keys always carry the task file, since IDs repeat across tasks; name another task's beat by its full key.
 
 Find the story in this order:
-1. The task records' blocks: beats, claims and read-backs, item dispositions, flips with record IDs and before-values, seed assets, `valid_until`, visual-QA items, and W10's beat and rehearsal results.
+1. The task records' blocks: beats, claims and read-backs, item dispositions, flips with record IDs and before-values, seed assets, `valid_until`, visual-QA items, and the beat verdicts and rehearsal results that `prompts/scout/build.md` records.
 2. The map's arc.
 3. The change logs' Demo Story, How to Verify and SE Must Do Next.
 

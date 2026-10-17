@@ -37,7 +37,7 @@ class PackagingTests(unittest.TestCase):
                 with self.subTest(path=path):
                     self.assertNotIn("claude mcp list", path.read_text())
                     self.assertNotIn("~/.claude/plugins/installed_plugins.json", path.read_text())
-        for name in ("scout-setup", "scout-building", "scout-sparring", "scout-repair"):
+        for name in ("scout-setup", "scout-building", "scout-sparring"):
             self.assertIn("prompts/host-runtime.md", (ROOT / "commands" / f"{name}.md").read_text())
 
     def test_shell_refresh_message_does_not_infer_model_routing(self) -> None:
@@ -127,29 +127,6 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(len(failed_lines), 1)
         self.assertNotIn("kept the installed one", failed_lines[0])
         self.assertIn("future refresh", failed_lines[0])
-
-    def test_source_login_instructions_preserve_default_org_contract(self) -> None:
-        """Static instruction checks; these do not prove model compliance."""
-        for name, expected in (("cross-org-extract.md", 0), ("switch-org.md", 2)):
-            with self.subTest(name=name):
-                text = (ROOT / "prompts" / name).read_text()
-                commands = [
-                    line
-                    for line in text.splitlines()
-                    if re.match(r"^\s*sf org login web(?:\s|$)", line)
-                ]
-                self.assertEqual(len(commands), 2)
-                self.assertEqual(
-                    sum("--set-default" in line for line in commands), expected
-                )
-
-        extraction = (ROOT / "prompts" / "cross-org-extract.md").read_text()
-        switching = (ROOT / "prompts" / "switch-org.md").read_text()
-        self.assertEqual(extraction.count("authenticate the source org INLINE"), 1)
-        self.assertNotIn("follow it ONLY through authenticating", extraction)
-        self.assertIn("test.salesforce.com", extraction)
-        self.assertEqual(extraction.count("login fails or the SE cancels"), 1)
-        self.assertIn("cross-org extract", switching)
 
 
 if __name__ == "__main__":

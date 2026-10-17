@@ -1,12 +1,8 @@
 ---
 name: demo-docs-consultation
 description: >
-  Decision tree for when to consult the Salesforce Docs MCP — YES/NO rules,
-  citation format, and degraded-mode handling.
-  TRIGGER when: deciding whether to call salesforce_docs_search/fetch (sparring
-  Stage 4, building error recovery, sub-agent unfamiliar-error path).
-  DO NOT TRIGGER when: actually executing a docs search (the decision is already
-  made), during audits, or for standard metadata generation.
+  Scout's reference for when and how to consult Salesforce Docs: the YES and NO lists, citation format and degraded mode. /scout and its workers read it by path; it is not invoked on its own.
+disable-model-invocation: true
 ---
 
 # Salesforce Docs Consultation — Decision Tree
@@ -17,7 +13,7 @@ The Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) expo
 
 1. **Industry cloud data model** — the SE named an industry cloud (Health Cloud, Life Sciences Cloud, FSC, Manufacturing Cloud, etc.). Always search for that cloud's standard data model, key objects, and recommended patterns in Stage 4. The SE knows which cloud; docs know which objects.
 2. **Object with platform restrictions** — EntityDefinition pre-flight found IsEverCreatable/IsQueryable/IsTriggerable/IsSearchable = false, or the object is not in QueueSobject. Search for practical workarounds so the spec carries actionable guidance (not just boolean flags) into building.
-3. **Screen-flow component outside Scout's autonomous whitelist** — the SE's screen-flow design references a component Scout cannot autonomously deploy (Repeater, Data Table, File Upload/Preview, Kanban Board, custom LWC screen component, reactive cross-screen formulas). Consult docs to confirm the component's current capabilities and decide: (a) scope down to whitelisted components, or (b) route the whole screen flow to the SE Manual Checklist. Never silently swap components.
+3. **Screen-flow component outside Scout's autonomous whitelist** — the SE's screen-flow design references a component Scout cannot autonomously deploy (Repeater, Data Table, File Upload/Preview, Kanban Board, custom LWC screen component, reactive cross-screen formulas). Consult docs to confirm the component's current capabilities and decide: (a) scope down to whitelisted components, or (b) deploy it and report it as deployed — needs visual QA, as `AGENTS.md` §"Docs-Gated" says. Route it to the SE Manual Checklist only when Docs confirm the step is UI-only. Never silently swap components.
 4. **Release-gated feature** mentioned by the SE that you cannot immediately name the release for (e.g. "Agent Script subagents", "Data Cloud zero-copy", "Flow HTTP Callout").
 5. **Novel metadata type** you haven't deployed in this session — unfamiliar XML structure, unfamiliar CLI command, unfamiliar agent-bundle element.
 6. **Unfamiliar deployment error message** — the error text isn't in the loaded `orgs/lessons/` topics (`metadata-deploy.md` / `managed-packages.md`) and isn't obvious from the component name. Consult docs BEFORE the retry attempt.

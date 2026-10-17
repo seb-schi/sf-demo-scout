@@ -105,7 +105,7 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    Spawn in the BACKGROUND (this ends Phase A — return control to the caller immediately after this spawn; do NOT block):
    - `Agent(description="Org audit: prelude (LRP resolution)", prompt=[envelope above], run_in_background=true)`
 
-   **End of Phase A.** Return to the caller (scout-sparring.md Stage 3 / showtime.md S1b) so the SE can begin answering discovery questions. The steps below (parse prelude, slice, launch parallel) execute as **Phase B** when the prelude's background completion notification arrives — which may be while an SE discovery answer is still pending. Do NOT wait synchronously here.
+   **End of Phase A.** Return to the caller so the SE can begin answering discovery questions. The steps below (parse prelude, slice, launch parallel) execute as **Phase B** when the prelude's background completion notification arrives — which may be while an SE discovery answer is still pending. Do NOT wait synchronously here.
 
    **Phase B begins on the prelude background-completion notification.** Apply the same structural fenced-JSON check as Post-Return Processing below. If the block is absent or malformed, redispatch the prelude envelope with a fresh owned project **once** and log `auto-retry 1/1`; only a second absent/malformed return falls through to the core-6 degradation. Parse a present block.
    - `status: SUCCESS` or `status: PARTIAL` → use the returned `default_app_tabs` and `active_lrp_map`. If `PARTIAL`, retain every `degradations` entry in `PRELUDE_LIMITATIONS` and log each one to `audit-progress.log` so the SE can see which level was lost. These limitations make the final barrier result `ready-partial` even when every worker succeeds.

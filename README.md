@@ -5,11 +5,6 @@ what you need: Scout spars with you on the demo story, builds it in your demo
 org, checks every piece there, and preps you for delivery, all in one session.
 Scout 2.0 is built for Opus 5.5 and later.
 
-Scout's `sf` prerequisite is the Salesforce CLI installed on your Mac. Its
-Salesforce DX MCP integration is a separate adapter, launched by each host from
-the plugin manifest through `npx`. See [host compatibility and verification
-limits](docs/mcp-host-compatibility.md) for Claude/Codex behavior and diagnostics.
-
 ## Why Scout exists
 
 The SE role is shifting. We're increasingly asked to do post-sales

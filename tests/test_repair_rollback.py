@@ -23,9 +23,6 @@ class RepairRollbackContractTests(unittest.TestCase):
         self.assertIn("pending repair checkpoint", direct)
 
         self.assertIn("prompts/building/direct-repair.md", self.read("AGENTS.md"))
-        self.assertIn(
-            "prompts/building/direct-repair.md", self.read("prompts/classic/scout-building.md")
-        )
 
     def test_phase_mutation_rules_load_shared_rollback_before_deploying(self):
         for relative in ("prompts/building/phase1.md", "prompts/building/phase2.md"):
@@ -40,9 +37,6 @@ class RepairRollbackContractTests(unittest.TestCase):
         self.assertNotIn("${CLAUDE_PLUGIN_ROOT}", contract)
         self.assertNotIn("{{", contract)
 
-        caller = self.read("prompts/classic/scout-building.md")
-        self.assertIn("{{COMPONENT_ROLLBACK}}", caller)
-        self.assertIn("prompts/building/component-rollback.md", caller)
         for relative in ("prompts/building/phase1.md", "prompts/building/phase2.md"):
             with self.subTest(relative=relative):
                 prompt = self.read(relative)
@@ -71,34 +65,10 @@ class RepairRollbackContractTests(unittest.TestCase):
         self.assertIn("BLOCKED — manual Flow deactivation", rollback)
         self.assertIn("stage the preserved original definition", rollback)
 
-    def test_parent_derives_preservation_obligations_without_worker_rows(self):
-        caller = self.read("prompts/classic/scout-building.md")
-        review = caller[caller.index("6. Validate output") : caller.index("| Phase | Template")]
-        review = " ".join(review.split())
-        self.assertIn("frozen ledger", review)
-        self.assertIn("selected approved phase work", review)
-        self.assertIn("missing or malformed worker row", review)
-        self.assertIn("result` to `unavailable`", review)
-        self.assertIn("rerun `scripts/build-completion.py`", review)
-
-    def test_skips_and_no_mutation_already_satisfied_are_receipt_exempt(self):
-        caller = self.read("prompts/classic/scout-building.md")
-        review = caller[caller.index("6. Validate output") : caller.index("| Phase | Template")]
-        review = " ".join(review.split())
-        self.assertIn("authorized skip", review)
-        self.assertIn("no worker or detail row is required", review)
-        self.assertIn("unexpected mutation", review)
-        self.assertIn("already_satisfied", review)
-        self.assertIn("no mutation was attempted", review)
-
-        startup = caller[
-            caller.index("Unresolved component-repair checkpoints") :
-            caller.index("With no selected imports")
-        ]
-        cleanup = caller[caller.index("Workspace cleanup (after the change log is written).") :]
+    def test_no_mutation_already_satisfied_is_receipt_exempt(self):
         validation = self.read("prompts/building/sub-agent-validation.md")
         contract = self.read("prompts/building/component-rollback.md")
-        for text in (startup, cleanup, validation, contract):
+        for text in (validation, contract):
             with self.subTest(surface=text[:40]):
                 self.assertIn("already_satisfied", text)
                 self.assertIn("baseline", text)
@@ -118,12 +88,7 @@ class RepairRollbackContractTests(unittest.TestCase):
         self.assertIn("supported deactivation operation", flow[active:])
         self.assertIn("BLOCKED — manual Flow deactivation", flow[active:])
 
-    def test_cleanup_and_handover_consume_preservation_evidence(self):
-        caller = self.read("prompts/classic/scout-building.md")
-        cleanup = caller[caller.index("Workspace cleanup (after the change log is written).") :]
-        self.assertIn("component-preedit", cleanup)
-        self.assertIn("component rollback", cleanup.lower())
-
+    def test_change_log_and_handover_carry_preservation_evidence(self):
         change_log = self.read("prompts/building/change-log-template.md")
         handover = self.read("prompts/building/handover-brief.md")
         self.assertIn("Existing Component Before-State", change_log)

@@ -39,7 +39,7 @@ def slugify(text):
     # 4. Trim leading/trailing hyphens.
     text = text.strip("-")
     # 5. Truncate at 40 chars. Inspect the boundary in the UNSLICED string so a
-    #    complete segment ending exactly at the cut is preserved (R4):
+    #    complete segment ending exactly at the cut is preserved:
     #      - if char[MAX_LEN] is the separator, the first MAX_LEN chars already
     #        end at a whole segment -> keep them;
     #      - otherwise the cut is inside a segment -> keep the first MAX_LEN and

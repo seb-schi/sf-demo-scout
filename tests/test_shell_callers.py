@@ -356,18 +356,6 @@ print("WORKSPACE_READY")
                     self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
                     self.assertEqual(self.read_calls(), expected)
 
-    def test_sparring_and_building_share_read_only_bootstrap_contract(self) -> None:
-        for relative in ("prompts/classic/scout-sparring.md", "prompts/classic/scout-building.md"):
-            with self.subTest(relative=relative):
-                text = (ROOT / relative).read_text(encoding="utf-8")
-                bootstrap = text.index("${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md")
-                lessons = text.index("${CLAUDE_PLUGIN_ROOT}/prompts/lessons-bootstrap.md")
-                self.assertLess(bootstrap, lessons)
-                self.assertIn("read-only", text[bootstrap : bootstrap + 500])
-                self.assertIn("cannot persist", text[bootstrap : bootstrap + 500])
-                self.assertIn("explicit workspace", text[bootstrap : bootstrap + 500])
-                self.assertIn("Do not proceed", text[bootstrap : bootstrap + 500])
-
 
 if __name__ == "__main__":
     unittest.main()

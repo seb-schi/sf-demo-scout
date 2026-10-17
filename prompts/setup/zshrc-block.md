@@ -6,7 +6,7 @@ As of 2026-07-27 Scout sets no shell environment variables, so the managed block
 is marker-only. The machinery is kept deliberately: it still removes the exports
 Scout used to write (that is how existing installs self-heal) and preserves provider model routing. Do not delete the block or this fragment.
 
-**Transactional contract (2026-09-16, Batch 1 B2).** The refresh NEVER mutates the
+**Transactional contract.** The refresh NEVER mutates the
 file until a validated result is ready. In order: (1) classify the path — a
 symlink is detected BEFORE a missing regular file, and a symlink whose target is
 missing (dangling) leaves the link untouched and reports it; (2) a missing file is

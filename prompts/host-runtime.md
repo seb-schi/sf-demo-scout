@@ -31,11 +31,6 @@ Apply this before Scout setup, discovery, builds, repairs, or tool calls.
   CLI updates, and Claude marketplace auto-update) apply only to Claude. Codex
   configuration and policy stay under its own host controls.
 
-Salesforce CLI (`sf`) is a machine installation, usable without Scout. The
-Salesforce DX MCP adapter (`@salesforce/mcp`) is a separate package launched by
-each host from Scout's plugin manifest using `npx`. Pre-caching the adapter does
-not register it globally or establish that any host connected successfully.
-
 ## Worker model mirroring
 
 Before every Claude worker dispatch, set the per-call `model` to the alias of

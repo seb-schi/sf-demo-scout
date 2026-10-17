@@ -38,7 +38,7 @@ Invoke these skills via the Skill tool when you need detailed rules:
 - `salesforce-development:platform-apex-test-run` — Apex test execution and agentic test-fix loops (invoke when Apex deployment tests fail; AGENTS.md's Apex rule sets how many runs: up to ten in all, while each fixes something new)
 - `salesforce-development:platform-apex-logs-debug` — debug-log analysis and runtime-failure forensics (invoke as the escalation when `salesforce-development:platform-apex-test-run` exhausts its fix loop, or ad-hoc for governor-limit / stack-trace analysis)
 - `salesforce-code-quality:dx-code-analyzer-run` — deeper/configurable static scan via the `sf code-analyzer run` CLI (engine selection, auto-fix, diff-only). The in-pipeline scan stays the MCP `run_code_analyzer` tool — invoke this skill only when the MCP tool is unavailable or a richer scan is wanted (requires the Code Analyzer CLI plugin)
-- `demo-docs-consultation` — decision tree for when to consult Salesforce Docs MCP (load on unfamiliar deploy errors)
+- `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` — read it for the decision tree on when to consult Salesforce Docs (on unfamiliar deploy errors)
 {{EXTERNAL_SKILLS}}
 
 {{IMPORTED_ASSETS}}
@@ -54,7 +54,7 @@ The absolute helper is `{{ASSET_HELPER}}` and the durable rollback directory is
 
 **Attempt rule (pattern-gated, at most 10 attempts):** every retry must carry a *new* fix — never redeploy unchanged metadata. The `demo-deployment-rules` skill's attempt rule and AGENTS.md's Persist rule govern, and override any lower limit here or in an official skill's own loop. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill (Pattern D covers the misleading LWC1210 literal/apiVersion-66 error). If it matches, apply the documented fix and redeploy; each later attempt needs a *different* error that carries a new fix. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record FAILED (with error + any pattern id tried) when an attempt fails with an error already tried, when no new fix is available, when the fix needs something outside the approved scope, or after attempt 10.
 
-**Unfamiliar errors:** if the error message is not self-evident and not matched by a Known Deploy-Error Pattern, invoke the `demo-docs-consultation` skill before the next attempt. Record the consultation in `docs_consulted`.
+**Unfamiliar errors:** if the error message is not self-evident and not matched by a Known Deploy-Error Pattern, read `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` (§"When to Consult — YES" and §"How to Cite") before the next attempt. Record the consultation in `docs_consulted`.
 
 Deploy in small increments. One component per deploy call.
 

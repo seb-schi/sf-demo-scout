@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 
 _BUILD_SPEC = importlib.util.spec_from_file_location('scout_build', Path(__file__).with_name('scout_build.py'))
 BUILD = importlib.util.module_from_spec(_BUILD_SPEC)
-_BUILD_SPEC.loader.exec_module(BUILD)  # W10: complex-plan rules live in scout_build.py
+_BUILD_SPEC.loader.exec_module(BUILD)  # Complex-plan rules live in scout_build.py
 
 DISPOSITIONS = ('applied', 'already_satisfied', 'failed', 'blocked', 'unverified', 'omitted')
 SECTIONS = ('Verified — Applied This Build', 'Verified — Already Satisfied Before This Build',
@@ -33,9 +33,9 @@ KNOWN_TYPES = set('customobject customfield recordtype permissionset permissions
                  'reportfolder reporttype customreporttype customsetting custommetadata '
                  'custommetadatatype globalvalueset standardvalueset'.split())
 TYPE_ALIASES = {'pagelayout': 'layout', 'lightningapp': 'customapplication', 'path': 'pathassistant', 'paths': 'pathassistant',
-                'businessprocesses': 'businessprocess',  # W10 R5-C3: plural spellings keep their canonical type
+                'businessprocesses': 'businessprocess',  # Plural spellings keep their canonical type
                 'records': 'record', 'picklistvalues': 'standardvalueset'}
-BUILD.KNOWN_TYPES, BUILD.TYPE_ALIASES = KNOWN_TYPES, TYPE_ALIASES  # W10 F7: complexity is derived from these
+BUILD.KNOWN_TYPES, BUILD.TYPE_ALIASES = KNOWN_TYPES, TYPE_ALIASES  # Complexity is derived from these
 CHECKPOINT = re.compile(r'^### (PENDING|' + '|'.join(DISPOSITIONS) +
                         r') — component repair · attempt ([\w.-]+) · (\d{4}-\d\d-\d\d \d\d:\d\d)$')
 OUTCOME = re.compile(r'^- \*\*Outcome: (' + '|'.join(DISPOSITIONS) + r')\.\*\* (\S.*)$', re.M)
@@ -569,10 +569,10 @@ def check(task, record):
         for beat in story['beats']:
             if any(not beat[k].strip() for k in ('name', 'persona', 'pain', 'climax')):
                 issue('story', 'beat needs name, persona, pain and climax')
-            if beat['proof_moment'] and not any(BUILD._active(c) for c in beat['claims']):  # W10 R2-F2
+            if beat['proof_moment'] and not any(BUILD._active(c) for c in beat['claims']):
                 issue('story', 'proof moment needs a claim with readback')
             for claim in beat['claims']:
-                item, active = items.get(claim['item']), BUILD._active(claim)  # W10 R2-F7: a dropped optional claim is history
+                item, active = items.get(claim['item']), BUILD._active(claim)  # A dropped optional claim is history
                 if not claim['text'].strip() or not item or (active and not item.get('readback', '').strip()):
                     issue('story', 'every claim needs an existing item with readback')
                 if beat['proof_moment'] and active:
@@ -604,7 +604,7 @@ def check(task, record):
         grounded, docs, unavailable = item['grounding'], False, False
         for entry in grounded:
             source, reference, verdict = entry['source'], entry['ref'], entry['verdict']
-            if not entry['assumption'].strip() or source not in ('docs', 'skill', 'org', 'ungrounded', 'lesson'):  # W10 F5: a retry may cite a lesson
+            if not entry['assumption'].strip() or source not in ('docs', 'skill', 'org', 'ungrounded', 'lesson'):  # A retry may cite a lesson
                 issue('grounding', identifier + ' invalid source or empty assumption')
             if source == 'docs':
                 valid = docs_url(reference) and bool(verdict.strip())
@@ -797,7 +797,7 @@ def check(task, record):
 
 
 def receipt_jobs(raw):
-    """RC integration of W3 and W10: a report receipt settles its own deploy. Its job IDs map to the receipt's
+    """A report receipt settles its own deploy. Its job IDs map to the receipt's
     Outcome / read-back, by the route's table, so a job the helper read back needs no separate `job:` line."""
     jobs = {}
     for receipt in RECEIPT.finditer(raw):
@@ -809,10 +809,10 @@ def receipt_jobs(raw):
 
 
 def log_checkpoints(log):
-    """W10 hook: the log's headings and owned checkpoints for scout_build.py, raw (fences included) and parsed."""
+    """The log's headings and owned checkpoints for scout_build.py, raw (fences included) and parsed."""
     text, checkpoints, names = read(log), [], []
     for title, level, start, end, body in headings(text):
-        if level == 2:  # R2-C4: the template's sections are `##`; a nested note never stands in for one
+        if level == 2:  # The template's sections are `##`; a nested note never stands in for one
             names.append(title)
         match = CHECKPOINT.fullmatch(text[start:].splitlines()[0])
         if match:
@@ -829,14 +829,14 @@ def checkpoint_heading(title):
                 re.match(r'^(?:' + '|'.join(DISPOSITIONS) + r') — component repair · attempt ', title))
 
 
-# 2.0.1 (F2): a later task settles another task's open job in its own change log, never by editing the other's records.
+# a later task settles another task's open job in its own change log, never by editing the other's records.
 RECONCILED = re.compile(r'(?i)reconciled:[ \t]*([^;]+?)[ \t]*;[ \t]*status:[ \t]*([^;]+?)[ \t]*'
                         r'(?:;[ \t]*read-back:[ \t]*(.*?))?[ \t]*')
 ORG_IDS = re.compile(r'(?<![A-Za-z0-9])00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?(?![A-Za-z0-9])')
 
 
 def names_bound_org(text, org, username):
-    """2.0.1 (F2, rounds 2 and 3): the log's own header names the bound org: its ID anywhere in the header or, with no
+    """The log's own header names the bound org: its ID anywhere in the header or, with no
     org ID there, its username on an `Org:` line. Any other org ID in the header, on any line, disqualifies the log.
     Mentions below the header never count."""
     header = document_header(text)
@@ -850,7 +850,7 @@ def names_bound_org(text, org, username):
 
 
 def reconciliations(directory, org, username):
-    """2.0.1 (F2): every bulleted `reconciled:` line outside fences in the bound org's change logs, across folders, as
+    """every bulleted `reconciled:` line outside fences in the bound org's change logs, across folders, as
     (key, status, read-back, the log's own time), its `*` and backticks stripped as on job lines. Unreadable logs and
     folders add nothing."""
     found = []
@@ -872,7 +872,7 @@ def reconciliations(directory, org, username):
                 continue
             if not names_bound_org(text, org, username):
                 continue
-            for line in markdown(text)[0].splitlines():  # round 2: markup goes as on job lines; CRLF goes with the split
+            for line in markdown(text)[0].splitlines():  # Markup goes as on job lines; CRLF goes with the split
                 bullet = re.match(r'[ \t]*[-*+][ \t]+', line)
                 match = bullet and RECONCILED.fullmatch(re.sub(r'[*`]', '', line[bullet.end():]))
                 if match:
@@ -881,19 +881,19 @@ def reconciliations(directory, org, username):
 
 
 def receipt_key(job, log, attempt):
-    """Round 2 (N1): the exact name a receipt gives this job, which `pending` prints under `receipt_keys`."""
+    """the exact name a receipt gives this job, which `pending` prints under `receipt_keys`."""
     if BUILD.JOB_ID.fullmatch(job['ref']):
         return 'job ' + job['ref']
     return None if attempt is None else ' · '.join((log, 'attempt ' + attempt, ' '.join(job['ref'].split())))
 
 
-# 2.0.1 (round 3, M1): Salesforce reports a deploy for 30 days after it completes and keeps a Bulk job for seven, so a
+# Salesforce reports a deploy for 30 days after it completes and keeps a Bulk job for seven, so a
 # `not found` counts only once that long has passed since the launch, plus a day; the receipt log's own time is "now".
 RETENTION = {'0Af': timedelta(days=31), '750': timedelta(days=8)}
 
 
 def log_moment(name):
-    """Round 3 (M1): a change log's own time, from its `changes-YYYY-MM-DD-HHmm` name, read as local time."""
+    """a change log's own time, from its `changes-YYYY-MM-DD-HHmm` name, read as local time."""
     match = re.match(r'changes-(\d{4})-(\d\d)-(\d\d)-(\d\d)(\d\d)', name)
     try:
         return datetime(*map(int, match.groups())).astimezone() if match else None
@@ -902,7 +902,7 @@ def log_moment(name):
 
 
 def launch_moment(job, stamp, path):
-    """Round 3 (M1, M2): when the job launched, at the latest: its `launched:` time, else its heading's minute, else, for
+    """when the job launched, at the latest: its `launched:` time, else its heading's minute, else, for
     a checkpoint without times, its log's modification time, which edits and copies only make later."""
     moment = job.get('launched_at')
     if moment is None and stamp:
@@ -919,13 +919,13 @@ def launch_moment(job, stamp, path):
 
 
 def settled_by(job, log, attempt, receipts, launched=None, foreign=False):
-    """2.0.1 (F2): a receipt settles the job when it names it and records a status read that leaves nothing to land.
+    """A receipt settles the job when it names it and records a status read that leaves nothing to land.
 
     It names a job ID by `job <ID>` (the first 15 characters match) and a submission without one by exactly
     `<log filename> · attempt <ID> · <label>`. A terminal word for the job's family settles it, as in its own
     checkpoint. So does Salesforce's answer that it has no such job (`not found`, an ID only), with its read-back,
-    once the receipt log's time is past the job's retention from `launched` (round 3, M1), or at once when the job's
-    own log names another org (`foreign`, a refreshed sandbox; M2). A submission with no status to read settles by
+    once the receipt log's time is past the job's retention from `launched`, or at once when the job's
+    own log names another org (`foreign`, a refreshed sandbox). A submission with no status to read settles by
     `unavailable` with its read-back; the route says when (`reconcile.md`)."""
     identified = bool(BUILD.JOB_ID.fullmatch(job['ref']))
     family = BUILD.VOCABULARY.get(job['vocabulary'])
@@ -997,11 +997,11 @@ def pending(directory, org, username):
                 state = checkpoint_state(text[start:].splitlines()[0], title, text[end - len(body):end])
                 row = {'file': str(path), 'line': text[:start].count('\n') + 1, 'state': state, 'heading': title}
                 own = CHECKPOINT.fullmatch(text[start:].splitlines()[0])
-                if own or state == 'unresolved':  # W10 C8: a job that may still land; a legacy one only with no result recorded
+                if own or state == 'unresolved':  # A job that may still land; a legacy one only with no result recorded
                     held = BUILD.checkpoint_state(dict(attempt=own[2] if own else 'legacy', stamp=own[3] if own else '',
                                                        position=start, raw=text[start:end], visible=body, outcome=None,
                                                        receipt_jobs=receipt_jobs(text[start:end])), None)['open']
-                    final = own_outcome(body) if own else None  # W10 R4-C1: settled only when the body's own outcome says so
+                    final = own_outcome(body) if own else None  # Settled only when the body's own outcome says so
                     if own and final in ('applied', 'already_satisfied', 'failed', 'blocked', 'omitted') and own[1] in (final, 'PENDING'):
                         held = [job for job in held if job['explicit']]  # a bare ID in settled history is a settled deploy
                     elif not own:
@@ -1118,7 +1118,7 @@ def scout_agreement(body, outcome, receipt_ids=()):
     offset = 0
     for n, line in enumerate(lines):
         raw = line.rstrip('\r\n')
-        # RC, from the live trial: evidence may open with a code span, so match the line before masking.
+        # From a live trial: evidence may open with a code span, so match the line before masking.
         canonical = OUTCOME.fullmatch(unmasked[n].rstrip('\r\n'))
         if canonical and canonical[1] != outcome:
             return False

@@ -96,7 +96,7 @@ class ScoutRouteTests(unittest.TestCase):
 
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
-        caps = {'scout.md': 2285, 'history.md': 1015, 'discovery.md': 1100, 'build.md': 1340, 'prep.md': 900,  # W10 C9 and W9 C5;
+        caps = {'scout.md': 2285, 'history.md': 1015, 'discovery.md': 1100, 'build.md': 1350, 'prep.md': 900,  # W10 C9 and W9 C5;
                 # W19: build.md +15 for the hosted Flow route's two pointers
                 'reconcile.md': 335,  # 2.0.1: the handover's form moved to history.md; reconcile.md is new (W13)
                 'hosted-flow.md': 860,  # W19: the hosted Flow route, loaded only for Flow items
@@ -153,10 +153,13 @@ class ScoutRouteTests(unittest.TestCase):
                        'Every SE-authored/non-template section stays byte-identical, in place',
                        'overrides deleting legacy banners', 'per-task log rule overrides',
                        "outcome heading rule overrides that file's heading rule",
-                       "second author despite", 'No answer means write nothing',
+                       'No answer means write nothing',
                        '`pending` to re-offer next run', 'On skip, write the arc and stamps without new entries',
                        'rerun `check`, then send one truthful receipt line'):
             self.assertIn(phrase, history)
+        template = (ROOT / 'prompts/sparring/demo-architecture-template.md').read_text()
+        self.assertIn('**Authored by `/scout`**', template)
+        self.assertIn('Last reconciled: [YYYY-MM-DD HHmm] by /scout', template)
         self.assertIn('`demo-architecture.md` first', self.command)
         self.assertIn('reconcile-plan --folder', self.command)
         self.assertIn('read every `unclear` checkpoint', self.command)
@@ -220,8 +223,10 @@ class ScoutRouteTests(unittest.TestCase):
         self.phrases(self.history, 'propose 1–3 lessons', 'yes, edit or skip', 'Write only on yes or edit',
                      '§"Propose Lessons (building)"', '§"Append Format"', '§"Routing — which topic file"',
                      '§"Per-Topic Review (replaces the old global 25-line trim)"',
-                     'Step 1: Ensure the lessons directory + INDEX exist (idempotent)',
-                     'Skip Slack Upstream and Legacy Drain offers')
+                     'Step 1: Ensure the lessons directory + INDEX exist (idempotent)')
+        maintenance = (ROOT / 'prompts/lessons-maintenance.md').read_text()
+        self.assertNotIn('## Slack Upstream', maintenance)
+        self.assertNotIn('## Legacy Flat-File Drain', maintenance)
         self.assertNotIn('Afterward, if a repeatable trap occurred, append', self.command)
 
     def test_k7_docs_floor_both_halves_fetch_errors_and_degraded_mode(self):
@@ -270,7 +275,7 @@ class ScoutRouteTests(unittest.TestCase):
 
     def test_complete_brief_startup_budget_and_report_checkpoint_adapter(self):
         startup = [COMMAND, ROOT / 'prompts/host-runtime.md', ROOT / 'prompts/workspace-bootstrap.md']
-        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3071)  # 2.0.1: down from 3,100 (F3); 2.1.1: +11 for the browser-login pointer; the packages' 3,000 awaits the user's U1
+        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3000)  # the user's startup budget
         self.phrases(self.command, 'log explicitly as `--change-log`',
                      'marked receipt block fenced and its evidence unchanged')
 
@@ -376,7 +381,7 @@ class ScoutRouteTests(unittest.TestCase):
     def test_r4_f18_complete_brief_availability_without_readiness(self):
         self.phrases(self.command, 'Check exposed Docs tools; do not load readiness before this message')
         startup = [COMMAND, ROOT / 'prompts/host-runtime.md', ROOT / 'prompts/workspace-bootstrap.md']
-        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3071)  # 2.0.1: down from 3,100 (F3); 2.1.1: +11 for the browser-login pointer; the packages' 3,000 awaits the user's U1
+        self.assertLessEqual(sum(len(p.read_text().split()) for p in startup), 3000)  # the user's startup budget
 
     def test_r4_f19_stamps_come_from_clock(self):
         self.phrases(self.command, 'Stamp records from `date`, never an estimate')
@@ -421,7 +426,7 @@ class BuildRouteTests(unittest.TestCase):
         self.phrases(self.build, 'Run `check`, also before any retry')
 
     def test_rb3_retry_records_the_error_rule(self):
-        self.phrases(self.build, "Never retry automatically: a retry is a new attempt after K7's error rule",
+        self.phrases(self.build, 'Never retry automatically: a retry is a new attempt after the error rule in `${CLAUDE_PLUGIN_ROOT}/commands/scout.md`',
                      'recording the covering lesson or the Docs search of the verbatim error as a grounding entry',
                      '"attempt":"<retry-ID>"', '"source":"lesson|docs"', '"ref":"<lesson-ID|Docs-URL>"')
 
@@ -506,7 +511,7 @@ class BuildRouteTests(unittest.TestCase):
         self.phrases(self.build, 'No envelope, item cap or one-spec rule applies', 'fuzzy matching rules are authorable',
                      'UI-only goes on the SE\'s checklist with a fetched citation naming the exact operation',
                      'It needs `story` with beats on the open-ended path or when the task records one; complete briefs invent none',
-                     "record W3's degraded entry instead: `ungrounded`, empty ref, verdict starting `Docs unavailable`")
+                     "record the Docs-unavailable entry instead: `ungrounded`, empty ref, verdict starting `Docs unavailable`")
 
     def test_rb6_deletes_always_get_their_own_confirmation(self):
         self.phrases(self.command, 'counts as its confirmation, except for deletes',

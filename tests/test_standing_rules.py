@@ -61,19 +61,17 @@ class StandingRulesTests(unittest.TestCase):
                          'Before a multi-step loop', 'orgs/lessons/INDEX.md',
                          'only explicitly enabled', 'App Builder provides a live preview'):
             self.assertIn(required, text)
-        for name in ('scout-sparring', 'scout-building'):
-            command = (ROOT / f'prompts/classic/{name}.md').read_text()
-            host = command.index('Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md`')
-            rules = command.index('Read `${CLAUDE_PLUGIN_ROOT}/AGENTS.md`')
-            bootstrap = command.index('Read `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md`')
-            self.assertLess(host, rules)
-            self.assertLess(rules, bootstrap)
+        command = (ROOT / 'commands/scout.md').read_text()
+        host = command.index('Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md`')
+        bootstrap = command.index('`${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md`')
+        rules = command.index('`${CLAUDE_PLUGIN_ROOT}/AGENTS.md`')
+        self.assertLess(host, bootstrap)
+        self.assertLess(bootstrap, rules)
 
     def test_all_worker_envelopes_carry_same_qualified_block(self):
         template = ('Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, '
                     'read "[PLUGIN_ROOT_ABS]/AGENTS.md" and follow it.\n' + QUALIFIER + '\n' + '\n'.join(BULLETS))
-        for name, copies in [('prompts/classic/scout-building.md', 1), ('prompts/classic/scout-sparring.md', 1),
-                             ('prompts/sparring/audit-orchestration.md', 2),
+        for name, copies in [('prompts/sparring/audit-orchestration.md', 2),
                              ('prompts/sparring/knowledge-cartridge.md', 1),
                              ('skills/demo-deployment-rules/SKILL.md', 1)]:
             with self.subTest(file=name):

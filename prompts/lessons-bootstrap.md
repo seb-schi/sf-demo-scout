@@ -1,9 +1,8 @@
 # Lessons Bootstrap
 
-Shared fragment Read by `/scout-sparring` (Step 0) and `/scout-building`
-(Step 1, before constructing sub-agents) as their lessons-load step.
-Replaces the old "Read `orgs/sparring-lessons.md`" / "Read
-`orgs/building-lessons.md`" line.
+How Scout's lessons folder is created and loaded. `/scout` reads `orgs/lessons/INDEX.md`
+at its start (`commands/scout.md`), and runs Step 1 below on the SE's yes to a first lesson
+(`prompts/scout/history.md`).
 
 Lessons live in the SE's PERSONAL workspace (`orgs/lessons/`), not in the
 plugin — so the plugin cannot ship them. This fragment creates the INDEX
@@ -66,6 +65,4 @@ missed load on a topic the session actually touches.
 ## Step 3: Legacy flat files (backward-compat)
 
 If `orgs/sparring-lessons.md` or `orgs/building-lessons.md` still exists and
-is non-empty (more than its header), Read it too — legacy lessons are still
-authoritative until drained. The end-of-session lessons step (in
-`lessons-maintenance.md`) offers a one-time drain into topic files.
+is non-empty (more than its header), Read it too — legacy lessons still count.

@@ -250,8 +250,8 @@ class RouteNameTests(unittest.TestCase):
     PLUGINS = ("salesforce-development", "salesforce-code-quality", "agentforce-adlc", "experience-lwc", "service-engagement")
 
     def files(self):
-        for pattern in ("commands/*.md", "prompts/**/*.md", "AGENTS.md", "README.md", "docs/*.md", "skills/**/*.md",
-                        "skills/sf-flow/hooks/scripts/*.py", "hooks/*", "scripts/*", "assets/**/*.json"):
+        for pattern in ("commands/*.md", "prompts/**/*.md", "AGENTS.md", "README.md", "skills/**/*.md",
+                        "hooks/*", "scripts/*", "assets/**/*.json"):
             for path in ROOT.glob(pattern):
                 if path.is_file():
                     yield path
@@ -391,19 +391,7 @@ class CallerTests(unittest.TestCase):
         self.assertIn('§"Readiness"', hosted)
         self.assertNotIn("coexistence --host", hosted)
 
-    def test_classic_materialization_keeps_the_hooks_and_selected_sections(self):
-        command = read("prompts/classic/scout-building.md")
-        reference = read(OVERRIDES)
-        self.assertIn("prompts/building/official-skill-overrides.md", command)
-        phase1_row = next(line for line in command.splitlines() if line.startswith("     | Phase 1 |"))
-        selected = [h for h, condition in re.findall(r"`([^`]+)` for ([^,|]+)", phase1_row) if condition.strip() == "Reports"]
-        self.assertEqual(["Report tools"], selected)
-        materialized = materialize(reference, ["The official hooks", "Binding and confirmation", *selected])
-        self.assertIn("## Report tools", materialized)
-        self.assertNotIn("## FlexiPage scope", materialized)
-        for heading in ("Report tools", "Validation formulas", "FlexiPage scope", "Email-to-Case scope", "Flow scope",
-                        "Analyzer prerequisites", "Agentforce prerequisites and precedence", "The official hooks"):
-            self.assertIn(heading, command)
+    def test_phase_templates_keep_one_vendor_compatibility_slot(self):
         for phase in ("phase1.md", "phase2.md", "phase3.md"):
             template = read(f"prompts/building/{phase}")
             self.assertEqual(1, template.count("{{VENDOR_COMPATIBILITY}}"))

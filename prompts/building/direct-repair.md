@@ -1,9 +1,7 @@
 # Compact Direct Repair
 
-Use this route when the SE asks for a small fix or tweak against the active org,
-including requests made outside `/scout-building` Step 7. This is the explicit
-post-build exception to `scout-building`'s Spec Only hard stop: the current repair
-instruction supplies the scope. Keep the confirmation tier in Scout's `AGENTS.md`, category gates, no-Apex choice,
+Use this route when the SE asks for a small fix or tweak, in `/scout` or outside
+any command: the current repair instruction supplies the scope. Keep the confirmation tier in Scout's `AGENTS.md`, category gates, no-Apex choice,
 target-org checks, and whole-new-FlexiPage exclusion unchanged.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md` from the active plugin context first, then `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` before any tool mutation.

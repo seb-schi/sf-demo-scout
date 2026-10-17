@@ -1,15 +1,14 @@
 # Workspace Bootstrap
 
-Shared fragment Read by `/scout-sparring` and `/scout-building` as their first step. Single read-only Bash gate: two explicit outcomes, one tool call.
+Read by `/scout` as its first step: one read-only Bash gate with two outcomes.
 
 ## Step 1: Sanity gate
 
-Apply `prompts/host-runtime.md`; substitute `[SCOUT_HOST]` with the active
-`claude` or `codex` host. Unknown host is a check failure, not a Claude fallback.
-Resolve `${CLAUDE_PLUGIN_ROOT}` to the absolute active Scout plugin directory,
-then run this whole fence as written with that literal path substituted. The
-quoted heredoc runs the check in `/bin/bash`, even when the parent shell is
-zsh. This gate is read-only and never creates the workspace or configuration.
+Substitute `[SCOUT_HOST]` (`claude` or `codex`, per `prompts/host-runtime.md`; an
+unknown host is a check failure, not a Claude fallback) and the resolved absolute
+plugin root for `[PLUGIN_ROOT]`, then run the whole fence as written. The quoted
+heredoc runs in `/bin/bash`, even under zsh. The gate never creates the workspace
+or its configuration.
 
 ```bash
 /bin/bash <<'SCOUT_WORKSPACE_BOOTSTRAP_BASH'
@@ -43,25 +42,16 @@ exit "$VERIFY_STATUS"
 SCOUT_WORKSPACE_BOOTSTRAP_BASH
 ```
 
-Branch on output:
-
-- `STATE=OK` → silent. Return control to the parent command's next step.
-
-- `STATE=CHECK_FAILED`, any nonzero exit, or missing `STATE=OK` success evidence →
-  ABORT and surface the verifier's complete stdout/stderr and the gate diagnostic.
-  Suggest `/scout-setup` when the preserved verifier output identifies missing or
-  invalid workspace artifacts (`WORKSPACE_INVALID`, `SFDX_PROJECT_INVALID`,
-  `FORCE_APP_INVALID`, `LESSONS_INVALID`, `SETTINGS_INVALID`, or `CONFIG_INVALID`).
-  For a missing interpreter/helper, permission error, or invocation failure, report
-  that exact reason without claiming Scout is a fresh install.
-
-Do not proceed past this step on the failure state, a nonzero exit, or absent
-success evidence.
+- `STATE=OK`: say nothing, and return to the command's next step.
+- `STATE=CHECK_FAILED`, any nonzero exit, or no `STATE=OK`: stop, and show the
+  verifier's complete output and the gate's diagnostic. Suggest `/scout-setup`
+  when that output names `WORKSPACE_INVALID`, `SFDX_PROJECT_INVALID`,
+  `FORCE_APP_INVALID`, `LESSONS_INVALID`, `SETTINGS_INVALID` or `CONFIG_INVALID`.
+  For a missing interpreter or helper, a permission error or an invocation
+  failure, report that exact reason without calling it a fresh install.
 
 ## After bootstrap
 
-Do not rely on shell working-directory state persisting between tool calls. The
-parent command must set the printed `WORKSPACE` as the working
-directory for each subsequent shell call, or begin that call with a checked
-`cd` to the workspace. All subsequent `orgs/...` refs (including
-`orgs/lessons/`) resolve against that explicit working directory.
+The shell's working folder doesn't persist between tool calls: run each later
+call in the printed `WORKSPACE`, or start it with a checked `cd` there. Every
+`orgs/...` path, `orgs/lessons/` included, resolves against it.

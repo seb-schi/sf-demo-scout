@@ -26,11 +26,11 @@ class SlugTests(unittest.TestCase):
 
     def test_named_transliterations(self) -> None:
         examples = (
-            ("Deutsche Fachpflege", "deutsche-fachpflege"),
-            ("L'Oréal", "l-oreal"),
-            ("AT&T", "at-t"),
+            ("Nordlicht Fachpflege", "nordlicht-fachpflege"),
+            ("L'Étoile", "l-etoile"),
+            ("A&Z", "a-z"),
             ("Example CPQ", "example-cpq"),
-            ("3M", "3m"),
+            ("7K", "7k"),
             ("ExampleCare_DPA", "examplecare-dpa"),
             ("Müller", "muller"),
             ("Straße", "strasse"),

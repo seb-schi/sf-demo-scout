@@ -1,7 +1,7 @@
 # Knowledge Cartridge Consult
 
-Read + executed by `/scout-sparring` **Stage 4**, after `platform-research.md`
-and before the Stage 5 scenario proposal. Lets Scout draw on an installed,
+Read by `/scout` discovery (`prompts/scout/discovery.md`), for the steps it
+names, before the proposal. Lets Scout draw on an installed,
 contract-conforming **knowledge cartridge** — a plugin that publishes a stable
 Life-Sciences-style knowledge layer — when the audited org's industry matches
 what that cartridge covers.

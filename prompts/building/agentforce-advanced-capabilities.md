@@ -1,8 +1,7 @@
 # Agentforce Advanced Capabilities — Authoring + Handoff
 
 Scout-owned reference (NOT a vendored skill — safe to edit). Loaded by
-`phase3.md` when the spec's Agentforce section flags an advanced capability,
-and mirrored by the spec-template's advanced-capabilities block.
+`phase3.md` when an Agentforce item needs an advanced capability.
 
 These three capabilities share a shape: the **deployable metadata is
 build-time-authorable** (Scout authors + deploys it), but the **UI wiring and

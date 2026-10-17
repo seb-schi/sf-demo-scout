@@ -298,10 +298,6 @@ class BuildAssetsContractTests(unittest.TestCase):
         self.assertLess(modify.index("--kind agent-preedit"), invoke)
         self.assertLess(modify.index("Record the current active version number"), invoke)
         self.assertIn("preedit_snapshot", modify)
-        caller = (REPOSITORY / "prompts/classic/scout-building.md").read_text()
-        cleanup = caller[caller.index("Workspace cleanup (after the change log is written).") :]
-        self.assertIn("preedit_snapshot", cleanup)
-        self.assertIn("agent-preedit", cleanup)
 
     def test_preserve_retains_all_flat_and_nested_content(self):
         """Catches a shallow copy that drops companion files or nested schema data."""
@@ -576,18 +572,3 @@ for _ in range(2):
                 self.assertNotEqual(self.injected_preserve_exit(seam), 0)
                 self.assertEqual(self.artifact_files(self.source_root / "flows"), before)
                 self.assertEqual(list(self.rollback.rglob("receipt.json")), [])
-
-    def test_static_prior_recovery_guard_and_final_retention_keep_recovery_visible(self):
-        """Static delivery only; the executable fixtures test original-byte protection."""
-        prompt = (REPOSITORY / "prompts/classic/scout-building.md").read_text(encoding="utf-8")
-        startup = prompt[prompt.index("A previous build's retained recovery source is not disposable."):
-                         prompt.index("### Phase Analysis")]
-        for behavior in ("unresolved recovery-preservation / cleanup-withheld",
-                         "preserve --kind agent-recovery", "Unknown owners", "untouched"):
-            self.assertIn(behavior, startup)
-        final = prompt[prompt.index("Workspace cleanup (after the change log is written)."):
-                       prompt.index("### 6b:")]
-        for behavior in ("No automatic cleanup", "NeedsUICommit", "failed preservation",
-                         "ownership receipt", "preedit_snapshot"):
-            self.assertIn(behavior, final)
-        self.assertNotRegex(prompt, r"find[^\n]*-delete")

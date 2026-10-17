@@ -162,8 +162,7 @@ class ReviewTests(unittest.TestCase):
                     self.assertIn('pin Sonnet 5.5', output)
         for provider in ('api', 'aws', 'foundry', 'unknown'):
             self.assertNotIn('Model routing advisory:', '\n'.join(REPORT.report([], provider)))
-        for relative in ('prompts/classic/scout-building.md', 'prompts/classic/scout-sparring.md',
-                         'prompts/sparring/audit-orchestration.md', 'prompts/sparring/knowledge-cartridge.md'):
+        for relative in ('prompts/sparring/audit-orchestration.md', 'prompts/sparring/knowledge-cartridge.md'):
             self.assertIn('prompts/host-runtime.md#worker-model-mirroring', (ROOT / relative).read_text())
         audit = (ROOT / 'prompts/sparring/audit-orchestration.md').read_text()
         self.assertIn('prelude, all\n   three audit worker calls, and every redispatch', audit)

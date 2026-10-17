@@ -1,6 +1,6 @@
 # Value Spine — Co-Emergence Inside Stage 5
 
-Loaded by `scout-sparring.md` Stage 5 after Stage 4 research completes, before the scenario proposal is written. Read once per session.
+Read by `/scout` discovery (`prompts/scout/discovery.md`), for the sections it names, before the proposal is written. Read once per session.
 
 ## Purpose
 

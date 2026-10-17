@@ -215,7 +215,7 @@ def unpin(claude, name, approved_ref):
 
 
 def selected_markets(wanted, records=None):
-    """The registrations the resolver chose for these plugins (X3, D6: never an unused one)."""
+    """The registrations the resolver chose for these plugins (never an unused one)."""
     return sorted({found["ident"].rpartition("@")[2] for plugin in wanted
                    for found in (scout_official.resolve(plugin, records=records),)
                    if found.get("ident") and found["state"] in ("installed", "conflict", "disabled")})
@@ -325,7 +325,7 @@ def main(argv=None):
             ident = scout_official.resolve(plugin).get("ident")
             if ident in rows and rows[ident].get("version"):
                 print("OFFICIAL_PLUGIN_VERSION %s %s" % (plugin, rows[ident]["version"]))
-    # The proposal comes last, so its list is final (D1): the pinned registrations Scout actually uses.
+    # The proposal comes last, so its list is final: the pinned registrations Scout actually uses.
     records = read_records()
     for market in [m for m in markets if m not in done and records and records.pin(m)]:
         users = sorted(ident.rpartition("@")[0] for ident in records.plugins

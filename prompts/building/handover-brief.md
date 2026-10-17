@@ -108,4 +108,4 @@ open [ORG_FOLDER]/
 
 (Skip this block entirely if the change log's Script Deliverables section reads "None — deployment was metadata-only.")
 
-**Caller note (not part of the rendered brief):** after outputting the brief, scout-building offers the SE a y/n to write this same content to a Slack canvas in their personal Slack. See `scout-building.md` Step 6c for the procedure.
+**Caller note (not part of the rendered brief):** after the handover, `/scout` offers the demo flow as a Slack canvas, following `prompts/scout/demo-canvas.md`.

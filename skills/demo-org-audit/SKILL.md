@@ -1,12 +1,8 @@
 ---
 name: demo-org-audit
 description: >
-  Format and procedure for auditing a Salesforce demo org — required content,
-  priority flags, and ProfileLayout query patterns.
-  TRIGGER when: audit sub-agents need the canonical output format, section
-  structure, or ★ priority flag rules.
-  DO NOT TRIGGER when: running the audit (sub-agent prompts have inlined
-  procedures), generating specs, or deploying metadata.
+  Scout's org-audit reference: required content, priority flags and ProfileLayout query patterns. /scout reads it by path for scoped inspection; it is not invoked on its own.
+disable-model-invocation: true
 ---
 
 # Org Audit — Format & Procedure

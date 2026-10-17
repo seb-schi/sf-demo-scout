@@ -383,13 +383,10 @@ class AgentforcePromptWiringTests(unittest.TestCase):
         self.assertNotIn("event-log probe", phase)
         self.assertNotIn("If no action invocation was confirmed", phase)
 
-    def test_orchestrator_records_gate_digest_and_independent_runtime_context(self):
-        command = (ROOT / "prompts" / "classic" / "scout-building.md").read_text(encoding="utf-8")
+    def test_validation_records_independent_runtime_context(self):
         validation = (ROOT / "prompts" / "building" / "sub-agent-validation.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn("agentforce-validation-gate.md", command)
-        self.assertIn("gate_sha256", command)
         self.assertIn("agent_contexts", validation)
         self.assertIn("scripts/agentforce_evidence.py", validation)
         self.assertIn("summary only", validation)

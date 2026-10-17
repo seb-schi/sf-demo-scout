@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only demo-day prep for /scout (W9): constructed checks, a total verdict, and a safe demo-path.md.
+"""Read-only demo-day prep for /scout: constructed checks, a total verdict, and a safe demo-path.md.
 
 Subcommands:
   scratch  make a new, private scratch folder under the vetted base, for the results file
@@ -66,7 +66,7 @@ TIME = re.compile(r'(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(:\d{2}(?:\.\d{1,6})?)?(
 HEADER = re.compile(r'org-verified\s*:', re.I)
 RESERVED = re.compile(r'scout:(?:begin|end|demo-path|set)|org-verified\s*:', re.I)
 BREAKS = re.compile(r'[\r\n\x0b\x0c\x1c-\x1e\x85\u2028\u2029]+')
-# F20 and R09: whole credentials, including quoted values with spaces and bearer tokens with +, / and =.
+# Whole credentials, including quoted values with spaces and bearer tokens with +, / and =.
 SECRET = re.compile(r'00D[A-Za-z0-9]{12,15}![^\s"\'<>]+|\bBearer\s+[A-Za-z0-9._~+/=-]+|\b(?:access_?token|refresh_?token|'
                     r'session_?id|sid|password|passwd|client_?secret|secret)\b["\']?\s*[:=]\s*'
                     r'(?:"(?:[^"\\]|\\.)*"?|\'(?:[^\'\\]|\\.)*\'?|[^\s"\',;]+)', re.I)
@@ -90,7 +90,7 @@ DATE_N = re.compile(r'(?:LAST|NEXT)_N_' + UNITS + '|N_' + UNITS + '_AGO', re.I)
 
 
 class Refused(Exception):
-    """A check, a gate or a publication that must not proceed; `error` keeps a CLI failure's name and message (F20)."""
+    """A check, a gate or a publication that must not proceed; `error` keeps a CLI failure's name and message."""
 
     def __init__(self, reason, error=None):
         super().__init__(reason)
@@ -98,7 +98,7 @@ class Refused(Exception):
 
 
 class Soql:
-    """F06 and N2: SELECT … FROM one object [WHERE …] [GROUP BY …] [ORDER BY …] [LIMIT n] [OFFSET n], nothing else."""
+    """SELECT … FROM one object [WHERE …] [GROUP BY …] [ORDER BY …] [LIMIT n] [OFFSET n], nothing else."""
 
     def __init__(self, query):
         self.items, self.at, self.count_only = tokens(query), 0, False
@@ -255,7 +255,7 @@ class Soql:
 
 
 def tokens(query):
-    """F06: SOQL as tokens; any character outside the token set (comments, `;`, `$`, fullwidth letters) refuses it."""
+    """SOQL as tokens; any character outside the token set (comments, `;`, `$`, fullwidth letters) refuses it."""
     found, position = [], 0
     while position < len(query):
         match = TOKEN.match(query, position)
@@ -268,14 +268,14 @@ def tokens(query):
 
 
 def parse_query(query):
-    """N2 and F06: one read-only SELECT in the constrained grammar, at most 4,000 characters."""
+    """One read-only SELECT in the constrained grammar, at most 4,000 characters."""
     if not isinstance(query, str) or not query or len(query) > 4000:
         raise Refused('query outside the read-only grammar')
     return Soql(query).parse()
 
 
 def validate_query(query):
-    """F07: validation reads tokens and passes the original text through unchanged, string literals included."""
+    """Validation reads tokens and passes the original text through unchanged, string literals included."""
     parse_query(query)
     return query
 
@@ -285,7 +285,7 @@ def current_time():
 
 
 def parse_time(value):
-    """X14 and F12: an ISO time with a timezone (Z, ±HH:MM or ±HHMM), read alike on every Python; otherwise None."""
+    """An ISO time with a timezone (Z, ±HH:MM or ±HHMM), read alike on every Python; otherwise None."""
     match = TIME.fullmatch(value) if isinstance(value, str) else None
     if not match:
         return None
@@ -295,7 +295,7 @@ def parse_time(value):
         whole, fraction = seconds.split('.')
         seconds = whole + '.' + fraction.ljust(6, '0')
     zone = '+00:00' if zone == 'Z' else zone if ':' in zone else zone[:3] + ':' + zone[3:]
-    if int(zone[1:3]) > 23 or int(zone[4:6]) > 59:  # Q09: +01:99 is no offset
+    if int(zone[1:3]) > 23 or int(zone[4:6]) > 59:  # +01:99 is no offset
         return None
     try:
         return datetime.datetime.fromisoformat('%sT%s%s%s' % (day, minutes, seconds, zone))
@@ -311,7 +311,7 @@ def parse_date(value):
 
 
 def now(clock=None):
-    """X14 and F11: a given time, which needs a timezone; without one, the current local time."""
+    """A given time, which needs a timezone; without one, the current local time."""
     if clock is None:
         return current_time()
     moment = parse_time(clock)
@@ -321,7 +321,7 @@ def now(clock=None):
 
 
 def scratch_dir():
-    """F05: scratch lives under a vetted base (the system's root-owned, sticky /tmp), whatever TMPDIR says."""
+    """Scratch lives under a vetted base (the system's root-owned, sticky /tmp), whatever TMPDIR says."""
     base = os.path.realpath(SCRATCH_BASE)
     try:
         info = os.stat(base)
@@ -349,7 +349,7 @@ def envelope_of(output):
 
 
 def cli_error(*envelopes):
-    """F20: the CLI error's name and message, redacted, so K7 can search the error verbatim."""
+    """The CLI error's name and message, redacted, so the error can be searched verbatim."""
     for envelope in envelopes:
         if isinstance(envelope, dict) and (isinstance(envelope.get('name'), str) or isinstance(envelope.get('message'), str)):
             return {key: redact(envelope[key]) if isinstance(envelope.get(key), str) else '' for key in ('name', 'message')}
@@ -357,7 +357,7 @@ def cli_error(*envelopes):
 
 
 def run_cli(args, scratch=None):
-    """X7 and N3: one constructed CLI call whose cwd is a vetted scratch directory, never the folder."""
+    """One constructed CLI call whose cwd is a vetted scratch directory, never the folder."""
     executable = shutil.which('sf')
     if not executable:
         raise Refused('Salesforce CLI unavailable')
@@ -384,19 +384,19 @@ def run_cli(args, scratch=None):
 
 
 def query_observation(result, count_only):
-    """F18 and F19: a usable result has a records list and an integer totalSize; at most 2,000 records come back."""
+    """A usable result has a records list and an integer totalSize; at most 2,000 records come back."""
     records = result.get('records') if isinstance(result, dict) else None
     total = result.get('totalSize') if isinstance(result, dict) else None
     done = result.get('done', True) if isinstance(result, dict) else None
     if not isinstance(records, list) or not all(isinstance(r, dict) for r in records) or type(total) is not int or total < 0 \
-            or type(done) is not bool:  # R11: a malformed done flag never reads as complete
+            or type(done) is not bool:  # A malformed done flag never reads as complete
         raise Refused('CLI returned an unusable query result')
     complete = done and len(records) <= RECORDS and (count_only or len(records) == total)
     return {'totalSize': total, 'records': records[:RECORDS], 'complete': complete}
 
 
 def run_check(kind, selector, username, org, query=None, sobject=None, metadata=None, clock=None):
-    """X6, X7, N3: validate, bind, then one constructed read-only call. Nothing stored is executed."""
+    """Validate, bind, then one constructed read-only call. Nothing stored is executed."""
     if clock is not None:
         now(clock)
     if kind == 'query':
@@ -434,7 +434,7 @@ def run_check(kind, selector, username, org, query=None, sobject=None, metadata=
 
 
 def observed_at(clock=None):
-    """R07: the time a check was attempted, even when the helper refused it."""
+    """The time a check was attempted, even when the helper refused it."""
     try:
         return now(clock).isoformat(timespec='seconds')
     except Refused:
@@ -442,7 +442,7 @@ def observed_at(clock=None):
 
 
 def read_exact(path):
-    """Read text without newline translation, so CRLF and every other byte survive (X10)."""
+    """Read text without newline translation, so CRLF and every other byte survive."""
     with open(path, encoding='utf-8', newline='') as stream:
         return stream.read()
 
@@ -470,9 +470,9 @@ def strings(value):
 
 
 def check_obligation(obligation):
-    """F14 and F21: a task-qualified key, and every field the verdict and renderer read has its type."""
+    """A task-qualified key, and every field the verdict and renderer read has its type."""
     if not isinstance(obligation, dict) or not isinstance(obligation.get('key'), str) or not KEY.fullmatch(obligation['key']):
-        raise Refused('every obligation needs a key of the form <task file>.md#<local id>')  # X4
+        raise Refused('every obligation needs a key of the form <task file>.md#<local id>')
     beat = obligation.get('beat')
     if not isinstance(obligation.get('kind'), str) or (beat is not None and not (
             isinstance(beat, str) and (BEAT.fullmatch(beat) or KEY.fullmatch(beat)))):
@@ -488,11 +488,11 @@ def check_obligation(obligation):
                                or not isinstance(result.get('at'), (str, type(None)))):
         raise Refused('%s needs a result of the form {"status":…,"observed":…,"at":…} or null' % obligation['key'])
     if isinstance(result, dict) and result.get('status') is not None and parse_time(result.get('at')) is None:
-        raise Refused('%s needs its result\'s at: an ISO time with a timezone, the helper\'s or date\'s' % obligation['key'])  # R06
+        raise Refused('%s needs its result\'s at: an ISO time with a timezone, the helper\'s or date\'s' % obligation['key'])
 
 
 def check_beat(entry, keys):
-    """F16 and F21: a beat carries C3's fields with their types, and every step's ref names an obligation."""
+    """A beat carries the demo path's fields with their types, and every step's ref names an obligation."""
     if not isinstance(entry, dict) or not isinstance(entry.get('key'), str) or not KEY.fullmatch(entry['key']):
         raise Refused('every beat needs a key of the form <task file>.md#<beat id>')
     steps, transitions, climax = entry.get('steps', []), entry.get('transitions', []), entry.get('climax')
@@ -510,7 +510,7 @@ def check_beat(entry, keys):
 
 
 def load_results(path):
-    """F21: every field the verdict, renderer and gate read is checked here; malformed input is refused, never raised."""
+    """Every field the verdict, renderer and gate read is checked here; malformed input is refused, never raised."""
     try:
         data = decode(read_exact(path))
     except (ValueError, UnicodeError, RecursionError) as error:
@@ -522,7 +522,7 @@ def load_results(path):
             raise Refused('results need ' + key)
     started, observed = parse_time(data['started_at']), parse_time(data['observed_at'])
     if started is None or observed is None or not started <= observed <= current_time():
-        raise Refused('started_at and observed_at need ISO times with a timezone, in order, and no later than now')  # F12
+        raise Refused('started_at and observed_at need ISO times with a timezone, in order, and no later than now')
     lists = [data.get(name, []) for name in ('sources', 'beats', 'constraints')] + [data.get('obligations')]
     if not all(isinstance(value, list) for value in lists):
         raise Refused('results need sources, obligations, beats and constraints as lists')
@@ -545,7 +545,7 @@ def load_results(path):
     for text in strings(data):
         try:
             text.encode('utf-8')
-        except UnicodeEncodeError as error:  # R12: an unpaired surrogate is a schema error, never a crash
+        except UnicodeEncodeError as error:  # An unpaired surrogate is a schema error, never a crash
             raise Refused('results text is not valid Unicode') from error
     if any(RESERVED.search(unicodedata.normalize('NFKC', text)) for text in strings(data)):
         raise Refused('results text may not contain a Scout marker or an Org-verified line')
@@ -553,7 +553,7 @@ def load_results(path):
 
 
 def provenance(value, read):
-    """F08 and R05: a source reference is `<path>§<section>`, naming a source this run read (its path as listed, or
+    """A source reference is `<path>§<section>`, naming a source this run read (its path as listed, or
     its file name) and a section in it."""
     if not stated(value) or '§' not in value:
         return False
@@ -562,7 +562,7 @@ def provenance(value, read):
 
 
 def history(obligation, keyed, read=frozenset()):
-    """F08, F10 and R05: a superseded or deliberately dropped obligation leaves the verdict only with a named source:
+    """A superseded or deliberately dropped obligation leaves the verdict only with a named source:
     the amendment's, reconciliation's or record's `<path>§<section>`, the path being one of this run's read sources."""
     successor, dropped = obligation.get('superseded_by'), obligation.get('dropped')
     if successor is None and dropped in (None, False):
@@ -580,8 +580,8 @@ def history(obligation, keyed, read=frozenset()):
 
 
 def state_of(obligation, keyed, started, moment, demo, read=frozenset()):
-    """X1, F10–F12, C03: one state per obligation, and anything unrecognized fails closed.
-    R06: every result needs its observation time inside this run, whatever its status."""
+    """One state per obligation, and anything unrecognized fails closed.
+    Every result needs its observation time inside this run, whatever its status."""
     retired = history(obligation, keyed, read)
     if retired:
         return retired
@@ -593,26 +593,26 @@ def state_of(obligation, keyed, started, moment, demo, read=frozenset()):
         return 'blocking', 'unrecognized kind or state'
     at = parse_time(result.get('at'))
     timed = at is not None and started is not None and started <= at <= moment
-    untimed = 'observation time missing, or outside this prep run'  # F12
+    untimed = 'observation time missing, or outside this prep run'
     if status in EXCEPTIONS and kind not in EXCEPTIONS[status]:
-        return 'blocking', 'unknown: %s is no result for a %s' % (status, kind) + ('' if timed else '; ' + untimed)  # C03
+        return 'blocking', 'unknown: %s is no result for a %s' % (status, kind) + ('' if timed else '; ' + untimed)
     if status != 'passed' and status not in EXCEPTIONS:
         return 'blocking', status + ('' if timed else '; ' + untimed)
     until = obligation.get('valid_until')
     if until is not None and (parse_date(until) is None or parse_date(until) < demo.date()):
-        return 'blocking', 'expires before the demo (%s)' % until  # F11
+        return 'blocking', 'expires before the demo (%s)' % until
     if not timed:
         return 'blocking', untimed
     return ('passed', '') if status == 'passed' else ('exception', LABELS[status])
 
 
 def classify(data, demo_time=None):
-    """Every obligation with its state, in results order. Expiry runs through the demo, and never before now (F11).
-    R03 and Q02: date-only validity reads in this machine's timezone, by its rules at the demo's instant, so naming a
+    """Every obligation with its state, in results order. Expiry runs through the demo, and never before now.
+    Date-only validity reads in this machine's timezone, by its rules at the demo's instant, so naming a
     later demo can't revive an expired date and a daylight-saving change can't shift the day."""
     moment = current_time()
     demo = max(moment, demo_time) if isinstance(demo_time, datetime.datetime) and demo_time.tzinfo else moment
-    demo = demo.astimezone()  # Q02: this machine's zone rules at the demo's instant, not today's offset
+    demo = demo.astimezone()  # This machine's zone rules at the demo's instant, not today's offset
     obligations = data.get('obligations') if isinstance(data.get('obligations'), list) else []
     entries = [o for o in obligations if isinstance(o, dict)]
     keyed = {o['key']: o for o in entries if isinstance(o.get('key'), str)}
@@ -632,7 +632,7 @@ def beats_of(data):
 
 
 def beat_of(obligation):
-    """F15: a beat belongs to its task; a bare beat ID takes the task file from the obligation's key."""
+    """A beat belongs to its task; a bare beat ID takes the task file from the obligation's key."""
     beat = obligation.get('beat')
     if not isinstance(beat, str) or not beat:
         return None
@@ -640,7 +640,7 @@ def beat_of(obligation):
 
 
 def gaps(data, rows):
-    """N1, F09, X13: what blocks before any single obligation does."""
+    """What blocks before any single obligation does."""
     reasons = []
     sources = data.get('sources', [])
     for source in sources if isinstance(sources, list) else [None]:
@@ -656,20 +656,20 @@ def gaps(data, rows):
     if not required:
         reasons.append('no recoverable story or proof moment')
     elif not any(o.get('proof_moment') is True and o.get('kind') == 'claim' for o in required):
-        reasons.append('no proof-moment claim')  # X1 and R04: a manual step or other kind never stands in for it
+        reasons.append('no proof-moment claim')  # A manual step or other kind never stands in for it
     checked, retired = {beat_of(o) for o in live}, retired_beats(rows)
     reasons += ['%s has no checks' % clean(b['key']) for b in beats_of(data) if b['key'] not in checked | retired]
     return reasons
 
 
 def retired_beats(rows):
-    """R14: a beat whose every obligation is history (superseded or dropped) is retired, not unchecked."""
+    """A beat whose every obligation is history (superseded or dropped) is retired, not unchecked."""
     live = {beat_of(o) for o, state, _ in rows if state != 'history'}
     return {beat_of(o) for o, state, _ in rows if state == 'history'} - live - {None}
 
 
 def verdict_from(data, rows):
-    """X1: the ordered, total table: not ready, then ready with exceptions, then ready."""
+    """The ordered, total table: not ready, then ready with exceptions, then ready."""
     reasons, exceptions, passed, total = gaps(data, rows), [], 0, 0
     for obligation, state, why in rows:
         if state == 'history':
@@ -713,7 +713,7 @@ def at_of(obligation):
 
 
 def now_of(obligation):
-    """F16: a drift entry's now, as the results state it, or else what the check observed."""
+    """A drift entry's now, as the results state it, or else what the check observed."""
     if obligation.get('now') is not None:
         return clean(obligation['now'])
     result = obligation.get('result')
@@ -751,10 +751,10 @@ def step_mark(ref, states):
 
 
 def drift_section(data, outcome, live):
-    """C3 section 1 and F16: each failed check, what it was, what it is now, and the fix."""
+    """demo-path.md section 1: each failed check, what it was, what it is now, and the fix."""
     lines = [header(data, outcome), '', '## Drift since the build']
     for obligation, state, _ in live:
-        if state == 'blocking' and status_of(obligation) == 'failed':  # R06: every check shows when it was observed
+        if state == 'blocking' and status_of(obligation) == 'failed':  # Every check shows when it was observed
             lines.append('- ✗ %s — was: %s; now: %s (%s); fix: %s' % (label(obligation), clean(obligation.get('was')) or 'not recorded',
                                                                       now_of(obligation), at_of(obligation),
                                                                       clean(obligation.get('fix')) or 'none offered yet'))
@@ -762,7 +762,7 @@ def drift_section(data, outcome, live):
 
 
 def checklist_section(data, rows, live):
-    """C3 section 2: every blocking gap, with its fix where the results name one."""
+    """demo-path.md section 2: every blocking gap, with its fix where the results name one."""
     lines = ['## Pre-demo checklist'] + ['- ' + reason for reason in gaps(data, rows)]
     for obligation, state, why in live:
         if state == 'blocking':
@@ -772,7 +772,7 @@ def checklist_section(data, rows, live):
 
 
 def beat_lines(entry, rows, states):
-    """C3 section 3: who and where, Do and Expect rows with ✓ on verified values, ★ on the climax, transitions, then
+    """demo-path.md section 3: who and where, Do and Expect rows with ✓ on verified values, ★ on the climax, transitions, then
     the verified claim lines to say out loud and the beat's other checks."""
     lines, who = [], [entry.get(name) for name in ('persona', 'login', 'start')]
     if any(stated(value) for value in who):
@@ -800,11 +800,11 @@ def beat_lines(entry, rows, states):
 
 
 def path_section(data, live, rows=()):
-    """C3 section 3, F13, F15: beats in story order (first appearance), per task; beatless obligations under General."""
+    """demo-path.md section 3: beats in story order (first appearance), per task; beatless obligations under General."""
     entries = {b['key']: b for b in beats_of(data)}
     states = {o['key']: state for o, state, _ in live if isinstance(o.get('key'), str)}
     retired = retired_beats(rows)
-    order = [b['key'] for b in beats_of(data) if b['key'] not in retired]  # R14: a retired beat leaves the path
+    order = [b['key'] for b in beats_of(data) if b['key'] not in retired]  # A retired beat leaves the path
     order += [k for k in dict.fromkeys(beat_of(o) for o, _, _ in live) if k is not None and k not in order]
     if any(beat_of(o) is None for o, _, _ in live):
         order.append(None)
@@ -817,21 +817,21 @@ def path_section(data, live, rows=()):
 
 
 def seams_section(data, live, rows=()):
-    """C3 section 4: check-by-eye, visual-QA and persona-access items, each live beat's fallback, and org constraints."""
+    """demo-path.md section 4: check-by-eye, visual-QA and persona-access items, each live beat's fallback, and org constraints."""
     lines, retired = ['## Known seams'], retired_beats(rows)
     lines += ['- %s: %s (%s)' % (why[0].upper() + why[1:], label(o), at_of(o)) for o, state, why in live if state == 'exception']
     lines += ['- Fallback for %s: %s' % (beat_label(b['key'], b), clean(b['fallback'])) for b in beats_of(data)
-              if stated(b.get('fallback')) and b['key'] not in retired]  # C02
+              if stated(b.get('fallback')) and b['key'] not in retired]
     constraints = data.get('constraints')
     lines += ['- Org constraint: ' + clean(line) for line in (constraints if isinstance(constraints, list) else [])]
     sources = data.get('sources')
     lines += ['- Excluded as unrelated: ' + clean(s.get('path')) for s in (sources if isinstance(sources, list) else [])
-              if isinstance(s, dict) and s.get('state') == 'unrelated']  # C1 and N1: excluded and listed
+              if isinstance(s, dict) and s.get('state') == 'unrelated']  # Excluded and listed
     return block(lines)
 
 
 def runs_section(data, outcome, previous):
-    """C3 section 5 and F17: earlier run lines are kept and this run's line is appended."""
+    """demo-path.md section 5: earlier run lines are kept and this run's line is appended."""
     current = '- %s — %s — %d of %d checks passed' % (clean(data.get('observed_at')), outcome['verdict'], outcome['passed'],
                                                       outcome['total'])
     return '\n'.join(['## Prep runs'] + list(previous) + [current]) + '\n'
@@ -842,7 +842,7 @@ def run_lines(body):
 
 
 def region_bodies(data, demo_time, previous):
-    """C3, F13–F17: the five sections come from the results alone, so the gate can render them again."""
+    """The five sections come from the results alone, so the gate can render them again."""
     rows = classify(data, demo_time)
     outcome = verdict_from(data, rows)
     live = [row for row in rows if row[1] != 'history']
@@ -863,7 +863,7 @@ def lines_of(text):
 
 
 def parse_regions(text):
-    """Scout's regions in file order; refuses malformed, nested or duplicated markers (X10)."""
+    """Scout's regions in file order; refuses malformed, nested or duplicated markers."""
     found, current, start, content_start, recorded, offset = {}, None, None, None, None, 0
     for line in lines_of(text):
         bare = line.rstrip('\r\n')
@@ -886,7 +886,7 @@ def parse_regions(text):
 
 
 def fenced(lines):
-    """F03: indexes of lines inside a Markdown code fence; an unclosed fence runs to the end of the file."""
+    """Indexes of lines inside a Markdown code fence; an unclosed fence runs to the end of the file."""
     inside, fence = [], None
     for number, line in enumerate(lines):
         bare = line.rstrip('\r\n')
@@ -904,7 +904,7 @@ def fenced(lines):
 
 
 def owned_regions(text):
-    """F03: Scout owns a file only with its marker on line 1 and all five regions, once each, in order, outside fences."""
+    """Scout owns a file only with its marker on line 1 and all five regions, once each, in order, outside fences."""
     lines = lines_of(text)
     if not lines or lines[0].rstrip('\r\n') != MARKER or any(line.rstrip('\r\n') == MARKER for line in lines[1:]):
         raise Refused('hand-made demo-path.md (no single Scout marker on line 1): leaving it untouched; offer a new file name')
@@ -919,12 +919,12 @@ def owned_regions(text):
     if not match or sets[0] in inside or any(r['start'] <= sum(map(len, lines[:sets[0]])) < r['end'] for r in regions.values()) \
             or match[1] != set_digest(regions[name]['sha'] for name in REGIONS):
         raise Refused('demo-path.md is hand-made or hand-assembled (its regions are not one Scout render): leaving it '
-                      'untouched; offer a new file name')  # Q03
+                      'untouched; offer a new file name')
     return regions
 
 
 def set_digest(shas):
-    """Q03: one digest over the five region hashes, in order, binding them to a single render."""
+    """One digest over the five region hashes, in order, binding them to a single render."""
     return digest(''.join(shas).encode())
 
 
@@ -933,14 +933,14 @@ def set_line(bodies):
 
 
 def compose(existing, data, demo_time):
-    """X10, F03, F17: regenerate Scout's five regions in place, keeping every other byte; a new file gets the skeleton."""
+    """Regenerate Scout's five regions in place, keeping every other byte; a new file gets the skeleton."""
     if existing is None:
         bodies, outcome = region_bodies(data, demo_time, [])
         return MARKER + '\n' + set_line(bodies) + '\n# Demo path\n\n' + '\n'.join(region(name, bodies[name]) for name in REGIONS), outcome
     regions = owned_regions(existing)
     edited = [name for name in REGIONS if digest(regions[name]['body'].encode()) != regions[name]['sha']]
     if edited:
-        raise Refused('the SE edited Scout region "%s"; offer a new file instead' % edited[0])  # X10
+        raise Refused('the SE edited Scout region "%s"; offer a new file instead' % edited[0])
     bodies, outcome = region_bodies(data, demo_time, run_lines(regions['runs']['body']))
     pieces, cursor = [], 0
     for name in REGIONS:
@@ -951,19 +951,19 @@ def compose(existing, data, demo_time):
 
 
 def same_folder(data, folder):
-    """R13 and Q06: the results were collected for this folder: their `folder` is its name, its path relative to the
+    """The results were collected for this folder: their `folder` is its name, its path relative to the
     workspace (`orgs/<folder>`), or its absolute path."""
     named = Path(data['folder'])
-    if not re.search(r'[/\\]', data['folder']):  # F1: decide on the spelling, before Path drops a leading ./
+    if not re.search(r'[/\\]', data['folder']):  # Decide on the spelling, before Path drops a leading ./
         same = named.name == folder.name
-    else:  # Q06: a path, relative to the workspace (orgs/<folder>), or absolute
+    else:  # A path, relative to the workspace (orgs/<folder>), or absolute
         same = (named if named.is_absolute() else folder.parent.parent / named).resolve() == folder
     if not same:
         raise Refused('the results were collected for folder %s, not %s' % (clean(data['folder']), folder))
 
 
 def checked_folder(folder):
-    """C02: prep never creates a folder; the folder must already be a real directory, not a symlink."""
+    """Prep never creates a folder; the folder must already be a real directory, not a symlink."""
     path = Path(folder)
     if path.is_symlink() or not path.is_dir():
         raise Refused('no such customer folder; prep never creates one')
@@ -971,7 +971,7 @@ def checked_folder(folder):
 
 
 def read_nofollow(path):
-    """F04 and Q11: read a regular file without following a symlink or blocking on a FIFO swapped in."""
+    """Read a regular file without following a symlink or blocking on a FIFO swapped in."""
     with open(os.open(str(path), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
         if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
             raise Refused('demo-path.md is not a regular file: leaving it untouched')
@@ -979,7 +979,7 @@ def read_nofollow(path):
 
 
 def read_destination(path):
-    """F04: the destination is a regular file or absent."""
+    """The destination is a regular file or absent."""
     try:
         info = os.lstat(str(path))
     except FileNotFoundError:
@@ -997,7 +997,7 @@ def text_of(content):
 
 
 def render(folder, data, demo_time):
-    """X11, F01, F03: the candidate text, plus the sha256 (or 'absent') of the destination it was rendered from."""
+    """The candidate text, plus the sha256 (or 'absent') of the destination it was rendered from."""
     destination = checked_folder(folder) / NAME
     same_folder(data, destination.parent)
     current = read_destination(destination)
@@ -1010,7 +1010,7 @@ def meta_path(candidate):
 
 
 def create(path, text):
-    """F04: exclusive create, never through a symlink."""
+    """Exclusive create, never through a symlink."""
     try:
         descriptor = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     except FileExistsError as error:
@@ -1027,7 +1027,7 @@ def discard(path):
 
 
 def write_candidate(text, outcome):
-    """F01, F04 and R01: the candidate and its metadata are new files in a new scratch folder of the helper's own,
+    """The candidate and its metadata are new files in a new scratch folder of the helper's own,
     under the vetted base, so no caller chooses where they land."""
     out = scratch_dir() / 'demo-path.candidate.md'
     create(meta_path(out), json.dumps({'schema': 1, 'destination': outcome['destination'], 'base': outcome['base']}))
@@ -1040,7 +1040,7 @@ def write_candidate(text, outcome):
 
 
 def candidate_base(candidate, destination):
-    """F01: the destination's sha256, or 'absent', exactly as render recorded it beside the candidate."""
+    """The destination's sha256, or 'absent', exactly as render recorded it beside the candidate."""
     try:
         meta = decode(read_exact(meta_path(candidate)))
     except (OSError, ValueError, UnicodeError, RecursionError) as error:
@@ -1053,7 +1053,7 @@ def candidate_base(candidate, destination):
 
 
 def gate(candidate, data, org, username, demo_time):
-    """C4, X6, F13: the candidate must be exactly what these results render, for the bound identity."""
+    """The candidate must be exactly what these results render, for the bound identity."""
     problems = []
     if data.get('org_id') != org or data.get('username') != username:
         problems.append('results name another org or user than the binding')
@@ -1081,7 +1081,7 @@ DIRECTORY = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 
 
 def open_directory(name, parent=None, create=False):
-    """F04 and R02: a directory opened without following a symlink, created first if asked. Every later step goes
+    """A directory opened without following a symlink, created first if asked. Every later step goes
     through the descriptor, so swapping a path component after this check can't redirect a move."""
     if create:
         try:
@@ -1095,7 +1095,7 @@ def open_directory(name, parent=None, create=False):
 
 
 def read_at(directory, name):
-    """F04: a regular file's bytes, relative to a directory descriptor and never through a symlink; None when absent."""
+    """A regular file's bytes, relative to a directory descriptor and never through a symlink; None when absent."""
     try:
         descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
     except FileNotFoundError:
@@ -1126,7 +1126,7 @@ def discard_at(directory, name):
 
 
 def same_directory(parent, name, descriptor):
-    """R02: is `name` in `parent` still the very directory `descriptor` holds, not swapped, moved or replaced?"""
+    """Is `name` in `parent` still the very directory `descriptor` holds, not swapped, moved or replaced?"""
     try:
         info = os.stat(name, dir_fd=parent, follow_symlinks=False)
     except OSError:
@@ -1136,7 +1136,7 @@ def same_directory(parent, name, descriptor):
 
 
 def stage(home, candidate):
-    """N6: the staged copy is a new file in the destination's own folder, by descriptor, so linking it in is atomic."""
+    """The staged copy is a new file in the destination's own folder, by descriptor, so linking it in is atomic."""
     for _ in range(100):
         name = '%s.tmp-%s' % (NAME, secrets.token_hex(6))
         try:
@@ -1149,14 +1149,14 @@ def stage(home, candidate):
                 stream.flush()
                 os.fsync(stream.fileno())
         except BaseException:
-            discard_at(home, name)  # Q10: a failed stage (a full disk, say) leaves nothing behind
+            discard_at(home, name)  # A failed stage (a full disk, say) leaves nothing behind
             raise
         return name
     raise Refused('could not stage the candidate: nothing was replaced')
 
 
 def restore(prep, backup, home, shown, destination):
-    """F01 and R08: put the moved file back without clobbering a newer save; if one exists, keep both and name them."""
+    """Put the moved file back without clobbering a newer save; if one exists, keep both and name them."""
     try:
         os.link(backup, NAME, src_dir_fd=prep, dst_dir_fd=home, follow_symlinks=False)
     except OSError as error:
@@ -1168,10 +1168,10 @@ def restore(prep, backup, home, shown, destination):
 
 
 def publish(folder, candidate_path, data, org, username, demo_time):
-    """X10–X12, F01, F02, F04, N6: gate again, then replace without ever losing a concurrent save.
+    """Gate again, then replace without ever losing a concurrent save.
 
-    R02: after the gate, every step runs through descriptors for the folder and its `.scout-work/prep`, and the move
-    aside is checked to have landed in this folder's own backup directory. R08: any failure after the move puts the
+    After the gate, every step runs through descriptors for the folder and its `.scout-work/prep`, and the move
+    aside is checked to have landed in this folder's own backup directory. Any failure after the move puts the
     file back, or names where its bytes are.
     """
     destination = checked_folder(folder) / NAME
@@ -1180,13 +1180,13 @@ def publish(folder, candidate_path, data, org, username, demo_time):
     base = candidate_base(candidate_path, destination)
     problems = gate(candidate, data, org, username, demo_time)
     if problems:
-        raise Refused('the candidate fails the gate: ' + '; '.join(problems))  # F02
+        raise Refused('the candidate fails the gate: ' + '; '.join(problems))
     home = open_directory(str(destination.parent))
     held = [home]
     try:
         current = read_at(home, NAME)
         if (current is None) != (base == 'absent') or (current is not None and digest(current) != base):
-            raise Refused('demo-path.md changed after render; nothing was replaced, so render again')  # F01
+            raise Refused('demo-path.md changed after render; nothing was replaced, so render again')
         if compose(text_of(current), data, demo_time)[0] != candidate:
             raise Refused('the candidate is not a fresh render of demo-path.md and these results')
         work = prep = None
@@ -1198,7 +1198,7 @@ def publish(folder, candidate_path, data, org, username, demo_time):
         staged = stage(home, candidate)
         probe = staged + '.link'
         try:
-            os.link(staged, probe, src_dir_fd=home, dst_dir_fd=home, follow_symlinks=False)  # N6: without hard links nothing moves
+            os.link(staged, probe, src_dir_fd=home, dst_dir_fd=home, follow_symlinks=False)  # Without hard links nothing moves
             if current is None:
                 try:
                     os.link(staged, NAME, src_dir_fd=home, dst_dir_fd=home, follow_symlinks=False)
@@ -1210,7 +1210,7 @@ def publish(folder, candidate_path, data, org, username, demo_time):
             if exists_at(prep, backup):
                 raise Refused('backup name taken; nothing was replaced, so publish again')
             try:
-                os.rename(NAME, backup, src_dir_fd=home, dst_dir_fd=prep)  # F01: whatever was saved last moves, whole
+                os.rename(NAME, backup, src_dir_fd=home, dst_dir_fd=prep)  # Whatever was saved last moves, whole
             except OSError as error:
                 raise Refused('could not move demo-path.md aside (%s); nothing was replaced' % type(error).__name__) from error
             try:
@@ -1218,11 +1218,11 @@ def publish(folder, candidate_path, data, org, username, demo_time):
                     raise Refused('.scout-work/prep changed during publication')
                 if digest(read_at(prep, backup) or b'') != base:
                     raise Refused('demo-path.md was saved during publication')
-                os.link(staged, NAME, src_dir_fd=home, dst_dir_fd=home, follow_symlinks=False)  # F01: no clobber
+                os.link(staged, NAME, src_dir_fd=home, dst_dir_fd=home, follow_symlinks=False)  # No clobber
             except FileExistsError as error:
                 raise Refused('a new demo-path.md was saved during publication; kept it at %s, and the previous one at %s'
                               % (destination, shown)) from error
-            except BaseException as error:  # R08: put it back, or name where its bytes are
+            except BaseException as error:  # Put it back, or name where its bytes are
                 restore(prep, backup, home, shown, destination)
                 reason = str(error) if isinstance(error, Refused) else 'publication failed (%s)' % type(error).__name__
                 raise Refused('%s; demo-path.md is back at %s and nothing was replaced' % (reason, destination)) from error
@@ -1284,7 +1284,7 @@ def main(argv=None):
         return 3 if problems else 0
     except Refused as error:
         payload = dict({'refused': str(error)}, **({'error': error.error} if error.error else {}))
-        if args.command == 'run':  # R07: a check the helper refuses still has its observation time
+        if args.command == 'run':  # A check the helper refuses still has its observation time
             payload['at'] = observed_at(args.clock)
         print(json.dumps(payload))
         return 3

@@ -210,7 +210,7 @@ def resolve(plugin, host="claude", data=None, records=None):
         return {"state": "unknown"}
     if not candidates:  # Salesforce's marketplace is registered, so one approved install repairs it, core or not
         return {"state": "installable", "ident": "%s@%s" % (plugin, records.github[0])}
-    # Prefer the switched-on copy that follows Salesforce's latest, then any switched-on one (X3).
+    # Prefer the switched-on copy that follows Salesforce's latest, then any switched-on one.
     chosen = next((c for c in candidates if c["on"] and not c.get("pinned")), None) or \
         next((c for c in candidates if c["on"]), candidates[0])
     found = {k: v for k, v in chosen.items() if k != "on"}

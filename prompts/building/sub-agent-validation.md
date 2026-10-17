@@ -1,6 +1,6 @@
 # Sub-Agent Output Validation
 
-Loaded on demand by scout-building.md Step 5. The worker report and independent
+`/scout` reads the sections `prompts/scout/build.md` names. The worker report and independent
 orchestrator observations are separate inputs to the read-only completion helper.
 Neither one can change the frozen expected-work ledger.
 

@@ -65,5 +65,5 @@ not covered here.
 
 ## Extending this library
 When a Scout deploy hits a recurring org-agnostic parse error not covered here,
-propose a new pattern (signature / file / cause / fix / handoff) via
-`/project-sparring`. Org-*specific* gotchas still go to `orgs/lessons/` (topic-clustered).
+propose a new pattern (signature / file / cause / fix / handoff) to Scout's
+maintainers. Org-*specific* gotchas still go to `orgs/lessons/` (topic-clustered).
