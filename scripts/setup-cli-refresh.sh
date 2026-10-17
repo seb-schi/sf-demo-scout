@@ -1,9 +1,9 @@
 #!/bin/bash
 
 case "${1:-}" in
-  sf|claude) ;;
+  sf) ;;
   *)
-    echo "usage: setup-cli-refresh.sh sf|claude" >&2
+    echo "usage: setup-cli-refresh.sh sf" >&2
     exit 64 ;;
 esac
 
@@ -12,35 +12,6 @@ OWNER_HELPER="$SCRIPT_DIR/setup-cli-owner.py"
 NPM_EXE=$(type -P npm 2>/dev/null || true)
 PYTHON_EXE=$(type -P python3 2>/dev/null || true)
 CLI_EXE=$(type -P "$1" 2>/dev/null || true)
-report_running_client() {
-  if [ "$1" = "claude" ] && [ -n "$PYTHON_EXE" ]; then
-    local owned="" updated=""
-    [ "${OWNER_RESULT:-}" = "owned" ] && owned="$CLI_EXE"
-    [ "${SCOUT_CLAUDE_UPDATED:-}" = "1" ] && updated="$CLI_EXE"
-    "$PYTHON_EXE" -B "$SCRIPT_DIR/client-version.py" setup \
-      --npm-owned "$owned" --updated "$updated" 2>/dev/null || true
-  elif [ "$1" = "claude" ] && [ "${SCOUT_HOST:-}" = "claude" ]; then
-    echo "Running Claude client binary: unverified — Python unavailable"
-  fi
-}
-# Report on every return path without changing ownership/update decisions.
-trap 'report_running_client "$1"' EXIT
-if [ "$1" = "claude" ] && [ -n "$PYTHON_EXE" ] && [ -n "$CLI_EXE" ] &&
-    "$PYTHON_EXE" - "$CLI_EXE" 2>/dev/null <<'SCOUT_NATIVE_CLAUDE'
-from pathlib import Path
-import sys
-try:
-    active = Path(sys.argv[1]).resolve(strict=True)
-    native = Path.home().resolve(strict=True) / ".local/share/claude/versions"
-    found = active.is_file() and native in active.parents
-except (OSError, RuntimeError, ValueError):
-    found = False
-sys.exit(0 if found else 1)
-SCOUT_NATIVE_CLAUDE
-then
-  echo "CLAUDE_CLI_NOT_NPM_OWNED (native install updates itself; Scout left it alone)"
-  exit 0
-fi
 if [ -z "$NPM_EXE" ] || [ -z "$PYTHON_EXE" ] || [ -z "$CLI_EXE" ] \
     || [ ! -f "$OWNER_HELPER" ]; then
   OWNER_RESULT=unavailable
@@ -50,170 +21,92 @@ else
 fi
 
 if [ "$OWNER_RESULT" != "owned" ]; then
-  if [ "$1" = "sf" ] && [ "$OWNER_RESULT" = "different" ]; then
+  if [ "$OWNER_RESULT" = "different" ]; then
     echo "SF_CLI_NOT_NPM_OWNED (active executable belongs to another installation; skipped update)"
-  elif [ "$1" = "sf" ]; then
-    echo "SF_CLI_OWNERSHIP_UNVERIFIED (npm ownership could not be proved; skipped update)"
-  elif [ "$OWNER_RESULT" = "different" ]; then
-    echo "CLAUDE_CLI_NOT_NPM_OWNED (active executable belongs to another installation; skipped update)"
   else
-    echo "CLAUDE_CLI_OWNERSHIP_UNVERIFIED (npm ownership could not be proved; skipped update)"
+    echo "SF_CLI_OWNERSHIP_UNVERIFIED (npm ownership could not be proved; skipped update)"
   fi
   exit 0
 fi
 
-if [ "$1" = "sf" ]; then
-  echo "CHECKING_SF_CLI"
-  # Gate on what npm would ACTUALLY install here, not on `npm view` latest.
-  # `npm view` ignores the SE's ~/.npmrc min-release-age policy (it returns the
-  # raw registry latest even with @latest), so comparing against it falsely
-  # reports "behind" whenever the newest release is younger than the policy
-  # window. The dry-run resolve ("X => Y") honors min-release-age — it is the
-  # only policy-aware signal. Skipping the reinstall when already on the newest
-  # INSTALLABLE version is what protects the keychain-backed org-auth token from
-  # a needless node rebuild (the empty-org-list footgun).
-  SF_VER_OUT=$("$CLI_EXE" --version 2>/dev/null); SF_VER_RC=$?
-  SF_VER_MATCHES=$(printf '%s\n' "$SF_VER_OUT" \
-    | sed -nE 's|^@salesforce/cli/([0-9]+\.[0-9]+\.[0-9]+)([[:space:]].*)?$|\1|p')
-  SF_VER_COUNT=$(printf '%s\n' "$SF_VER_MATCHES" | awk 'NF { count++ } END { print count + 0 }')
-  SF_INSTALLED=""
-  if [ "$SF_VER_RC" -eq 0 ] && [ "$SF_VER_COUNT" -eq 1 ]; then
-    SF_INSTALLED=$(printf '%s\n' "$SF_VER_MATCHES" | awk 'NF { print; exit }')
-  fi
+echo "CHECKING_SF_CLI"
+# Gate on what npm would ACTUALLY install here, not on `npm view` latest.
+# `npm view` ignores the SE's ~/.npmrc min-release-age policy (it returns the
+# raw registry latest even with @latest), so comparing against it falsely
+# reports "behind" whenever the newest release is younger than the policy
+# window. The dry-run resolve ("X => Y") honors min-release-age — it is the
+# only policy-aware signal. Skipping the reinstall when already on the newest
+# INSTALLABLE version is what protects the keychain-backed org-auth token from
+# a needless node rebuild (the empty-org-list footgun).
+SF_VER_OUT=$("$CLI_EXE" --version 2>/dev/null); SF_VER_RC=$?
+SF_VER_MATCHES=$(printf '%s\n' "$SF_VER_OUT" \
+  | sed -nE 's|^@salesforce/cli/([0-9]+\.[0-9]+\.[0-9]+)([[:space:]].*)?$|\1|p')
+SF_VER_COUNT=$(printf '%s\n' "$SF_VER_MATCHES" | awk 'NF { count++ } END { print count + 0 }')
+SF_INSTALLED=""
+if [ "$SF_VER_RC" -eq 0 ] && [ "$SF_VER_COUNT" -eq 1 ]; then
+  SF_INSTALLED=$(printf '%s\n' "$SF_VER_MATCHES" | awk 'NF { print; exit }')
+fi
 
-  SF_DRY_OUT=""; SF_DRY_RC=125
-  if [ -n "$SF_INSTALLED" ]; then
-    SF_DRY_OUT=$("$NPM_EXE" install @salesforce/cli --global --dry-run 2>/dev/null); SF_DRY_RC=$?
-  fi
-  SF_RESOLVE_MATCHES=$(printf '%s\n' "$SF_DRY_OUT" \
-    | sed -nE 's#^(add|change)[[:space:]]+@salesforce/cli[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*=>[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$#\2 \3#p')
-  SF_RESOLVE_COUNT=$(printf '%s\n' "$SF_RESOLVE_MATCHES" | awk 'NF { count++ } END { print count + 0 }')
-  SF_RESOLVED_FROM=""; SF_RESOLVED=""
-  if [ "$SF_DRY_RC" -eq 0 ] && [ "$SF_RESOLVE_COUNT" -eq 1 ]; then
-    SF_RESOLVED_FROM=$(printf '%s\n' "$SF_RESOLVE_MATCHES" | awk 'NF { print $1; exit }')
-    SF_RESOLVED=$(printf '%s\n' "$SF_RESOLVE_MATCHES" | awk 'NF { print $2; exit }')
-  fi
-  if [ "$SF_RESOLVED_FROM" != "$SF_INSTALLED" ]; then
-    SF_RESOLVED=""
-  fi
+SF_DRY_OUT=""; SF_DRY_RC=125
+if [ -n "$SF_INSTALLED" ]; then
+  SF_DRY_OUT=$("$NPM_EXE" install @salesforce/cli --global --dry-run 2>/dev/null); SF_DRY_RC=$?
+fi
+SF_RESOLVE_MATCHES=$(printf '%s\n' "$SF_DRY_OUT" \
+  | sed -nE 's#^(add|change)[[:space:]]+@salesforce/cli[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*=>[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$#\2 \3#p')
+SF_RESOLVE_COUNT=$(printf '%s\n' "$SF_RESOLVE_MATCHES" | awk 'NF { count++ } END { print count + 0 }')
+SF_RESOLVED_FROM=""; SF_RESOLVED=""
+if [ "$SF_DRY_RC" -eq 0 ] && [ "$SF_RESOLVE_COUNT" -eq 1 ]; then
+  SF_RESOLVED_FROM=$(printf '%s\n' "$SF_RESOLVE_MATCHES" | awk 'NF { print $1; exit }')
+  SF_RESOLVED=$(printf '%s\n' "$SF_RESOLVE_MATCHES" | awk 'NF { print $2; exit }')
+fi
+if [ "$SF_RESOLVED_FROM" != "$SF_INSTALLED" ]; then
+  SF_RESOLVED=""
+fi
 
-  SF_REGISTRY=""
-  if [ -n "$SF_INSTALLED" ] && [ -n "$SF_RESOLVED" ]; then
-    SF_REGISTRY=$("$NPM_EXE" view @salesforce/cli version 2>/dev/null)
-  fi
-  if [ -z "$SF_INSTALLED" ] || [ -z "$SF_RESOLVED" ]; then
-    echo "SF_CLI_CHECK_FAILED (offline or npm probe failed) — kept installed: ${SF_INSTALLED:-unknown}"
-  elif [ "$SF_INSTALLED" = "$SF_RESOLVED" ]; then
-    if [ -n "$SF_REGISTRY" ] && [ "$SF_RESOLVED" != "$SF_REGISTRY" ]; then
-      echo "SF_CLI_HELD (installed $SF_INSTALLED; registry $SF_REGISTRY held by your npm min-release-age policy)"
-    else
-      echo "SF_CLI_CURRENT ($SF_INSTALLED)"
-    fi
+SF_REGISTRY=""
+if [ -n "$SF_INSTALLED" ] && [ -n "$SF_RESOLVED" ]; then
+  SF_REGISTRY=$("$NPM_EXE" view @salesforce/cli version 2>/dev/null)
+fi
+if [ -z "$SF_INSTALLED" ] || [ -z "$SF_RESOLVED" ]; then
+  echo "SF_CLI_CHECK_FAILED (offline or npm probe failed) — kept installed: ${SF_INSTALLED:-unknown}"
+elif [ "$SF_INSTALLED" = "$SF_RESOLVED" ]; then
+  if [ -n "$SF_REGISTRY" ] && [ "$SF_RESOLVED" != "$SF_REGISTRY" ]; then
+    echo "SF_CLI_HELD (installed $SF_INSTALLED; registry $SF_REGISTRY held by your npm min-release-age policy)"
   else
-    echo "UPDATING_SF_CLI ($SF_INSTALLED -> $SF_RESOLVED)"
-    # Capture the installer exit status DIRECTLY — never through a pipe. The old
-    # form (`npm install ... 2>&1 | tail -1`) made $? the exit of `tail` (always 0),
-    # so a failed install was invisible. Log to a temp file for the display line.
-    SF_LOG=$(mktemp "${TMPDIR:-/tmp}/scout-sf-install.XXXXXX")
-    "$NPM_EXE" install @salesforce/cli --global > "$SF_LOG" 2>&1; SF_RC=$?
-    tail -1 "$SF_LOG"; rm -f "$SF_LOG"
-    # Capture the version-probe OUTPUT and its EXIT CODE separately; a probe that
-    # exits non-zero must NOT be trusted even if its stdout contains a version
-    # number, and only supported `@salesforce/cli/<semver>` output is parsed (an
-    # arbitrary error string that merely contains a version cannot match).
-    SF_VER_OUT=$("$CLI_EXE" --version 2>/dev/null); SF_VER_RC=$?
-    SF_AFTER=""
-    if [ "$SF_VER_RC" -eq 0 ]; then
-      SF_AFTER=$(printf '%s\n' "$SF_VER_OUT" | sed -nE 's|^@salesforce/cli/([0-9]+\.[0-9]+\.[0-9]+)([[:space:]].*)?$|\1|p')
-    fi
-    if [ "$SF_RC" -ne 0 ]; then
-      # Install failed — failure regardless of the probe. Do NOT promise the old
-      # install survived (an installer can partially change state before failing).
-      if [ -n "$SF_AFTER" ]; then
-        echo "SF_CLI_UPDATE_FAILED (npm exit $SF_RC; version now reports $SF_AFTER — install may be partially applied)"
-      else
-        echo "SF_CLI_UPDATE_FAILED (npm exit $SF_RC; post-install version could not be verified)"
-      fi
-    elif [ "$SF_VER_RC" -ne 0 ] || [ -z "$SF_AFTER" ]; then
-      echo "SF_CLI_UPDATE_UNVERIFIED (install exit 0 but the version probe failed or returned no supported version)"
-    elif [ "$SF_AFTER" = "$SF_RESOLVED" ]; then
-      echo "SF_CLI_UPDATED ($SF_INSTALLED -> $SF_AFTER)"
-    elif [ "$SF_AFTER" = "$SF_INSTALLED" ]; then
-      echo "SF_CLI_UPDATE_NOOP (install exit 0 but version unchanged — still $SF_AFTER)"
-    else
-      echo "SF_CLI_UPDATE_MISMATCH (install exit 0; observed $SF_AFTER, expected $SF_RESOLVED)"
-    fi
+    echo "SF_CLI_CURRENT ($SF_INSTALLED)"
   fi
 else
-  echo "CHECKING_CLAUDE_CLI"
-  # Policy-aware gate — see step a's comment for why dry-run resolve, not `npm view`.
-  CC_VER_OUT=$("$CLI_EXE" --version 2>/dev/null); CC_VER_RC=$?
-  CC_VER_MATCHES=$(printf '%s\n' "$CC_VER_OUT" \
-    | sed -nE 's/^([0-9]+\.[0-9]+\.[0-9]+)( \(Claude Code\))?$/\1/p')
-  CC_VER_COUNT=$(printf '%s\n' "$CC_VER_MATCHES" | awk 'NF { count++ } END { print count + 0 }')
-  CC_INSTALLED=""
-  if [ "$CC_VER_RC" -eq 0 ] && [ "$CC_VER_COUNT" -eq 1 ]; then
-    CC_INSTALLED=$(printf '%s\n' "$CC_VER_MATCHES" | awk 'NF { print; exit }')
+  echo "UPDATING_SF_CLI ($SF_INSTALLED -> $SF_RESOLVED)"
+  # Capture the installer exit status DIRECTLY — never through a pipe. The old
+  # form (`npm install ... 2>&1 | tail -1`) made $? the exit of `tail` (always 0),
+  # so a failed install was invisible. Log to a temp file for the display line.
+  SF_LOG=$(mktemp "${TMPDIR:-/tmp}/scout-sf-install.XXXXXX")
+  "$NPM_EXE" install @salesforce/cli --global > "$SF_LOG" 2>&1; SF_RC=$?
+  tail -1 "$SF_LOG"; rm -f "$SF_LOG"
+  # Capture the version-probe OUTPUT and its EXIT CODE separately; a probe that
+  # exits non-zero must NOT be trusted even if its stdout contains a version
+  # number, and only supported `@salesforce/cli/<semver>` output is parsed (an
+  # arbitrary error string that merely contains a version cannot match).
+  SF_VER_OUT=$("$CLI_EXE" --version 2>/dev/null); SF_VER_RC=$?
+  SF_AFTER=""
+  if [ "$SF_VER_RC" -eq 0 ]; then
+    SF_AFTER=$(printf '%s\n' "$SF_VER_OUT" | sed -nE 's|^@salesforce/cli/([0-9]+\.[0-9]+\.[0-9]+)([[:space:]].*)?$|\1|p')
   fi
-
-  CC_DRY_OUT=""; CC_DRY_RC=125
-  if [ -n "$CC_INSTALLED" ]; then
-    CC_DRY_OUT=$("$NPM_EXE" install @anthropic-ai/claude-code --global --dry-run 2>/dev/null); CC_DRY_RC=$?
-  fi
-  CC_RESOLVE_MATCHES=$(printf '%s\n' "$CC_DRY_OUT" \
-    | sed -nE 's#^(add|change)[[:space:]]+@anthropic-ai/claude-code[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*=>[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$#\2 \3#p')
-  CC_RESOLVE_COUNT=$(printf '%s\n' "$CC_RESOLVE_MATCHES" | awk 'NF { count++ } END { print count + 0 }')
-  CC_RESOLVED_FROM=""; CC_RESOLVED=""
-  if [ "$CC_DRY_RC" -eq 0 ] && [ "$CC_RESOLVE_COUNT" -eq 1 ]; then
-    CC_RESOLVED_FROM=$(printf '%s\n' "$CC_RESOLVE_MATCHES" | awk 'NF { print $1; exit }')
-    CC_RESOLVED=$(printf '%s\n' "$CC_RESOLVE_MATCHES" | awk 'NF { print $2; exit }')
-  fi
-  if [ "$CC_RESOLVED_FROM" != "$CC_INSTALLED" ]; then
-    CC_RESOLVED=""
-  fi
-
-  CC_REGISTRY=""
-  if [ -n "$CC_INSTALLED" ] && [ -n "$CC_RESOLVED" ]; then
-    CC_REGISTRY=$("$NPM_EXE" view @anthropic-ai/claude-code version 2>/dev/null)
-  fi
-  if [ -z "$CC_INSTALLED" ] || [ -z "$CC_RESOLVED" ]; then
-    echo "CLAUDE_CLI_CHECK_FAILED (offline or npm probe failed) — kept installed: ${CC_INSTALLED:-unknown}"
-  elif [ "$CC_INSTALLED" = "$CC_RESOLVED" ]; then
-    if [ -n "$CC_REGISTRY" ] && [ "$CC_RESOLVED" != "$CC_REGISTRY" ]; then
-      echo "CLAUDE_CLI_HELD (installed $CC_INSTALLED; registry $CC_REGISTRY held by your npm min-release-age policy)"
+  if [ "$SF_RC" -ne 0 ]; then
+    # Install failed — failure regardless of the probe. Do NOT promise the old
+    # install survived (an installer can partially change state before failing).
+    if [ -n "$SF_AFTER" ]; then
+      echo "SF_CLI_UPDATE_FAILED (npm exit $SF_RC; version now reports $SF_AFTER — install may be partially applied)"
     else
-      echo "CLAUDE_CLI_CURRENT ($CC_INSTALLED)"
+      echo "SF_CLI_UPDATE_FAILED (npm exit $SF_RC; post-install version could not be verified)"
     fi
+  elif [ "$SF_VER_RC" -ne 0 ] || [ -z "$SF_AFTER" ]; then
+    echo "SF_CLI_UPDATE_UNVERIFIED (install exit 0 but the version probe failed or returned no supported version)"
+  elif [ "$SF_AFTER" = "$SF_RESOLVED" ]; then
+    echo "SF_CLI_UPDATED ($SF_INSTALLED -> $SF_AFTER)"
+  elif [ "$SF_AFTER" = "$SF_INSTALLED" ]; then
+    echo "SF_CLI_UPDATE_NOOP (install exit 0 but version unchanged — still $SF_AFTER)"
   else
-    echo "UPDATING_CLAUDE_CLI ($CC_INSTALLED -> $CC_RESOLVED)"
-    # Capture the installer exit status DIRECTLY — never through a pipe (see the
-    # Salesforce block above for why `| tail-1` masked failures).
-    CC_LOG=$(mktemp "${TMPDIR:-/tmp}/scout-cc-install.XXXXXX")
-    "$NPM_EXE" install @anthropic-ai/claude-code --global > "$CC_LOG" 2>&1; CC_RC=$?
-    tail -1 "$CC_LOG"; rm -f "$CC_LOG"
-    # Version-probe output + exit code captured separately; parse only a supported
-    # leading `<semver>` (claude --version prints e.g. `1.2.3 (Claude Code)`), and
-    # only on a successful probe.
-    CC_VER_OUT=$("$CLI_EXE" --version 2>/dev/null); CC_VER_RC=$?
-    CC_AFTER=""
-    if [ "$CC_VER_RC" -eq 0 ]; then
-      CC_AFTER=$(printf '%s\n' "$CC_VER_OUT" | sed -nE 's/^([0-9]+\.[0-9]+\.[0-9]+)( \(Claude Code\))?$/\1/p')
-    fi
-    if [ "$CC_RC" -ne 0 ]; then
-      if [ -n "$CC_AFTER" ]; then
-        echo "CLAUDE_CLI_UPDATE_FAILED (npm exit $CC_RC; version now reports $CC_AFTER — install may be partially applied)"
-      else
-        echo "CLAUDE_CLI_UPDATE_FAILED (npm exit $CC_RC; post-install version could not be verified)"
-      fi
-    elif [ "$CC_VER_RC" -ne 0 ] || [ -z "$CC_AFTER" ]; then
-      echo "CLAUDE_CLI_UPDATE_UNVERIFIED (install exit 0 but the version probe failed or returned no supported version)"
-    elif [ "$CC_AFTER" = "$CC_RESOLVED" ]; then
-      SCOUT_CLAUDE_UPDATED=1
-      echo "CLAUDE_CLI_UPDATED ($CC_INSTALLED -> $CC_AFTER)"
-    elif [ "$CC_AFTER" = "$CC_INSTALLED" ]; then
-      echo "CLAUDE_CLI_UPDATE_NOOP (install exit 0 but version unchanged — still $CC_AFTER)"
-    else
-      echo "CLAUDE_CLI_UPDATE_MISMATCH (install exit 0; observed $CC_AFTER, expected $CC_RESOLVED)"
-    fi
+    echo "SF_CLI_UPDATE_MISMATCH (install exit 0; observed $SF_AFTER, expected $SF_RESOLVED)"
   fi
 fi

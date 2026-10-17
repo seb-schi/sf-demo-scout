@@ -86,8 +86,11 @@ run_bounded() {
   ' "$secs" "$@" >"$dest" 2>/dev/null
 }
 
+# A broken setup is Scout's to repair: the session runs setup itself instead of asking the SE to (AGENTS.md, Setup).
+SCOUT_SELF_REPAIR="Before the first Scout task or Salesforce change in this session, tell the SE in one line that Scout is repairing its setup, then run \`/scout-setup self-repair\` yourself (the \`sf-demo-scout:scout-setup\` skill with argument \`self-repair\`), once."
+
 # Salesforce's official plugins, which Scout builds with (Claude only; never blocks). A client notice, so it applies in
-# every folder: an SE whose Scout updated while they work outside the workspace still learns that setup is needed.
+# every folder: an SE whose Scout updated while they work outside the workspace still gets setup repaired.
 SCOUT_OFFICIAL_NOTICE=""
 OFFICIAL_SCRIPT="${SCOUT_OFFICIAL_SCRIPT:-$HOOK_DIR/../scripts/scout_official.py}"
 if [ "$SCOUT_ACTIVE_HOST" = "claude" ] && command -v python3 >/dev/null 2>&1 && [ -f "$OFFICIAL_SCRIPT" ] \
@@ -99,8 +102,8 @@ if [ "$SCOUT_ACTIVE_HOST" = "claude" ] && command -v python3 >/dev/null 2>&1 && 
   rm -f "$OFFICIAL_OUT"
   case "$OFFICIAL_STATE" in
     installed|"") ;;
-    conflict) SCOUT_OFFICIAL_NOTICE="## ℹ️ Two copies of Salesforce's official plugin are switched on. Run \`/scout-setup\` to switch the extra one off.\n\n" ;;
-    *) SCOUT_OFFICIAL_NOTICE="## ℹ️ Scout builds with Salesforce's official plugins, which aren't set up yet. Run \`/scout-setup\` once.\n\n" ;;
+    conflict) SCOUT_OFFICIAL_NOTICE="## ℹ️ Two copies of Salesforce's official plugin are switched on. $SCOUT_SELF_REPAIR It asks the SE before switching the extra one off.\n\n" ;;
+    *) SCOUT_OFFICIAL_NOTICE="## ℹ️ Scout builds with Salesforce's official plugins, which aren't set up yet. $SCOUT_SELF_REPAIR\n\n" ;;
   esac
 fi
 
@@ -412,8 +415,7 @@ fi
 
 # --- 4. Plugin First-Run Nudge ---
 if [ ! -f "$SCOUT_CONFIG_FILE" ]; then
-  OUTPUT+="## ⚠️ Scout setup not yet complete.\n"
-  OUTPUT+="   Run /scout-setup to install — handles fresh installs, refreshes, and repairs.\n\n"
+  OUTPUT+="## ⚠️ Scout setup not yet complete. $SCOUT_SELF_REPAIR\n\n"
 fi
 
 # --- 5. Ready ---

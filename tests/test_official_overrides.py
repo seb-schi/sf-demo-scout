@@ -42,7 +42,7 @@ class OverridesContractTests(unittest.TestCase):
         for phrase in ("always by their qualified names", "never Anthropic's copy", "overrides only what it names",
                        "scope, category permissions, retries, preservation and acceptance",
                        "A missing dependency is evidence to report", "never authorization to install",
-                       "mark a check passed", "the missing-plugin repair below, after the SE's yes"):
+                       "mark a check passed", "the missing-plugin repair below, which says when it asks first"):
             self.assertIn(phrase, preamble)
 
     def test_readiness_needs_session_evidence_and_blocks_by_name(self):
@@ -83,16 +83,20 @@ class OverridesContractTests(unittest.TestCase):
         self.assertIn("resume that same task only after readiness and coexistence pass again", install)
         self.assertIn("A decline or a failure leaves those items blocked", install)
 
-    def test_an_se_without_the_plugins_gets_them_installed_on_one_yes(self):
-        # Right after an update from 2.0, nothing is set up: /scout offers the install itself instead of sending
-        # the SE to /scout-setup, then asks for the reload and resumes.
+    def test_an_se_without_the_plugins_gets_them_installed_without_being_asked(self):
+        # Right after an update from 2.0, nothing is set up: /scout repairs its own setup, saying so in one line
+        # instead of asking or sending the SE to /scout-setup, then asks for the reload and resumes.
         install = section(self.reference, "Missing-plugin repair")
         self.assertIn("When the plugins aren't set up at all (`setup-needed`", install)
-        self.assertIn("Shall I install them now? It takes about a minute, and they keep themselves up to date.", install)
-        self.assertIn("run the two bash blocks of `prompts/setup/official-plugins.md`, as setup does", install)
+        self.assertIn("Scout repairs its own setup: say in one line, before inspection,", install)
+        self.assertIn("so I'm installing them now. It takes about a minute, and they keep themselves up to date.", install)
+        self.assertNotIn("Shall I install them now?", install)
+        self.assertIn("run the first bash block of `prompts/setup/official-plugins.md` with `--keep-se-choices`",
+                      install)  # its `sf plugins update` waits for a /scout-setup run
         self.assertIn("a 10-minute timeout", install)
         self.assertIn("ask the SE to run `/reload-plugins`, and resume the same task once readiness passes", install)
-        self.assertIn("A no leaves the build items blocked; read-only work goes on.", install)
+        self.assertIn("A failure leaves the build items blocked; read-only work goes on.", install)
+        self.assertIn("install them (official-skill-overrides.md", read("scripts/scout_official.py"))
 
     def test_a_dry_run_is_recorded_like_any_deploy_job(self):
         # The official deploy skill validates first; a free-form dry-run receipt left the history check unsettled.
@@ -157,14 +161,20 @@ class OverridesContractTests(unittest.TestCase):
         self.assertIn("BLOCKED", flow)
         self.assertIn("required-test set, version, activation and rollback", flow)
 
-    def test_analyzer_prefers_mcp_and_preserves_unavailable_scan_gap(self):
+    def test_analyzer_runs_through_the_official_cli_skill_and_preserves_scan_gaps(self):
         analyzer = section(self.reference, "Analyzer prerequisites")
-        self.assertLess(analyzer.index("`run_code_analyzer`"), analyzer.index("`salesforce-code-quality:dx-code-analyzer-run`"))
+        self.assertTrue(analyzer.startswith("Run Code Analyzer through `salesforce-code-quality:dx-code-analyzer-run`"))
+        self.assertIn("also where a skill or prompt says MCP `run_code_analyzer`", analyzer)  # no MCP server ships it
         for phrase in ("its own prerequisite checks succeed", "Do not delegate to an analyzer-configuration skill",
                        "do not install", "do not disable required engines", "preserve the exact failure and scan gap",
+                       "an engine doesn't start (PMD and CPD need Java 11 or later)",
                        "scan not run/unverified", "acceptance unresolved"):
             self.assertIn(phrase, analyzer)
-        self.assertNotIn("record the gap in `discovery_notes` and rely on the MCP scan", read("prompts/building/phase2.md"))
+        phase2 = read("prompts/building/phase2.md")
+        self.assertNotIn("record the gap in `discovery_notes` and rely on the MCP scan", phase2)
+        for text in (phase2, read("prompts/building/phase3.md"), read("skills/demo-deployment-rules/SKILL.md")):
+            self.assertNotIn("run_code_analyzer", text)
+            self.assertNotIn("LWC expert tools", text)
 
     def test_report_fallback_resolves_the_official_root_and_never_fabricates(self):
         reports = section(self.reference, "Report tools")
@@ -268,8 +278,9 @@ class RouteNameTests(unittest.TestCase):
                 self.assertTrue((ROOT / "skills" / name).is_dir(), f"{path.relative_to(ROOT)} points into a removed copy: {name}")
         self.assertGreater(len(seen), 20)
         for plugin, skill in sorted(seen):
-            if plugin == "sf-demo-scout":
-                self.assertTrue((ROOT / "skills" / skill / "SKILL.md").is_file(), skill)
+            if plugin == "sf-demo-scout":  # a skill, or a command, which Claude Code exposes as a skill too
+                self.assertTrue((ROOT / "skills" / skill / "SKILL.md").is_file()
+                                or (ROOT / "commands" / f"{skill}.md").is_file(), skill)
         self.__class__.seen = seen
 
     def test_official_qualified_names_exist_in_the_checkout(self):

@@ -3,11 +3,12 @@
 End-to-end install procedure. Run on `STATE=FRESH`.
 
 Apply `prompts/host-runtime.md`. On Codex, run the shared prerequisite and
-Salesforce workspace steps a–f, optional provider checks h/h.5/h.7, and config
+Salesforce workspace steps a, b and d–f, optional provider checks h/h.5/h.7, and config
 postcondition i. Skip all g steps and j (Claude settings, marketplace, hooks,
 model pins, and shell changes); return `ZSHRC_UNCHANGED`. Do not install or
 configure Claude as a prerequisite for Codex. Substitute `[SCOUT_HOST]` in
-every helper call; unknown host must return to the orchestrator before writes.
+every helper call; unknown host must return to the orchestrator before writes. In a
+self-repair run, ask its one question first (`commands/scout-setup.md`).
 
 **Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an abort (e.g. SE returning from `/mcp` Slack auth) is safe and fast — completed steps fast-no-op via their own probes (`BREW_OK`, `NODE_PRESENT`, `SETTINGS_PRESENT`, `USER_SETTINGS_NO_CHANGES`, `AUTOUPDATE_ALREADY_ON`, etc.). Always run end-to-end; do NOT skip steps trying to "resume" — the no-ops are the resume mechanism. Within the same CC session you may rely on conversation memory to fast-forward; across sessions, just run the full sequence — it will land in the right place naturally.
 
@@ -123,35 +124,6 @@ select a suitable existing executable or repair it through its own manager in a
 terminal, then rerun `/scout-setup`. Suggest installation only when the tool is
 missing. Never fall through to the ready/Done handoff.
 
-## c: Pre-cache Salesforce MCP server
-
-`sf` above is the machine-installed Salesforce CLI. This step only caches the
-separate `@salesforce/mcp` adapter that each host launches from Scout's manifest.
-It neither creates a global MCP connection nor proves a host can start it.
-
-```bash
-/bin/bash <<'SCOUT_MCP_CACHE_BASH'
-echo "PRE_CACHING_MCP"
-NPX_EXE=$(/usr/bin/which npx 2>/dev/null || true)
-case "$NPX_EXE" in ""|/*) ;; *) NPX_EXE="$PWD/$NPX_EXE" ;; esac
-if [ -z "$NPX_EXE" ]; then
-  echo "MCP_CACHE_UNAVAILABLE (npx missing)"
-elif "$NPX_EXE" -y @salesforce/mcp --help >/dev/null 2>&1; then
-  echo "MCP_CACHED"
-else
-  echo "MCP_CACHE_FAILED"
-fi
-SCOUT_MCP_CACHE_BASH
-```
-
-- `MCP_CACHE_UNAVAILABLE` — surface that npx is missing, so optional DX MCP
-  pre-cache could not run. Do not replace Node automatically. Proceed.
-- `MCP_CACHE_FAILED` — surface that the actual optional cache attempt failed, so
-  DX MCP readiness remains unverified. Proceed with the existing runtime
-  degradation path.
-- `MCP_CACHED` — means only that this pre-cache command succeeded; it is not a
-  provider compatibility or runtime capability claim.
-
 ## d–f: Verified Workspace, SFDX Scaffold, Lessons, Settings, and Config
 
 Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract its
@@ -196,7 +168,7 @@ is the only success token.
 
 ## g: User-scope permissions merge
 
-Merge the 6 fixed Scout entries into `~/.claude/settings.json` `permissions.allow` so MCP calls don't prompt when CC is launched outside the workspace. Idempotent, safe-fail.
+Merge the 5 fixed Scout entries into `~/.claude/settings.json` `permissions.allow` so MCP calls don't prompt when CC is launched outside the workspace. Idempotent, safe-fail.
 
 ```bash
 USER_SETTINGS="$HOME/.claude/settings.json"
@@ -206,7 +178,6 @@ python3 - "$USER_SETTINGS" <<'PYEOF'
 import json, os, sys, tempfile
 path = sys.argv[1]
 SCOUT_ALLOW = [
-    "mcp__plugin_sf-demo-scout_Salesforce_DX__*",
     "mcp__salesforce-docs__*",
     "mcp__slack__*",
     "mcp__plugin_slack_*",
@@ -263,7 +234,7 @@ PYEOF
 
 Surface inline:
 - `USER_SETTINGS_NO_CHANGES` — silent.
-- `USER_SETTINGS_UPDATED: added N of 6 entries` — "Added N Scout entries to `~/.claude/settings.json` allowlist (inert outside Scout sessions)."
+- `USER_SETTINGS_UPDATED: added N of 5 entries` — "Added N Scout entries to `~/.claude/settings.json` allowlist (inert outside Scout sessions)."
 - Any error variant — one-line note, proceed.
 
 ## g.7: Scrub stale AI-Suite hooks (self-heal)
@@ -341,9 +312,6 @@ Surface inline:
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/official-plugins.md` and execute it. Carry its non-silent lines into the done summary.
 
 ## h: Slack MCP
-
-First read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-dx-mcp.md` and run
-its host-aware DX readiness check. Preserve its status in the setup summary.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it. Report the observed registration/transport state without inferring authentication or tool availability. Existing connections are preserved; an optional new registration is an explicit SE choice. Return and continue setup.
 

@@ -12,7 +12,6 @@ import sys
 
 CLIS = {
     "sf": ("@salesforce/cli", "sf"),
-    "claude": ("@anthropic-ai/claude-code", "claude"),
 }
 
 

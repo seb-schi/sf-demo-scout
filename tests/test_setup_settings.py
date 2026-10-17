@@ -609,6 +609,61 @@ Path.stat = deny_target
         self.assertEqual(after["extraKnownMarketplaces"], before["extraKnownMarketplaces"])
         self.assertEqual(after["enabledPlugins"], before["enabledPlugins"])
 
+    def test_retired_allow_removes_only_scouts_exact_dx_rules(self) -> None:
+        settings = self.base / "settings.json"
+        before = {
+            "permissions": {
+                "allow": ["Bash", "mcp__plugin_sf-demo-scout_Salesforce_DX__*", "mcp__salesforce-docs__*",
+                          "mcp__Salesforce_DX__*", "mcp__plugin_sf-demo-scout_Salesforce_DX__run_soql_query"],
+                "deny": ["mcp__plugin_sf-demo-scout_Salesforce_DX__*"],
+            },
+            "env": {"KEEP_ME": "yes"},
+        }
+        original = self.write_json(settings, before)
+
+        result = self.run_helper("retired-allow", settings)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "RETIRED_ALLOW_SET[settings.json]")
+        after = json.loads(settings.read_text())
+        self.assertEqual(after["permissions"]["allow"],  # an SE's own narrower entry stays
+                         ["Bash", "mcp__salesforce-docs__*", "mcp__plugin_sf-demo-scout_Salesforce_DX__run_soql_query"])
+        self.assertEqual(after["permissions"]["deny"], before["permissions"]["deny"])  # Scout never shipped a deny
+        self.assertEqual(after["env"], before["env"])
+        self.assertEqual([b.read_bytes() for b in self.base.glob("settings.json.scout-bak-allow-*")], [original])
+
+        again = self.run_helper("retired-allow", settings)
+        self.assertEqual(again.stdout.strip(), "RETIRED_ALLOW_NONE[settings.json]")
+        self.assertEqual(len(list(self.base.glob("settings.json.scout-bak-allow-*"))), 1)
+
+    def test_a_retired_allow_post_write_failure_is_never_reported_as_unchanged(self) -> None:
+        guide = " ".join((ROOT / "prompts/setup/model-pin-strip.md").read_text().split())
+        post = guide.split("`RETIRED_ALLOW_POST_WRITE_FAILED[...]`:", 1)[1].split("Any other `RETIRED_ALLOW_` result", 1)[0]
+        for phrase in ("the write landed but its read-back failed", "original restored, or left as found",
+                       "the backup's name", "don't call the file unchanged"):
+            self.assertIn(phrase, post)
+        self.assertIn("ends support for `@salesforce/mcp` on 2026-11-02", guide)
+
+    def test_retired_allow_leaves_absent_unparsable_and_unexpected_files_unchanged(self) -> None:
+        absent = self.run_helper("retired-allow", self.base / "absent.json")
+        self.assertEqual(absent.stdout.strip(), "RETIRED_ALLOW_ABSENT[absent.json]")
+        cases = (
+            ("none.json", b'{"permissions": {"allow": ["Bash"]}}\n', "RETIRED_ALLOW_NONE[none.json]"),
+            ("empty.json", b"{}\n", "RETIRED_ALLOW_NONE[empty.json]"),
+            ("duplicate.json", b'{"permissions": {}, "permissions": {}}\n', "RETIRED_ALLOW_PARSE_ERROR[duplicate.json]"),
+            ("string.json", b'{"permissions": {"allow": "mcp__Salesforce_DX__*"}}\n',
+             "RETIRED_ALLOW_UNSAFE_PERMISSIONS[string.json]"),
+            ("list.json", b'{"permissions": ["mcp__Salesforce_DX__*"]}\n', "RETIRED_ALLOW_UNSAFE_PERMISSIONS[list.json]"),
+        )
+        for name, content, expected in cases:
+            with self.subTest(name=name):
+                path = self.base / name
+                path.write_bytes(content)
+                result = self.run_helper("retired-allow", path)
+                self.assertTrue(result.stdout.startswith(expected), result.stdout)
+                self.assertEqual(path.read_bytes(), content)
+        self.assertEqual(list(self.base.glob("*.scout-bak-allow-*")), [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -187,8 +187,9 @@ recorded in `issues` and NEVER blocks the deploy (the build ships test-unvalidat
 for the SE to finish in this session).
 
 1. Invoke `salesforce-development:platform-apex-generate` skill for generation rules.
-2. Run `run_code_analyzer` before deploying (if MCP available). Record any
-   high-severity findings in `issues`.
+2. Run Code Analyzer before deploying through
+   `salesforce-code-quality:dx-code-analyzer-run`, once its own prerequisite
+   checks succeed. Record any high-severity findings in `issues`.
 3. Rollback commands:
    - `sf project delete source --metadata ApexClass:[ClassName] --target-org [alias]`
    - `sf project delete source --metadata ApexTrigger:[TriggerName] --target-org [alias]`
@@ -200,9 +201,11 @@ for the SE to finish in this session).
 Scope: demo-specific UI — Customer 360 Cards, custom record views, branded
 components.
 
-1. Use MCP LWC expert tools when available (scaffolding, SLDS, validation).
-2. Run `run_code_analyzer` before deploying (if MCP available). Record
-   high-severity findings in `issues`.
+1. Invoke `experience-lwc:experience-lwc-generate` before generating any
+   component file (scaffolding, SLDS, validation).
+2. Run Code Analyzer before deploying through
+   `salesforce-code-quality:dx-code-analyzer-run`, once its own prerequisite
+   checks succeed. Record high-severity findings in `issues`.
 3. Rollback command:
    `sf project delete source --metadata LightningComponentBundle:[ComponentName] --target-org [alias]`
 
@@ -222,7 +225,9 @@ Scope: single agent, topic-based routing with Apex or Flow backing actions.
    workflow.
 2. Check for existing agents via MCP `retrieve_metadata` — flag conflicts
    in `issues`.
-3. Run `run_code_analyzer` on Apex backing actions (if MCP available).
+3. Run Code Analyzer on Apex backing actions through
+   `salesforce-code-quality:dx-code-analyzer-run`, once its own prerequisite
+   checks succeed.
 4. Validate via `sf agent validate authoring-bundle` before publishing.
 5. Preview with `sf agent preview` before publishing.
 6. Publish, then activate.

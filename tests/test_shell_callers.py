@@ -53,6 +53,7 @@ class ShellCallerTests(unittest.TestCase):
         environment["PATH"] = str(self.bin_dir if include_python else self.no_python_bin)
         environment["PYTHONDONTWRITEBYTECODE"] = "1"
         environment["TEST_LOG"] = str(self.log)
+        environment.pop("SCOUT_WORKSPACE", None)  # the workspace seam some fences honour; these tests use the default
         self.assertEqual(os.environ.get("HOME"), environment.get("HOME"))
         return environment
 
@@ -273,22 +274,8 @@ raise SystemExit(37)
                 self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
                 self.assertIn("STATE=FRESH", result.stdout)
 
-    def test_fresh_install_cache_and_workspace_setup_keep_exact_arguments(self) -> None:
-        cache_block = fenced_block("prompts/setup/fresh-install.md", "PRE_CACHING_MCP")
+    def test_fresh_install_workspace_setup_keeps_exact_arguments(self) -> None:
         setup_block = fenced_block("prompts/setup/fresh-install.md", "WORKSPACE_SETUP_FAILED")
-        npx = self.bin_dir / "npx"
-        npx.write_text(
-            '#!/bin/bash\nprintf \'%s\\n\' "$*" > "$TEST_LOG"\n', encoding="utf-8"
-        )
-        npx.chmod(0o700)
-
-        for name, shell in SHELLS:
-            with self.subTest(shell=name, block="npx"):
-                result = self.run_block(cache_block, shell)
-                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-                self.assertIn("MCP_CACHED", result.stdout)
-                self.assertEqual(self.log.read_text(encoding="utf-8").strip(), "-y @salesforce/mcp --help")
-
         helper = self.plugin / "scripts" / "setup-workspace.py"
         helper.parent.mkdir(parents=True, exist_ok=True)
         helper.write_text(
@@ -336,6 +323,14 @@ print("WORKSPACE_READY")
                 "vscode-pins",
                 fenced_block("prompts/setup/model-pin-strip.md", "vscode-pins"),
                 [["vscode-pins", "--settings", str(self.vscode_settings)]],
+            ),
+            (
+                "retired-allow",
+                fenced_block("prompts/setup/model-pin-strip.md", "retired-allow --settings"),
+                [
+                    ["retired-allow", "--settings", str(self.workspace / ".claude" / "settings.json")],
+                    ["retired-allow", "--settings", str(self.settings)],
+                ],
             ),
             (
                 "aisuite-hooks",

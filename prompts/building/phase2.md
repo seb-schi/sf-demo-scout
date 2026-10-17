@@ -1,6 +1,6 @@
 You are deploying Flows, Apex, and/or LWC to org {{ORG_ALIAS}} ({{ORG_USERNAME}}).
 The SE has already confirmed this deployment. Work autonomously — do not ask for further confirmation.
-Use MCP tools (deploy_metadata, retrieve_metadata, run_soql_query, run_code_analyzer) for all operations.
+Use MCP tools (deploy_metadata, retrieve_metadata, run_soql_query) for all operations.
 The Flow rules below are narrow exceptions when MCP cannot express their exact
 identity/result contract: the named `sf flow run test`, Tooling describe/query, and
 exact-version `FlowDefinition` activation/read-back commands may use `sf` CLI, always
@@ -32,12 +32,12 @@ different Flow, Apex class, or LWC.
 ## Skills Available
 Invoke these skills via the Skill tool when you need detailed rules:
 - `sf-flow` — flow design and 110-point validation checklist (invoke before generating Flow XML)
-- `salesforce-development:platform-apex-generate` — Apex generation rules (fflib layered architecture, mandatory `run_code_analyzer`) (invoke only if Apex is in scope)
+- `salesforce-development:platform-apex-generate` — Apex generation rules (fflib layered architecture, a mandatory Code Analyzer run) (invoke only if Apex is in scope)
 - `experience-lwc:experience-lwc-generate` — LWC scaffolding with PICKLES methodology and 165-point scoring (invoke before generating any LWC bundle — SLDS 2, accessibility, wire patterns)
 - `salesforce-development:platform-apex-test-generate` — Apex test-class authoring (templates, @TestSetup patterns, naming) (invoke whenever Apex is in scope — author a test for every class/trigger; a failing test never blocks the deploy)
 - `salesforce-development:platform-apex-test-run` — Apex test execution and agentic test-fix loops (invoke when Apex deployment tests fail; AGENTS.md's Apex rule sets how many runs: up to ten in all, while each fixes something new)
 - `salesforce-development:platform-apex-logs-debug` — debug-log analysis and runtime-failure forensics (invoke as the escalation when `salesforce-development:platform-apex-test-run` exhausts its fix loop, or ad-hoc for governor-limit / stack-trace analysis)
-- `salesforce-code-quality:dx-code-analyzer-run` — deeper/configurable static scan via the `sf code-analyzer run` CLI (engine selection, auto-fix, diff-only). The in-pipeline scan stays the MCP `run_code_analyzer` tool — invoke this skill only when the MCP tool is unavailable or a richer scan is wanted (requires the Code Analyzer CLI plugin)
+- `salesforce-code-quality:dx-code-analyzer-run` — the static scan via the `sf code-analyzer run` CLI (engine selection, auto-fix, diff-only); the in-pipeline scan for Apex and LWC (requires the Code Analyzer CLI plugin)
 - `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` — read it for the decision tree on when to consult Salesforce Docs (on unfamiliar deploy errors)
 {{EXTERNAL_SKILLS}}
 
@@ -266,8 +266,8 @@ Scope: triggers, classes, and invocable actions — **multi-class and cross-obje
 reverses the prior demo-org-only "no test classes" rule: customer-sandbox work is now co-equal
 with demo prep, and sandbox-bound Apex needs coverage. A failing or low-coverage generated test
 is recorded in `issues` and **NEVER blocks the deploy** — the demo/build ships regardless, reported test-unvalidated for the SE to finish in this session (never reported "working" on a failing/absent test — false green). The loop closes on the test signal, never on deploy-success alone: a class that compiles and deploys but whose test never passed is test-unvalidated, not done.
-1. Invoke `salesforce-development:platform-apex-generate` skill for generation rules (fflib layered architecture; run `run_code_analyzer` before reporting — the skill mandates it).
-2. Run `run_code_analyzer` before deploying when MCP is available. Record high-severity findings in `issues`. **If the MCP tool is unavailable, or the SE wants a deeper/configurable scan (engine selection, auto-fix, diff-only), invoke `salesforce-code-quality:dx-code-analyzer-run` only after its own prerequisite checks succeed.** Preserve any failed prerequisite and the resulting scan gap in `discovery_notes`; do not install tools, delegate to an absent configurator, disable required engines, or claim the missing coverage ran. If neither route is available, record `scan not run/unverified` and leave required scan acceptance unresolved. Do NOT replace the MCP call as the default — it is faster and returns structured findings.
+1. Invoke `salesforce-development:platform-apex-generate` skill for generation rules (fflib layered architecture; run Code Analyzer before reporting — the skill mandates it, and step 2 says how).
+2. Run Code Analyzer before deploying: **invoke `salesforce-code-quality:dx-code-analyzer-run` only after its own prerequisite checks succeed.** Record high-severity findings in `issues`. Preserve any failed prerequisite or engine that didn't start (PMD and CPD need Java 11 or later) and the resulting scan gap in `discovery_notes`; do not install tools, delegate to an absent configurator, disable required engines, or claim the missing coverage ran. If the analyzer is unavailable, record `scan not run/unverified` and leave required scan acceptance unresolved.
 3. **Author an Apex test class for every Apex class/trigger deployed.** Invoke `salesforce-development:platform-apex-test-generate` for templates, `@TestSetup` / `TestDataFactory` patterns, and naming. Deploy the test alongside the class, run it, and record pass/fail in `issues`. A failing or low-coverage test does NOT block the deploy — record it and continue.
 4. If the spec's Platform Constraints section flags any object with restrictions, follow the dynamic SOQL pattern below for that object.
 5. If compile or runtime tests fail on the first deploy attempt, invoke `salesforce-development:platform-apex-test-run` before the next attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). Count every deploy and every test run inside that loop against the limits in AGENTS.md (at most ten test runs for the item, and the deploy attempt rule above), carrying what's left into the next loop; the skill's own lower iteration limit doesn't stop Scout while runs still make progress. **Use `salesforce-development:platform-apex-logs-debug` whenever the test output doesn't show the cause, and before recording the affected item FAILED.**
@@ -338,9 +338,8 @@ Scope: demo-specific UI — Customer 360 Cards, custom record views, branded com
 
 **Mock data when no backing data source exists.** If the spec describes UI with no objects/fields/Apex class supplying data (no wire target, no Apex `@AuraEnabled` method referenced, no Data Cloud or external source), hardcode realistic mock data directly in the component's JS file and skip the wire service. Demo orgs often have no seeded data for new objects at LWC deploy time — a component that renders a spinning wheel breaks the demo worse than hardcoded values. Use industry-appropriate terminology (medtech device names, pharma product SKUs, etc. per the Customer Context in the spec). When the spec DOES name a backing data source, follow `experience-lwc:experience-lwc-generate` wire patterns normally.
 
-2. Use MCP LWC expert tools when available (scaffolding, SLDS, validation) — these complement experience-lwc:experience-lwc-generate' guidance.
-3. Run `run_code_analyzer` before deploying (if MCP available). Record high-severity findings in `issues`.
-4. Rollback: restore an incumbent whole bundle from the verified first `component-preedit` artifact. Delete only a bundle whose prior absence was positively established, after the explicit destructive-action guard.
+2. Run Code Analyzer before deploying: invoke `salesforce-code-quality:dx-code-analyzer-run` only after its own prerequisite checks succeed. Record high-severity findings in `issues`, and any failed prerequisite with the resulting scan gap in `discovery_notes`.
+3. Rollback: restore an incumbent whole bundle from the verified first `component-preedit` artifact. Delete only a bundle whose prior absence was positively established, after the explicit destructive-action guard.
 
 **LWC meta XML template.** Every component needs a `componentName.js-meta.xml`:
 ```xml

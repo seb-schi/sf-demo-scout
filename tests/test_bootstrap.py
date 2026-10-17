@@ -238,13 +238,13 @@ class BootstrapScriptTests(unittest.TestCase):
 
 
 class FreshInstallPromptTests(unittest.TestCase):
-    def test_bootstrap_callers_are_independent_and_npx_outcomes_are_distinct(self) -> None:
+    def test_bootstrap_callers_are_independent_and_nothing_pre_caches_an_mcp_server(self) -> None:
         prompt = FRESH_PROMPT.read_text()
         self.assertEqual(prompt.count('SCOUT_BOOTSTRAP_SCRIPT="/absolute/path/'), 3)
         for selector in ("node", "python", "sf"):
             self.assertIn(f'/bin/bash "$SCOUT_BOOTSTRAP_SCRIPT" {selector}', prompt)
-        self.assertIn("MCP_CACHE_UNAVAILABLE", prompt)
-        self.assertIn("MCP_CACHE_FAILED", prompt)
+        for retired in ("@salesforce/mcp", "MCP_CACHE", "npx"):  # Scout ships no MCP server to pre-cache
+            self.assertNotIn(retired, prompt)
         blocks = [
             block
             for block in prompt.split("```bash\n")[1:]
@@ -274,41 +274,6 @@ class FreshInstallPromptTests(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(log.read_text().splitlines(), before + [expected])
-
-    def test_npx_missing_and_failed_attempt_are_distinct_runtime_results(self) -> None:
-        prompt = FRESH_PROMPT.read_text()
-        section = prompt.split("## c: Pre-cache Salesforce MCP server", 1)[1]
-        shell = section.split("```bash", 1)[1].split("```", 1)[0].strip()
-        with tempfile.TemporaryDirectory(prefix="scout-npx-test-") as temp:
-            base = Path(temp)
-            bin_dir = base / "bin"
-            bin_dir.mkdir()
-            missing = subprocess.run(
-                ["/bin/bash", "-c", shell],
-                env={**os.environ, "PATH": f"{bin_dir}:/bin"},
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertEqual(missing.returncode, 0, missing.stderr)
-            self.assertIn("MCP_CACHE_UNAVAILABLE", missing.stdout)
-
-            calls = base / "calls.log"
-            npx = bin_dir / "npx"
-            BootstrapScriptTests.write_executable(
-                npx,
-                "printf '%s\\n' \"$*\" >> \"$CALLS\"\nexit 7\n",
-            )
-            failed = subprocess.run(
-                ["/bin/bash", "-c", shell],
-                env={**os.environ, "PATH": f"{bin_dir}:/bin", "CALLS": str(calls)},
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertEqual(failed.returncode, 0, failed.stderr)
-            self.assertIn("MCP_CACHE_FAILED", failed.stdout)
-            self.assertEqual(calls.read_text().strip(), "-y @salesforce/mcp --help")
 
 
 if __name__ == "__main__":

@@ -17,9 +17,9 @@ Execute this procedure to run a fresh 3-agent parallel audit.
    scan cached versions, or pass a literal `${CLAUDE_PLUGIN_ROOT}` to workers.
    If the active root cannot be resolved, return an explicit not-ready result
    before dispatch; workers must not guess which source version to execute.
-   Pass the active host, selected org, resolved root, and discovered DX tool
-   contracts to every worker. Workers check their own tool exposure and may
-   use the established `sf` fallback with that explicit org. Use the active
+   Pass the active host, selected org, resolved root, and discovered tool
+   contracts to every worker. Workers check their own tool exposure and do
+   org work with the `sf` CLI and that explicit org. Use the active
    host's delegation API; `Agent(...)` examples below are Claude-only.
    Apply `prompts/host-runtime.md#worker-model-mirroring` to the prelude, all
    three audit worker calls, and every redispatch below.

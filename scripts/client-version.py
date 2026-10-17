@@ -141,7 +141,7 @@ def observe() -> dict[str, str]:
         return {'reason': 'running client binary unavailable'}
 
 
-def floor_line(observation: dict[str, str], npm_owned: str = '', updated: str = '') -> str:
+def floor_line(observation: dict[str, str]) -> str:
     version = observation.get('version')
     if not version or tuple(map(int, version.split('.'))) >= FLOOR:
         return ''
@@ -150,13 +150,9 @@ def floor_line(observation: dict[str, str], npm_owned: str = '', updated: str = 
         remedy = 'Update the Claude desktop app and restart the session.'
     elif kind == 'IDE':
         remedy = 'Update the Claude Code extension in your IDE and restart the session.'
-    elif npm_owned and os.path.realpath(npm_owned) == os.path.realpath(observation['executable']):
-        remedy = 'Use the npm installation’s update path, then restart the session.'
     else:
         remedy = 'Use this client’s installer/updater (claude update for a native install), then restart the session.'
-    different = (' Setup updated a different CLI binary; this client was not updated.'
-                 if updated and os.path.realpath(updated) != os.path.realpath(observation['executable']) else '')
-    return f"Scout needs Claude Code 2.1.293+ for the 5.5 models; this {kind} client binary reports {version}. {remedy}{different}"
+    return f"Scout needs Claude Code 2.1.293+ for the 5.5 models; this {kind} client binary reports {version}. {remedy}"
 
 
 def main() -> None:
@@ -168,8 +164,6 @@ def main() -> None:
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('mode', choices=('setup', 'floor'))
-    parser.add_argument('--npm-owned', default='')
-    parser.add_argument('--updated', default='')
     args = parser.parse_args()
     if active_host() != 'claude':
         return
@@ -177,7 +171,7 @@ def main() -> None:
     if args.mode == 'setup':
         print('Running Claude client binary: ' + (observation['version'] + ' (' + observation['source'] + ')'
               if 'version' in observation else 'unverified — ' + observation['reason']))
-    line = floor_line(observation, args.npm_owned, args.updated)
+    line = floor_line(observation)
     if line:
         print(line)
 

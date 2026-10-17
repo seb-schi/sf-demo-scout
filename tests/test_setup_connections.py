@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import os
 import json
-import io
 import importlib.util
-from contextlib import redirect_stdout
 from pathlib import Path
 import subprocess
 import sys
@@ -200,11 +198,12 @@ class McpStatusTests(unittest.TestCase):
             self.assertNotIn(secret, result.stdout + result.stderr)
 
     def test_codex_enabled_does_not_prove_startup_auth_or_tools(self) -> None:
-        for name, reason in (("Salesforce_DX", "enabled"), ("Salesforce DX", "invalid_server_name")):
+        for name, reason in (("slack", "enabled"), ("Slack Work", "invalid_server_name")):
             with self.subTest(name=name):
                 payload = [{"name": name, "enabled": True, "disabled_reason": None,
-                            "auth_status": "bearer_token", "tools": ["run_soql_query"]}]
-                result = self.run_status("salesforce-dx", json.dumps(payload), host="codex")
+                            "transport": {"url": "https://mcp.slack.com/mcp"},
+                            "auth_status": "bearer_token", "tools": ["slack_search_channels"]}]
+                result = self.run_status("slack", json.dumps(payload), host="codex")
                 self.assertIn("registration=registered transport=unknown", result.stdout)
                 self.assertIn(f"policy=permitted reason={reason} tools=unknown", result.stdout)
                 self.assertNotIn("connected", result.stdout)
@@ -256,23 +255,11 @@ class McpStatusTests(unittest.TestCase):
             self.assertEqual(module.report("slack", "claude")["transport"], "connected")
             self.assertEqual(module.report("slack", "codex")["policy"], "blocked")
 
-    def test_prefix_repair_requires_explicit_claude_selection(self) -> None:
-        script = ROOT / "scripts/repair-mcp-prefixes.py"
-        for args in ([], ["--host", "codex"], ["--host", "unknown"]):
-            with self.subTest(args=args):
-                spec = importlib.util.spec_from_file_location("repair_prefixes", script)
-                module = importlib.util.module_from_spec(spec)
-                output = io.StringIO()
-                # Even a broken/missing guard must never reach real home files.
-                with mock.patch.object(sys, "argv", [str(script), *args]), \
-                     mock.patch.object(os.path, "expanduser", side_effect=AssertionError("unexpected home access")), \
-                     redirect_stdout(output), self.assertRaises(SystemExit) as stopped:
-                    spec.loader.exec_module(module)
-                self.assertEqual(stopped.exception.code, 0)
-                self.assertEqual(
-                    output.getvalue(),
-                    "MCP_PREFIX_SKIPPED (Claude-only repair; explicit --host claude required)\n",
-                )
+    def test_retired_dx_provider_is_no_longer_probed(self) -> None:
+        self.assertNotIn("salesforce-dx", self.load_module().ALIASES)
+        result = self.run_status("salesforce-dx", "[]")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("invalid choice", result.stderr)
 
     def test_maintainer_uninstall_cannot_target_claude_implicitly(self) -> None:
         for args in ([], ["--host", "codex"], ["--host", "unknown"]):

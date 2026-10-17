@@ -5,7 +5,7 @@ pinned to the bound org. Never deploys, never holds or prints a token, never cha
 
 Activation writes the Tooling API's McpServerAccess record, which Setup's Activate button creates but which
 Salesforce doesn't document; every activation is read back. The proxy's org binding was verified against
-salesforce-development 2.4.0; receipts record the version and digest actually used."""
+salesforce-development 2.3.0–2.5.0; receipts record the version and digest actually used."""
 from __future__ import annotations
 
 import argparse

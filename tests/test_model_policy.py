@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import runpy
 import subprocess
@@ -27,7 +28,6 @@ def module(name, path):
 REPORT = module('model_report', ROOT / 'scripts/setup-model-report.py')
 CLIENT = module('client_version', ROOT / 'scripts/client-version.py')
 STARTUP = module('startup_fixture_policy', ROOT / 'tests/test_startup.py')
-REFRESH = module('refresh_fixture_policy', ROOT / 'tests/test_setup.py')
 PIN = 'ANTHROPIC_DEFAULT_SONNET_MODEL'
 ARN = 'arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/synthetic'
 VALUES = {'5.5+': 'claude-sonnet-5-5', 'pre-5.5': 'claude-sonnet-4-6',
@@ -250,7 +250,6 @@ class PolicyTests(unittest.TestCase):
         observation = CLIENT.observe()
         self.assertEqual(observation['version'], '2.1.292')
         self.assertIn('desktop app', CLIENT.floor_line(observation))
-        self.assertIn('different CLI binary', CLIENT.floor_line(observation, updated=str(self.bin / 'claude')))
         for version in ('2.1.279', '2.1.280', '2.1.292', '2.1.293'):
             observation['version'] = version
             self.assertEqual(bool(CLIENT.floor_line(observation)), version != '2.1.293')
@@ -265,35 +264,20 @@ class PolicyTests(unittest.TestCase):
             self.assertNotIn('version', CLIENT.observe())
             self.assertLess(time.monotonic()-start, 2.8)
 
-    def test_refresh_outcomes_report_each_floor_version_without_extra_updates(self):
+    def test_refresh_reports_each_floor_version_and_never_updates_the_client(self):
+        refresh = (ROOT / 'prompts/setup/refresh.md').read_text()
+        block = next(b for b in re.findall(r'```bash\n(.*?)```', refresh, re.S) if 'client-version.py' in b)
+        self.script('npm', 'echo called >> "$HOME/npm-called"\nexit 99\n')
         for version in ('2.1.279', '2.1.280', '2.1.292', '2.1.293'):
-            for outcome in ('current', 'updated', 'held', 'not-owned', 'unverified', 'failure'):
-                with self.subTest(version=version, outcome=outcome):
-                    case = self.base / f'{version}-{outcome}'
-                    fixture = REFRESH.CliRefreshScriptTests()
-                    bin_dir, calls = fixture.make_stubs(case, 'claude')
-                    (bin_dir / 'python3').symlink_to(sys.executable)
-                    running = self.script('running', f'echo "{version} (Claude Code)"\n')
-                    env = dict(os.environ, PATH=f'{bin_dir}:/usr/bin:/bin', CALLS=str(calls), COUNTER=str(case / 'counter'),
-                        PRE_OUT=f'{version} (Claude Code)', POST_OUT='2.1.300 (Claude Code)',
-                        NPM_ROOT=str(case / 'npm-root'), NPM_ROOT_RC='0', NPM_VIEW=version,
-                        NPM_RESOLVE_LINE=f'add @anthropic-ai/claude-code {version} => {version}',
-                        CLAUDE_CODE_EXECPATH=str(running), CLAUDE_CODE_ENTRYPOINT='claude-desktop',
-                        TMPDIR=str(case))
-                    if outcome in {'updated', 'failure'}:
-                        env['NPM_RESOLVE_LINE'] = f'add @anthropic-ai/claude-code {version} => 2.1.300'
-                    if outcome == 'failure': env['NPM_INSTALL_RC'] = '1'
-                    if outcome == 'held': env['NPM_VIEW'] = '2.1.300'
-                    if outcome == 'unverified': env['NPM_ROOT_RC'] = '1'
-                    if outcome == 'not-owned':
-                        tool = bin_dir / 'claude'; tool.unlink(); tool.write_text('#!/bin/bash\necho 2.1.293\n'); tool.chmod(0o700)
-                    result = subprocess.run(['/bin/bash', str(ROOT / 'scripts/setup-cli-refresh.sh'), 'claude'], env=env, capture_output=True, text=True)
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertIn('Running Claude client binary: '+version, result.stdout)
-                    self.assertEqual('Scout needs Claude Code' in result.stdout, version != '2.1.293')
-                    self.assertEqual('npm install @anthropic-ai/claude-code --global\n' in calls.read_text(), outcome in {'updated', 'failure'})
-                    if outcome == 'updated' and version != '2.1.293':
-                        self.assertIn('different CLI binary', result.stdout)
+            with self.subTest(version=version):
+                running = self.script('running', f'echo "{version} (Claude Code)"\n')
+                env = dict(os.environ, CLAUDE_CODE_EXECPATH=str(running), CLAUDE_CODE_ENTRYPOINT='claude-desktop')
+                result = subprocess.run(['/bin/bash', '-c', block.replace('/absolute/path/of/active/sf-demo-scout', str(ROOT))],
+                                        env=env, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('Running Claude client binary: ' + version, result.stdout)
+                self.assertEqual('Scout needs Claude Code' in result.stdout, version != '2.1.293')
+        self.assertFalse((self.home / 'npm-called').exists())  # Claude Code updates itself; setup never does
 
     def test_startup_floor_global_json_roundtrip_and_fail_open(self):
         case = self.base / 'startup'; case.mkdir()

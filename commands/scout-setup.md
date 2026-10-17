@@ -13,6 +13,16 @@ You are the setup orchestrator. This command is idempotent and state-driven: det
 
 Run each bash fence in this command and every setup prompt it dispatches in its own Bash call, exactly as written once placeholders are substituted. Keep any `/bin/bash <<'…'` wrapper; don't merge fences or retype their bodies, because the tool shell may be zsh.
 
+## Self-repair runs
+
+Scout runs this command itself, with the argument `self-repair`, when one of its checks finds its setup broken; this run's arguments are `$ARGUMENTS`. A self-repair run fixes Scout's workspace files and installs Salesforce's official plugins without asking, and says so in one line. Before its first step, it asks the SE one question, in plain words, about the steps below, which change the SE's machine:
+- the Salesforce CLI and its tools: fresh install `b`, refresh `a`, and `sf plugins update` in the official-plugins step (fresh install `g.6`, refresh `b.5`)
+- Scout's block in `~/.zshrc`: fresh install `j`, refresh `d`
+- Claude settings: fresh install `g`, `g.5` and `g.7`, refresh `d.8`, and the two cleanups in `model-pin-strip.md` (fresh install `g.8`, refresh `d.7`)
+- turning back on, or installing, a Salesforce plugin that's switched off or missing while Salesforce's marketplace is set up, which may be the SE's choice
+
+On a yes, run the procedure as usual. On a no, skip those steps, and fresh install `a` too, since the Homebrew check only serves `b`'s installs; add `--keep-se-choices` to the official-plugins helper, which leaves such plugins as they are and names each in an `OFFICIAL_PLUGIN_LEFT` line. Read-only reports run either way, such as the running-client report and `model-pin-strip.md`'s model checks. Name each skipped step and left plugin in the closing message, with `/scout-setup` to run them any time, and carry on. A `/scout-setup` the SE runs themselves asks nothing extra.
+
 ## Step 1: Detect State
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md` first and apply its active-host contract throughout this command and all worker handoffs. Resolve the root from the current plugin context before expanding this path.

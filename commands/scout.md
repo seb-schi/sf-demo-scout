@@ -11,7 +11,7 @@ Complete the request in this session; no fresh window or acknowledgement pauses.
 
 ## Start and target
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md`, resolve its absolute root, then run the read-only gate in `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md`. On `CHECK_FAILED`, absent success evidence or nonzero exit, stop with the diagnostic. Use the verified workspace on every call.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md`, resolve its absolute root, then run the read-only gate in `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md`. On `CHECK_FAILED`, absent success evidence or nonzero exit, follow the gate's rules. Use the verified workspace on every call.
 
 On Claude only, if this session identifies an Opus, Sonnet or Haiku model older than 5.5, send only “Scout 2.0 is built for Opus 5.5 and later. Pick Opus 5.5 (model picker or `/model`), then run `/scout` again.” and stop. Say what you will inspect. Check exposed Docs tools; do not load readiness before this message; if unavailable, say so in this first SE-facing message. Read `orgs/lessons/INDEX.md` if present, without creating it; load topic files only when relevant.
 

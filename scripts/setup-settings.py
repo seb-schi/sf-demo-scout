@@ -754,6 +754,26 @@ def run_workspace_env(path: Path, key: str) -> str:
     return guarded_json_update(path, "ENV", ".scout-bak-env", change)
 
 
+# The allow rules Scout shipped for its own Salesforce DX MCP server, which it no longer declares. Only these exact
+# strings are removed: today's spelling, and the one Scout's allow-lists used until 2026-07-27.
+RETIRED_ALLOW = ("mcp__plugin_sf-demo-scout_Salesforce_DX__*", "mcp__Salesforce_DX__*")
+
+
+def run_retired_allow(path: Path) -> str:
+    """Remove Scout's retired allow rules from one settings file's `permissions.allow`; every other entry stays."""
+    def change(data: dict[str, object]) -> str | None:
+        permissions = data.get("permissions", {})
+        allow = permissions.get("allow", []) if isinstance(permissions, dict) else None
+        if not isinstance(allow, list):
+            return "UNSAFE_PERMISSIONS"
+        kept = [entry for entry in allow if entry not in RETIRED_ALLOW]
+        if len(kept) == len(allow):
+            return "NONE"
+        permissions["allow"] = kept
+        return None
+    return guarded_json_update(path, "RETIRED_ALLOW", ".scout-bak-allow", change)
+
+
 def die(message: str) -> NoReturn:
     print(message)
     raise SystemExit(2)
@@ -762,7 +782,8 @@ def die(message: str) -> NoReturn:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("json-pins", "vscode-pins", "aisuite-hooks", "marketplace-autoupdate",
-                                            "marketplace-unpin", "marketplace-repin", "workspace-env"))
+                                            "marketplace-unpin", "marketplace-repin", "workspace-env",
+                                            "retired-allow"))
     parser.add_argument("--settings", required=True)
     parser.add_argument("--name", default="salesforce", help="marketplace-autoupdate: the declared marketplace")
     parser.add_argument("--key", default="SF_DISABLE_PLUGIN_MATCH", help="workspace-env: an allowlisted env key")
@@ -796,6 +817,8 @@ def main() -> int:
         outcome = run_marketplace_ref(path, arguments.name, arguments.ref, expect_source=expected)
     elif arguments.command == "workspace-env":
         outcome = run_workspace_env(path, arguments.key)
+    elif arguments.command == "retired-allow":
+        outcome = run_retired_allow(path)
     else:
         outcome = run_aisuite(path)
     print(outcome)

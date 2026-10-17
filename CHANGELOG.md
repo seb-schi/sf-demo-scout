@@ -2,6 +2,13 @@
 
 Newest first. Scout updates itself; each entry says what changed for you.
 
+## 2026-10-17 (Scout 2.1.5)
+
+- **Scout no longer starts its own Salesforce DX connection.** Salesforce ends support for that server (`@salesforce/mcp`) on 2026-11-02 and points to its official skills, which Scout already uses. Scout did its org work with the Salesforce CLI anyway. LWC guidance now comes from Salesforce's LWC plugin, and code checks from its code-quality plugin, through the Salesforce CLI. Apex checks still need Java 11 or later; when they can't run, Scout says so rather than reporting a clean scan.
+- **Scout repairs its own setup.** When Scout finds its setup unfinished or broken, or Salesforce's official plugins not set up, it now runs `/scout-setup` itself before your first Scout task, instead of asking you to. It fixes its own files and installs Salesforce's plugins on its own, with the settings those plugins need, saying so in one line. Before it updates the Salesforce CLI, changes your `~/.zshrc`, makes any other change to your Claude settings, or turns back on or installs a plugin that's switched off or missing, it asks you once; on a no it skips those and tells you. After installing plugins, it asks you to run `/reload-plugins`.
+- **A heads-up before Salesforce's Flow generator runs.** When Scout builds a Flow with Salesforce's hosted metadata-experts server, it now tells you before the first request that Salesforce may bill that use, instead of only at the end. The route is also verified with version 2.5.0 of Salesforce's plugin.
+- **A lighter `/scout-setup`.** It removes the permission rule Scout added for that server from your workspace and Claude settings, changing nothing else, and no longer downloads the server or warns when `npx` is missing. It leaves updating Claude Code to Claude Code's own updater, and still tells you which version you're running and how to update when Scout needs a newer one. It also stops repairing permission names from Scout versions before July 2026, which every refresh since then has fixed.
+
 ## 2026-10-17 (Scout 2.1.4)
 
 - **A quicker session start.** When a session starts, Scout now shows only your default org: its alias, username and org ID, from its latest connection check. It no longer lists all your connected orgs, checks Slack's connection or lists your customer folders first, and when you name an org, Scout looks up only that one. `/scout` still checks Slack, Google and the Salesforce Docs when a task needs them, and reads your customer folder's history itself.

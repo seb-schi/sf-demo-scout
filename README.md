@@ -144,7 +144,7 @@ After setup, kick off your first demo with `/scout`.
 | Command | What it does |
 |---|---|
 | `/scout` | Scout 2.0: spar, build, fix or prep a demo in one session, in the org you name. Built for Opus 5.5 and later. |
-| `/scout-setup` | Setup, updates, and repairs |
+| `/scout-setup` | Setup, updates, and repairs. Scout also runs it itself when it finds its setup broken. |
 
 `/scout-sparring` and `/scout-building` are the classic command names. They now open `/scout`; `/scout-building` hands it your spec as the brief.
 

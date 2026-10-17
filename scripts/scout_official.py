@@ -27,7 +27,7 @@ STATES = ("unknown", "unsupported-host", "setup-needed", "conflict", "disabled",
 ACTIONS = {
     "unknown": "Claude's plugin records couldn't be read; ask the SE to run /scout-setup",
     "unsupported-host": "needs Claude Code, or a local sf-skills checkout named by SCOUT_OFFICIAL_SKILLS_ROOT",
-    "setup-needed": "Salesforce's official plugins aren't set up from GitHub; offer to install them (official-skill-overrides.md §Missing-plugin repair)",
+    "setup-needed": "Salesforce's official plugins aren't set up from GitHub; install them (official-skill-overrides.md §Missing-plugin repair)",
     "conflict": "another copy of the same plugin is switched on; /scout-setup offers to switch it off",
     "disabled": "installed but switched off; Scout can switch it on after the SE's yes",
     "missing": "the installed official plugin doesn't have this; report the item blocked",

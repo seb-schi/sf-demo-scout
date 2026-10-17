@@ -250,6 +250,8 @@ def main(argv=None):
                         help="after the SE's yes, switch off exactly these other copies (they stay installed)")
     parser.add_argument("--unpin", nargs="+", default=[], metavar="NAME[:REF]",
                         help="after the SE's yes, make exactly these registrations follow Salesforce's latest")
+    parser.add_argument("--keep-se-choices", action="store_true",
+                        help="a self-repair run: leave plugins the SE switched off or removed as they are, until the SE's yes")
     args = parser.parse_args(argv)
     if args.host != "claude":
         print("OFFICIAL_PLUGINS_SKIPPED host=%s (sf-skills ships no plugin for this host)" % args.host)
@@ -268,6 +270,7 @@ def main(argv=None):
         print(readiness(wanted, args.launch_dir))
         return 0
     name, failure = find_marketplace(claude, args.source)
+    registered = bool(name)  # with Salesforce's marketplace already set up, a missing or switched-off plugin may be the SE's choice
     if failure:
         print("OFFICIAL_MARKETPLACE_UNKNOWN could not list marketplaces: %s" % failure)
         print(readiness(wanted, args.launch_dir))
@@ -303,6 +306,9 @@ def main(argv=None):
             continue
         if found["state"] == "unknown":
             print("OFFICIAL_PLUGIN_UNKNOWN %s Claude's plugin records couldn't be read" % plugin)
+            continue
+        if args.keep_se_choices and registered and found["state"] in ("disabled", "installable"):
+            print("OFFICIAL_PLUGIN_LEFT %s %s" % (plugin, found["state"]))
             continue
         if found["state"] == "disabled":
             verb, outcome = ["plugin", "enable", found["ident"], "--scope", "user", "--json"], "ENABLED"

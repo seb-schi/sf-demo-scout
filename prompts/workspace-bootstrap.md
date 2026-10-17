@@ -43,12 +43,15 @@ SCOUT_WORKSPACE_BOOTSTRAP_BASH
 ```
 
 - `STATE=OK`: say nothing, and return to the command's next step.
-- `STATE=CHECK_FAILED`, any nonzero exit, or no `STATE=OK`: stop, and show the
-  verifier's complete output and the gate's diagnostic. Suggest `/scout-setup`
-  when that output names `WORKSPACE_INVALID`, `SFDX_PROJECT_INVALID`,
-  `FORCE_APP_INVALID`, `LESSONS_INVALID`, `SETTINGS_INVALID` or `CONFIG_INVALID`.
-  For a missing interpreter or helper, a permission error or an invocation
-  failure, report that exact reason without calling it a fresh install.
+- `STATE=CHECK_FAILED`, any nonzero exit, or no `STATE=OK`: show the verifier's
+  complete output and the gate's diagnostic. When that output names
+  `WORKSPACE_INVALID`, `SFDX_PROJECT_INVALID`, `FORCE_APP_INVALID`,
+  `LESSONS_INVALID`, `SETTINGS_INVALID` or `CONFIG_INVALID`, Scout repairs
+  itself: say so in one line, run `/scout-setup self-repair` once (the
+  `sf-demo-scout:scout-setup` skill, or `[PLUGIN_ROOT]/commands/scout-setup.md`),
+  then rerun this gate. Otherwise, or if it still fails, stop. For a missing
+  interpreter or helper, a permission error or an invocation failure, report
+  that exact reason without calling it a fresh install.
 
 ## After bootstrap
 

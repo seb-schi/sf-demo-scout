@@ -24,12 +24,31 @@ class PackagingTests(unittest.TestCase):
             payload = json.loads(path.read_text())
             if isinstance(payload, dict) and isinstance(payload.get("mcpServers"), dict):
                 declarations.extend((path, name) for name in payload["mcpServers"])
-        self.assertTrue(declarations)
         for path, name in declarations:
             with self.subTest(path=path, name=name):
                 self.assertRegex(name, r"^[a-zA-Z0-9_-]+$")
         manifest = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())
-        self.assertIn("Salesforce_DX", manifest["mcpServers"])
+        self.assertNotIn("mcpServers", manifest)  # Salesforce ended support for @salesforce/mcp
+
+    def test_shipped_text_no_longer_names_the_retired_dx_server(self) -> None:
+        allowed = {  # the one place each name may still appear, and why
+            "Salesforce_DX": {"scripts/setup-settings.py"},  # the retired allow rules setup removes
+            "@salesforce/mcp": {"prompts/setup/model-pin-strip.md"},  # why setup removes them
+            "run_code_analyzer": {"prompts/building/official-skill-overrides.md"},  # official skills still name it
+            "salesforce-dx": set(),
+            "NPX_ABSENT": set(),
+            "MCP_CACHE": set(),
+        }
+        tracked = subprocess.run(["git", "-C", str(ROOT), "ls-files"], text=True, capture_output=True, check=True)
+        shipped = [name for name in tracked.stdout.splitlines()
+                   if not name.startswith("tests/") and name != "CHANGELOG.md" and (ROOT / name).is_file()]
+        self.assertIn("AGENTS.md", shipped)
+        for name in shipped:
+            text = (ROOT / name).read_text(errors="replace")
+            for needle, places in allowed.items():
+                with self.subTest(path=name, needle=needle):
+                    if name not in places:
+                        self.assertNotIn(needle, text)
 
     def test_runtime_prompts_do_not_probe_another_hosts_cli(self) -> None:
         for folder in ("commands", "prompts"):
@@ -74,13 +93,11 @@ class PackagingTests(unittest.TestCase):
         refresh = (ROOT / "prompts/setup/refresh.md").read_text()
         self.assertIn("scripts/setup-zshrc.sh", zshrc)
         self.assertIn("scripts/setup-cli-refresh.sh", refresh)
-        self.assertEqual(refresh.count('SCOUT_CLI_REFRESH_SCRIPT="/absolute/'), 2)
+        self.assertEqual(refresh.count('SCOUT_CLI_REFRESH_SCRIPT="/absolute/'), 1)
         self.assertEqual(
             refresh.count('/bin/bash "$SCOUT_CLI_REFRESH_SCRIPT" sf'), 1
         )
-        self.assertEqual(
-            refresh.count('/bin/bash "$SCOUT_CLI_REFRESH_SCRIPT" claude'), 1
-        )
+        self.assertNotIn('"$SCOUT_CLI_REFRESH_SCRIPT" claude', refresh)  # Claude Code updates itself
         for text in (zshrc, refresh):
             self.assertIn("absolute", text.lower())
             self.assertIn("unavailable", text.lower())
@@ -92,7 +109,7 @@ class PackagingTests(unittest.TestCase):
         callers = [
             block for block in blocks if "scripts/setup-cli-refresh.sh" in block
         ]
-        self.assertEqual(len(callers), 2)
+        self.assertEqual(len(callers), 1)
         with tempfile.TemporaryDirectory(prefix="scout-caller-test-") as raw:
             base = Path(raw)
             log = base / "selectors.log"
@@ -119,11 +136,11 @@ class PackagingTests(unittest.TestCase):
                     check=False,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(log.read_text().splitlines(), ["sf", "claude"])
+            self.assertEqual(log.read_text().splitlines(), ["sf"])
 
     def test_done_summary_keeps_three_truthful_failure_assertions(self) -> None:
         done = (ROOT / "prompts/setup/done.md").read_text()
-        failed_lines = [line for line in done.splitlines() if "*_UPDATE_FAILED" in line]
+        failed_lines = [line for line in done.splitlines() if "SF_CLI_UPDATE_FAILED" in line]
         self.assertEqual(len(failed_lines), 1)
         self.assertNotIn("kept the installed one", failed_lines[0])
         self.assertIn("future refresh", failed_lines[0])

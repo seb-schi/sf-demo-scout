@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "mcp__plugin_sf-demo-scout_Salesforce_DX__*",
       "mcp__salesforce-docs__*",
       "mcp__slack__*",
       "mcp__plugin_slack_*",

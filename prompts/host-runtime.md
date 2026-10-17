@@ -20,16 +20,16 @@ Apply this before Scout setup, discovery, builds, repairs, or tool calls.
   or assume a different connector has the same arguments or write scope.
 - Use `prompts/mcp-readiness.md` at the first provider-dependent operation.
   Existing org-selection, user-approval, and read/write boundaries still apply.
-  Use the established `sf` fallback when DX tools are unavailable, always with
-  the explicitly selected org. Do not replace a policy-blocked MCP registration.
+  Do org work with the `sf` CLI, always with the explicitly selected org. Do not
+  replace a policy-blocked MCP registration.
 - `/model` notices and `Agent(...)` examples apply
   to Claude. On Codex use the host's available delegation tools and inherited
   model settings, with the same task boundaries and result contracts. Pass the
   host, resolved root, selected org, and discovered tool contracts to workers.
   Never instruct a Codex user to switch to an unavailable Claude model.
-- Claude setup repairs (`.claude` settings, model pins, AI-Suite hooks, Claude
-  CLI updates, and Claude marketplace auto-update) apply only to Claude. Codex
-  configuration and policy stay under its own host controls.
+- Claude setup repairs (`.claude` settings, model pins, AI-Suite hooks, the
+  running-client report, and Claude marketplace auto-update) apply only to
+  Claude. Codex configuration and policy stay under its own host controls.
 
 ## Worker model mirroring
 

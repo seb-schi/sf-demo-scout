@@ -338,13 +338,6 @@ class CliRefreshScriptTests(unittest.TestCase):
             "post": "@salesforce/cli/{version} foo",
             "prefix": "SF_CLI",
         },
-        "claude": {
-            "package": "@anthropic-ai/claude-code",
-            "pre": "1.0.0 (Claude Code)",
-            "current": "2.0.0 (Claude Code)",
-            "post": "{version} (Claude Code)",
-            "prefix": "CLAUDE_CLI",
-        },
     }
 
     def setUp(self) -> None:
@@ -464,8 +457,8 @@ exit 0
                 ("unverified_empty", {"NPM_RESOLVE_LINE": update_resolve, "POST_OUT": ""}, prefix + "_UPDATE_UNVERIFIED"),
                 ("mismatch", {"NPM_RESOLVE_LINE": update_resolve, "POST_OUT": good("1.9.0")}, prefix + "_UPDATE_MISMATCH"),
                 ("unverified_rc", {"NPM_RESOLVE_LINE": update_resolve, "POST_OUT": good("2.0.0"), "POST_RC": "7"}, prefix + "_UPDATE_UNVERIFIED"),
-                ("unverified_malformed", {"NPM_RESOLVE_LINE": update_resolve, "POST_OUT": "Error: could not launch (build 2.0.0)" if cli == "claude" else "Error: cli crashed near 2.0.0"}, prefix + "_UPDATE_UNVERIFIED"),
-                ("unverified_embedded", {"NPM_RESOLVE_LINE": update_resolve, "POST_OUT": "2.0.0garbage" if cli == "claude" else "Error: failed to run @salesforce/cli/2.0.0"}, prefix + "_UPDATE_UNVERIFIED"),
+                ("unverified_malformed", {"NPM_RESOLVE_LINE": update_resolve, "POST_OUT": "Error: cli crashed near 2.0.0"}, prefix + "_UPDATE_UNVERIFIED"),
+                ("unverified_embedded", {"NPM_RESOLVE_LINE": update_resolve, "POST_OUT": "Error: failed to run @salesforce/cli/2.0.0"}, prefix + "_UPDATE_UNVERIFIED"),
             )
             for name, overrides, expected in cases:
                 with self.subTest(cli=cli, case=name):
@@ -545,7 +538,7 @@ exit 0
                 self.assertEqual(self.outcome(result), config["prefix"] + "_UPDATED")
 
     def test_invalid_selector_fails_before_any_cli_or_npm_call(self) -> None:
-        for selector in (None, "invalid"):
+        for selector in (None, "invalid", "claude"):  # Claude Code updates itself; setup leaves it alone
             with self.subTest(selector=selector):
                 case_dir = self.base / (selector or "missing")
                 bin_dir, calls = self.make_stubs(case_dir, "sf")
@@ -567,12 +560,13 @@ exit 0
                 self.assertFalse(calls.exists())
 
     def test_non_npm_and_unavailable_ownership_skip_before_registry_calls(self) -> None:
-        for cli, overrides in (
-            ("sf", {"PACKAGE_NAME": "not-salesforce"}),
-            ("claude", {"NPM_ROOT_RC": "7"}),
+        for case, overrides in (
+            ("not_salesforce", {"PACKAGE_NAME": "not-salesforce"}),
+            ("root_failed", {"NPM_ROOT_RC": "7"}),
         ):
-            with self.subTest(cli=cli):
-                name = f"ownership_skip_{cli}"
+            cli = "sf"
+            with self.subTest(case=case):
+                name = f"ownership_skip_{case}"
                 result = self.run_case(cli, name, dict(overrides))
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(

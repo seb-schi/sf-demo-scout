@@ -14,7 +14,6 @@ from urllib.parse import urlsplit
 
 
 ALIASES = {
-    "salesforce-dx": {"salesforce dx", "salesforce_dx", "salesforce-dx"},
     "slack": {"slack"},
     "google": {"google-workspace", "google_workspace"},
     "salesforce-docs": {"salesforce-docs", "salesforce_docs"},

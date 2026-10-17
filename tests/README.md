@@ -35,11 +35,10 @@ create/remove connections.
 
 Host compatibility fixtures also cover Codex startup ignoring Claude's cached
 MCP state and credential settings, disabled Slack not triggering authentication,
-Codex workspace setup preserving Claude files, and a Claude-only guard on prefix
-repairs. Packaging checks reject nonportable MCP identifiers and operational
-prompts that reintroduce Claude-only CLI availability gates. These tests do not
-replace fresh-session startup, actual tool discovery, or an authorized DX read
-in each host after installing a release.
+and Codex workspace setup preserving Claude files. Packaging checks reject
+nonportable MCP identifiers and operational prompts that reintroduce Claude-only
+CLI availability gates. These tests do not replace fresh-session startup, actual
+tool discovery, or an authorized org read in each host after installing a release.
 
 Batch 8b bootstrap fixtures run the shipped Bash boundary with an isolated
 `PATH` and local tool/installer stubs. They cover valid existing tools without
@@ -47,8 +46,8 @@ installer calls; broken, malformed, unreadable, old, and wrong-major existing
 tools without replacement; successful missing-tool installs with a fresh
 selected-executable probe; installer failure after a partial change; exit-zero
 installs followed by missing, old, malformed, or failing probes; missing brew or
-npm; invalid selectors; and distinct missing-npx versus failed-cache outcomes.
-No fixture runs Homebrew, npm, npx, a registry request, or a real host runtime.
+npm; and invalid selectors. No fixture runs Homebrew, npm, npx, a registry
+request, or a real host runtime.
 
 Prerequisites are Python 3.9+, Git, `/bin/bash`, standard POSIX/macOS shell
 utilities, and a real `/bin/zsh`. The shell-repair tests execute `zsh -f -n`

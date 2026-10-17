@@ -18,6 +18,9 @@ ROOT = Path(__file__).resolve().parents[1]
 HOOK = ROOT / "hooks" / "session-startup.sh"
 HELPER = ROOT / "scripts" / "startup-evidence.py"
 SLUGIFY = ROOT / "scripts" / "slugify.py"
+SELF_REPAIR = ("Before the first Scout task or Salesforce change in this session, tell the SE in one line that Scout is "
+               "repairing its setup, then run `/scout-setup self-repair` yourself (the `sf-demo-scout:scout-setup` skill "
+               "with argument `self-repair`), once.")
 
 
 def official_config(config: Path, *, ready: bool) -> Path:
@@ -321,7 +324,7 @@ class StartupEvidenceTests(unittest.TestCase):
         # the org probes stay workspace-only.
         outside = self.fx.base / "outside"
         outside.mkdir()
-        notice = "Scout builds with Salesforce's official plugins, which aren't set up yet. Run `/scout-setup` once."
+        notice = "Scout builds with Salesforce's official plugins, which aren't set up yet. " + SELF_REPAIR
         self.fx.claude_config = official_config(self.fx.base / "claude-config-empty", ready=False)
         result = self.fx.run(cwd=outside)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -535,6 +538,30 @@ class StartupEvidenceTests(unittest.TestCase):
         enabled["salesforce-development@claude-plugins-official"] = True
         (config / "settings.json").write_text(json.dumps({"enabledPlugins": enabled}))
         self.assertIn("Two copies of Salesforce's official plugin are switched on", self.fx.run(nocache=True).stdout)
+
+    def test_a_broken_setup_is_repaired_by_the_session_not_left_to_the_se(self) -> None:
+        healthy = self.fx.run(nocache=True).stdout
+        self.assertNotIn(SELF_REPAIR, healthy)
+        self.fx.scout_config.unlink()  # setup never finished
+        self.assertIn("## ⚠️ Scout setup not yet complete. " + SELF_REPAIR, self.fx.run(nocache=True).stdout)
+        self.fx.scout_config.write_text("{}")
+        config = official_config(self.fx.base / "claude-config-repair", ready=False)
+        self.fx.claude_config = config
+        self.assertIn("which aren't set up yet. " + SELF_REPAIR, self.fx.run(nocache=True).stdout)
+        root = config / "cache/salesforce/salesforce-development/2.4.0"
+        root.mkdir(parents=True)
+        (config / "plugins/known_marketplaces.json").write_text(json.dumps(
+            {"salesforce": {"source": {"source": "git", "url": "https://github.com/forcedotcom/sf-skills.git"}}}))
+        (config / "plugins/installed_plugins.json").write_text(json.dumps({"version": 2, "plugins": {
+            "salesforce-development@salesforce": [{"scope": "user", "installPath": str(root)}],
+            "salesforce-development@claude-plugins-official": [{"scope": "user", "installPath": str(root)}]}}))
+        (config / "settings.json").write_text(json.dumps({"enabledPlugins": {
+            "salesforce-development@salesforce": True, "salesforce-development@claude-plugins-official": True}}))
+        conflict = self.fx.run(nocache=True).stdout  # setup repairs this one only on the SE's yes
+        self.assertIn("are switched on. " + SELF_REPAIR + " It asks the SE before switching the extra one off.", conflict)
+        for output in (healthy, conflict):
+            self.assertNotIn("Run `/scout-setup`", output)
+            self.assertNotIn("Run /scout-setup", output)
 
     def test_the_notice_judges_the_folder_the_session_started_in(self) -> None:
         # Both copies are switched on for the user, but this project switches Anthropic's off: no "two copies" here.
