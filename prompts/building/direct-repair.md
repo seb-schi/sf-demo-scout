@@ -18,8 +18,8 @@ and the shared operation-safety block for this repair. Retain its source at fini
    value, trigger, seed, or similarly bounded repair.
 2. Read `${CLAUDE_PLUGIN_ROOT}/prompts/building/official-skill-overrides.md` before
    resolving or invoking an official skill. Run its §"Readiness" inspection before any
-   source write, then apply its common preamble, §"The official hooks" and only the
-   applicable named overrides, resolving reference paths to absolute installed paths.
+   source write, then apply its common preamble, §"The official hooks", §"The action log"
+   and only the applicable named overrides, resolving reference paths to absolute installed paths.
    If an approved Agentforce repair applies, also load
    `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` and the canonical
    `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md`; otherwise do not load either Agentforce file.

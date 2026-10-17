@@ -3,7 +3,7 @@ Scout's standing rules for SE sessions and their workers. When developing Scout 
 # SF Demo Scout standing rules
 
 ## Org
-Read org identity from `sf config get target-org` at runtime. Startup displays the active org, username and connection status. `/scout` works in the org its request names, without changing defaults (except one the SE approves for Salesforce's deploy check). On the SE's yes, it opens Salesforce's login page to connect an org or renew an expired login; it never changes existing logins or aliases. `/scout-setup` handles setup. These are personal demo orgs: explain destructive operations beforehand and obtain the confirmations below before acting.
+Read org identity from `sf config get target-org` at runtime. Startup displays the active org, username and connection status. `/scout` works in the org its request names, without changing defaults (except one the SE approves for Salesforce's deploy check). Resolve an org the request names with `sf org display --target-org [name]`; `sf org list` checks every login and is slow. On the SE's yes, it opens Salesforce's login page to connect an org or renew an expired login; it never changes existing logins or aliases. `/scout-setup` handles setup. These are personal demo orgs: explain destructive operations beforehand and obtain the confirmations below before acting.
 
 ## MCP tools
 Apply `prompts/host-runtime.md` and `prompts/mcp-readiness.md` before checking or using integrations. Connections are optional and managed by the active host. Do org work with the `sf` CLI, always with an explicit `--target-org`. The machine's CLI and the host-launched `@salesforce/mcp` adapter are separate installations.

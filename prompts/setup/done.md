@@ -1,63 +1,37 @@
 # Scout Setup — Done
 
-Compose the closing message. The orchestrator passes you two pieces of context:
-- `STATE` — `FRESH` or `REFRESH`
-- `ZSHRC_MODIFIED` — boolean (true if step j / step d reported `ZSHRC_MODIFIED`)
+Compose the closing message from what the orchestrator passes: `STATE` (`FRESH` or `REFRESH`), `ZSHRC_MODIFIED` (true if step j or step d reported it), every CLI outcome line and the optional MCP status notes. Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract `version`.
 
-Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract `version`.
+The message is one readiness result, then only the follow-ups below that apply. A check that came back current or silent gets no line.
 
-## Compose
+## Readiness result
 
-On Codex describe verified workspace setup/refresh and actual CLI/provider
-outcomes. Say to start a fresh Codex task after updating the installed plugin.
-Do not emit Claude-tab, Opus, model-pin, or shell-repair notices for skipped
-Claude steps. Workspace readiness does not establish DX or optional MCP readiness.
-The fixed Claude wording below applies only to Claude.
+On Codex, describe the verified workspace setup or refresh and the actual CLI and provider outcomes, and say to start a fresh Codex task after updating the installed plugin. Skip the Claude-tab, Opus, model-pin and shell-repair notices for the Claude steps that didn't run. Workspace readiness doesn't establish DX or optional MCP readiness. The wording below applies only to Claude.
 
-On Claude, when the official-plugins step's last line is `OFFICIAL_READINESS blocked …`, or that step printed no `OFFICIAL_READINESS` line at all, replace "is set up and ready" with "is set up, but building needs Salesforce's official plugins: see the note below", and keep that step's lines as the note. When it reported `restart=needed`, end with "Run `/reload-plugins` (or restart Claude Code) before building."
+**If STATE was FRESH:** "✓ Scout is set up and ready. Workspace at `~/claude-projects/sf-demo-scout/`. Run `/scout` next to spar on or build a demo, naming your demo org; connect the org first if it isn't yet."
 
-**If STATE was FRESH:**
+**If STATE was REFRESH:** "✓ Scout refreshed to v[VERSION]. Close and reopen this Claude tab to pick up updated commands; in VS Code, restart VS Code if the new tab still feels stale."
 
-> "✓ Scout is set up and ready. Workspace at `~/claude-projects/sf-demo-scout/`.
->
-> FYI — run `/scout` next to spar on or build a demo, naming your demo org. Connect the org first if it isn't yet."
+When the official-plugins step's last line is `OFFICIAL_READINESS blocked …`, or it printed no `OFFICIAL_READINESS` line at all, say instead that Scout is set up (or refreshed), but building needs Salesforce's official plugins: see the note below. That step's lines are the note. When it reported `restart=needed`, end with "Run `/reload-plugins` (or restart Claude Code) before building."
 
-**If STATE was REFRESH:**
+## Follow-ups
 
-> "✓ Scout refreshed to v[VERSION].
->
-> **Close + reopen this Claude tab** to pick up any updated commands. (If running in VS Code and the new tab still feels stale, fully restart VS Code.) Then continue your work."
+**If `ZSHRC_MODIFIED` is true:** "Scout tidied its block in your `~/.zshrc`: it no longer sets environment variables there, and `~/.local/bin` is on your PATH. For an existing file, the pre-edit backup is `~/.zshrc.scout-bak-zshrc` (beside the target if `.zshrc` is a symlink). Open a new shell to load it; this Claude Code session and already-running processes keep their current environment." `ZSHRC_MODIFIED` alone doesn't establish that model mappings exist.
 
-(The CLI status line, if any, is appended below from the step a/b outcome tokens — do NOT assert "CLIs current" here, since the policy-held case is current-by-policy but not registry-latest.)
+**CLI outcomes (REFRESH):** one plain line for each CLI whose outcome isn't `*_CURRENT`, using the versions its outcome line observed. The outcome token is the truth: never the `->` target, and never the fact that an install command ran.
+- `*_UPDATED (X -> Y)`: updated to the observed `Y`.
+- `*_HELD`: a newer version exists, but the SE's npm `min-release-age` policy holds it back on purpose, and it installs on a future refresh. Name the kept version. Not an error.
+- `*_UPDATE_NOOP` or `*_CHECK_FAILED`: couldn't confirm it's on the newest version; name the version it reports. Not an update.
+- `*_UPDATE_FAILED`: "The [Salesforce CLI / Claude Code] update didn't complete (installer error); it'll retry on a future refresh." Then "It currently reports [version]." if a version was observed, else "Its current version couldn't be verified." Never say the prior install is intact: a failed install may be partial.
+- `*_UPDATE_UNVERIFIED`: couldn't verify the version after the update. Never report it as updated.
+- `*_UPDATE_MISMATCH`: it now reports [observed], but [target] was expected, so it's worth a check. Don't imply the target was reached.
+- `CLAUDE_CLI_NOT_NPM_OWNED (native install updates itself; Scout left it alone)`: "Claude Code uses the native install, which updates itself; Scout left it alone."
+- Other `*_NOT_NPM_OWNED`: the active executable belongs to another installation, so Scout left it to that installation's updater. Not an error.
+- `*_OWNERSHIP_UNVERIFIED`: Scout couldn't prove npm owns the active CLI, so it skipped the update. Name no installer.
+- `CLI_REFRESH_UNAVAILABLE`, `NPM_ABSENT`, `NPX_ABSENT`: the note `refresh.md` gives for it.
 
-## Append (any branch)
+**Running client (Claude):** when setup printed a floor notice, couldn't verify the running client, or a Claude CLI install ran (`CLAUDE_CLI_UPDATED` or any `CLAUDE_CLI_UPDATE_*`), give the running client's observed version or why it's unverified, with any floor notice and its provider-specific advice. A CLI updated on PATH doesn't establish that the desktop or IDE client updated.
 
-**If `ZSHRC_MODIFIED` is true:** append before the close:
+**Model routing:** setup's read-only model report, as `model-pin-strip.md` says. Only an actual settings change needs a restart note.
 
-> "Note: Scout tidied its block in your `~/.zshrc` — it no longer sets any environment variables there. Open a new terminal window for non-Claude-Code shell sessions to pick up the change — current Claude Code session is unaffected."
-
-**If STATE was REFRESH:** compose at most one CLI status line from the step a/b outcome tokens and append before the close (skip entirely if both CLIs were `*_CURRENT` — the refresh line already implies current):
-
-> - Any `*_UPDATED (X -> Y)` — "Updated [Salesforce CLI / Claude Code] to [Y]."
-> - Any `*_HELD` — "Note: a newer [Claude Code / Salesforce CLI] ([registry version]) is available, but your npm `min-release-age` policy is holding it back for now — it'll install automatically on a future refresh once it ages past your policy window. Kept [installed version]."
-> - Any `*_UPDATE_NOOP` or `*_CHECK_FAILED` — "Couldn't confirm [Salesforce CLI / Claude Code] is on the newest version — kept the installed one ([version])."
-> - Any `*_UPDATE_FAILED` — "The [Salesforce CLI / Claude Code] update didn't complete (installer error) — it'll retry on a future refresh." (If a version was observed, add "It currently reports [version]."; otherwise add "Its current version couldn't be verified." — do NOT claim the prior install is intact.)
-> - Any `*_UPDATE_UNVERIFIED` — "Couldn't verify the [Salesforce CLI / Claude Code] version after the update — continuing; it'll re-check on a future refresh."
-> - Any `*_UPDATE_MISMATCH` — "Heads-up: [Salesforce CLI / Claude Code] now reports [observed], but [target] was expected — worth a quick check."
-> - `CLAUDE_CLI_NOT_NPM_OWNED (native install updates itself; Scout left it alone)` — "Claude Code uses the native install, which updates itself; Scout left it alone."
-> - Other `*_NOT_NPM_OWNED` — "Scout left [Salesforce CLI / Claude Code] unchanged because the active executable belongs to another installation; use that installation's updater."
-> - Any `*_OWNERSHIP_UNVERIFIED` — "Scout couldn't prove that npm owns the active [Salesforce CLI / Claude Code], so it safely skipped the update."
-
-If an MCP status was not `registration=registered transport=connected`, append
-one concise readiness note using the provider fragment's guidance. Even a
-connected status describes transport only: never call it authenticated or claim
-its required tools work before discovery and the first real use.
-
-**If STATE was REFRESH and `ZSHRC_MODIFIED` is true:** also append before the close:
-
-> "Scout refreshed its shell block and ensured `~/.local/bin` is on PATH, removing recognized retired Scout exports where present. For an existing file, the pre-edit backup is `~/.zshrc.scout-bak-zshrc` (beside the target if `.zshrc` is a symlink). Open a new shell to load the updated file; already-running processes keep their current environment."
-
-Include the Claude running-client version (or unverified reason), any floor
-notice and the read-only model report from setup. Keep its provider/source-specific
-advice; a CLI update on PATH does not establish that the desktop or IDE updated.
-`ZSHRC_MODIFIED` alone does not establish that model mappings exist.
+**MCP connections:** for each status other than `registration=registered transport=connected`, one short note using the provider fragment's guidance. A connected status describes transport only: never call it authenticated, or say its tools work, before discovery and the first real use.

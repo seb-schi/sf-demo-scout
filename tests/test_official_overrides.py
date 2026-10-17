@@ -385,6 +385,8 @@ class CallerTests(unittest.TestCase):
         self.assertLess(repair.index("official-skill-overrides.md"), repair.index("Resolve the installed supported skill/tool"))
         self.assertIn('Run its §"Readiness" inspection before any', repair)
         self.assertRegex(repair, r"only the\s+applicable named overrides")
+        self.assertIn('§"The action log"', repair)  # every attempt's why and via lines, even when sections load selectively
+        self.assertIn('Add `- why: <criterion>`, `- via: <skill or command>`', command)
         self.assertIn("absolute installed paths", repair)
         self.assertIn("otherwise do not load", repair)
         hosted = read("prompts/scout/hosted-flow.md")

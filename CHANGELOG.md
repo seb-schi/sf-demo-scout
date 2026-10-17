@@ -2,6 +2,11 @@
 
 Newest first. Scout updates itself; each entry says what changed for you.
 
+## 2026-10-17 (Scout 2.1.4)
+
+- **A quicker session start.** When a session starts, Scout now shows only your default org: its alias, username and org ID, from its latest connection check. It no longer lists all your connected orgs, checks Slack's connection or lists your customer folders first, and when you name an org, Scout looks up only that one. `/scout` still checks Slack, Google and the Salesforce Docs when a task needs them, and reads your customer folder's history itself.
+- **A shorter setup message.** `/scout-setup` ends with one line saying whether Scout is ready, plus short notes only where they apply: CLI updates, connections to finish and shell changes.
+
 ## 2026-10-17 (Scout 2.1.3)
 
 - **A lighter Scout.** Scout no longer carries the classic instructions that `/scout` replaced in 2.0, and the text that pointed at them now points at the rules `/scout` follows. Scout reads less before it starts, and nothing changes in how you use it.

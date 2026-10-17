@@ -301,14 +301,11 @@ class PolicyTests(unittest.TestCase):
         outside = case / 'outside'; outside.mkdir()
         running = self.script('running', 'echo "2.1.292 (Claude Code)"\n')
         os.environ.update(CLAUDE_CODE_ENTRYPOINT='claude-desktop', CLAUDE_CODE_EXECPATH=str(running))
-        # With no plugin root, W6 fails open to W2's exact legacy context.
-        orgs = fixture.workspace / 'orgs'; orgs.mkdir()
-        for index in range(100):
-            (orgs / ('qa-a-' + str(index).zfill(3) + '-' + 'x'*200)).mkdir()
+        # With no plugin root, startup fails open to the plain workspace context.
         first = fixture.run()
         payload = json.loads(first.stdout)
         self.assertIn('Scout needs', payload['systemMessage'])
-        self.assertGreater(len(payload['hookSpecificOutput']['additionalContext']), 10000)
+        self.assertIn('Active Org', payload['hookSpecificOutput']['additionalContext'])
         outside_result = fixture.run(cwd=outside)
         self.assertEqual(json.loads(outside_result.stdout)['hookSpecificOutput']['additionalContext'], '')
         for body in ('echo garbage', 'sleep 4', 'echo "2.1.293 (Claude Code)"'):

@@ -44,20 +44,12 @@ scout_legacy_context() {
   fi
 }
 scout_finish_context() {
-  local scope="$1" context bounded
+  local scope="$1" context
   local LC_ALL=C  # Byte count is a conservative trigger for the Unicode-aware bound.
   if [ -n "$SCOUT_RULES_BLOCK" ]; then
     # A sentinel preserves the legacy trailing newlines through command substitution.
     context=$(printf '%s\n\n' "$SCOUT_RULES_BLOCK"; scout_legacy_context "$scope"; printf '\034')
     context=${context%$'\034'}
-    if [ "${#context}" -gt 10000 ]; then
-      if bounded=$(printf '%s' "$context" | python3 -B "$CLIENT_HELPER_DIR/startup-rules.py" \
-          --workspace "$SCOUT_WORKSPACE" --slug "${ORG_SLUG:-}" 2>/dev/null && printf '\034'); then
-        context=${bounded%$'\034'}
-      else
-        :  # Keep the qualified block first, then all legacy text, if rendering fails.
-      fi
-    fi
     if [ -n "$context" ]; then
       printf '%s' "$context" | scout_emit_context || printf '%s' "$context"
       return
@@ -121,7 +113,6 @@ fi
 OUTPUT=""
 umask 077
 
-SLUGIFY="${SCOUT_SLUGIFY:-$HOOK_DIR/../scripts/slugify.py}"
 STARTUP_EVIDENCE="${SCOUT_STARTUP_EVIDENCE:-$HOOK_DIR/../scripts/startup-evidence.py}"
 CACHE_DIR="${SCOUT_CACHE_DIR:-$HOME/.cache/sf-demo-scout}"
 RUNTIME_BASE="${SCOUT_RUNTIME_DIR:-${TMPDIR:-/tmp}}"
@@ -133,12 +124,6 @@ CURRENT_UID="$(id -u)"
 RUN_DIR=""
 CACHE_READY=0
 HELPER_READY=0
-
-scout_slug() {
-  if command -v python3 >/dev/null 2>&1 && [ -f "$SLUGIFY" ]; then
-    PYTHONDONTWRITEBYTECODE=1 python3 -B "$SLUGIFY" "$1" 2>/dev/null
-  fi
-}
 
 file_mode() {
   stat -f %Lp "$1" 2>/dev/null || stat -c %a "$1" 2>/dev/null
@@ -158,7 +143,7 @@ trap cleanup_runtime EXIT HUP INT TERM
 if command -v python3 >/dev/null 2>&1 && [ -f "$STARTUP_EVIDENCE" ]; then
   HELPER_READY=1
 else
-  OUTPUT+="## ⚠️ Startup evidence helper unavailable; Salesforce and Slack state were not inferred.\n\n"
+  OUTPUT+="## ⚠️ Startup evidence helper unavailable; Salesforce state was not inferred.\n\n"
 fi
 
 if [ ! -e "$CACHE_DIR" ] && [ ! -L "$CACHE_DIR" ]; then
@@ -171,11 +156,14 @@ if [ -d "$CACHE_DIR" ] && [ ! -L "$CACHE_DIR" ]; then
   fi
 fi
 if [ "$CACHE_READY" -eq 1 ]; then
-  # Remove only Scout's known legacy raw-cache names; unrelated files are untouched.
+  # Remove only Scout's known legacy cache names, including the org-list and MCP caches that
+  # startup no longer writes; unrelated files are untouched.
   find "$CACHE_DIR" -maxdepth 1 -type f \( \
     -name 'org-list.????-??-??' -o \
     -name 'org-display-*.????-??-??' -o \
-    -name 'mcp-list.????-??-??' \
+    -name 'mcp-list.????-??-??' -o \
+    -name 'org-list.json' -o \
+    -name 'mcp-list.json' \
   \) -delete 2>/dev/null
 else
   OUTPUT+="## ⚠️ Startup evidence cache unavailable; live state may be incomplete.\n\n"
@@ -342,11 +330,6 @@ evidence_field() {
   fi
 }
 
-list_membership() {
-  PYTHONDONTWRITEBYTECODE=1 python3 -B "$STARTUP_EVIDENCE" contains list \
-    --collected-date "$TODAY" --target "$1" <"$(cache_path org-list)" 2>/dev/null
-}
-
 evidence_age_label() {
   local key="$1" kind="$2" target="$3" status collected
   status="$(probe_status "$key")"
@@ -372,61 +355,15 @@ fi
 OUTPUT+="$SCOUT_OFFICIAL_NOTICE"
 
 CONFIG_STATUS="unavailable"
-LIST_STATUS="unavailable"
-MCP_STATUS="unavailable"
 DEFAULT_ORG=""
-ORG_COUNT=""
 
-# --- 2. Fan out independent probes ---
+# --- 2. The default org's config ---
 if [ "$HELPER_READY" -eq 1 ] && [ "$CACHE_READY" -eq 1 ] && [ -n "$RUN_DIR" ]; then
-  cache_fill org-list list 'sf org list --json' "$NETWORK_TIMEOUT" '' sf org list --json &
-  LIST_PID=$!
-  if [ "$SCOUT_ACTIVE_HOST" = "claude" ] && command -v claude >/dev/null 2>&1; then
-    cache_fill mcp-list mcp 'claude mcp list' "$NETWORK_TIMEOUT" '' claude mcp list &
-    MCP_PID=$!
-  elif [ "$SCOUT_ACTIVE_HOST" = "codex" ]; then
-    # Codex policy depends on the current project. Never reuse Claude's cache
-    # or persist Codex's raw listing (it can contain transport credentials).
-    run_bounded "$NETWORK_TIMEOUT" "$RUN_DIR/codex-mcp.status" \
-      python3 -B "$MCP_STATUS_SCRIPT" --host codex slack &
-    MCP_PID=$!
-  else
-    printf 'exit:127\n' >"$RUN_DIR/mcp-list.status"
-    MCP_PID=""
-  fi
-  collect_config &
-  CONFIG_PID=$!
-  wait "$LIST_PID"; LIST_WAIT_STATUS=$?
-  if [ -n "$MCP_PID" ]; then wait "$MCP_PID"; MCP_WAIT_STATUS=$?; fi
-  wait "$CONFIG_PID"; CONFIG_WAIT_STATUS=$?
-
-  LIST_STATUS="$(probe_status org-list)"
-  MCP_STATUS="$(probe_status mcp-list)"
+  collect_config
   CONFIG_STATUS="$(probe_status config)"
 fi
 
-# --- 3. Slack MCP state ---
-if [ "$SCOUT_ACTIVE_HOST" = "codex" ]; then
-  CODEX_MCP_STATUS="$(cat "$RUN_DIR/codex-mcp.status" 2>/dev/null)"
-  case "$CODEX_MCP_STATUS" in
-    *' policy=blocked '*)
-      OUTPUT+="## ℹ️ Slack MCP is disabled by workspace policy. Ask workspace support to review the existing registration.\n\n" ;;
-    *' reason=user_disabled '*)
-      OUTPUT+="## ℹ️ Slack MCP is disabled in Codex configuration.\n\n" ;;
-  esac
-elif [ "$SCOUT_ACTIVE_HOST" = "claude" ] && { [ "$MCP_STATUS" = "fresh" ] || [ "$MCP_STATUS" = "cached" ]; }; then
-  SLACK_STATE="$(evidence_field mcp-list mcp state '')"
-  if [ "$SLACK_STATE" = "authentication_required" ]; then
-    OUTPUT+="## ℹ️ Slack MCP needs authentication ($(evidence_age_label mcp-list mcp '')).\n"
-    OUTPUT+="   Run \`/mcp\`, select 'slack', choose 'Authenticate'. From the desktop app, do it in Terminal: \`claude\`, then \`/mcp\`.\n\n"
-  elif [ "$SLACK_STATE" = "disabled" ] || [ "$SLACK_STATE" = "failed" ] || [ "$SLACK_STATE" = "pending" ]; then
-    OUTPUT+="## ℹ️ Slack MCP reports $SLACK_STATE ($(evidence_age_label mcp-list mcp '')). Inspect the existing entry in \`/mcp\` (from the desktop app, in Terminal: \`claude\`, then \`/mcp\`).\n\n"
-  fi
-elif [ "$SCOUT_ACTIVE_HOST" = "claude" ] && command -v claude >/dev/null 2>&1 && [ "$HELPER_READY" -eq 1 ] && [ "$CACHE_READY" -eq 1 ]; then
-  OUTPUT+="## ℹ️ Slack MCP connection check unavailable ($(failure_reason "$MCP_STATUS")).\n\n"
-fi
-
-# --- 4. Salesforce org evidence ---
+# --- 3. Salesforce org evidence ---
 if [ "$CONFIG_STATUS" = "fresh" ]; then
   CONFIG_STATE="$(PYTHONDONTWRITEBYTECODE=1 python3 -B "$STARTUP_EVIDENCE" field config \
     --collected-date "$TODAY" --field state <"$RUN_DIR/config.json" 2>/dev/null)"
@@ -438,122 +375,48 @@ else
   OUTPUT+="## ⚠️ Default Salesforce org check unavailable ($(failure_reason "$CONFIG_STATUS")).\n\n"
 fi
 
-if [ "$LIST_STATUS" = "fresh" ] || [ "$LIST_STATUS" = "cached" ]; then
-  ORG_COUNT="$(evidence_field org-list list org_count '')"
-else
-  OUTPUT+="## ⚠️ Connected org list unavailable ($(failure_reason "$LIST_STATUS")).\n\n"
-fi
-
 if [ "$CONFIG_STATUS" = "fresh" ] && [ "$CONFIG_STATE" = "absent" ]; then
   OUTPUT+="## ⚠️ No default Salesforce org set.\n"
-  if [ -n "$ORG_COUNT" ]; then
-    OUTPUT+="$ORG_COUNT org(s) available. To connect:\n"
-  else
-    OUTPUT+="Connected org count unavailable. To connect:\n"
-  fi
-  OUTPUT+="  sf org login web --alias [name] --set-default\n\n"
+  OUTPUT+="   Name the org in your /scout request. If it isn't connected yet, Scout offers to open Salesforce's login page for you.\n\n"
 elif [ -n "$DEFAULT_ORG" ]; then
-  LIST_MEMBERSHIP="unavailable"
-  if [ -n "$ORG_COUNT" ]; then
-    LIST_MEMBERSHIP="$(list_membership "$DEFAULT_ORG")"
-    # One cached miss gets a fresh retry in case the org was connected today.
-    if [ "$LIST_MEMBERSHIP" = "missing" ] && [ "$LIST_STATUS" = "cached" ]; then
-      SCOUT_HOOK_NOCACHE=1 cache_fill org-list list 'sf org list --json' \
-        "$NETWORK_TIMEOUT" '' sf org list --json
-      LIST_STATUS="$(probe_status org-list)"
-      if [ "$LIST_STATUS" = "fresh" ]; then
-        ORG_COUNT="$(evidence_field org-list list org_count '')"
-        LIST_MEMBERSHIP="$(list_membership "$DEFAULT_ORG")"
+  ALIAS_KEY="$(PYTHONDONTWRITEBYTECODE=1 python3 -B "$STARTUP_EVIDENCE" key "$DEFAULT_ORG" 2>/dev/null)"
+  DISPLAY_KEY="org-display-$ALIAS_KEY"
+  cache_fill "$DISPLAY_KEY" display 'sf org display --json' "$NETWORK_TIMEOUT" \
+    "$DEFAULT_ORG" sf org display --target-org "$DEFAULT_ORG" --json
+  DISPLAY_STATUS="$(probe_status "$DISPLAY_KEY")"
+  if [ "$DISPLAY_STATUS" = "fresh" ] || [ "$DISPLAY_STATUS" = "cached" ]; then
+    DISPLAY_STATE="$(evidence_field "$DISPLAY_KEY" display state "$DEFAULT_ORG")"
+    DISPLAY_EVIDENCE="$(evidence_age_label "$DISPLAY_KEY" display "$DEFAULT_ORG")"
+    if [ "$DISPLAY_STATE" = "connected" ]; then
+      USERNAME="$(evidence_field "$DISPLAY_KEY" display username "$DEFAULT_ORG")"
+      ORG_ID="$(evidence_field "$DISPLAY_KEY" display org_id "$DEFAULT_ORG")"
+      INSTANCE_URL="$(evidence_field "$DISPLAY_KEY" display instance_url "$DEFAULT_ORG")"
+      if [ "$DISPLAY_STATUS" = "fresh" ]; then
+        OUTPUT+="## ✅ Active Org ($DISPLAY_EVIDENCE)\n"
       else
-        ORG_COUNT=""
-        LIST_MEMBERSHIP="unavailable"
-        OUTPUT+="## ⚠️ Connected org list unavailable ($(failure_reason "$LIST_STATUS")).\n\n"
+        OUTPUT+="## ℹ️ Active Org ($DISPLAY_EVIDENCE)\n"
       fi
-    fi
-  fi
-
-  if [ "$LIST_MEMBERSHIP" = "missing" ]; then
-    LOCAL_CONFIG=".sf/config.json"
-    OUTPUT+="## ⚠️ Configured target-org '$DEFAULT_ORG' is not in the connected org list.\n"
-    OUTPUT+="   This usually means a stale entry in $LOCAL_CONFIG (local scope overrides global).\n"
-    OUTPUT+="   Fix: name the org in your /scout request (Scout works in it without changing your defaults), or edit $LOCAL_CONFIG manually.\n\n"
-  else
-    ALIAS_KEY="$(PYTHONDONTWRITEBYTECODE=1 python3 -B "$STARTUP_EVIDENCE" key "$DEFAULT_ORG" 2>/dev/null)"
-    DISPLAY_KEY="org-display-$ALIAS_KEY"
-    cache_fill "$DISPLAY_KEY" display 'sf org display --json' "$NETWORK_TIMEOUT" \
-      "$DEFAULT_ORG" sf org display --target-org "$DEFAULT_ORG" --json
-    DISPLAY_STATUS="$(probe_status "$DISPLAY_KEY")"
-    if [ "$DISPLAY_STATUS" = "fresh" ] || [ "$DISPLAY_STATUS" = "cached" ]; then
-      DISPLAY_STATE="$(evidence_field "$DISPLAY_KEY" display state "$DEFAULT_ORG")"
-      DISPLAY_EVIDENCE="$(evidence_age_label "$DISPLAY_KEY" display "$DEFAULT_ORG")"
-      if [ "$DISPLAY_STATE" = "connected" ]; then
-        USERNAME="$(evidence_field "$DISPLAY_KEY" display username "$DEFAULT_ORG")"
-        ORG_ID="$(evidence_field "$DISPLAY_KEY" display org_id "$DEFAULT_ORG")"
-        INSTANCE_URL="$(evidence_field "$DISPLAY_KEY" display instance_url "$DEFAULT_ORG")"
-        if [ "$DISPLAY_STATUS" = "fresh" ]; then
-          OUTPUT+="## ✅ Active Org ($DISPLAY_EVIDENCE)\n"
-        else
-          OUTPUT+="## ℹ️ Active Org ($DISPLAY_EVIDENCE)\n"
-        fi
-        OUTPUT+="- **Alias:** $DEFAULT_ORG\n"
-        OUTPUT+="- **Username:** $USERNAME\n"
-        OUTPUT+="- **Org ID:** $ORG_ID\n"
-        OUTPUT+="- **Instance:** $INSTANCE_URL\n"
-        if [ -n "$ORG_COUNT" ]; then
-          OUTPUT+="$ORG_COUNT org(s) available. To work in another, name it in your /scout request.\n\n"
-        else
-          OUTPUT+="Connected org count unavailable.\n\n"
-        fi
-
-        # --- 5. Org Folder + Audit Check ---
-        ORG_SLUG="$(scout_slug "$DEFAULT_ORG")"
-        ORG_FOLDERS=""
-        [ -n "$ORG_SLUG" ] && ORG_FOLDERS=$(ls -d "orgs/${ORG_SLUG}-"*/ 2>/dev/null)
-        if [ -z "$ORG_SLUG" ]; then
-          OUTPUT+="## ℹ️ Customer-folder lookup unavailable for $DEFAULT_ORG — couldn't derive a folder slug (python3 or scripts/slugify.py missing, or the alias has no usable slug). Not asserting folders are absent.\n\n"
-        elif [ -n "$ORG_FOLDERS" ]; then
-          FOLDER_COUNT=$(echo "$ORG_FOLDERS" | wc -l | tr -d ' ')
-          OUTPUT+="## ℹ️ $FOLDER_COUNT customer folder(s) for $DEFAULT_ORG:\n"
-          for FOLDER in $ORG_FOLDERS; do
-            CUSTOMER=$(basename "$FOLDER" | sed "s/^${ORG_SLUG}-//")
-            LATEST_AUDIT=$(ls -t "$FOLDER"/audit-*.md 2>/dev/null | head -1)
-            if [ -n "$LATEST_AUDIT" ]; then
-              AUDIT_AGE=$(( ( $(date +%s) - $(stat -f%m "$LATEST_AUDIT" 2>/dev/null || stat -c%Y "$LATEST_AUDIT" 2>/dev/null) ) / 86400 ))
-              AUDIT_FILE=$(basename "$LATEST_AUDIT")
-              if [ "$AUDIT_AGE" -gt 7 ]; then
-                OUTPUT+="  - $CUSTOMER: audit ($AUDIT_FILE) is ${AUDIT_AGE}d old — consider refreshing\n"
-              else
-                OUTPUT+="  - $CUSTOMER: audit $AUDIT_FILE (${AUDIT_AGE}d ago) ✅\n"
-              fi
-            else
-              OUTPUT+="  - $CUSTOMER: no audit found (/scout runs one when you ask)\n"
-            fi
-            LATEST_CHANGES=$(ls -t "$FOLDER"/changes-*.md 2>/dev/null | head -1)
-            if [ -n "$LATEST_CHANGES" ]; then
-              OUTPUT+="    Last change log: $(basename "$LATEST_CHANGES")\n"
-            fi
-          done
-          OUTPUT+="\n"
-        else
-          OUTPUT+="## ℹ️ No customer folders for $DEFAULT_ORG — run /scout to create one.\n\n"
-        fi
-      else
-        CONNECTED_STATUS="$(evidence_field "$DISPLAY_KEY" display connected_status "$DEFAULT_ORG")"
-        OUTPUT+="## ⚠️ Org '$DEFAULT_ORG' is not connected ($CONNECTED_STATUS; $DISPLAY_EVIDENCE).\n\n"
-      fi
+      OUTPUT+="- **Alias:** $DEFAULT_ORG\n"
+      OUTPUT+="- **Username:** $USERNAME\n"
+      OUTPUT+="- **Org ID:** $ORG_ID\n"
+      OUTPUT+="- **Instance:** $INSTANCE_URL\n"
+      OUTPUT+="To work in another org, name it in your /scout request.\n\n"
     else
-      OUTPUT+="## ⚠️ Org '$DEFAULT_ORG' evidence unavailable ($(failure_reason "$DISPLAY_STATUS")).\n\n"
+      CONNECTED_STATUS="$(evidence_field "$DISPLAY_KEY" display connected_status "$DEFAULT_ORG")"
+      OUTPUT+="## ⚠️ Org '$DEFAULT_ORG' is not connected ($CONNECTED_STATUS; $DISPLAY_EVIDENCE).\n\n"
     fi
+  else
+    OUTPUT+="## ⚠️ Org '$DEFAULT_ORG' evidence unavailable ($(failure_reason "$DISPLAY_STATUS")).\n\n"
   fi
 fi
 
-# --- 6. Plugin First-Run Nudge ---
+# --- 4. Plugin First-Run Nudge ---
 if [ ! -f "$SCOUT_CONFIG_FILE" ]; then
   OUTPUT+="## ⚠️ Scout setup not yet complete.\n"
   OUTPUT+="   Run /scout-setup to install — handles fresh installs, refreshes, and repairs.\n\n"
 fi
 
-# --- 7. Ready ---
+# --- 5. Ready ---
 OUTPUT+="---\n"
 OUTPUT+="**Ready.**\n"
 OUTPUT+="  /scout           — Scout 2.0: spar, build, fix or prep a demo in one session\n"

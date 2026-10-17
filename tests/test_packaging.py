@@ -42,7 +42,7 @@ class PackagingTests(unittest.TestCase):
 
     def test_shell_refresh_message_does_not_infer_model_routing(self) -> None:
         content = (ROOT / "prompts/setup/done.md").read_text()
-        refresh = content.split('**If STATE was REFRESH and `ZSHRC_MODIFIED` is true:**', 1)[1]
+        refresh = content.split('**If `ZSHRC_MODIFIED` is true:**', 1)[1].split('\n\n', 1)[0]
         self.assertIn('~/.zshrc.scout-bak-zshrc', refresh)
         self.assertIn('Open a new shell', refresh)
         self.assertNotIn('Scout preserved your provider and user model settings', refresh)
@@ -127,6 +127,21 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(len(failed_lines), 1)
         self.assertNotIn("kept the installed one", failed_lines[0])
         self.assertIn("future refresh", failed_lines[0])
+
+    def test_done_contract_keeps_the_outcome_distinctions(self) -> None:
+        done = (ROOT / "prompts/setup/done.md").read_text()
+        for rule in ("never the `->` target", "a failed install may be partial", "holds it back on purpose",
+                     "Not an update", "doesn't establish that the desktop or IDE client updated",
+                     "describes transport only"):
+            self.assertIn(rule, done)
+
+    def test_mcp_readiness_keeps_its_working_rules(self) -> None:
+        readiness = (ROOT / "prompts/mcp-readiness.md").read_text()
+        for rule in ("Use the exposed tools", "A worker discovers its own tools", "never dump raw diagnostics",
+                     "don't resolve a policy denial", "leave the entry alone", "Unknown isn't absent",
+                     "name the unavailable capability and use the caller's fallback",
+                     "never write merely to test readiness"):
+            self.assertIn(rule, readiness)
 
 
 if __name__ == "__main__":

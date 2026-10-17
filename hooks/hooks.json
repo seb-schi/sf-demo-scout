@@ -1,5 +1,5 @@
 {
-  "description": "SF Demo Scout session-startup banner: LLMGW auth, Slack MCP, active org, customer folders, update check",
+  "description": "SF Demo Scout session start: standing rules, setup and official-plugin notices, and the active org",
   "hooks": {
     "SessionStart": [
       {

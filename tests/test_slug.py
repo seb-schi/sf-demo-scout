@@ -6,10 +6,9 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 import unittest
 
-from test_startup import HELPER, HOOK, SLUGIFY, StartupFixture
+from test_startup import SLUGIFY
 
 
 class SlugTests(unittest.TestCase):
@@ -64,89 +63,6 @@ class SlugTests(unittest.TestCase):
                 self.assertTrue(
                     result.returncode == 0 and result.stdout.strip() == expected
                 )
-
-
-class CustomerFolderHookTests(unittest.TestCase):
-    """The 10 real-hook assertions from historical B4, using F6 seams."""
-
-    def setUp(self) -> None:
-        self.temp = tempfile.TemporaryDirectory(prefix="scout-folder-hook-test-")
-        self.addCleanup(self.temp.cleanup)
-        self.fx = StartupFixture(Path(self.temp.name).resolve())
-        self.fx.write_config("ExampleCare_DPA")
-        self.fx.write_list(
-            [{"alias": "ExampleCare_DPA", "username": "u@example.invalid"}]
-        )
-        self.fx.write_display(
-            "ExampleCare_DPA", username="u@example.invalid"
-        )
-
-    def seed_folder(self, suffix: str, *, audit: bool = False) -> None:
-        folder = self.fx.workspace / "orgs" / f"examplecare-dpa-{suffix}"
-        folder.mkdir(parents=True)
-        if audit:
-            (folder / "audit-2026-09-16.md").write_text("# audit")
-            (folder / "changes-2026-09-16.md").write_text("# change")
-
-    def run_hook(self, slugifier: Path = SLUGIFY) -> str:
-        env = dict(os.environ)
-        env.pop("PYTHONPATH", None)
-        env.update(
-            PATH=f"{self.fx.bin}:/usr/bin:/bin:/usr/sbin:/sbin",
-            PYTHONDONTWRITEBYTECODE="1",
-            SCOUT_HOST="claude",
-            SCOUT_WORKSPACE=str(self.fx.workspace),
-            SCOUT_CACHE_DIR=str(self.fx.cache),
-            SCOUT_RUNTIME_DIR=str(self.fx.runtime),
-            SCOUT_SETTINGS_FILE=str(self.fx.settings),
-            SCOUT_CONFIG_FILE=str(self.fx.scout_config),
-            SCOUT_STARTUP_EVIDENCE=str(HELPER),
-            SCOUT_SLUGIFY=str(slugifier),
-            SCOUT_FIXTURE_DIR=str(self.fx.fixtures),
-            SCOUT_FIXTURE_LOG=str(self.fx.log),
-            SCOUT_NETWORK_TIMEOUT="3",
-            SCOUT_HOOK_NOCACHE="1",
-            PWD=str(self.fx.workspace),
-        )
-        result = subprocess.run(
-            ["/bin/bash", str(HOOK)],
-            cwd=self.fx.workspace,
-            env=env,
-            text=True,
-            capture_output=True,
-            timeout=15,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        return result.stdout
-
-    def test_folder_labels_alias_and_audit_association(self) -> None:
-        self.seed_folder("acme", audit=True)
-        output = self.run_hook()
-        self.assertIn("1 customer folder(s) for ExampleCare_DPA", output)
-        self.assertIn("- acme:", output)
-        self.assertIn("**Alias:** ExampleCare_DPA", output)
-        self.assertTrue(
-            "audit-2026-09-16.md" in output
-            and "Last change log: changes-2026-09-16.md" in output
-        )
-
-    def test_two_folders(self) -> None:
-        self.seed_folder("acme")
-        self.seed_folder("globex")
-        output = self.run_hook()
-        self.assertIn("2 customer folder(s) for ExampleCare_DPA", output)
-        self.assertTrue("- acme:" in output and "- globex:" in output)
-
-    def test_no_folder_and_unavailable_helper_are_distinct(self) -> None:
-        no_folder = self.run_hook()
-        self.assertIn("No customer folders for ExampleCare_DPA", no_folder)
-        self.assertNotIn("lookup unavailable", no_folder)
-
-        self.seed_folder("acme")
-        unavailable = self.run_hook(self.fx.base / "missing-slugify.py")
-        self.assertIn("Customer-folder lookup unavailable", unavailable)
-        self.assertNotIn("No customer folders", unavailable)
 
 
 if __name__ == "__main__":

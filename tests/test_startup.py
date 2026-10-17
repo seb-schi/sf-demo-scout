@@ -245,22 +245,21 @@ class StartupEvidenceTests(unittest.TestCase):
 
         normalized = self.helper(
             "normalize",
-            "list",
+            "config",
             "--collected-date",
             today,
             "--provenance",
-            "sf org list --json",
-            stdin={
-                "status": 0,
-                "result": {"nonScratchOrgs": [], "scratchOrgs": []},
-            },
+            "sf config get target-org --json",
+            stdin={"status": 0, "result": [{"name": "target-org", "value": "QA"}]},
         )
         payload = json.loads(normalized.stdout)
         payload["accessToken"] = "SYNTHETIC_SECRET"
         rejected = self.helper(
-            "validate", "list", "--collected-date", today, stdin=payload
+            "validate", "config", "--collected-date", today, stdin=payload
         )
         self.assertEqual(rejected.returncode, 65)
+        self.assertNotEqual(self.helper("normalize", "list", "--collected-date", today, "--provenance",
+                                        "sf org list --json", stdin={"status": 0, "result": {}}).returncode, 0)
 
     def test_helper_rejects_contradictory_or_calendar_invalid_cache(self) -> None:
         today = time.strftime("%Y-%m-%d")
@@ -353,13 +352,7 @@ class StartupEvidenceTests(unittest.TestCase):
         self.assertIn("Default Salesforce org check unavailable (malformed evidence)", malformed)
         self.assertNotIn("No default Salesforce org set", malformed)
 
-    def test_exact_list_membership_and_collision_resistant_display_cache(self) -> None:
-        self.fx.write_list(
-            [
-                {"alias": "QA A", "username": "space@example.invalid"},
-                {"alias": "QA_A", "username": "under@example.invalid"},
-            ]
-        )
+    def test_collision_resistant_display_cache(self) -> None:
         self.fx.write_display("QA A", username="space@example.invalid")
         first = self.fx.run().stdout
         self.assertIn("**Username:** space@example.invalid", first)
@@ -369,27 +362,6 @@ class StartupEvidenceTests(unittest.TestCase):
         second = self.fx.run().stdout
         self.assertIn("**Username:** under@example.invalid", second)
         self.assertNotIn("**Username:** space@example.invalid", second)
-
-        self.fx.write_config("QA.*[x]")
-        self.fx.write_list([{"alias": "QAzzzx", "username": "near@example.invalid"}])
-        literal = self.fx.run(nocache=True).stdout
-        self.assertIn("Configured target-org 'QA.*[x]' is not in the connected org list", literal)
-
-    def test_list_failure_differs_from_valid_missing_member(self) -> None:
-        self.fx.set_mode("list", "exit:43")
-        unavailable = self.fx.run(nocache=True).stdout
-        self.assertIn("Connected org list unavailable (exit 43)", unavailable)
-        self.assertIn("**Username:** qa-a@example.invalid", unavailable)
-        self.assertNotIn("not in the connected org list", unavailable)
-
-        self.fx.set_mode("list", None)
-        self.fx.write_list([{"alias": "OTHER", "username": "other@example.invalid"}])
-        self.fx.run(nocache=True)
-        missing = self.fx.run().stdout
-        self.assertIn("Configured target-org 'QA A' is not in the connected org list", missing)
-        self.assertNotIn("Connected org list unavailable", missing)
-        calls = self.fx.log.read_text().splitlines()
-        self.assertGreaterEqual(calls.count("list"), 3)
 
     def test_display_failure_non_connected_signal_and_timeout_are_distinct(self) -> None:
         cases = (
@@ -418,7 +390,6 @@ class StartupEvidenceTests(unittest.TestCase):
         fresh = self.fx.run().stdout
         self.assertIn("## ✅ Active Org (fresh evidence", fresh)
 
-        self.fx.set_mode("list", "exit:51")
         self.fx.set_mode("display", "exit:52")
         warm = self.fx.run().stdout
         self.assertIn("## ℹ️ Active Org (cached evidence", warm)
@@ -426,12 +397,10 @@ class StartupEvidenceTests(unittest.TestCase):
 
         forced = self.fx.run(nocache=True).stdout
         self.assertNotIn("## ✅ Active Org", forced)
-        self.assertIn("Connected org list unavailable (exit 51)", forced)
         self.assertIn("Org 'QA A' evidence unavailable (exit 52)", forced)
 
         later = self.fx.run().stdout
         self.assertNotIn("## ✅ Active Org", later)
-        self.assertIn("Connected org list unavailable (exit 51)", later)
 
     def test_malformed_mismatched_future_and_stale_display_cache_are_refreshed(self) -> None:
         self.fx.run()
@@ -509,7 +478,6 @@ class StartupEvidenceTests(unittest.TestCase):
         (self.fx.bin / "sf").unlink()
         output = self.fx.run(nocache=True).stdout
         self.assertIn("Default Salesforce org check unavailable (command unavailable)", output)
-        self.assertIn("Connected org list unavailable (command unavailable)", output)
 
     def test_missing_claude_cli_does_not_probe_another_path(self) -> None:
         (self.fx.bin / "claude").unlink()
@@ -518,29 +486,11 @@ class StartupEvidenceTests(unittest.TestCase):
         calls = self.fx.log.read_text().splitlines()
         self.assertNotIn("mcp", calls)
 
-    def test_canonical_slug_folder_lookup_uses_shipped_slugifier(self) -> None:
-        self.fx.write_config("ExampleCare_DPA")
-        self.fx.write_list([{"alias": "ExampleCare_DPA"}])
-        self.fx.write_display(
-            "ExampleCare_DPA", username="care@example.invalid"
-        )
-        folder = self.fx.workspace / "orgs" / "examplecare-dpa-acme"
-        folder.mkdir(parents=True)
-        output = self.fx.run(nocache=True).stdout
-        self.assertIn("1 customer folder(s) for ExampleCare_DPA", output)
-        self.assertIn("acme: no audit found", output)
-
-    def test_slack_status_distinguishes_fresh_and_cached_evidence(self) -> None:
-        self.fx.write_mcp("slack: registered - authentication required\n")
-        fresh = self.fx.run().stdout
-        self.assertIn("Slack MCP needs authentication (fresh evidence", fresh)
-        self.fx.set_mode("mcp", "exit:61")
-        cached = self.fx.run().stdout
-        self.assertIn("Slack MCP needs authentication (cached evidence", cached)
-
-    def test_codex_ignores_claude_credentials_and_cached_mcp_status(self) -> None:
-        self.fx.write_mcp("slack: command - Needs authentication\n")
-        self.fx.run()  # Seed a same-day Claude cache.
+    def test_codex_ignores_claude_credentials_and_removes_legacy_probe_caches(self) -> None:
+        self.fx.cache.mkdir(mode=0o700, exist_ok=True)
+        legacy = [self.fx.cache / name for name in ("mcp-list.json", "org-list.json")]
+        for path in legacy:  # what an earlier release's org-list and MCP probes left behind
+            path.write_text('{"slack": "Needs authentication", "header": "RAW_SECRET"}\n')
         self.fx.log.write_text("")
         self.fx.settings.unlink()
         codex = self.fx.bin / "codex"
@@ -554,12 +504,12 @@ class StartupEvidenceTests(unittest.TestCase):
         codex.chmod(0o700)
         result = self.fx.run(host="codex")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Slack MCP is disabled by workspace policy", result.stdout)
-        for wrong in ("LLMGW", "Claude Code installer", "Opus", "needs authentication", "RAW_SECRET"):
+        for wrong in ("LLMGW", "Claude Code installer", "Opus", "Slack", "needs authentication", "RAW_SECRET"):
             self.assertNotIn(wrong, result.stdout)
         calls = self.fx.log.read_text().splitlines()
-        self.assertIn("codex-mcp", calls)
+        self.assertNotIn("codex-mcp", calls)  # startup no longer probes MCP state on any host
         self.assertNotIn("mcp", calls)
+        self.assertEqual([path for path in legacy if path.exists()], [])
         for path in self.fx.cache.iterdir():
             if path.is_file():
                 self.assertNotIn("RAW_SECRET", path.read_text())
@@ -622,11 +572,15 @@ class StartupEvidenceTests(unittest.TestCase):
         self.assertNotIn("LLMGW", result.stdout)
         self.assertNotIn("mcp", self.fx.log.read_text().splitlines())
 
-    def test_disabled_slack_does_not_request_authentication(self) -> None:
-        self.fx.write_mcp("slack: command - Disabled for this project\n")
-        output = self.fx.run().stdout
-        self.assertIn("Slack MCP reports disabled", output)
-        self.assertNotIn("Authenticate", output)
+    def test_startup_runs_no_org_list_mcp_or_folder_probe(self) -> None:
+        self.fx.write_mcp("slack: command - Needs authentication\n")
+        output = self.fx.run(nocache=True).stdout
+        for removed in ("Slack", "Authenticate", "org(s) available", "customer folder", "connected org list"):
+            self.assertNotIn(removed, output)
+        self.assertIn("**Username:** qa-a@example.invalid", output)
+        calls = self.fx.log.read_text().splitlines()
+        self.assertNotIn("list", calls)
+        self.assertNotIn("mcp", calls)
 
 
 if __name__ == "__main__":

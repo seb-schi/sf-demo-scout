@@ -1,4 +1,4 @@
-"""Standing-rule delivery and context limits, using offline fixture hosts only."""
+"""Standing-rule delivery, using offline fixture hosts only."""
 import json
 import os
 from pathlib import Path
@@ -12,7 +12,6 @@ from unittest.mock import patch
 import test_model_policy as fixtures
 
 ROOT = fixtures.ROOT
-RULES = fixtures.module('startup_rules_fixture', ROOT / 'scripts/startup-rules.py')
 BULLETS = ('- Delete existing metadata or records', '- Modify existing profiles or permission sets',
            '- Touch anything prefixed `sb_` or `managed__`')
 QUALIFIER = "Get the SE's explicit confirmation before:"
@@ -58,7 +57,7 @@ class StandingRulesTests(unittest.TestCase):
                          'have the SE confirm', 'manual/`BLOCKED` unless the SE explicitly approves',
                          'folder that contains this file', 'assignment of new or existing',
                          'Simple demo-specific LWC', 'never batch unrelated changes',
-                         'Before a multi-step loop', 'orgs/lessons/INDEX.md',
+                         'Before a multi-step loop', 'orgs/lessons/INDEX.md', '`sf org display --target-org [name]`',
                          'only explicitly enabled', 'App Builder provides a live preview'):
             self.assertIn(required, text)
         command = (ROOT / 'commands/scout.md').read_text()
@@ -108,41 +107,6 @@ class StandingRulesTests(unittest.TestCase):
             fx.run(cwd=outside)
         self.assertFalse(fx.log.exists())
 
-    def test_folder_budgets_30_and_100_keep_recent_complete_entries(self):
-        for count in (30, 100):
-            with self.subTest(count=count):
-                fx = self.fixture(str(count))
-                orgs = fx.workspace / 'orgs'
-                orgs.mkdir()
-                for n in range(count):
-                    path = orgs / ('qa-a-' + str(n).zfill(3) + '-' + 'x'*235)
-                    path.mkdir()
-                    os.utime(path, (1700000000+n, 1700000000+n))
-                fx.run()  # Warm the evidence cache before byte comparisons.
-                legacy = fx.run().stdout
-                outside = self.base / f'outside-{count}'
-                outside.mkdir()
-                with patch.dict(os.environ, CLAUDE_PLUGIN_ROOT=str(ROOT)):
-                    block = fx.run(cwd=outside).stdout
-                    text = fx.run().stdout
-                    self.assert_block(text)
-                    self.assertLessEqual(len(text), 10000)
-                    if count == 100:
-                        self.assertIn('more folders in `orgs/`', text)
-                        rows = re.findall(r'^  - (\d{3})-', text, re.M)
-                        self.assertEqual(list(map(int, rows)), list(range(count-1, count-len(rows)-1, -1)))
-                        self.assertGreater(len(rows), 0)
-                        self.assertLess(len(rows), count)
-                        self.assertIn(f'…and {count-len(rows)} more folders in `orgs/`', text)
-                    else:
-                        self.assertEqual(text, block + legacy)
-                    running = self.script('client', 'echo 2.1.280\n')
-                    with patch.dict(os.environ, CLAUDE_CODE_EXECPATH=str(running), CLAUDE_CODE_ENTRYPOINT='claude-vscode'):
-                        result = fx.run()
-                    context = json.loads(result.stdout)['hookSpecificOutput']['additionalContext']
-                    self.assert_block(context)
-                    self.assertLessEqual(len(context), 10000)
-
     def test_bad_roots_probe_and_json_failures_keep_fail_open_output(self):
         fx = self.fixture()
         outside = self.base / 'outside'
@@ -170,40 +134,3 @@ class StandingRulesTests(unittest.TestCase):
             failing = self.base / 'bad-json.py'
             failing.write_text('import sys\nsys.exit(1)\n')
             self.assertEqual(fx.run(cwd=outside, helper=failing).stdout, block)
-
-    def test_nonfolder_overflow_and_renderer_failure_are_bounded_or_unchanged(self):
-        context = 'Scout rules first\n' + 'x'*12000
-        bounded = RULES.bound_context(context, self.base, '')
-        self.assertTrue(bounded.startswith('Scout rules first\n'))
-        self.assertEqual(len(bounded), 10000)
-        self.assertIn('additional startup context omitted', bounded)
-        unicode_context = 'Scout rules first\n' + '🧪'*7000
-        bounded = RULES.bound_context(unicode_context, self.base, '')
-        self.assertLessEqual(len(bounded.encode('utf-16-le')) // 2, 10000)
-        # Exercise the new renderer's explicit failure path without deleting code.
-        fx = self.fixture()
-        orgs = fx.workspace / 'orgs'
-        orgs.mkdir()
-        for n in range(100):
-            (orgs / ('qa-a-' + str(n).zfill(3) + '-' + 'x'*220)).mkdir()
-        fx.run()  # Warm the existing org-evidence cache before comparing bytes.
-        legacy = fx.run().stdout
-        python = fx.bin / 'python3'
-        python.unlink()
-        python.write_text('#!/bin/bash\ncase "$*" in *startup-rules.py*) exit 1;; esac\n'
-                          f'exec "{sys.executable}" "$@"\n')
-        python.chmod(0o700)
-        with patch.dict(os.environ, CLAUDE_PLUGIN_ROOT=str(ROOT)):
-            outside = self.base / 'renderer-outside'
-            outside.mkdir()
-            block = fx.run(cwd=outside).stdout
-            self.assertEqual(fx.run().stdout, block + legacy)
-
-    def test_renderer_emits_utf8_under_ascii_locale_and_singular_marker(self):
-        content = ('Scout rules first — ✅\n' + '🧪' * 7000).encode('utf-8')
-        result = subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/startup-rules.py'),
-                                 '--workspace', str(self.base), '--slug', 'qa-a'], input=content,
-                                capture_output=True, env=dict(os.environ, PYTHONIOENCODING='ascii'))
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue(result.stdout.decode('utf-8').startswith('Scout rules first — ✅\n'))
-        self.assertEqual(RULES.folder_marker(1), '…and 1 more folder in `orgs/`\n')

@@ -140,11 +140,12 @@ esac
                     self.assertNotIn('native install', result.stdout)
                 self.assertNotIn('UPDATING_', result.stdout)
                 self.assertFalse((home / 'npm-called').exists())
-        for path in ('prompts/setup/refresh.md', 'prompts/setup/done.md'):
-            content = (ROOT / path).read_text()
-            self.assertIn(native_line, content)
-            self.assertIn('Claude Code uses the native install, which updates itself; Scout left it alone.', content)
-            self.assertIn('OWNERSHIP_UNVERIFIED', content)
+        done = (ROOT / 'prompts/setup/done.md').read_text()
+        self.assertIn(native_line, done)
+        self.assertIn('Claude Code uses the native install, which updates itself; Scout left it alone.', done)
+        self.assertIn('OWNERSHIP_UNVERIFIED', done)
+        self.assertIn('Pass every outcome line from steps a and b to the done step unchanged',
+                      (ROOT / 'prompts/setup/refresh.md').read_text())
 
 
 if __name__ == '__main__':

@@ -11,7 +11,6 @@ import argparse
 from datetime import date, datetime, timezone
 import hashlib
 import json
-import re
 import runpy
 from pathlib import Path
 import sys
@@ -23,13 +22,10 @@ SCHEMA_VERSION = 1
 MAX_INPUT_BYTES = 4 * 1024 * 1024
 PROVENANCE = {
     "config": "sf config get target-org --json",
-    "list": "sf org list --json",
     "display": "sf org display --json",
-    "mcp": "claude mcp list",
 }
 FIELDS = {
     "config": {"state", "target", "collected_at", "collected_at_utc", "provenance"},
-    "list": {"org_count", "collected_at", "collected_at_utc", "provenance"},
     "display": {
         "state",
         "connected_status",
@@ -40,7 +36,6 @@ FIELDS = {
         "collected_at_utc",
         "provenance",
     },
-    "mcp": {"state", "collected_at", "collected_at_utc", "provenance"},
 }
 
 
@@ -134,35 +129,6 @@ def normalize_config(result: Any, base: dict[str, Any]) -> dict[str, Any]:
     return {**base, "state": "present", "target": target}
 
 
-def normalize_list(result: Any, base: dict[str, Any]) -> dict[str, Any]:
-    if not isinstance(result, dict):
-        raise EvidenceError("org list result must be an object")
-    identifiers: list[str] = []
-    org_count = 0
-    saw_collection = False
-    for collection in ("nonScratchOrgs", "scratchOrgs"):
-        if collection not in result:
-            continue
-        saw_collection = True
-        rows = result[collection]
-        if not isinstance(rows, list):
-            raise EvidenceError(f"{collection} must be a list")
-        for row in rows:
-            if not isinstance(row, dict):
-                raise EvidenceError("org list entries must be objects")
-            org_count += 1
-            for field in ("alias", "username"):
-                value = row.get(field)
-                if value is None:
-                    continue
-                identifier = safe_text(value, field)
-                if identifier not in identifiers:
-                    identifiers.append(identifier)
-    if not saw_collection:
-        raise EvidenceError("org list collections are missing")
-    return {**base, "org_count": org_count, "identifiers": identifiers}
-
-
 def normalize_display(
     result: Any, base: dict[str, Any], target: str | None
 ) -> dict[str, Any]:
@@ -188,50 +154,15 @@ def normalize_display(
     }
 
 
-def normalize_mcp(raw: str, base: dict[str, Any]) -> dict[str, Any]:
-    slack_lines = []
-    for line in raw.splitlines():
-        if ": " not in line.strip():
-            continue
-        name, details = line.strip().split(": ", 1)
-        if name.rsplit(":", 1)[-1].lower() == "slack" or (
-            name.lower().startswith("plugin_") and name.lower().endswith("_slack")
-        ):
-            slack_lines.append(details)
-    if len(slack_lines) == 0:
-        return {**base, "state": "not_observed"}
-    if len(slack_lines) > 1:
-        raise EvidenceError("duplicate Slack MCP rows")
-    suffix = slack_lines[0].rsplit(" - ", 1)[-1].strip().lower()
-    suffix = re.sub(r"^[✔✓✘✗!⏸⊘]\s*", "", suffix).strip()
-    state = "unknown"
-    if suffix == "connected":
-        state = "connected"
-    elif suffix in {"authentication required", "needs authentication"}:
-        state = "authentication_required"
-    elif suffix.startswith("disabled"):
-        state = "disabled"
-    elif suffix.startswith(("failed", "error")):
-        state = "failed"
-    elif suffix in {"pending", "checking"} or suffix.startswith("pending approval"):
-        state = "pending"
-    return {**base, "state": state}
-
-
 def normalize(args: argparse.Namespace) -> None:
     raw = read_stdin()
     base = metadata(args.kind, args.collected_date, args.provenance)
-    if args.kind == "mcp":
-        result = normalize_mcp(raw, base)
+    payload = parse_json(raw)
+    cli_result = require_success(payload)
+    if args.kind == "config":
+        result = normalize_config(cli_result, base)
     else:
-        payload = parse_json(raw)
-        cli_result = require_success(payload)
-        if args.kind == "config":
-            result = normalize_config(cli_result, base)
-        elif args.kind == "list":
-            result = normalize_list(cli_result, base)
-        else:
-            result = normalize_display(cli_result, base, args.target)
+        result = normalize_display(cli_result, base, args.target)
     json.dump(result, sys.stdout, sort_keys=True, separators=(",", ":"))
     sys.stdout.write("\n")
 
@@ -282,14 +213,6 @@ def validate_payload(
             allowed_keys = common_keys | {"state", "target"}
         else:
             allowed_keys = common_keys | {"state"}
-    elif kind == "list":
-        count = payload.get("org_count")
-        identifiers = payload.get("identifiers")
-        if type(count) is not int or count < 0 or not isinstance(identifiers, list):
-            raise EvidenceError("org list cache fields are invalid")
-        for identifier in identifiers:
-            safe_text(identifier, "identifier")
-        allowed_keys = common_keys | {"org_count", "identifiers"}
     elif kind == "display":
         safe_text(payload.get("target"), "target")
         state = payload.get("state")
@@ -343,13 +266,6 @@ def field(args: argparse.Namespace) -> None:
     print(value)
 
 
-def contains(args: argparse.Namespace) -> None:
-    payload = cached_payload(args)
-    if args.target is None:
-        raise EvidenceError("membership target is required")
-    print("found" if args.target in payload["identifiers"] else "missing")
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -359,12 +275,9 @@ def build_parser() -> argparse.ArgumentParser:
     output_parser = subparsers.add_parser("hook-output")
     output_parser.add_argument("--floor-line", required=True)
 
-    for command in ("normalize", "validate", "field", "contains"):
+    for command in ("normalize", "validate", "field"):
         child = subparsers.add_parser(command)
-        if command == "contains":
-            child.add_argument("kind", choices=("list",))
-        else:
-            child.add_argument("kind", choices=tuple(PROVENANCE))
+        child.add_argument("kind", choices=tuple(PROVENANCE))
         child.add_argument("--collected-date", required=True)
         child.add_argument("--target")
         if command == "normalize":
@@ -392,10 +305,8 @@ def main() -> None:
             normalize(args)
         elif args.command == "validate":
             validate(args)
-        elif args.command == "field":
-            field(args)
         else:
-            contains(args)
+            field(args)
     except EvidenceError as error:
         fail(str(error))
 
