@@ -2,6 +2,10 @@
 
 Newest first. Scout updates itself; each entry says what changed for you.
 
+## 2026-10-18 (Scout 2.2.1)
+
+- **Automotive Cloud and Manufacturing Cloud join the clouds Scout reads up on.** When a request is about either one, Scout reads that product team's data model, setup order and module notes from its public GitHub repo, at a version Scout's maintainer has reviewed, the same way it reads Life Sciences, Net Zero and Revenue Cloud. As before, Scout checks every name against your org or the Salesforce Docs, never installs the teams' plugins or runs their tools, and stops to ask before a step that changes the whole org, such as switching on Person Accounts, Timeline or a Manufacturing Settings feature.
+
 ## 2026-10-18 (Scout 2.2.0)
 
 - **Scout now reads what Salesforce's product teams publish for their clouds.** When a request is about Life Sciences Cloud, Net Zero Cloud or Revenue Cloud, Scout reads that team's setup notes, data model and troubleshooting from its public GitHub repo, at a version Scout's maintainer has reviewed, and builds with it. It checks every object and setting name against your org or the Salesforce Docs before relying on it. Scout only reads these repos: it never installs the teams' plugins or runs their tools or scripts, and every change still goes through Salesforce's official skills, with your confirmation, in the org you named. When an installed knowledge pack covers your industry, Scout uses that pack first.

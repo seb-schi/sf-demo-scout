@@ -1,6 +1,248 @@
 {
  "schema": 1,
  "sources": {
+  "automotive": {
+   "commit": "9974db2c0dc21c200d9a4a054625d16be28e7299",
+   "files": {
+    "JOURNEY_MAP.md": {
+     "sha": "dcd29031068300459f86bccb9e6630aa2b918224",
+     "size": 28604
+    },
+    "PERSONA_JOURNEYS.md": {
+     "sha": "b7d24224426bbbce6a9a006d74f410418c35cd04",
+     "size": 35616
+    },
+    "journeys/auto-foundation-journeys.md": {
+     "sha": "f53ea10bcf65643d5f7ad7ce49178a1c801608e9",
+     "size": 33142
+    },
+    "knowledge/modules/INDEX.md": {
+     "sha": "ba8a0aa12c5d3eed3b41a1cc78626ac56c8bd6c7",
+     "size": 2485
+    },
+    "knowledge/modules/agentforce/README.md": {
+     "sha": "246520219badc58522b11e355567c8c4958ed0ae",
+     "size": 744
+    },
+    "knowledge/modules/appraisal-management/README.md": {
+     "sha": "c9321285d9e0fd36553dfa969cc6c0dda41aa24a",
+     "size": 655
+    },
+    "knowledge/modules/arc/README.md": {
+     "sha": "9bc76d2a8ce627a92c86475bed3ed19b3311b6f9",
+     "size": 1091
+    },
+    "knowledge/modules/captive-finance/README.md": {
+     "sha": "3db783876890c15e4b7657dc1a7c3fe5edf0147b",
+     "size": 1162
+    },
+    "knowledge/modules/compliance/README.md": {
+     "sha": "58cf1ad2f15f6d0459968f5ecd3330900c8c82cd",
+     "size": 906
+    },
+    "knowledge/modules/connected-services/README.md": {
+     "sha": "5586d5f769917ed3eb8c6d48379b89a8d513a0c2",
+     "size": 1115
+    },
+    "knowledge/modules/data-cloud-analytics/README.md": {
+     "sha": "a9d7c63e4954543c2f5356a4dc0e273f477cd2db",
+     "size": 831
+    },
+    "knowledge/modules/data-migration/README.md": {
+     "sha": "d425ab0508df1ce2f8e71ad11e8e598c011daba8",
+     "size": 781
+    },
+    "knowledge/modules/experience-cloud/README.md": {
+     "sha": "f685bf397a53a2abb1b3528155273b26ac5e033a",
+     "size": 1133
+    },
+    "knowledge/modules/flows-industries/README.md": {
+     "sha": "419451c2ab3c70bdf9ed68b32a60a14ab110f736",
+     "size": 809
+    },
+    "knowledge/modules/inventory-dealer/README.md": {
+     "sha": "b5bbee1ec683905450f4038a0f8c0313d60a61ab",
+     "size": 1328
+    },
+    "knowledge/modules/leads-opportunities/README.md": {
+     "sha": "5d3f6bfd51bef9166553a69d38f9fd0ff09e4f6b",
+     "size": 1075
+    },
+    "knowledge/modules/page-layouts/README.md": {
+     "sha": "95c496ad4dcc0df6343c9615b6326dee5f1ff82e",
+     "size": 1450
+    },
+    "knowledge/modules/page-layouts/timeline-configuration.md": {
+     "sha": "58deedb866246e4acefbf57acf53f3a341f2306b",
+     "size": 6893
+    },
+    "knowledge/modules/partner-visits/README.md": {
+     "sha": "72615b39406bcd389e010501c4d188de023f9352",
+     "size": 1023
+    },
+    "knowledge/modules/product-vehicle-definition/README.md": {
+     "sha": "dca14398bebc3ef93dbdd160e82f32f83365db08",
+     "size": 961
+    },
+    "knowledge/modules/rebates/README.md": {
+     "sha": "00ce6a08a23b525c3c323ea05e5021785c49ee0a",
+     "size": 706
+    },
+    "knowledge/modules/reporting-analytics/README.md": {
+     "sha": "0cd7dd08d04c7f2de8af1b65274a4deca96e764e",
+     "size": 719
+    },
+    "knowledge/modules/scheduler/README.md": {
+     "sha": "cba1294a36545cb5a995dc9b97210006e50b4790",
+     "size": 1713
+    },
+    "knowledge/modules/service-console/README.md": {
+     "sha": "620aa69c311031113f3135eb7cc5c94542e3c534",
+     "size": 986
+    },
+    "knowledge/modules/stakeholder-management/README.md": {
+     "sha": "93b7c69cfa5ce609a86ed48ff19a536a2c675c96",
+     "size": 1220
+    },
+    "knowledge/modules/vehicle-asset-lending/README.md": {
+     "sha": "ba276de3dbf4b06cca3559c80321261303fa4537",
+     "size": 960
+    },
+    "knowledge/modules/vehicles-assets-fleets/README.md": {
+     "sha": "2448801bf0b0d04c53d0899716a77a3ab6b7a205",
+     "size": 969
+    },
+    "knowledge/modules/warranty-claims/README.md": {
+     "sha": "f852da1a4ae6c10fa28cfeae659fe52f1ffaeeeb",
+     "size": 1099
+    },
+    "knowledge/release-notes/spring-262.md": {
+     "sha": "9fb6045a961805195a14a7810a683a05350c7116",
+     "size": 202412
+    },
+    "knowledge/troubleshooting/common-issues.md": {
+     "sha": "bbfa52126fdde7567a059b637fc54543c4b20c09",
+     "size": 3192
+    },
+    "knowledge/validation-rules/_schema.yaml": {
+     "sha": "ab4d1877a64c0afc6488a10ece961780f5f30c18",
+     "size": 1039
+    },
+    "knowledge/validation-rules/pre-deployment.yaml": {
+     "sha": "5b8b2aa66e732a1655a94bad154f9c33d6a45bcb",
+     "size": 2939
+    },
+    "skills/auto-agentforce/SKILL.md": {
+     "sha": "eb07513094c36a17dcfbc4d1b7b7ec08e075122c",
+     "size": 2406
+    },
+    "skills/auto-appraisal-management/SKILL.md": {
+     "sha": "504e79c054c4ada9c34bce917fb62fdaf9a5f9b6",
+     "size": 1705
+    },
+    "skills/auto-arc/SKILL.md": {
+     "sha": "1b9248c53fb942af9984d4b98ee316dadac66f04",
+     "size": 6611
+    },
+    "skills/auto-compliance/SKILL.md": {
+     "sha": "944e5812fe554ec54fd53f1f9f217818b6bc538a",
+     "size": 2354
+    },
+    "skills/auto-connected-services/SKILL.md": {
+     "sha": "3b6637c79b8de3557ef26b587ab6e322723cba92",
+     "size": 4833
+    },
+    "skills/auto-data-cloud-analytics/SKILL.md": {
+     "sha": "db3444b468bf865da09031896cfcd200da9c1113",
+     "size": 2334
+    },
+    "skills/auto-data-migration/SKILL.md": {
+     "sha": "c13ece40630b1c8e5f25193e26431e5d97cee6b2",
+     "size": 3803
+    },
+    "skills/auto-data-model/SKILL.md": {
+     "sha": "b87222ed86e3f68f9e69f2edf79bc1ed6b5a98f4",
+     "size": 18400
+    },
+    "skills/auto-experience-cloud/SKILL.md": {
+     "sha": "2ccd904020cd74d7dbbe6128bff0ca40c430a8f9",
+     "size": 3122
+    },
+    "skills/auto-finance-lending/SKILL.md": {
+     "sha": "6c19062902250514cb2b4c7e80829953f0a42dc2",
+     "size": 6552
+    },
+    "skills/auto-flows-industries/SKILL.md": {
+     "sha": "e21effbe821494f0bc33f63d047941857c31ae4e",
+     "size": 3213
+    },
+    "skills/auto-implementation/SKILL.md": {
+     "sha": "3e6b8ddef22f66e47124c45669b970c77ca1d793",
+     "size": 6039
+    },
+    "skills/auto-inventory-dealer/SKILL.md": {
+     "sha": "b2b78cdc3246a2194e097e9333a5a568874feb69",
+     "size": 13908
+    },
+    "skills/auto-leads-opportunities/SKILL.md": {
+     "sha": "bc812d1d406ae9ed78195ad9649dc3b266ef3a7d",
+     "size": 17754
+    },
+    "skills/auto-page-layouts/SKILL.md": {
+     "sha": "78586a85356a8b8092651ce7ba7ee695b9f7b474",
+     "size": 6602
+    },
+    "skills/auto-partner-visits/SKILL.md": {
+     "sha": "4467384d92da8d90f2c881b6711e4adb838b91cb",
+     "size": 3036
+    },
+    "skills/auto-product-management/SKILL.md": {
+     "sha": "ec39dc8b94f57090d98d72d5c8a118f14b539f79",
+     "size": 2857
+    },
+    "skills/auto-rebates/SKILL.md": {
+     "sha": "09fa35cca346bd87f867516f7c6d83cb29f5f8b3",
+     "size": 2422
+    },
+    "skills/auto-reporting-analytics/SKILL.md": {
+     "sha": "1477a9f95f4afa5a79045e3b3eb8a2d7b36c628d",
+     "size": 2457
+    },
+    "skills/auto-scheduler/SKILL.md": {
+     "sha": "051889d7a3e405922f9d1c35613948f9a4a15df5",
+     "size": 17348
+    },
+    "skills/auto-service-console/SKILL.md": {
+     "sha": "26158824861d2d3b8c77c5c0d73b00ed49208ec1",
+     "size": 3524
+    },
+    "skills/auto-stakeholder-management/SKILL.md": {
+     "sha": "53bbb80fe9370f472ddc4876d37d5fd556fec792",
+     "size": 3824
+    },
+    "skills/auto-testing-go-live/SKILL.md": {
+     "sha": "a279589f472ca55b662429d498e0de46b2831d12",
+     "size": 6343
+    },
+    "skills/auto-troubleshoot/SKILL.md": {
+     "sha": "179c03374c1eee57dd76fa936266f0f17339aa65",
+     "size": 5929
+    },
+    "skills/auto-user-management/SKILL.md": {
+     "sha": "af773bfee6860486a1b39e65669a6e29c278c613",
+     "size": 6030
+    },
+    "skills/auto-vehicle-asset-fleet/SKILL.md": {
+     "sha": "b640ba55e7ae633fed83c3100dd08b0c7ab5316a",
+     "size": 16711
+    },
+    "skills/auto-warranty-claims/SKILL.md": {
+     "sha": "ba4bb2177632c2c27ae553989b87a5cf693eaaca",
+     "size": 5628
+    }
+   },
+   "repo": "salesforce-misc/AutomotiveAssist"
+  },
   "life-sciences": {
    "commit": "6d00cfdcde479e8129042dc692ef5cbbec9c4436",
    "files": {
@@ -886,6 +1128,232 @@
     }
    },
    "repo": "SalesforceLabs/lsc-for-claude"
+  },
+  "manufacturing": {
+   "commit": "302e380467a3b5f7f76a6ef2f57ff78392a383e2",
+   "files": {
+    "knowledge/help/manufacturing-cloud-admin.md": {
+     "sha": "9f9426d4f4b907c5b32046c4b7f4cad876e5e164",
+     "size": 1894
+    },
+    "knowledge/modules/account-manager-targets/configuration.md": {
+     "sha": "8eb46b3bad02f78cc0028f870244c1ce5821b88a",
+     "size": 6365
+    },
+    "knowledge/modules/account-manager-targets/overview.md": {
+     "sha": "0550bcc3468edb4691d676fb26b7b8b0750010f8",
+     "size": 6160
+    },
+    "knowledge/modules/advanced-account-forecasting/configuration.md": {
+     "sha": "0122a8f095e9ad081434e0e6e381234de64117b6",
+     "size": 3583
+    },
+    "knowledge/modules/advanced-account-forecasting/overview.md": {
+     "sha": "db68352f50a0d0a01e5197193a4c0f21e8de074a",
+     "size": 3602
+    },
+    "knowledge/modules/analytics/configuration.md": {
+     "sha": "55ae7189a49155740e2057a922908ac9c7511d5b",
+     "size": 8697
+    },
+    "knowledge/modules/analytics/overview.md": {
+     "sha": "10d29d647a9a6ca1aa41e7ff0e5649817a375d8c",
+     "size": 7647
+    },
+    "knowledge/modules/asset-service-lifecycle/configuration.md": {
+     "sha": "d802144e87f82e98c7aea46a3b764d9142f79e33",
+     "size": 7883
+    },
+    "knowledge/modules/asset-service-lifecycle/overview.md": {
+     "sha": "27beab2adf14b5af6cf0326a7defad5cd4e4686e",
+     "size": 7728
+    },
+    "knowledge/modules/general-settings/configuration.md": {
+     "sha": "09c88acd1dbc3bb53f555b52c42caa829e8c0a86",
+     "size": 7251
+    },
+    "knowledge/modules/general-settings/overview.md": {
+     "sha": "8ec0575ef495caecb1ff327ad061545b5a9e2fad",
+     "size": 4845
+    },
+    "knowledge/modules/inventory-allocation/api-reference.md": {
+     "sha": "a939b9d520c0718a93be99ff2ea9eabb97ecd309",
+     "size": 10478
+    },
+    "knowledge/modules/inventory-allocation/configuration.md": {
+     "sha": "96a4427cd82d87fe6d1d67d03705dd2ddcb85e24",
+     "size": 11132
+    },
+    "knowledge/modules/inventory-allocation/data-model.md": {
+     "sha": "801bd5140869c936eaa8496c654f8d91469442fe",
+     "size": 10791
+    },
+    "knowledge/modules/inventory-allocation/functional-flows.md": {
+     "sha": "e9d169c0ec78603a08354dd29fd9f8b90bdffb97",
+     "size": 15426
+    },
+    "knowledge/modules/inventory-allocation/overview.md": {
+     "sha": "5cfc346a976d03214f171a607db614f798fc772e",
+     "size": 11224
+    },
+    "knowledge/modules/inventory-count/configuration.md": {
+     "sha": "5426e232049f35915640671cb7e48b8fabbc65e8",
+     "size": 6965
+    },
+    "knowledge/modules/inventory-count/overview.md": {
+     "sha": "f60bcf3266095824f2d526161cb986c11638420d",
+     "size": 8534
+    },
+    "knowledge/modules/inventory-management/overview.md": {
+     "sha": "49ec0bc9e9a37f36f1fd4ed7f551e61cb2893d5e",
+     "size": 2336
+    },
+    "knowledge/modules/inventory-management/references/concepts-and-architecture.md": {
+     "sha": "86717776446743e57afd637a04ec21fec57d86c9",
+     "size": 13314
+    },
+    "knowledge/modules/inventory-management/references/create-and-configure.md": {
+     "sha": "1870a5d21e35e07d873ce7506d03ccede1748e2f",
+     "size": 6207
+    },
+    "knowledge/modules/inventory-management/references/limits-and-gotchas.md": {
+     "sha": "96cefc6170a4be078c1c1346a41929a0b88ad37e",
+     "size": 5192
+    },
+    "knowledge/modules/inventory-management/references/run-and-monitor.md": {
+     "sha": "7ae800466e90b009e5ee0d274e02b7f775a58be9",
+     "size": 4424
+    },
+    "knowledge/modules/manufacturing-programs/configuration.md": {
+     "sha": "2a48fcc5c715cb598bdb470d03d8c2370059ec04",
+     "size": 3631
+    },
+    "knowledge/modules/manufacturing-programs/overview.md": {
+     "sha": "0a943d3dbc5e413bdb7e119f824bbc7200530882",
+     "size": 4153
+    },
+    "knowledge/modules/partner-visit-management/configuration.md": {
+     "sha": "7dca3412cbb14aa20ed6a1329f07c9728a71713e",
+     "size": 3691
+    },
+    "knowledge/modules/partner-visit-management/overview.md": {
+     "sha": "576807195419e1d095cb6b4f208fb48cd54a429b",
+     "size": 3626
+    },
+    "knowledge/modules/product-portfolio/configuration.md": {
+     "sha": "2ff12691f3065de24fbb67f4238d65ce440aba83",
+     "size": 6788
+    },
+    "knowledge/modules/product-portfolio/overview.md": {
+     "sha": "1326346456fbeaf186dd5badc1700a3c233c9fb4",
+     "size": 6212
+    },
+    "knowledge/modules/rebate-management/configuration.md": {
+     "sha": "98a92846ca6bc4e3c90f9a2c440fd98df41cc5ee",
+     "size": 3819
+    },
+    "knowledge/modules/rebate-management/overview.md": {
+     "sha": "a5bd255e380d6f387a986ab0e0b6aabb95ca8f36",
+     "size": 4091
+    },
+    "knowledge/modules/sales-agreements/configuration.md": {
+     "sha": "747a2a346b1a918366475b76e1d4bb33b1b40dcb",
+     "size": 6186
+    },
+    "knowledge/modules/sales-agreements/overview.md": {
+     "sha": "b1d827c59021e4e545f761e6a65c5cb46bab3c56",
+     "size": 3838
+    },
+    "knowledge/modules/service-console/configuration.md": {
+     "sha": "ca0e207e9d78a8d7ac328d4a9627794ffa0c2f68",
+     "size": 6721
+    },
+    "knowledge/modules/service-console/overview.md": {
+     "sha": "7b3de34b477dbf4bf95bbc6be780b84015b4576d",
+     "size": 5334
+    },
+    "knowledge/modules/warranty-management/configuration.md": {
+     "sha": "4c2b11a802c3b8f21accc912b989c0796d1a3a97",
+     "size": 3718
+    },
+    "knowledge/modules/warranty-management/overview.md": {
+     "sha": "ed6f6732bcb483b43c2725643ce526b3f27163cc",
+     "size": 3937
+    },
+    "knowledge/release-notes/spring-26.md": {
+     "sha": "6321b3fcc779c573cf11ab586a95d7f6a5a8fc09",
+     "size": 2397
+    },
+    "knowledge/release-notes/winter-26.md": {
+     "sha": "35779bedfffd578d18d7bced014c1c13978c3ad3",
+     "size": 2274
+    },
+    "skills/mfg-account-manager-targets/SKILL.md": {
+     "sha": "25c6d515daa2e09ddb31074893f5802f53f23dd6",
+     "size": 4576
+    },
+    "skills/mfg-agentforce/SKILL.md": {
+     "sha": "71551af89d54712de8b134d281cf184900d44938",
+     "size": 13155
+    },
+    "skills/mfg-analytics/SKILL.md": {
+     "sha": "9f656aede7b6166de89fc78e7b8a2d3a8c545d6b",
+     "size": 4718
+    },
+    "skills/mfg-asset-service-lifecycle/SKILL.md": {
+     "sha": "dc6ad93ead90b036742811f6e7933d9891f3e44d",
+     "size": 5121
+    },
+    "skills/mfg-data-model/SKILL.md": {
+     "sha": "b825f18eee035ee9bd968e9254d7576bdea65438",
+     "size": 7874
+    },
+    "skills/mfg-forecasting/SKILL.md": {
+     "sha": "f420bf985224781a410c0367bef0e8c12c0673b0",
+     "size": 4938
+    },
+    "skills/mfg-general-settings/SKILL.md": {
+     "sha": "cd34019729fa6e9f7118af966d23db0c15623e8f",
+     "size": 5010
+    },
+    "skills/mfg-implementation/SKILL.md": {
+     "sha": "13a045f18c73df72c5a7918ffb3bd6be53606df8",
+     "size": 4692
+    },
+    "skills/mfg-inventory-allocation/SKILL.md": {
+     "sha": "bd10621f748bcac58fb0400e185be461103ef6e8",
+     "size": 27355
+    },
+    "skills/mfg-inventory-management/SKILL.md": {
+     "sha": "6ad59cd64b016a5d047ee987b4796c8880dd3a52",
+     "size": 6099
+    },
+    "skills/mfg-partner-visits/SKILL.md": {
+     "sha": "928dcd61a282e9799e8e1eca291f18c4eda4822f",
+     "size": 4237
+    },
+    "skills/mfg-product-portfolio/SKILL.md": {
+     "sha": "af19d007459fbd61a5853ffff1c04f5b04575f24",
+     "size": 5224
+    },
+    "skills/mfg-sales-agreements/SKILL.md": {
+     "sha": "f1622b4cb8d5c676c2a7937fae3262fce464467a",
+     "size": 4570
+    },
+    "skills/mfg-service-console/SKILL.md": {
+     "sha": "e1d9cfd886acb6505b2b0e996e3d14149c684bc8",
+     "size": 4256
+    },
+    "skills/mfg-user-management/SKILL.md": {
+     "sha": "056dd5a9fb40f9f6c599adec48ad15a74ad8f9bd",
+     "size": 4632
+    },
+    "skills/mfg-warranty/SKILL.md": {
+     "sha": "f0a8d86f3178cb4fc118932d9509f59f202c2270",
+     "size": 4360
+    }
+   },
+   "repo": "salesforce-misc/ManuAssist"
   },
   "net-zero": {
    "commit": "b90143d753c3458787d7491fc3f7b4770d80dcbb",

@@ -108,10 +108,10 @@ class Server:
 
 
 class LedgerTests(unittest.TestCase):
-    def test_shipped_ledger_is_valid_and_reads_only_three_reviewed_sources(self):
+    def test_shipped_ledger_is_valid_and_reads_only_the_reviewed_sources(self):
         sources = MODULE.ledger()
         self.assertEqual({k for k, e in sources.items() if e["state"] == "read"},
-                         {"life-sciences", "net-zero", "revenue-cloud"})
+                         {"life-sciences", "net-zero", "revenue-cloud", "automotive", "manufacturing"})
         for ident, entry in sources.items():
             owner = entry["repo"].split("/")[0].lower()
             self.assertIn(owner, MODULE.OWNERS, ident)
@@ -167,6 +167,28 @@ class IndexTests(unittest.TestCase):
             self.assertNotIn(internal, skills)
         self.assertNotIn("AGENTS.md", files)
         self.assertFalse([p for p in files if p.endswith(".html")])
+
+    def test_automotive_index_holds_knowledge_skills_not_the_copied_guide_or_tools(self):
+        files = INDEX["sources"]["automotive"]["files"]
+        skills = {p.split("/")[1] for p in files if p.startswith("skills/")}
+        self.assertIn("auto-data-model", skills)
+        for tool in ("salesforce-query", "auto-user-journey"):
+            self.assertNotIn(tool, skills)
+        self.assertFalse([p for p in files if p.startswith(("knowledge/guides/", "documentation/", "src/"))])
+        self.assertIn("JOURNEY_MAP.md", files)
+
+    def test_manufacturing_index_holds_its_modules_not_generic_notes_or_tools(self):
+        files = INDEX["sources"]["manufacturing"]["files"]
+        skills = {p.split("/")[1] for p in files if p.startswith("skills/")}
+        self.assertIn("mfg-sales-agreements", skills)
+        for tool in ("salesforce-query", "mfg-org-comparison", "mfg-slack-analysis", "verify-platform-capabilities",
+                     "BPO-Analysis"):
+            self.assertNotIn(tool, skills)
+        modules = {p.split("/")[2] for p in files if p.startswith("knowledge/modules/")}
+        self.assertIn("sales-agreements", modules)
+        for generic in ("sandboxes", "users-and-data-access", "slack-integration", "experience-cloud"):
+            self.assertNotIn(generic, modules)
+        self.assertFalse([p for p in files if p.endswith("CLAUDE.md")])
 
     def test_life_sciences_index_leaves_out_skills_guides_and_the_server(self):
         files = INDEX["sources"]["life-sciences"]["files"]
@@ -451,8 +473,8 @@ class HelperShapeTests(unittest.TestCase):
 
     def test_a_refusal_exits_2_with_a_token(self):
         with contextlib.redirect_stdout(io.StringIO()) as output:
-            self.assertEqual(MODULE.main(["fetch", "automotive", "README.md"]), 2)
-        self.assertTrue(output.getvalue().startswith("INDUSTRY_SOURCE_REFUSED automotive is listed as known"))
+            self.assertEqual(MODULE.main(["fetch", "mulesoft", "README.md"]), 2)
+        self.assertTrue(output.getvalue().startswith("INDUSTRY_SOURCE_REFUSED mulesoft is listed as known"))
 
 
 class ContractTests(unittest.TestCase):
