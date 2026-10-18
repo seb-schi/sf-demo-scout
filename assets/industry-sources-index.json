@@ -1,0 +1,1291 @@
+{
+ "schema": 1,
+ "sources": {
+  "life-sciences": {
+   "commit": "6d00cfdcde479e8129042dc692ef5cbbec9c4436",
+   "files": {
+    "knowledge/decision-trees/module-selection.md": {
+     "sha": "86f98d18d98363f3f2212914ffe28cadc8403732",
+     "size": 2677
+    },
+    "knowledge/modules/account-management/_index.md": {
+     "sha": "c35c132a543c0ba3ca9c420fb846da2418b5ccbc",
+     "size": 2700
+    },
+    "knowledge/modules/account-management/account-ratings-talk-track.md": {
+     "sha": "b44bf24588e1dadfafeeb9a7d27adc36fab53dea",
+     "size": 3895
+    },
+    "knowledge/modules/account-management/account-search-sbc-admin-talk-track.md": {
+     "sha": "cce38261c542e94b0aa6d278c7621b84c4246868",
+     "size": 4673
+    },
+    "knowledge/modules/account-management/account-search-sbc-talk-track.md": {
+     "sha": "b75e75860f35f09e5c45a3945e3b7424d85fd092",
+     "size": 4485
+    },
+    "knowledge/modules/account-management/account-summarization.md": {
+     "sha": "38aa9a0f64b9739488174fbc454ac155048c5a5f",
+     "size": 7946
+    },
+    "knowledge/modules/account-management/acct-multi-object-component-talk-track.md": {
+     "sha": "0283dd182e932769050ad6f78509dfd4965fe85f",
+     "size": 5884
+    },
+    "knowledge/modules/account-management/addresses-talk-track.md": {
+     "sha": "0ebfdf63c3b4c1a28468313d1f375af71c90b3f4",
+     "size": 5084
+    },
+    "knowledge/modules/account-management/affiliations-talk-track.md": {
+     "sha": "40a198bc3cbaf62bc8a96fba7aaf24eb0d83bf57",
+     "size": 7077
+    },
+    "knowledge/modules/account-management/business-licenses-talk-track.md": {
+     "sha": "061b99a5c19ad07d981583fbfc162d5894d961d3",
+     "size": 5389
+    },
+    "knowledge/modules/account-management/data-change-request-talk-track.md": {
+     "sha": "1d7b943c764d053f1325cc7095f0a694063fda19",
+     "size": 5585
+    },
+    "knowledge/modules/account-management/provider-card.md": {
+     "sha": "b9785c592cc2af8f2cc5c96b501d12a3cf181dba",
+     "size": 7563
+    },
+    "knowledge/modules/account-management/support-engineering-search-before-create-part1.md": {
+     "sha": "742d0cfec3691462df35b820a2f3c2738271b4d6",
+     "size": 6170
+    },
+    "knowledge/modules/account-management/support-engineering-search-before-create-part2.md": {
+     "sha": "9e8dd59f3c98ec73ff403c49bf55db375640f533",
+     "size": 9054
+    },
+    "knowledge/modules/activity-plan/_index.md": {
+     "sha": "80cec75bbab85bc2459825d5f2b540b66e2a6916",
+     "size": 2253
+    },
+    "knowledge/modules/activity-plan/activity-plan-setup-account-goals-activity-plan-by-product-administration__activity-plan-by-product-administration.md": {
+     "sha": "14b6d424a98e9d128595f804ec1e4c352c70af83",
+     "size": 1716
+    },
+    "knowledge/modules/activity-plan/activity-plan-setup-account-goals-shared-across-territories__shared-territory-goals-transcript.md": {
+     "sha": "8bdefcf8084f5d52dea797f8f0a560c606d7164f",
+     "size": 4323
+    },
+    "knowledge/modules/activity-plan/activity-plan-setup-account-goals__activity-plan-setup-transcript.md": {
+     "sha": "53034f3438abed9e77239417362082f333c29212",
+     "size": 7321
+    },
+    "knowledge/modules/activity-plan/activity-plan-setup-weighted-activity-plans-activity-plan-by-product-administration__activity-plan-by-product-administration.md": {
+     "sha": "14b6d424a98e9d128595f804ec1e4c352c70af83",
+     "size": 1716
+    },
+    "knowledge/modules/activity-plan/activity-plan-setup-weighted-activity-plans__weighted-activity-plan-transcript.md": {
+     "sha": "000f32fcdd79b90ed8843e3875fa900cfd755b8b",
+     "size": 3858
+    },
+    "knowledge/modules/activity-plan/admin-console__admin-console-transcript.md": {
+     "sha": "c55cca208fd04b84555d9c179cf5b03fc98da909",
+     "size": 16541
+    },
+    "knowledge/modules/activity-plan/release-260-adjustment-requests.md": {
+     "sha": "52ae88630f39250089c36b72cc32316c1cf89af2",
+     "size": 4658
+    },
+    "knowledge/modules/activity-plan/release-260-emails-custom-entities.md": {
+     "sha": "86884bbebee9de80e0ef4c8d674d4da287733b6f",
+     "size": 3276
+    },
+    "knowledge/modules/activity-plan/release-262-progress-home-component.md": {
+     "sha": "9d41bcd1a33d6225508fa5a0622134f4256cf7d2",
+     "size": 2524
+    },
+    "knowledge/modules/activity-plan/support-engineering-activity-plan.md": {
+     "sha": "408d4f20f6b04fa3265e573c8a0e76c9c4da5d8d",
+     "size": 11681
+    },
+    "knowledge/modules/activity-timeline/_index.md": {
+     "sha": "42401acd6f75b93a3bc4dfe61a7dd71441199326",
+     "size": 1461
+    },
+    "knowledge/modules/activity-timeline/activity-timeline-transcripts.md": {
+     "sha": "bd6aaead114d9849dfae58c0b8897627f71a2367",
+     "size": 11531
+    },
+    "knowledge/modules/activity-timeline/support-engineering-activity-timeline.md": {
+     "sha": "8c146fe68836b28621ee2903743869104aa9407b",
+     "size": 11531
+    },
+    "knowledge/modules/agentforce/_index.md": {
+     "sha": "e9c35ac8a0c7005203fd852a04fcdb757d77f9d5",
+     "size": 128
+    },
+    "knowledge/modules/agentforce/agentforce-for-lsc-winter-26-enablement.md": {
+     "sha": "f2319d3cd6de74fa021943f58da2d2f6f15dde24",
+     "size": 15049
+    },
+    "knowledge/modules/app-alerts-notifications/_index.md": {
+     "sha": "ff9e4bc34aa8836c29967e465a94c87a48e76ba5",
+     "size": 226
+    },
+    "knowledge/modules/app-alerts-notifications/app-alert-notification-demo-talk-track.md": {
+     "sha": "9c49c2923ca71bbb495bfbedb359280e3724a493",
+     "size": 7086
+    },
+    "knowledge/modules/app-alerts-notifications/app-alerts-transcripts-admin-end-user.md": {
+     "sha": "eb43baff0c89bf330e43e2646e26a600eb7c17b5",
+     "size": 15578
+    },
+    "knowledge/modules/briefings/_index.md": {
+     "sha": "97e8c1c4c8bb4b4835d820cc52d9c814b7c4e816",
+     "size": 2431
+    },
+    "knowledge/modules/briefings/mobile-config.md": {
+     "sha": "b0f6358fac2b748e4e365de97f4094fc5d082584",
+     "size": 2329
+    },
+    "knowledge/modules/briefings/release-262-briefings-demo.md": {
+     "sha": "e3152f13363738c6ff3bcaf2da80325878fb2515",
+     "size": 2090
+    },
+    "knowledge/modules/briefings/setup.md": {
+     "sha": "dd639e34b3f734c3a65715ed1451a69f2d2c023e",
+     "size": 5756
+    },
+    "knowledge/modules/briefings/troubleshooting.md": {
+     "sha": "2c70e0b9f2a00ec431b2ab7e876a282c036a3f96",
+     "size": 3803
+    },
+    "knowledge/modules/calendar-tot-routine-myteam/_index.md": {
+     "sha": "7b98ced16a9534662b76fa72397b617ed0f69724",
+     "size": 386
+    },
+    "knowledge/modules/calendar-tot-routine-myteam/calendar-tot-routine-myteam-transcripts.md": {
+     "sha": "f9025a7cae0004ed4bb7eb2e0b3c7b1f2076e41c",
+     "size": 33379
+    },
+    "knowledge/modules/calendar-tot-routine-myteam/release-262-enhanced-tot.md": {
+     "sha": "3173438ef99beb0031d6135c6758725e6a7458ae",
+     "size": 2547
+    },
+    "knowledge/modules/calendar-tot-routine-myteam/release-264-configurable-tot-types.md": {
+     "sha": "562b792cf416618da363e95bf340d23a15697325",
+     "size": 3815
+    },
+    "knowledge/modules/clinical-site-management/_index.md": {
+     "sha": "4fbe93a55b812b4e83152926de64152893ba0577",
+     "size": 52
+    },
+    "knowledge/modules/consent-management/_index.md": {
+     "sha": "28341ac7cdfaa07c17e064f962868ff009abfa69",
+     "size": 1570
+    },
+    "knowledge/modules/consent-management/consent-management-demo-talk-track.md": {
+     "sha": "5ebc9ec490d71fb4e12a2f1b423b9913c37cdee5",
+     "size": 7202
+    },
+    "knowledge/modules/consent-management/release-262-add-channels.md": {
+     "sha": "48c5ab8af6f1826887111a5e28fb031f2f6de154",
+     "size": 3322
+    },
+    "knowledge/modules/consent-management/support-engineering-consent-management.md": {
+     "sha": "709e9ea4b93c4ce3abf04f871355343fd5226e91",
+     "size": 6660
+    },
+    "knowledge/modules/custom-scripts/_index.md": {
+     "sha": "322dac434be0529513f93ca08127c2b0162b08fb",
+     "size": 1590
+    },
+    "knowledge/modules/custom-scripts/support-engineering-validations-custom-scripts.md": {
+     "sha": "68dadc89ab3152ae00a91f5222cd40c3b373c208",
+     "size": 13917
+    },
+    "knowledge/modules/data-cloud-data-kit/_index.md": {
+     "sha": "f8a7f7f2c3ccf241a019718dfb3d2493ce63587e",
+     "size": 811
+    },
+    "knowledge/modules/data-cloud-data-kit/data-kit-to-mobile-dashboard-walkthrough.md": {
+     "sha": "1014562da38023b416735972d2d835b437113e05",
+     "size": 5793
+    },
+    "knowledge/modules/data-cloud-singularity-and-tabnext-metrics/_index.md": {
+     "sha": "e10bd748ac0f0f64dbca67ad63f8fc42e0e1f20a",
+     "size": 278
+    },
+    "knowledge/modules/data-cloud-singularity-and-tabnext-metrics/data-cloud-singularity-and-tableau-next-metrics-demo.md": {
+     "sha": "fa8c6e573e252a759a187427f024f1e6d49ff067",
+     "size": 9654
+    },
+    "knowledge/modules/data-cloud-singularity-and-tabnext-metrics/next-best-customer-predictive-model-demo.md": {
+     "sha": "e906614169543fe021e72d98a6c7c3c0c7b6f81a",
+     "size": 11743
+    },
+    "knowledge/modules/enablement-coaching/_index.md": {
+     "sha": "53fdb39d74ef052c8682dc5a5ffcd829f105aec6",
+     "size": 2065
+    },
+    "knowledge/modules/enablement-coaching/release-264-coaching-admin-setup.md": {
+     "sha": "1fae09e5d61b86fa0d2b306615ea1db702e2d799",
+     "size": 6677
+    },
+    "knowledge/modules/enablement-coaching/release-264-coaching-assessment-definition.md": {
+     "sha": "a3f88725a40a9350c9a0aa44ce7948edf302cd3e",
+     "size": 2108
+    },
+    "knowledge/modules/enablement-coaching/release-264-coaching-coach-flow.md": {
+     "sha": "5344dbdd86094928095d8c11c8e5bb0a51b88829",
+     "size": 2810
+    },
+    "knowledge/modules/enablement-coaching/release-264-coaching-employee-flow.md": {
+     "sha": "642017a98a9ca658fe40df8b22fc3896e433889e",
+     "size": 1892
+    },
+    "knowledge/modules/enablement-coaching/release-264-coaching-overview-lifecycle.md": {
+     "sha": "aeb4e91ad4014822053db7a2cc775f7b261494a3",
+     "size": 4740
+    },
+    "knowledge/modules/field-email/_index.md": {
+     "sha": "3c03a036d70658e62641231d5efcf0ee3b28e0d7",
+     "size": 506
+    },
+    "knowledge/modules/field-email/field-email-ipad-end-user-demo.md": {
+     "sha": "eefed65d512b5e11726b7a9c05eea325ed0931fe",
+     "size": 11400
+    },
+    "knowledge/modules/field-email/field-email-web-admin-configuration.md": {
+     "sha": "e20006bf55594d205ad6fbfc538a92df7a877356",
+     "size": 27602
+    },
+    "knowledge/modules/field-email/field-email-web-end-user.md": {
+     "sha": "e38fe74e96ee21696f94b6a57b3b3ed588436a62",
+     "size": 19221
+    },
+    "knowledge/modules/field-email/release-264-email-fragment-tracking.md": {
+     "sha": "c322a6281a52640965d346ba12234f2d5eaca973",
+     "size": 2891
+    },
+    "knowledge/modules/field-events-management/_index.md": {
+     "sha": "da92f7ecc600f5d028c9be162def7f1fc4388327",
+     "size": 1337
+    },
+    "knowledge/modules/field-events-management/release-262-field-events.md": {
+     "sha": "0175139e8d429b4c8133551bfb7cff490f6127fc",
+     "size": 2700
+    },
+    "knowledge/modules/field-events-management/release-264-concur-integration-events.md": {
+     "sha": "e546060dd3a28aadb02b63b8a952a05210305a08",
+     "size": 1636
+    },
+    "knowledge/modules/field-events-management/release-264-create-visit-from-event.md": {
+     "sha": "dc944daa92125c7d8dfae342f90cf280194800e9",
+     "size": 1772
+    },
+    "knowledge/modules/field-events-management/release-264-estimated-expense-allocation.md": {
+     "sha": "e56c24c6fdfe91fdd2677cf6399a6d5c1290b5fa",
+     "size": 1651
+    },
+    "knowledge/modules/field-events-management/release-264-managed-event-type-mapping.md": {
+     "sha": "857b2cd6ff070cf3b51fcd8b540971698608c6ef",
+     "size": 1463
+    },
+    "knowledge/modules/field-events-management/release-264-monetary-cap-utilization-limits.md": {
+     "sha": "a2c5e0fec4b87dbf76e182d55e2598b080958bb9",
+     "size": 3413
+    },
+    "knowledge/modules/field-events-management/release-264-participant-type-mapping.md": {
+     "sha": "1518bd98a2379d4dcd9b2130009ec6e24ee1d124",
+     "size": 1771
+    },
+    "knowledge/modules/field-events-management/troubleshooting.md": {
+     "sha": "3727c24fff269f46e24c0a2c80177fcefb763d6f",
+     "size": 6232
+    },
+    "knowledge/modules/field-sales-rep-e2e-demo-flow/_index.md": {
+     "sha": "07ab0ab71c254dc0da8f175f130096489ba7577e",
+     "size": 161
+    },
+    "knowledge/modules/field-sales-rep-e2e-demo-flow/field-sales-representative-e2e-demo-transcript.md": {
+     "sha": "99fa89deb3c99eccc8a11ba75daf10e723e59f25",
+     "size": 20198
+    },
+    "knowledge/modules/generic-workflow/_index.md": {
+     "sha": "5a176dda88eea266a490793bc6c302a71db614e2",
+     "size": 1655
+    },
+    "knowledge/modules/generic-workflow/support-engineering-generic-workflow.md": {
+     "sha": "6c8168ace1117c33058aec0cb1497b78ec20feb5",
+     "size": 15179
+    },
+    "knowledge/modules/generic-workflow/workflow-mgmt-demo-talk-track.md": {
+     "sha": "077227da98eee84c4473c8ca80678694c04c0745",
+     "size": 6670
+    },
+    "knowledge/modules/home-page/_index.md": {
+     "sha": "f9c5e62404622d9155b39d70475faf5e9c404d7e",
+     "size": 2434
+    },
+    "knowledge/modules/home-page/home-page-transcripts.md": {
+     "sha": "be49e9c0951e28f4a95e40692a9a6daba244b69c",
+     "size": 10225
+    },
+    "knowledge/modules/home-page/release-260-quick-custom-actions.md": {
+     "sha": "22cc5465bccd2fc02d3ed2ec20e6f2f7e3883a9c",
+     "size": 5025
+    },
+    "knowledge/modules/home-page/support-engineering-quick-custom-actions-config-guide.md": {
+     "sha": "bccd44d9b2882904782b9aa4e41266f41b792abc",
+     "size": 7590
+    },
+    "knowledge/modules/insdoc/_index.md": {
+     "sha": "35e04b2c2badf840caa581f33f52f91e5a0690b7",
+     "size": 152
+    },
+    "knowledge/modules/insdoc/release-260-insdoc-setup.md": {
+     "sha": "c6ef87edca8c9605320fd6bb84176bda68883a97",
+     "size": 2391
+    },
+    "knowledge/modules/insdoc/release-262-insdoc-admin-enduser.md": {
+     "sha": "1b9791eb00364d7120651d5b3424a3a7def2136b",
+     "size": 2917
+    },
+    "knowledge/modules/insights/_index.md": {
+     "sha": "9dfe4ad5f75e90d5725a31bacc47654cec398adb",
+     "size": 221
+    },
+    "knowledge/modules/insights/release-260-insights-admin.md": {
+     "sha": "185cc904c0193cf9aa86a63c63473c05e5b26335",
+     "size": 3419
+    },
+    "knowledge/modules/insights/release-260-insights-enduser.md": {
+     "sha": "4ab3bb0199f669ce6fa60ee384b34efba2a5d5be",
+     "size": 3998
+    },
+    "knowledge/modules/insights/release-262-insights-enduser.md": {
+     "sha": "a5d0022839cdd8bc46c1653d983c8abad68d3bd3",
+     "size": 595
+    },
+    "knowledge/modules/insights/release-262-insights-objective-setup.md": {
+     "sha": "34579043371c356d35c6718e12ad2c81b2ce88db",
+     "size": 3863
+    },
+    "knowledge/modules/intelligent-content/_index.md": {
+     "sha": "3326badd8619ce2d8f52d6fd03edb40176be52f5",
+     "size": 2888
+    },
+    "knowledge/modules/intelligent-content/admin-1-talk-track-for-content-management.md": {
+     "sha": "8e27a49f24db5b50bad340052f970dc0a63429c4",
+     "size": 19596
+    },
+    "knowledge/modules/intelligent-content/admin-2-talk-track-for-presentation-settings.md": {
+     "sha": "16291ef378dd5a190e018a8071e0636ebf7cfd7a",
+     "size": 12506
+    },
+    "knowledge/modules/intelligent-content/mobile-dynamic-content-talk-track.md": {
+     "sha": "8ad04ce1d994e0de40604f6a072caed0aa7a8380",
+     "size": 9237
+    },
+    "knowledge/modules/intelligent-content/mobile-end-user-talk-track.md": {
+     "sha": "60b152db7c4b3a662e2f7afa58ebce86c1c44179",
+     "size": 21584
+    },
+    "knowledge/modules/intelligent-content/release-260-send-presentations-as-links-admin.md": {
+     "sha": "6e6b3d79e484f11a34d6c82266f9d7d53b0cdce1",
+     "size": 5949
+    },
+    "knowledge/modules/intelligent-content/release-260-send-presentations-as-links-enduser.md": {
+     "sha": "f0f7b180f70c73575553b50b8032fdaaf58cf2f6",
+     "size": 3527
+    },
+    "knowledge/modules/intelligent-content/release-260-smart-content-search.md": {
+     "sha": "ae1eaea6856b32c3280b2912604a0c7977988d6a",
+     "size": 5812
+    },
+    "knowledge/modules/intelligent-content/release-262-web-content.md": {
+     "sha": "bffecf035797b83a7026110f856a76685acd3bfb",
+     "size": 2442
+    },
+    "knowledge/modules/intelligent-content/release-264-clickstream-data-retention.md": {
+     "sha": "da314768f2e4adcb6c80245a46bb8b539e409fbd",
+     "size": 1531
+    },
+    "knowledge/modules/intelligent-content/release-264-in-content-interaction-tracking.md": {
+     "sha": "af49789c4653df4484f8fd6d639bf2034bbaa0ac",
+     "size": 2401
+    },
+    "knowledge/modules/intelligent-content/release-264-player-quick-actions.md": {
+     "sha": "f18b64379bd362a6d43ad0982c22bbbbb0c147d0",
+     "size": 1633
+    },
+    "knowledge/modules/intelligent-content/support-engineering-intelligent-content.md": {
+     "sha": "501fdec5b193ef954a3e6f48288c03f9bebcd652",
+     "size": 12472
+    },
+    "knowledge/modules/kam-end-to-end-demo/_index.md": {
+     "sha": "9c75bb4df7fd3dbbc2884e6be4cd95d2e878b757",
+     "size": 125
+    },
+    "knowledge/modules/kam-end-to-end-demo/kam-end-to-end-demo-transcription.md": {
+     "sha": "3e6530f47b317a459c63d42fa8886df344903474",
+     "size": 26779
+    },
+    "knowledge/modules/key-account-management/_index.md": {
+     "sha": "00e3fcc7ffd336c28b2687804ce544ed751165b2",
+     "size": 1796
+    },
+    "knowledge/modules/key-account-management/kam-account-plan-web-mobile-transcription.md": {
+     "sha": "cfca05c498e339e60c4c6c461dff769b636fbc10",
+     "size": 31370
+    },
+    "knowledge/modules/key-account-management/support-engineering-account-plan.md": {
+     "sha": "0bcb338df4fea602cbf461bbf1df61e1d1e0fe03",
+     "size": 8655
+    },
+    "knowledge/modules/lists-filters/_index.md": {
+     "sha": "46fbb7c49b295eeed55e07a5d102987e584bfc08",
+     "size": 105
+    },
+    "knowledge/modules/lists-filters/lists-filters-transcripts.md": {
+     "sha": "c749ceb19f338967070024202eb5fe19378ddf45",
+     "size": 17566
+    },
+    "knowledge/modules/lsc-apps/_index.md": {
+     "sha": "821d69408e9162962f81754a8d373c608c225c0b",
+     "size": 110
+    },
+    "knowledge/modules/lsc-apps/demo-script-lsc-apps.md": {
+     "sha": "af6857a774997852e24a091c3baf18dc1d5bd5d7",
+     "size": 7776
+    },
+    "knowledge/modules/lsc-setup/_index.md": {
+     "sha": "603eb2445896e11bb42b3189132a65f82494a7ea",
+     "size": 162
+    },
+    "knowledge/modules/lsc-setup/release-262-go-accelerate.md": {
+     "sha": "6dd4fb48dfee8706a833e1af22080a00c78958be",
+     "size": 1462
+    },
+    "knowledge/modules/medical-inquiries/_index.md": {
+     "sha": "1ee3be598d77daf051428887ca07afdf2eb8336b",
+     "size": 2036
+    },
+    "knowledge/modules/medical-inquiries/medical-inquiries-configuration-guide.md": {
+     "sha": "debc89ce16c8f87ff34ba672ff6bf13982f9122f",
+     "size": 5759
+    },
+    "knowledge/modules/medical-inquiries/support-engineering-inquiry.md": {
+     "sha": "e883d461e098bd40953fa01c0cddfc117325b0a5",
+     "size": 10136
+    },
+    "knowledge/modules/mobile-metadata-cache/_index.md": {
+     "sha": "0309eb5a9c3a66774cc9956f772b6a516970d5c4",
+     "size": 1719
+    },
+    "knowledge/modules/mobile-metadata-cache/programmatic-generation.md": {
+     "sha": "2ee52e70a757c7e7d1cb2135095a71afd54b994f",
+     "size": 6581
+    },
+    "knowledge/modules/mobile-metadata-cache/release-262-idle-background-sync.md": {
+     "sha": "b2df80225ed3a9f664ddb47abb9758d5e06f5d21",
+     "size": 1408
+    },
+    "knowledge/modules/mobile-metadata-cache/release-262-lmr-offline.md": {
+     "sha": "9772cc67e6c70c272cd5e9fbcdd246f88d29deab",
+     "size": 4175
+    },
+    "knowledge/modules/mobile-metadata-cache/support-engineering-mobile-sync.md": {
+     "sha": "da9a6b6f9e667e17e4d45ebfe6bea64852824eb4",
+     "size": 13264
+    },
+    "knowledge/modules/next-best-nbc-nba-nbm/_index.md": {
+     "sha": "4b5bc7d2befc88f54cb0d7ed9a52c5fa94620193",
+     "size": 210
+    },
+    "knowledge/modules/next-best-nbc-nba-nbm/next-best-transcripts.md": {
+     "sha": "e2ad834202eee5fd94adc034f847f95f69c7bb87",
+     "size": 21729
+    },
+    "knowledge/modules/next-best-nbc-nba-nbm/release-260-enhanced-nbc.md": {
+     "sha": "01ca37ee751ec61f519dc7c3b67a10a3a31d9106",
+     "size": 3606
+    },
+    "knowledge/modules/order-management/_index.md": {
+     "sha": "ee959a06e8048494e3f4677bb68cb026f8a6d65a",
+     "size": 1092
+    },
+    "knowledge/modules/order-management/release-260-store-check-pilot.md": {
+     "sha": "787b7d5661ce3984cc78015ac9f6d90fad8ba3b6",
+     "size": 5180
+    },
+    "knowledge/modules/order-management/release-264-order-management-setup-runbook.md": {
+     "sha": "1762020b7518431fa05ac90e35171fbe7e841b89",
+     "size": 5106
+    },
+    "knowledge/modules/order-management/release-264-pricing.md": {
+     "sha": "5a5e02fda9002330bc2de2cec482bb61ac0fe4c8",
+     "size": 11292
+    },
+    "knowledge/modules/order-management/release-264-quoted-orders-admin-setup.md": {
+     "sha": "0f0bf69979c9667f75e67e0bbce7eea3614f67c5",
+     "size": 6620
+    },
+    "knowledge/modules/order-management/release-264-quoted-orders-overview.md": {
+     "sha": "076d5e50654c4f66f2b2215db835de8e841cb56d",
+     "size": 5211
+    },
+    "knowledge/modules/order-management/release-264-quoted-orders-rep-flow.md": {
+     "sha": "0b6b8234af734044b490143c4b5bf9683203f326",
+     "size": 3512
+    },
+    "knowledge/modules/patient-services/_index.md": {
+     "sha": "5260eadf62ed178dc541bdffb454127bd00637c9",
+     "size": 136
+    },
+    "knowledge/modules/patient-services/release-262-home-health.md": {
+     "sha": "8604a23e8cff305799541c1413e04042dfa1fdd0",
+     "size": 2810
+    },
+    "knowledge/modules/product-management/_index.md": {
+     "sha": "9198a9e3c6a9cf206f1d3fa5a5a1ed387a5c954b",
+     "size": 214
+    },
+    "knowledge/modules/product-management/product-management-configuration-guide.md": {
+     "sha": "17c1921acf89bfc3d23514450468b2573bf7365e",
+     "size": 5904
+    },
+    "knowledge/modules/product-management/product-management-demo-transcript.md": {
+     "sha": "426cdc004c999516d49b2e205f372b985e4b1e11",
+     "size": 5979
+    },
+    "knowledge/modules/provider-engagement-compliance/_index.md": {
+     "sha": "765bb0c69887f76a582b7cff9dcfbb736903250e",
+     "size": 141
+    },
+    "knowledge/modules/provider-engagement-compliance/release-262-eppv-mid.md": {
+     "sha": "4eceb1146d79d3ee5ce7be04acf12e7dc563a7d2",
+     "size": 3515
+    },
+    "knowledge/modules/remote-engagement/_index.md": {
+     "sha": "df58597d29532a3e23f1f2a4d20bf72b04624f60",
+     "size": 987
+    },
+    "knowledge/modules/remote-engagement/release-260-data-model-changes.md": {
+     "sha": "8850d03c25e5a4ff6e1b3be6e0f2d9d8c9074f5c",
+     "size": 2586
+    },
+    "knowledge/modules/remote-engagement/release-260-ms-teams-admin.md": {
+     "sha": "b50eafa7c4d28759ce0ac992d7ac71f1451b155e",
+     "size": 3601
+    },
+    "knowledge/modules/remote-engagement/release-260-ms-teams-enduser.md": {
+     "sha": "7eea8080ae75612e58382ede8fa3ba356b3c81d0",
+     "size": 3141
+    },
+    "knowledge/modules/remote-engagement/release-262-ms-teams-enduser.md": {
+     "sha": "5b949fe8f792b8264e60a43c177d6fc78203054f",
+     "size": 1988
+    },
+    "knowledge/modules/remote-engagement/release-264-remote-engagement-web-twilio.md": {
+     "sha": "2668b6c764f7e27db7a090fec2475eb68b045174",
+     "size": 2282
+    },
+    "knowledge/modules/remote-engagement/remote-engagement-configuration-guide.md": {
+     "sha": "2afda534f67edaf647736b87d2e78fd8026292c4",
+     "size": 5527
+    },
+    "knowledge/modules/sales-chart/_index.md": {
+     "sha": "ca742571a9ab8649f59186cb64f393cb400a1fb0",
+     "size": 158
+    },
+    "knowledge/modules/sales-chart/release-260-sales-chart-mobile.md": {
+     "sha": "9e8cc6d75be58ae28063ed5b57ca79d08a38e8fc",
+     "size": 2515
+    },
+    "knowledge/modules/sample-management/_index.md": {
+     "sha": "fcf9dea147158ab0999f8bf29cc3447faa6609f8",
+     "size": 227
+    },
+    "knowledge/modules/sample-management/sample-inventory-transcriptions.md": {
+     "sha": "c813ca4e443ad1d55c65076c423f303cc826ad2d",
+     "size": 49082
+    },
+    "knowledge/modules/sample-management/sample-limits-admin-setup-config-demo-transcript.md": {
+     "sha": "0c124947aa152f1851a97bc841dfdef2cf24bf60",
+     "size": 10040
+    },
+    "knowledge/modules/segmentation-admin-only/_index.md": {
+     "sha": "414d8f3519004c937e6d99f4c5616cd6284e05e2",
+     "size": 111
+    },
+    "knowledge/modules/segmentation-admin-only/segmentation-transcript.md": {
+     "sha": "748c92982e7fca2ee402b05324bd586a9dca1fa8",
+     "size": 6783
+    },
+    "knowledge/modules/spm-integration/_index.md": {
+     "sha": "202ac7bf3fd5d0b72c5c40e5de3dba5308aae030",
+     "size": 738
+    },
+    "knowledge/modules/spm-integration/release-264-alignment-rules-processing-engine.md": {
+     "sha": "bcd8caee9c607b15b741783670cad5a04fcd92aa",
+     "size": 4269
+    },
+    "knowledge/modules/starter-config/_index.md": {
+     "sha": "949fb75040f2b9f556f5928c1211c59692a1fb7f",
+     "size": 1272
+    },
+    "knowledge/modules/starter-config/release-260-lsstarter-config.md": {
+     "sha": "98b154e02fbafb90eb50fd3e6559dd5dfee9eebe",
+     "size": 7601
+    },
+    "knowledge/modules/starter-config/support-engineering-lsstarter-config.md": {
+     "sha": "a86c370b7b50c173c414a3993611fd0c720fddc1",
+     "size": 7307
+    },
+    "knowledge/modules/surveys/_index.md": {
+     "sha": "32e9b7a35cf4dfb2a1870c99deb2f90daf43d53e",
+     "size": 149
+    },
+    "knowledge/modules/surveys/surveys-configuration-guide.md": {
+     "sha": "42a6571c6d50fb1d3cc7c94f66d2660de84b48df",
+     "size": 4656
+    },
+    "knowledge/modules/surveys/surveys-talk-track.md": {
+     "sha": "3ffc6580c6bc8054d250cc8b3ffdce7d237cb1c7",
+     "size": 2190
+    },
+    "knowledge/modules/territory-alignment/_index.md": {
+     "sha": "a605a47553291a3172a84db356e89b54997711c2",
+     "size": 1742
+    },
+    "knowledge/modules/territory-alignment/support-engineering-alignment-jobs.md": {
+     "sha": "b6f6ad8d36b8a0e9c90e4499939cb019fd5ad615",
+     "size": 10902
+    },
+    "knowledge/modules/territory-alignment/territory-alignment-admin-transcript.md": {
+     "sha": "52502b4c86bcd55d7bd74d788a09244b8232b3cf",
+     "size": 6917
+    },
+    "knowledge/modules/territory-alignment/territory-alignment-configuration-guide.md": {
+     "sha": "d35b9455b973bc274c88e7416b395863326a85c4",
+     "size": 6579
+    },
+    "knowledge/modules/user-management/user-management-setup-guide.md": {
+     "sha": "a0931e502c049595439a91851dfe60124e8929a5",
+     "size": 12082
+    },
+    "knowledge/modules/visit-management/258-lsc4ce-visit-mgmt-admin-console-transcript.md": {
+     "sha": "9db36cdbab6ef1be1acd57898b74ad7a499d8e71",
+     "size": 30418
+    },
+    "knowledge/modules/visit-management/258-lsc4ce-visit-mgmt-release-enablement-demo-script.md": {
+     "sha": "c7255d92f8862dd428de47f6898dc259572edaee",
+     "size": 1823
+    },
+    "knowledge/modules/visit-management/258-lsc4ce-visit-mgmt-test-cases.md": {
+     "sha": "6cd1963da9d93637498ab11ea3e78a6654392d0e",
+     "size": 12899
+    },
+    "knowledge/modules/visit-management/258-lsc4ce-visit-mgmt-visit-page-layout-configuration-transcript.md": {
+     "sha": "980f808379f056ea6878ec9f3dc882231eed354e",
+     "size": 88099
+    },
+    "knowledge/modules/visit-management/258-lsc4ce-visit-mgmt-web-release-enablement-demo-transcript.md": {
+     "sha": "bb989f0f52144d919b7c6d06536f5b511ecd9f26",
+     "size": 10760
+    },
+    "knowledge/modules/visit-management/_index.md": {
+     "sha": "51ffafc5aaa4074ce67728bad46d137444fea2eb",
+     "size": 3966
+    },
+    "knowledge/modules/visit-management/release-260-actionable-list-view.md": {
+     "sha": "67ddae38f5decbcadee5b3f5606f0f77050d42f1",
+     "size": 4910
+    },
+    "knowledge/modules/visit-management/release-260-intelligent-content-in-web-visit.md": {
+     "sha": "94723d766d2028034488a7df34e1ab6df4d68008",
+     "size": 2743
+    },
+    "knowledge/modules/visit-management/release-260-same-address-attendees.md": {
+     "sha": "afdddb7e4be0ae22d0ac128a9315a1a3194116e2",
+     "size": 2031
+    },
+    "knowledge/modules/visit-management/release-260-service-console.md": {
+     "sha": "9dcf6dee7132641e879b03ce4b1fa9dd9b2b97e7",
+     "size": 2598
+    },
+    "knowledge/modules/visit-management/release-260-signature-page-snapshot.md": {
+     "sha": "b942176d293a106276b939a24377f2f001d59a44",
+     "size": 1799
+    },
+    "knowledge/modules/visit-management/release-262-concur-integration.md": {
+     "sha": "da9f2f6e9758b3a444270d7568cbad9d065bc950",
+     "size": 3490
+    },
+    "knowledge/modules/visit-management/release-262-hco-mapping-to-hcp-visit.md": {
+     "sha": "b00e6686604a0ac65b499d343a8bf9966ba1bc51",
+     "size": 2425
+    },
+    "knowledge/modules/visit-management/release-262-signature-disclaimers.md": {
+     "sha": "79b1c70f6269cec276618a40cdadb1eb4b50f580",
+     "size": 3163
+    },
+    "knowledge/modules/visit-management/release-262-voice-visit-logging.md": {
+     "sha": "4bc9c4261c3853dabb1e7c85c1bf47f1e8e550fb",
+     "size": 2807
+    },
+    "knowledge/modules/visit-management/release-264-dependent-picklists.md": {
+     "sha": "353a0a76b05a2cb9c5f325e47c1f6021271cd47d",
+     "size": 1112
+    },
+    "knowledge/modules/visit-management/release-264-group-visit-attendee-capture.md": {
+     "sha": "9fca3452e012b83b468ff706445549e80f9be57c",
+     "size": 1159
+    },
+    "knowledge/modules/visit-management/release-264-validate-visits-on-save-warnings.md": {
+     "sha": "32987c47a3fcacfc28c6bd53d52bb635379072d6",
+     "size": 1481
+    },
+    "knowledge/modules/visit-management/release-264-visit-agent-voice-logging.md": {
+     "sha": "35e18c8788476adf7a3b3501328a3cc32db1cf82",
+     "size": 2008
+    },
+    "knowledge/modules/visit-management/support-engineering-visit-configuration.md": {
+     "sha": "980bcfbcc0f6d856efae981606f2a4c457873f37",
+     "size": 8026
+    },
+    "knowledge/modules/visit-management/support-engineering-visit-engagement-side-menu.md": {
+     "sha": "6d36cfc4595feb73145b9c393fd1ce8262b9c597",
+     "size": 10837
+    },
+    "knowledge/modules/visit-management/support-engineering-visit-troubleshooting.md": {
+     "sha": "08b30b756d3ef2d2fee0a250af5f24a530ce5b27",
+     "size": 10475
+    },
+    "knowledge/release-notes/spring-26-official.md": {
+     "sha": "e86e304eec1352c48092cb7009b1cd088134cc62",
+     "size": 4870
+    },
+    "knowledge/release-notes/spring-26.md": {
+     "sha": "7cc4d8d5546eca7724c1e6da54b2a81adae45d08",
+     "size": 1743
+    },
+    "knowledge/release-notes/summer-26-official.md": {
+     "sha": "d03b3ed8872d87ad6353d0c7da38a9abb1e62514",
+     "size": 5185
+    },
+    "knowledge/release-notes/winter-26.md": {
+     "sha": "52eddf1554ebe87bd996366952dbed5b28d0b9aa",
+     "size": 1698
+    },
+    "knowledge/troubleshooting/common-issues.md": {
+     "sha": "2b9603fb88daf7d1d18419706b566a66cf6fc7e6",
+     "size": 2424
+    },
+    "knowledge/troubleshooting/data-cloud-tableau-mobile-troubleshooting.md": {
+     "sha": "4177cd9dff4671b600d280667a69cae0b245e4b9",
+     "size": 2295
+    },
+    "knowledge/troubleshooting/implementation-anti-patterns.md": {
+     "sha": "072dc31910b2a7c28e40990a7df43f2e6bfe0c62",
+     "size": 12324
+    },
+    "knowledge/troubleshooting/sample-troubleshooting.md": {
+     "sha": "e6645308717eca3bf79f195c2197fec10da81558",
+     "size": 1293
+    },
+    "knowledge/troubleshooting/territory-troubleshooting.md": {
+     "sha": "06b6bf90b5451eaabe7b9d22dd7e43ff0e3b785d",
+     "size": 1562
+    },
+    "knowledge/troubleshooting/visit-troubleshooting.md": {
+     "sha": "34aebcd0383f055b1373e23a3f2078724e1da96e",
+     "size": 1536
+    },
+    "knowledge/validation-rules/_schema.yaml": {
+     "sha": "2d66e7d1cbbe4756eea2eddada729c3830ee54df",
+     "size": 5970
+    },
+    "knowledge/validation-rules/account-management-config.yaml": {
+     "sha": "6dbcaba473142bbbd774a9e394832348f76e5d56",
+     "size": 15169
+    },
+    "knowledge/validation-rules/activity-plan-config.yaml": {
+     "sha": "6e783a80f53af61dff4ff5b9df77344a4991635c",
+     "size": 12771
+    },
+    "knowledge/validation-rules/agentforce-config.yaml": {
+     "sha": "404a5dbfcb4263b580e03af024b7ade12a632137",
+     "size": 19481
+    },
+    "knowledge/validation-rules/app-alerts-config.yaml": {
+     "sha": "da090ce9fddb6a8f3d963ea7903ec7f2e59763a0",
+     "size": 12564
+    },
+    "knowledge/validation-rules/briefings-config.yaml": {
+     "sha": "9b78f56451f284dadf00d2d78a1da97021d0b7d7",
+     "size": 13534
+    },
+    "knowledge/validation-rules/calendar-tot-routine-config.yaml": {
+     "sha": "ccb1d90421318d34b146e03f700064cdfc7dd14a",
+     "size": 12395
+    },
+    "knowledge/validation-rules/consent-management-config.yaml": {
+     "sha": "a2846d497e67ea4a9a610caa569d31326d0c8b5d",
+     "size": 17822
+    },
+    "knowledge/validation-rules/field-email-config.yaml": {
+     "sha": "5b7bd008820fa3b6936abe3242d80f4886f74f0a",
+     "size": 22478
+    },
+    "knowledge/validation-rules/home-page-config.yaml": {
+     "sha": "1d90d5cd1ca64bf13279e8fd8356464c0d0d79cc",
+     "size": 11718
+    },
+    "knowledge/validation-rules/intelligent-content-config.yaml": {
+     "sha": "5b570a19b3104a3f1c4f6e011cd0b95882f114e4",
+     "size": 22105
+    },
+    "knowledge/validation-rules/kam-config.yaml": {
+     "sha": "bf75bb27c35ee48d318a896afe41195424eb107d",
+     "size": 15533
+    },
+    "knowledge/validation-rules/lists-filters-config.yaml": {
+     "sha": "c4e08ae2c7982fffea6412f0a9876bbcdfd1efa9",
+     "size": 11045
+    },
+    "knowledge/validation-rules/mobile-config.yaml": {
+     "sha": "e51e069f5060bfbba0335a0997d9dcfc7d141c16",
+     "size": 11063
+    },
+    "knowledge/validation-rules/next-best-config.yaml": {
+     "sha": "73505fc25c0baae904d3da6fb58b20a312a82669",
+     "size": 19957
+    },
+    "knowledge/validation-rules/product-management-config.yaml": {
+     "sha": "2cc73c3f0b6d3bdeeb95ecd10d0403b98cb9525c",
+     "size": 18578
+    },
+    "knowledge/validation-rules/quick-actions-config.yaml": {
+     "sha": "dd866f03bde73dbad70fea7a096cefc1aa62eda6",
+     "size": 11684
+    },
+    "knowledge/validation-rules/sample-management-config.yaml": {
+     "sha": "6024117c4f35d602c9d06098bba37279e18a12f8",
+     "size": 12748
+    },
+    "knowledge/validation-rules/surveys-config.yaml": {
+     "sha": "42f509c03769abf5d7983667d05962b03c5044af",
+     "size": 12417
+    },
+    "knowledge/validation-rules/territory-alignment-config.yaml": {
+     "sha": "1dd0f28588c8802be0854bbddd17a147e78e7db4",
+     "size": 15099
+    },
+    "knowledge/validation-rules/visit-management-config.yaml": {
+     "sha": "a7b693aa07e1e384d700501a29583f57f4130e15",
+     "size": 10871
+    }
+   },
+   "repo": "SalesforceLabs/lsc-for-claude"
+  },
+  "net-zero": {
+   "commit": "b90143d753c3458787d7491fc3f7b4770d80dcbb",
+   "files": {
+    "JOURNEY_MAP.md": {
+     "sha": "d3bbe6b86b2c06f402d9448a6fd1e18bc6c2a212",
+     "size": 15007
+    },
+    "PERSONA_JOURNEYS.md": {
+     "sha": "2f14fd3d5075cfdeafabeb0208d7029efe2929fd",
+     "size": 18368
+    },
+    "knowledge/data-model.md": {
+     "sha": "c3cbefbc12a170322cabf01f7e479728e91ba517",
+     "size": 4744
+    },
+    "knowledge/modules/INDEX.md": {
+     "sha": "79b5188b51560de455663b6bc3c7a0e0632d8427",
+     "size": 1778
+    },
+    "knowledge/modules/annual-inventory/README.md": {
+     "sha": "1b032836d09031692b33b729c3240e28e53dcd9d",
+     "size": 917
+    },
+    "knowledge/modules/footprint-calc/README.md": {
+     "sha": "bfff5fa32b2dcf69af769cd0ee65d14a7f54819d",
+     "size": 1302
+    },
+    "knowledge/modules/record-types-config/README.md": {
+     "sha": "ade1410538516007fbd9f4fb5cfec95fa9031b01",
+     "size": 1403
+    },
+    "knowledge/modules/reference-data/README.md": {
+     "sha": "27eed900120deee4653540bc6d0828b0a36dbe56",
+     "size": 1413
+    },
+    "knowledge/modules/scope3-procurement/README.md": {
+     "sha": "350559ee51f776f236b915afb751ff00f946ba63",
+     "size": 1022
+    },
+    "knowledge/modules/scope3-travel/README.md": {
+     "sha": "69d2c803e1b85b2e45c9dc965b5f4b193af9b17d",
+     "size": 921
+    },
+    "knowledge/modules/settings/README.md": {
+     "sha": "5a398f870c3a3d4b70dee8fd92f019b6908fb570",
+     "size": 981
+    },
+    "knowledge/modules/stationary-buildings/README.md": {
+     "sha": "63d379adfb6b92ee5303641666e0cbac00c77d95",
+     "size": 1174
+    },
+    "knowledge/modules/vehicles-fleet/README.md": {
+     "sha": "3bc959d4f91f55dd983fb47093e025cfc221c964",
+     "size": 915
+    },
+    "knowledge/modules/waste/README.md": {
+     "sha": "c79b995cb828a7da454b3890e3c427ed80f866e9",
+     "size": 916
+    },
+    "knowledge/modules/water/README.md": {
+     "sha": "50fb04c25ac0d5790567eedf489b543a5b9bdb3a",
+     "size": 717
+    },
+    "knowledge/setup-order.md": {
+     "sha": "e6c3dead44cca8fb5517f18bb4ed6bb2417b2f76",
+     "size": 3310
+    },
+    "knowledge/troubleshooting/common-issues.md": {
+     "sha": "5dca18ad0e5f74c0ced2f7d37a140a26a7fc212a",
+     "size": 3516
+    },
+    "knowledge/validation-rules/_schema.yaml": {
+     "sha": "cd86e7104126cb8363bbf83221595d0fca1d7928",
+     "size": 1746
+    },
+    "knowledge/validation-rules/data-integrity.yaml": {
+     "sha": "fbd03e5d3c3b97b115169bca36a951541c0a5111",
+     "size": 3542
+    },
+    "knowledge/validation-rules/foundation.yaml": {
+     "sha": "78ae69ebcb2baa47a9d5541483023f104d46e74f",
+     "size": 4981
+    },
+    "knowledge/validation-rules/reference-data.yaml": {
+     "sha": "adb569e95234f703409417ad6bb7eaf70fadfb44",
+     "size": 2583
+    },
+    "skills/nzc-annual-inventory/SKILL.md": {
+     "sha": "dc713bb2ab82a603c8847c88729eb70727779978",
+     "size": 2346
+    },
+    "skills/nzc-carbon-footprint-calc/SKILL.md": {
+     "sha": "604ca95d64a46950fd120cfcacbcdd618f6dcfdc",
+     "size": 3697
+    },
+    "skills/nzc-data-model/SKILL.md": {
+     "sha": "5ba299173fffd42fad7b3dc4e552a432a93c6a64",
+     "size": 7078
+    },
+    "skills/nzc-dch/SKILL.md": {
+     "sha": "9e7ef6c51e8291ce753de977b358d735290984ab",
+     "size": 4561
+    },
+    "skills/nzc-foundation-licensing/SKILL.md": {
+     "sha": "c8e6ac4e7e24cada787b411405b4821d0ccfbefa",
+     "size": 5158
+    },
+    "skills/nzc-reference-data/SKILL.md": {
+     "sha": "e7383315d27a07bdf3a6cedaf57325c3f510f508",
+     "size": 3412
+    },
+    "skills/nzc-sample-data/SKILL.md": {
+     "sha": "f7f194c2ff12cdcc1bae53bca7c13f44c9163e6f",
+     "size": 4112
+    },
+    "skills/nzc-scope3-procurement/SKILL.md": {
+     "sha": "0195eca5b853093aec3554fdeba534ea16303304",
+     "size": 2631
+    },
+    "skills/nzc-scope3-travel/SKILL.md": {
+     "sha": "2c2fc54fd48293a8a0ebf7d2f1457921066c069d",
+     "size": 2342
+    },
+    "skills/nzc-stationary-buildings/SKILL.md": {
+     "sha": "c4e6bebf9298a746c5fcbaa6be073e5da52511d9",
+     "size": 2875
+    },
+    "skills/nzc-testing-validation/SKILL.md": {
+     "sha": "97270508bcbb62b4e60070783f7748c1e5a56e90",
+     "size": 2870
+    },
+    "skills/nzc-troubleshoot/SKILL.md": {
+     "sha": "04db9029af166bf33d3dd7ecc7894ea8fdb4d9ed",
+     "size": 4943
+    },
+    "skills/nzc-vehicles-fleet/SKILL.md": {
+     "sha": "e29d73249f75e02bc188ca219394cf2a56410d88",
+     "size": 2272
+    },
+    "skills/nzc-waste/SKILL.md": {
+     "sha": "f871d5fd6734290d9e539057fb22e737c294de8a",
+     "size": 2226
+    },
+    "skills/nzc-water/SKILL.md": {
+     "sha": "a48e89c9c40fdaaff4dbc93bb2e2c50379289034",
+     "size": 1759
+    }
+   },
+   "repo": "salesforce-misc/NZC-Assist"
+  },
+  "revenue-cloud": {
+   "commit": "c8506522ba45bb2c0015d41fa5eace51eed1ff91",
+   "files": {
+    ".cursor/skills/constraint-models/SKILL.md": {
+     "sha": "d3f7c0c82132b9222dd8b275d14517f338bfdb32",
+     "size": 27126
+    },
+    ".cursor/skills/decision-tables/SKILL.md": {
+     "sha": "b037151c251ab9d60ece8efa927f06af6bb998d0",
+     "size": 19015
+    },
+    ".cursor/skills/decision-tables/authoring-and-data-model.md": {
+     "sha": "59c4f6695a94a616b7818b566f4c6b7a23bab51a",
+     "size": 17291
+    },
+    ".cursor/skills/decision-tables/lifecycle-and-refresh.md": {
+     "sha": "23fb6e341af1f1a9cdad35b3338bccb5cb323e7a",
+     "size": 11383
+    },
+    ".cursor/skills/document-generation/SKILL.md": {
+     "sha": "13b97425dce5f19ca8426ebbfd2ba18405b8c52e",
+     "size": 34049
+    },
+    ".cursor/skills/document-generation/data-mapper-authoring.md": {
+     "sha": "8a9efd228dd3e44f491e88da3c4a5f0d48a6d489",
+     "size": 11585
+    },
+    ".cursor/skills/document-generation/dynamic-images.md": {
+     "sha": "26a1a55dbfb284e6d546139553b833a787d05e6e",
+     "size": 8537
+    },
+    ".cursor/skills/document-generation/extract-engine-reference.md": {
+     "sha": "5f330e35899352bc2bacbc65fbc0cbed1856f433",
+     "size": 39663
+    },
+    ".cursor/skills/expression-sets/SKILL.md": {
+     "sha": "0607a64575975b62fed85eb7c90a6ac9d66f45c3",
+     "size": 37256
+    },
+    ".cursor/skills/expression-sets/authoring-and-overlays.md": {
+     "sha": "2204456fe815a47ff1957f75cc4e66e5daa75372",
+     "size": 14981
+    },
+    ".cursor/skills/expression-sets/metadata-vs-connect.md": {
+     "sha": "e7917a82830970364452a60bbc98f37177732a19",
+     "size": 11289
+    },
+    ".cursor/skills/pricing-wiring/SKILL.md": {
+     "sha": "4f08fbe81f592549c3bb4d667db86704b4091dc2",
+     "size": 27242
+    },
+    ".cursor/skills/qb-demo-script/SKILL.md": {
+     "sha": "2e3a17e2d457d2ada4c9bc61294c5066ea5106c6",
+     "size": 14252
+    },
+    ".cursor/skills/ramped-quotes/SKILL.md": {
+     "sha": "e1176f6c45617a6db53cb8a0a4a8f4517006bcf1",
+     "size": 31436
+    },
+    ".cursor/skills/renewal-asset-creation/SKILL.md": {
+     "sha": "e98bb531c1f1332927367f07ac10f9da927df539",
+     "size": 12496
+    },
+    ".cursor/skills/revenue-cloud-data-model/SKILL.md": {
+     "sha": "3884fd4e3f6de05294171ad69811f3650333c7c1",
+     "size": 17029
+    },
+    ".cursor/skills/revenue-cloud-data-model/cross-domain-relationships.md": {
+     "sha": "4367079e5985debf59de184185f0b2acdb01739b",
+     "size": 6568
+    },
+    ".cursor/skills/revenue-cloud-data-model/domains/approvals.md": {
+     "sha": "e7a968bba234b005dba71c61f533ea3511d95e09",
+     "size": 1233
+    },
+    ".cursor/skills/revenue-cloud-data-model/domains/billing.md": {
+     "sha": "3ca033d768e3121bc02105ba18034b4b76478ba2",
+     "size": 7723
+    },
+    ".cursor/skills/revenue-cloud-data-model/domains/configurator.md": {
+     "sha": "c9b35d8aaccd1a565b371cc0d31c19746958a5f2",
+     "size": 1156
+    },
+    ".cursor/skills/revenue-cloud-data-model/domains/dro.md": {
+     "sha": "2a3050bb013eeb5bee529a15af4df1c25037a735",
+     "size": 4432
+    },
+    ".cursor/skills/revenue-cloud-data-model/domains/pcm.md": {
+     "sha": "71482164f152977cd7d3e44a2763835e512c67d7",
+     "size": 3917
+    },
+    ".cursor/skills/revenue-cloud-data-model/domains/pricing.md": {
+     "sha": "47e7d6e3450100248a5a324e7fc469cafa243c9e",
+     "size": 4140
+    },
+    ".cursor/skills/revenue-cloud-data-model/domains/rates.md": {
+     "sha": "2ee5d0c6a4e322e2bb78f1c6d8a83c34ee748d34",
+     "size": 2864
+    },
+    ".cursor/skills/revenue-cloud-data-model/domains/transactions.md": {
+     "sha": "d6c557e46cf4ab1721f8c0f73b22fd9014453a01",
+     "size": 4438
+    },
+    ".cursor/skills/revenue-cloud-data-model/domains/usage.md": {
+     "sha": "e29b08c55869bb751ef818ffa5e8aad12af245c5",
+     "size": 19165
+    },
+    ".cursor/skills/rlm-business-apis/SKILL.md": {
+     "sha": "96d3b7a3735b8f313431b8c874d80a09342930cf",
+     "size": 8227
+    },
+    ".cursor/skills/troubleshooting/SKILL.md": {
+     "sha": "894eb1edc6ab385cb8c8ab349c4bc83959f0e40c",
+     "size": 27332
+    },
+    ".cursor/skills/troubleshooting/large-deal-preprocess-reference.md": {
+     "sha": "5548e21231195c20be8e0c2ce644ed8f8656dc41",
+     "size": 5855
+    },
+    ".cursor/skills/usage-consumption/SKILL.md": {
+     "sha": "7be5ae89a18ee2e1a7b459f0e45b88aef79eaa7e",
+     "size": 14240
+    },
+    ".cursor/skills/usage-consumption/building-usage-assets.md": {
+     "sha": "b9a5e34deb7c81cf36ac1a780202ca33f5ffd43a",
+     "size": 7023
+    },
+    ".cursor/skills/usage-consumption/verification.md": {
+     "sha": "f46418ffae18fce9fd911c79d5acea6606f6f764",
+     "size": 7182
+    },
+    "docs/erds/README.md": {
+     "sha": "1417657bdfa8a26f7faeac30171c52330cf72987",
+     "size": 14491
+    },
+    "docs/erds/approvals.mermaid": {
+     "sha": "85dd00a98be7b2390f52634c1778b04e40f926fb",
+     "size": 99
+    },
+    "docs/erds/billing.mermaid": {
+     "sha": "beef3817a68920b0ee3ca6d75f3d31890b09c22d",
+     "size": 9896
+    },
+    "docs/erds/configurator.mermaid": {
+     "sha": "dcfdca1d244efd3020ee89c70681556d86b7869f",
+     "size": 130
+    },
+    "docs/erds/dro.mermaid": {
+     "sha": "aa454484da14f9bc7ab4e9e53bf0d8becd53747c",
+     "size": 2144
+    },
+    "docs/erds/erd-data.json": {
+     "sha": "4dcd2b6979eb1a91a0cbc0e7d9fad07dfe62106e",
+     "size": 1048163
+    },
+    "docs/erds/erd-quickstart.md": {
+     "sha": "82831995971c5c6eeeec83a0e22cb3355d5b5c45",
+     "size": 3791
+    },
+    "docs/erds/master.mermaid": {
+     "sha": "092ad278b7cb9ea265f8e68d7b391e8dd17dbacf",
+     "size": 4527
+    },
+    "docs/erds/pcm.mermaid": {
+     "sha": "8002f2cf97a516e56a6cb8f79b8ba161a68fe237",
+     "size": 1088
+    },
+    "docs/erds/pricing.mermaid": {
+     "sha": "0531980d987e91667d11df2e0634c7d5152955a5",
+     "size": 1391
+    },
+    "docs/erds/rate-management.mermaid": {
+     "sha": "03ee0f5ae7b42ae197d1a20e57f0a12114308392",
+     "size": 585
+    },
+    "docs/erds/transaction-management.mermaid": {
+     "sha": "495d97157584b942e4b8695c431494df526fd002",
+     "size": 3691
+    },
+    "docs/erds/usage-management.mermaid": {
+     "sha": "6c0e553400821e5ac9a24aeddabcf41f68a5e704",
+     "size": 2579
+    },
+    "docs/erds/validation-report.md": {
+     "sha": "25e250545949e89286c01db140d0adaea17d0829",
+     "size": 13845
+    },
+    "docs/features/composable-quote-approvals.md": {
+     "sha": "323320172977980c5795d7bc70a9b52391aad83d",
+     "size": 7341
+    },
+    "docs/features/dynamic-ux-assembly.md": {
+     "sha": "c07c65d1eb05c84d4045b036ab943f16210a1699",
+     "size": 26072
+    },
+    "docs/guides/constraints-setup.md": {
+     "sha": "63ca131a16210e0347fa61e5b979dea570942fd2",
+     "size": 11720
+    },
+    "docs/guides/docgen-setup.md": {
+     "sha": "632784f283a73410100a1e19765d32cd8000c803",
+     "size": 22056
+    },
+    "docs/guides/post-billing-portal.md": {
+     "sha": "1ab3988e6a3405f6fe2b4c106dd53af9b8cd28de",
+     "size": 1042
+    },
+    "docs/guides/prepare-rlm-org-build-guide.md": {
+     "sha": "96d88dd048efa9be4417fc0cf0bd16fc46ce58e9",
+     "size": 30405
+    },
+    "docs/guides/qb-consumption-demo-scenarios.md": {
+     "sha": "afa1e4f15a74454138eb10f595adbc611f30fc1e",
+     "size": 15183
+    },
+    "docs/guides/usage-consumption-runbook.md": {
+     "sha": "d2f1b9c101bb1f9d82ec0d5e6916f7d05b151bc7",
+     "size": 17415
+    },
+    "docs/references/context-service-patch-shapes.md": {
+     "sha": "e41186014359e0cad59cb9ebe92c91ff847251da",
+     "size": 24410
+    },
+    "docs/references/context-service-utility.md": {
+     "sha": "1c444fc2b2b2f3cdc5d901e27517e60bcb3decfa",
+     "size": 7698
+    },
+    "docs/references/decision-table-api-reference.md": {
+     "sha": "f1755f9d21e18b388fbb27ffcea4e786036c8e38",
+     "size": 12089
+    },
+    "docs/references/decision-table-examples.md": {
+     "sha": "42c52aaf19013dc553d862f57e287311ec3d492b",
+     "size": 21110
+    },
+    "docs/references/expression-set-connect-api-reference.md": {
+     "sha": "eafbcc9f9f4304a9d85de314d6c5fafe11954922",
+     "size": 39162
+    },
+    "docs/references/expression-set-overlay-examples/facility-quantity.overlay.example.json": {
+     "sha": "463f06c6b99e1e0e40b80b060793b4d46218e752",
+     "size": 11554
+    },
+    "docs/references/revenue-cloud-permissions.md": {
+     "sha": "cd76232fd04327693eeff03c6d70e406cc1d278e",
+     "size": 35078
+    }
+   },
+   "repo": "SalesforceLabs/revenue-cloud-foundations"
+  }
+ }
+}

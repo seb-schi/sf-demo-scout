@@ -9,6 +9,8 @@ Before any inspection, worker dispatch, proposal or write in a build or repair, 
 - `setup-needed`, `unknown`, `conflict`, `missing` and `unsupported-host`: the items that need it are `BLOCKED`, with the reported action. Independent items proceed. A `conflict` whose `switched_on_in` names this folder's own settings file is the SE's to switch off there; Scout never changes project plugin selections.
 - `notes` never block. `pinned`: say once that the SE's Salesforce plugins are fixed to that ref and `/scout-setup` can switch them to the latest. `personal_copies` with folders: say once that there are possible personal copies of Salesforce skills there, outside Scout's automatic updates, and that Scout uses the plugins' versions; a renamed skill isn't detected. `personal_copies: "unknown"`: say nothing.
 
+**Industry knowledge.** When the request names or touches an industry or product cloud, such as Life Sciences or Net Zero, run `python3 -B [PLUGIN_ROOT_ABS]/scripts/industry_sources.py list` in this step. Then follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/industry-sources.md` before the proposal: it checks for a covering cartridge first, its knowledge informs the build, and these skills still make every change.
+
 From then on, apply §"The official hooks" in this session, and copy it into every worker brief with the qualified names and resolved roots; workers don't re-check.
 
 ## Missing-plugin repair

@@ -2,6 +2,12 @@
 
 Newest first. Scout updates itself; each entry says what changed for you.
 
+## 2026-10-18 (Scout 2.2.0)
+
+- **Scout now reads what Salesforce's product teams publish for their clouds.** When a request is about Life Sciences Cloud, Net Zero Cloud or Revenue Cloud, Scout reads that team's setup notes, data model and troubleshooting from its public GitHub repo, at a version Scout's maintainer has reviewed, and builds with it. It checks every object and setting name against your org or the Salesforce Docs before relying on it. Scout only reads these repos: it never installs the teams' plugins or runs their tools or scripts, and every change still goes through Salesforce's official skills, with your confirmation, in the org you named. When an installed knowledge pack covers your industry, Scout uses that pack first.
+- **Org-wide settings get asked about first.** When a cloud's notes show that a step changes a setting for the whole org, such as switching a cloud on, Scout stops and asks before making it.
+- **Industry plugins you install yourself stay out of Scout's builds.** Several of them come with their own tools, which pick an org on their own. Scout leaves those tools alone and makes changes the usual way.
+
 ## 2026-10-17 (Scout 2.1.5)
 
 - **Scout no longer starts its own Salesforce DX connection.** Salesforce ends support for that server (`@salesforce/mcp`) on 2026-11-02 and points to its official skills, which Scout already uses. Scout did its org work with the Salesforce CLI anyway. LWC guidance now comes from Salesforce's LWC plugin, and code checks from its code-quality plugin, through the Salesforce CLI. Apex checks still need Java 11 or later; when they can't run, Scout says so rather than reporting a clean scan.

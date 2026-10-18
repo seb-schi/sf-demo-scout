@@ -108,7 +108,8 @@ class ScoutRouteTests(unittest.TestCase):
                 'reconcile.md': 335,  # 2.0.1: the handover's form moved to history.md; reconcile.md is new (W13)
                 'hosted-flow.md': 860,  # W19: the hosted Flow route, loaded only for Flow items
                 'connect-org.md': 440,  # 2.1.1: the browser login, loaded only for an org that isn't connected
-                'demo-canvas.md': 260}  # 2.1.2: the demo flow as a Slack canvas, loaded after the handover
+                'demo-canvas.md': 260,  # 2.1.2: the demo flow as a Slack canvas, loaded after the handover
+                'industry-sources.md': 560}  # 2.2: read only when a task is industry-specific
         for path in [COMMAND, *optional]:
             self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)
         text = '\n'.join(p.read_text() for p in [COMMAND, *optional])
@@ -328,10 +329,11 @@ class ScoutRouteTests(unittest.TestCase):
             'mcp__salesforce-docs__salesforce_docs_search','mcp__salesforce-docs__salesforce_docs_fetch'})
 
     def test_unconditional_cli_binding_fresh_evidence_and_folder_identity(self):
-        rule = ("Never call Salesforce DX MCP org tools, even when the bound org is the default. "
+        rule = ("Never call MCP org tools, even when the bound org is the default. "
                 "Wherever a file says MCP, the active or default org, `sf config get target-org`, "
                 "or to omit `--target-org`, use `sf … --target-org [BOUND_USERNAME]`.")
         self.assertEqual(self.command.count(rule), 2)
+        self.assertNotIn('Salesforce DX MCP', self.command)  # 2.2: the rule covers every MCP server's org tools
         self.assertIn('rule copied verbatim into every worker brief', self.command)
         for phrase in ('Every disposition rests on a read-back you ran yourself, after a passing `check`',
                        'Audits and worker reports are leads, not evidence',

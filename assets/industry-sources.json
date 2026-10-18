@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "sources": {
+    "life-sciences": {
+      "cloud": "Life Sciences Cloud (for Customer Engagement)",
+      "state": "read",
+      "repo": "SalesforceLabs/lsc-for-claude",
+      "commit": "6d00cfdcde479e8129042dc692ef5cbbec9c4436",
+      "reviewed": "2026-10-17",
+      "shape": "a Claude plugin with its own MCP server; read for its knowledge files only",
+      "paths": ["knowledge/modules/", "knowledge/troubleshooting/", "knowledge/validation-rules/", "knowledge/release-notes/", "knowledge/decision-trees/"],
+      "use": "The product team's setup notes per module (visits, samples, territories, Admin Console settings and more), troubleshooting guides and per-release module notes. Its validation rules are SOQL checks to verify against the org before trusting them. Where an installed cartridge covers Life Sciences, the contract consults it instead.",
+      "org_wide": ["Admin Console settings", "trigger handlers", "mobile metadata cache generation", "mobile sync schema"]
+    },
+    "net-zero": {
+      "cloud": "Net Zero Cloud",
+      "state": "read",
+      "repo": "salesforce-misc/NZC-Assist",
+      "commit": "b90143d753c3458787d7491fc3f7b4770d80dcbb",
+      "reviewed": "2026-10-17",
+      "shape": "a Claude plugin with its own MCP server that installs only from source; read for its knowledge files and knowledge skills only",
+      "paths": ["knowledge/", "skills/nzc-annual-inventory/", "skills/nzc-carbon-footprint-calc/", "skills/nzc-data-model/", "skills/nzc-dch/", "skills/nzc-foundation-licensing/", "skills/nzc-reference-data/", "skills/nzc-sample-data/", "skills/nzc-scope3-procurement/", "skills/nzc-scope3-travel/", "skills/nzc-stationary-buildings/", "skills/nzc-testing-validation/", "skills/nzc-troubleshoot/", "skills/nzc-vehicles-fleet/", "skills/nzc-waste/", "skills/nzc-water/", "JOURNEY_MAP.md", "PERSONA_JOURNEYS.md"],
+      "use": "Net Zero Cloud's setup order, data model and modules (buildings, vehicles, scope 3, waste, water, the Disclosure and Compliance Hub), troubleshooting, and persona journeys for shaping a demo. Its validation rules are hints to verify. Never load its metadata or data files.",
+      "org_wide": ["Net Zero Cloud and carbon accounting settings (Industries Settings)", "emission-factor reference data loads", "Disclosure and Compliance Hub package installs"]
+    },
+    "revenue-cloud": {
+      "cloud": "Revenue Cloud",
+      "state": "read",
+      "repo": "SalesforceLabs/revenue-cloud-foundations",
+      "commit": "c8506522ba45bb2c0015d41fa5eace51eed1ff91",
+      "reviewed": "2026-10-17",
+      "shape": "a skills library with deployment automation (Release 264); read its domain skills and product docs only",
+      "paths": [".cursor/skills/revenue-cloud-data-model/", ".cursor/skills/constraint-models/", ".cursor/skills/decision-tables/", ".cursor/skills/expression-sets/", ".cursor/skills/pricing-wiring/", ".cursor/skills/usage-consumption/", ".cursor/skills/ramped-quotes/", ".cursor/skills/renewal-asset-creation/", ".cursor/skills/document-generation/", ".cursor/skills/rlm-business-apis/", ".cursor/skills/troubleshooting/", ".cursor/skills/qb-demo-script/", "docs/erds/", "docs/guides/constraints-setup.md", "docs/guides/docgen-setup.md", "docs/guides/post-billing-portal.md", "docs/guides/prepare-rlm-org-build-guide.md", "docs/guides/qb-consumption-demo-scenarios.md", "docs/guides/usage-consumption-runbook.md", "docs/references/context-service-patch-shapes.md", "docs/references/context-service-utility.md", "docs/references/decision-table-api-reference.md", "docs/references/decision-table-examples.md", "docs/references/expression-set-connect-api-reference.md", "docs/references/expression-set-overlay-examples/", "docs/references/revenue-cloud-permissions.md", "docs/features/composable-quote-approvals.md", "docs/features/dynamic-ux-assembly.md"],
+      "use": "Revenue Cloud's data model and ERDs, pricing, constraint models, decision tables, expression sets, usage, ramps, renewals, document generation, business APIs, troubleshooting and a demo script. The repo also ships deployment automation (CumulusCI flows, scripts and datasets) that its skills tell agents to run; Scout never runs any of it.",
+      "org_wide": ["Revenue Settings", "activating pricing procedures and expression sets", "refreshing decision tables", "currency settings"]
+    },
+    "automotive": {
+      "cloud": "Automotive Cloud",
+      "state": "known",
+      "repo": "salesforce-misc/AutomotiveAssist",
+      "why": "not reviewed yet: its MCP tools are stubs, and its knowledge is planned for a later 2.2 update"
+    },
+    "manufacturing": {
+      "cloud": "Manufacturing Cloud",
+      "state": "known",
+      "repo": "salesforce-misc/ManuAssist",
+      "why": "not reviewed yet: its knowledge is planned for a later 2.2 update"
+    },
+    "fsc-agentic-advisor": {
+      "cloud": "Financial Services Cloud (Agentic Advisor Suite)",
+      "state": "known",
+      "repo": "salesforce/financial-services-agentic-advisor",
+      "why": "a deploy kit whose skill signs in to an org, which Scout never does"
+    },
+    "b2c-commerce": {
+      "cloud": "B2C Commerce",
+      "state": "known",
+      "repo": "SalesforceCommerceCloud/b2c-developer-tooling",
+      "why": "B2C Commerce runs outside a Salesforce core org"
+    },
+    "commerce-apps": {
+      "cloud": "B2C Commerce apps",
+      "state": "known",
+      "repo": "SalesforceCommerceCloud/commerce-apps",
+      "why": "outside a Salesforce core org, and it holds non-Salesforce applications too"
+    },
+    "mulesoft": {
+      "cloud": "MuleSoft Anypoint",
+      "state": "known",
+      "repo": "mulesoft/mulesoft-dx",
+      "why": "Anypoint runs outside a Salesforce core org"
+    },
+    "heroku": {
+      "cloud": "Heroku",
+      "state": "known",
+      "repo": "heroku/heroku-claude-plugin",
+      "why": "its own platform, outside a Salesforce core org"
+    },
+    "slack": {
+      "cloud": "Slack",
+      "state": "known",
+      "repo": "slackapi/slack-skills-plugin",
+      "why": "its own platform, outside a Salesforce core org"
+    },
+    "tableau": {
+      "cloud": "Tableau",
+      "state": "known",
+      "repo": "tableau/tableau-plugin",
+      "why": "its own platform, outside a Salesforce core org"
+    },
+    "informatica": {
+      "cloud": "Informatica",
+      "state": "known",
+      "repo": "forcedotcom/informatica-claude-plugins",
+      "why": "its own platform, outside a Salesforce core org"
+    },
+    "mobile-sdk-ios": {
+      "cloud": "Agentforce Mobile SDK for iOS",
+      "state": "known",
+      "repo": "salesforce/AgentforceMobileSDK-iOS",
+      "why": "native app development, which sf-skills' mobile-development plugin covers"
+    },
+    "mobile-sdk-android": {
+      "cloud": "Agentforce Mobile SDK for Android",
+      "state": "known",
+      "repo": "salesforce/AgentforceMobileSDK-Android",
+      "why": "native app development, which sf-skills' mobile-development plugin covers"
+    },
+    "mobile-sdk-react-native": {
+      "cloud": "Agentforce Mobile SDK for React Native",
+      "state": "known",
+      "repo": "salesforce/AgentforceMobileSDK-ReactNative",
+      "why": "native app development, which sf-skills' mobile-development plugin covers"
+    },
+    "salesforce-for-sales": {
+      "cloud": "Sales (salesforce-for-sales)",
+      "state": "known",
+      "repo": "salesforce/salesforce-skills",
+      "why": "a seller's assistant for working accounts and deals, not a source for building demos"
+    },
+    "agentforce-adlc-research": {
+      "cloud": "Agentforce (ADLC)",
+      "state": "known",
+      "repo": "SalesforceAIResearch/agentforce-adlc",
+      "why": "it has the same plugin name as the sf-skills agentforce-adlc that Scout drives; Scout uses sf-skills' copy"
+    }
+  }
+}
