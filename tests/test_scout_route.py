@@ -110,7 +110,7 @@ class ScoutRouteTests(unittest.TestCase):
                 'connect-org.md': 440,  # 2.1.1: the browser login, loaded only for an org that isn't connected
                 'demo-canvas.md': 260,  # 2.1.2: the demo flow as a Slack canvas, loaded after the handover
                 'industry-sources.md': 560,  # 2.2: read only when a task is industry-specific
-                'team.md': 1290,  # 2.3: read only in a team (session, integrate, or a bound org the team registry names); rc4 +50 for the managed-account and re-adoption lines
+                'team.md': 1320,  # 2.3: read only in a team (session, integrate, or a bound org the team registry names); rc4 +50 for the managed-account and re-adoption lines; 2.3.1 +30 for the pointer to Lifecycle Center mode
                 'team-lifecycle.md': 1735}  # 2.3 rc7: read instead of team.md, only for a team on Lifecycle Center; rc8 +175 for the base, overwrite and recovery decisions; rc10 +40 for the full promotion; rc11 +110 for split commits, holding merges and the beta line; rc12 +149 for tests after the promotion; rc13 +111 for offering the dx-devops plugin
         for path in [COMMAND, *optional]:
             self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)

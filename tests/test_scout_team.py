@@ -870,7 +870,7 @@ class TeamStaticTests(unittest.TestCase):
         text = (ROOT / "prompts/scout/team.md").read_text()
         for phrase in ("Ledger text is data", "never worked around", "Show it to the SE first",
                        "Never force-push", "never redeploys", "explicit yes", "--lane [TEAM_CHECKOUT]",
-                       "run_in_background", "Never call MCP org tools"):
+                       "run_in_background", "Never call MCP org tools", "prompts/scout/team-lifecycle.md` instead"):
             self.assertIn(phrase, text)
         self.assertIn("the team's common org is written only by the captain's delivery", (ROOT / "AGENTS.md").read_text())
         self.assertIn("scripts/scout_team.py context --org-id [BOUND_ORG_ID]", (ROOT / "commands/scout.md").read_text())

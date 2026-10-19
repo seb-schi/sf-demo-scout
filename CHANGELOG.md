@@ -2,6 +2,10 @@
 
 Newest first. Scout updates itself; each entry says what changed for you.
 
+## 2026-10-19 (Scout 2.3.1)
+
+- **Asking for a team on Lifecycle Center now always gets you one.** When you tell Scout your team should run on Lifecycle Center, its team guide now points straight to Lifecycle Center mode. Before, Scout found that mode only by looking for it, and could have started a team on its own lane instead.
+
 ## 2026-10-19 (Scout 2.3.0)
 
 - **Teams can run on Salesforce's Lifecycle Center** (the next-generation DevOps Center), in beta. Your team's work items, reviews and promotions are Salesforce's own, set up with Salesforce's official skills, and everyone on the team can use Cursor, Agentforce Vibes or Scout. When a captain sets a team up, Scout offers Salesforce's official Lifecycle Center plugin (`dx-devops`) if it isn't installed yet; it updates itself like the others. Scout adds what nothing official covers:

@@ -2,6 +2,8 @@
 
 Read this when a request starts, joins or works in a team (`/scout session`, `/scout integrate`, "I'm collaborating with … on …"), when `scout_team.py context` names a team for the bound org, or when a 📨 team update arrives. An update alone changes nothing for other orgs: relay it, and apply the rest only to the team's orgs. Everything else in `/scout` still applies.
 
+**On Lifecycle Center:** when the SE wants the team on Lifecycle Center (Salesforce's next-generation DevOps Center), or `context` returns `mode: lifecycle`, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/team-lifecycle.md` instead of this file.
+
 ## How a team works
 - **The repository:** one private Git repository per team, usually on GitHub. `main` holds what the team has delivered into its **common org**. The team ledger (members, work packages, deliveries) is the `mp/ledger` branch, which the helper writes. Hand-overs are `wp/<package>` branches, offered as pull requests.
 - **The captain** is the steward. Their machine is the only lane into the common org, through sf-mp's guarded deploy.
