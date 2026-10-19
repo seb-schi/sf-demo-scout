@@ -337,6 +337,10 @@ def devops(args):
         ok({"requestId": promotion["token"], "status": "SUBMITTED", "message": "Submitted for promotion",
             "promotedWorkitemIds": [wi["id"]], "undeployedWorkitemIds": [wid]})
     if what == ["request", "status"]:
+        if options.get("request_status_fails", 0) > data.get("status_fails", 0):  # a read that fails for a while
+            data["status_fails"] = data.get("status_fails", 0) + 1
+            save(STATE, data)
+            error("Request failed with status 503", name="Error")
         token = flag(args, "--request-token")
         promotion = next((p for p in data["promotions"] if p["token"] == token), None)
         if not promotion:
@@ -363,6 +367,10 @@ def promotion_rows(soql, data):
     """A refusal's record has neither a status nor a request (measured); with the option status_late, a submitted
     promotion shows its request but no status yet for its first reads."""
     rows = []
+    if data["options"].get("rows_hidden", 0) > data.get("hidden_reads", 0):  # submitted, not visible to a query yet
+        data["hidden_reads"] = data.get("hidden_reads", 0) + 1
+        save(STATE, data)
+        return []
     for number, p in enumerate(data["promotions"], 1):
         status = None if p.get("late") else p["status"]
         if p.get("late"):
@@ -374,6 +382,9 @@ def promotion_rows(soql, data):
                      "DevopsPipelnStgProm": {"Status": status, "LastModifiedDate": p["at"], "PipelineStageId": id18(STAGE),
                                              "CompletionDate": p["at"], "RequestInfoId": "8Mw000000000001AAA" if info else None,
                                              "RequestInfo": info}})
+    hide_from = data["options"].get("hide_from")  # promotions from this one on aren't visible yet: their records lag
+    if hide_from is not None:
+        rows = rows[:hide_from]
     wi = where(soql, "WorkItemId")
     if wi:
         rows = [r for r in rows if r["wi"] == wi]
@@ -381,6 +392,8 @@ def promotion_rows(soql, data):
         rows = [r for r in rows if r["DevopsPipelnStgProm"]["Status"] or r["DevopsPipelnStgProm"]["RequestInfoId"]]
     elif "DevopsPipelnStgProm.Status != null" in soql:
         rows = [r for r in rows if r["DevopsPipelnStgProm"]["Status"]]
+    elif "DevopsPipelnStgProm.RequestInfoId != null" in soql:
+        rows = [r for r in rows if r["DevopsPipelnStgProm"]["RequestInfoId"]]
     if "DevopsPipelnStgProm.Status = 'SUCCESS'" in soql:
         rows = [r for r in rows if r["DevopsPipelnStgProm"]["Status"] == "SUCCESS"]
     if "MergeRemoteReference != null" in soql:
@@ -417,7 +430,12 @@ def query(args):
     elif "FROM AsyncApexJob" in soql:  # a run lives in its org only
         run = (data.get("test_runs") or {}).get(where(soql, "Id"))
         here = run and run["org"] == orgs_id(flag(args, "--target-org"))
-        rows = [{"Status": run["status"], "CreatedDate": run["created"]}] if here else []
+        status = run["status"] if here else None
+        if here and run.get("going"):  # a run that takes a while
+            run["going"] -= 1
+            status = "Processing"
+            save(STATE, data)
+        rows = [{"Status": status, "CreatedDate": run["created"]}] if here else []
     elif "FROM ApexTestResult" in soql:
         run = (data.get("test_runs") or {}).get(where(soql, "AsyncApexJobId"))
         here = run and run["org"] == orgs_id(flag(args, "--target-org"))
@@ -476,9 +494,11 @@ def mp(args):
 
 
 def run_tests(args):
-    """`sf apex run test`, as the CLI answers it: one run of whole classes in the org named, its ID in the summary, and
-    exit 100 when a test fails. Options: tests_fail_after (classes that fail), tests_dont_start, tests_edit_org (an
-    admin's edit of Invoice.cls in that org while the run goes)."""
+    """`sf apex run test`, as the CLI answers it: one run of whole classes in the org named. Without --wait or
+    --synchronous it's asynchronous: the answer is the run's ID alone, exit 0, as documented. With a wait, the summary,
+    and exit 100 when a test fails. Options: tests_fail_after (classes that fail), tests_dont_start, tests_edit_org (an
+    admin's edit of Invoice.cls in that org while the run goes), tests_running_reads (the run shows Processing for that
+    many reads of AsyncApexJob)."""
     data = state()
     options = data["options"]
     if options.get("tests_dont_start"):
@@ -490,11 +510,14 @@ def run_tests(args):
     run_id = f"707{len(runs) + 1:012d}"
     results = [{"ApexClass": {"Name": c}, "MethodName": "run", "Outcome": "Fail" if c in failing else "Pass",
                 "Message": "System.AssertException: injected" if c in failing else None} for c in classes]
-    runs[run_id] = {"org": orgs_id(target), "status": "Completed", "created": stamp(), "results": results}
+    runs[run_id] = {"org": orgs_id(target), "status": "Completed", "created": stamp(), "results": results,
+                    "going": options.get("tests_running_reads", 0)}
     save(STATE, data)
     if options.get("tests_edit_org"):
         path = org_dir(target) / "classes/Invoice.cls"
         path.write_bytes(path.read_bytes() + b"// an admin's edit during the run\n")
+    if "--wait" not in args and "--synchronous" not in args:
+        ok({"testRunId": run_id})
     outcome = "Failed" if any(r["Outcome"] != "Pass" for r in results) else "Passed"
     print(json.dumps({"status": 100 if outcome == "Failed" else 0, "result": {
         "summary": {"testRunId": run_id, "outcome": outcome, "testsRan": len(results)},

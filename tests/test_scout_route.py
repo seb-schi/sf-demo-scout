@@ -111,7 +111,7 @@ class ScoutRouteTests(unittest.TestCase):
                 'demo-canvas.md': 260,  # 2.1.2: the demo flow as a Slack canvas, loaded after the handover
                 'industry-sources.md': 560,  # 2.2: read only when a task is industry-specific
                 'team.md': 1320,  # 2.3: read only in a team (session, integrate, or a bound org the team registry names); rc4 +50 for the managed-account and re-adoption lines; 2.3.1 +30 for the pointer to Lifecycle Center mode
-                'team-lifecycle.md': 1735}  # 2.3 rc7: read instead of team.md, only for a team on Lifecycle Center; rc8 +175 for the base, overwrite and recovery decisions; rc10 +40 for the full promotion; rc11 +110 for split commits, holding merges and the beta line; rc12 +149 for tests after the promotion; rc13 +111 for offering the dx-devops plugin
+                'team-lifecycle.md': 1900}  # 2.3 rc7: read instead of team.md, only for a team on Lifecycle Center; rc8 +175 for the base, overwrite and recovery decisions; rc10 +40 for the full promotion; rc11 +110 for split commits, holding merges and the beta line; rc12 +149 for tests after the promotion; rc13 +111 for offering the dx-devops plugin; 2.3.2 +165 for waiting with progress lines, peek and the stop, the unanswered submit, and the Not verified comment
         for path in [COMMAND, *optional]:
             self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)
         text = '\n'.join(p.read_text() for p in [COMMAND, *optional])

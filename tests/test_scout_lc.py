@@ -7,6 +7,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -190,9 +191,11 @@ class LifecycleTests(unittest.TestCase):
         saved = dict(os.environ)
         os.environ.update(self.env(who, **extra))
         try:
-            buffer = io.StringIO()
-            with contextlib.redirect_stdout(buffer), mock.patch.object(lc, "SYNC_WAIT", 0), mock.patch.object(lc, "STATUS_WAIT", 0):
+            buffer, errors = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(errors), \
+                    mock.patch.object(lc, "SYNC_WAIT", 0), mock.patch.object(lc, "STATUS_WAIT", 0):
                 code = lc.main([str(a) for a in args])
+            self.stderr = errors.getvalue()  # the progress lines of this call
             text = buffer.getvalue().strip()
             return code, (json.loads(text) if text.startswith("{") else text)
         finally:
@@ -1369,9 +1372,480 @@ class LifecycleTests(unittest.TestCase):
         self.assertIn("resume looks at the server again", body["reason"])
         self.assertNotIn("nothing was submitted", body["reason"])
         self.assertEqual(self.submitted(), [])
-        code, done = self.call("ana", "deliver", "--wi", wi, "--resume")
+        code, body = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual((code, body.get("pending")), (1, True), body)
+        self.assertIn("won't submit another on its own", body["reason"])
+        self.assertEqual(self.submitted(), [], "an unanswered submit is never resubmitted without --retry")
+        code, done = self.call("ana", "deliver", "--wi", wi, "--resume", "--retry")
         self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
         self.assertEqual([p["status"] for p in self.hub()["promotions"]], ["SUCCESS"])
+
+    def progress_steps(self):
+        """(step, line) for each progress line of the last call: `scout_lc <time> <WI> <step>: <text> (<note>)`."""
+        return [(line.split(" ", 3)[3].split(":", 1)[0], line) for line in self.stderr.splitlines()
+                if line.startswith("scout_lc ")]
+
+    def hub_reset(self, *flags):
+        """Clears the stub's one-time flags (a crash already spent, say) so an option applies again."""
+        data = self.hub()
+        for flag in flags:
+            data.pop(flag, None)
+        (self.stub / "lc-state.json").write_text(json.dumps(data))
+
+    def not_verified_comments(self):
+        return [c["body"] for c in self.github()["comments"] if c.get("body", "").startswith("Not verified: ")]
+
+    def unchanged_state(self):
+        """What a read-only command must leave as it was: both stubs' state and every delivery record."""
+        files = [self.stub / "lc-state.json", self.stub / "lc-gh.json", *sorted(self.tmp.rglob("deliveries/WI-*.json"))]
+        return {str(f): f.read_bytes() for f in files if f.exists()}
+
+    def test_a_delivery_says_each_step_on_stderr_and_when_a_stop_is_safe(self):
+        """A long wait isn't a black box. stdout keeps its one JSON answer; stderr says each step, and whether
+        stopping now is safe, which it isn't while a change is in flight."""
+        wi = self.plain_delivery(60)
+        code, done = self.deliver(wi)
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+        steps = self.progress_steps()
+        names = [step for step, _ in steps]
+        for step in ("checking", "validating", "validated", "merging", "continuing", "syncing", "completing", "promoting",
+                     "reading back", "done"):
+            self.assertIn(step, names, self.stderr)
+        self.assertLess(names.index("merging"), names.index("completing"))
+        self.assertLess(names.index("completing"), names.index("reading back"))
+        self.assertEqual(names[-1], "done")
+        for step, line in steps:
+            note = "never kill the helper" if step in ("merging", "completing") else \
+                "the helper ends here" if step == "done" else "nothing in flight"
+            self.assertIn(note, line)
+        self.assertTrue(any("submitted as request" in line for _, line in steps), self.stderr)
+        self.assertTrue(any(re.search(r"promoting: request \S+: SUCCESS", line) for _, line in steps), self.stderr)
+
+    def test_the_tests_run_after_the_promotion_show_on_stderr(self):
+        wi, (code, done) = self.skipped_tests_delivery(61)
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+        steps = self.progress_steps()
+        self.assertTrue(any(step == "testing" and "starting InvoiceTest" in line and "never kill" in line
+                            for step, line in steps), self.stderr)
+        self.assertTrue(any(re.search(r"testing: run 707\w+ started", line) for _, line in steps), self.stderr)
+        self.assertTrue(any(re.search(r"testing: run 707\w+ is Completed", line) for _, line in steps), self.stderr)
+
+    def test_a_stop_for_a_decision_ends_with_a_line_that_says_so(self):
+        wi = self.plain_delivery(62)
+        code, plan = self.call("ana", "deliver", "--wi", wi)
+        self.assertEqual((code, plan.get("needs")), (3, "deliver-yes"), plan)
+        step, line = self.progress_steps()[-1]
+        self.assertEqual(step, "waiting for a decision")
+        self.assertIn("deliver-yes", line)
+
+    def test_peek_shows_where_a_delivery_stands_and_changes_nothing(self):
+        wi, (code, body) = self.skipped_tests_delivery(63, tests_fail_after=["InvoiceTest"])
+        self.assertEqual(code, 1, body)
+        before = self.unchanged_state()
+        logs = {name: (self.stub / name).read_text() for name in ("sf-calls.log", "gh-calls.log")}
+        code, peek = self.call("ana", "peek", "--wi", wi)
+        self.assertEqual(code, 0, peek)
+        self.assertEqual(self.unchanged_state(), before, "peek changed nothing")
+        sf_calls = [json.loads(line) for line in (self.stub / "sf-calls.log").read_text()[len(logs["sf-calls.log"]):].splitlines()]
+        gh_calls = [json.loads(line) for line in (self.stub / "gh-calls.log").read_text()[len(logs["gh-calls.log"]):].splitlines()]
+        writes = {("devops", "work-item", "update"), ("devops", "promotion", "validate"), ("devops", "promotion", "complete"),
+                  ("devops", "review", "create"), ("project", "deploy", "start"), ("project", "deploy", "validate"),
+                  ("apex", "run", "test"), ("mp", "validate", "--source-dir")}
+        self.assertFalse([c for c in sf_calls if tuple(c[:3]) in writes], sf_calls)
+        self.assertFalse([c for c in gh_calls if c[:2] in (["pr", "merge"], ["pr", "comment"]) or "POST" in c], gh_calls)
+        self.assertTrue(peek["reads_only"])
+        self.assertEqual(peek["record"]["step"], "tests-failed")
+        self.assertEqual(peek["hub"]["work_item_status"], "CLOSED")
+        self.assertEqual(peek["hub"]["selected_promotion"]["status"], "SUCCESS")
+        self.assertEqual(peek["hub"]["latest_row"]["status"], "SUCCESS")
+        self.assertEqual([(r["token"], r["status"]) for r in peek["requests"]], [(peek["record"]["token"], "SUCCESS")])
+        self.assertEqual(peek["requests"][0]["from"], ["record", "selected_promotion", "latest_row"])
+        self.assertEqual(peek["tests"]["run"], peek["record"]["test_run"])
+        self.assertTrue(peek["tests"]["failures"], peek["tests"])
+        self.assertEqual(peek["pull_request"]["state"], "MERGED")
+        self.assertTrue(peek["pull_request"]["scouts_comment"].startswith("Not verified: "), peek["pull_request"])
+
+    def test_peek_says_which_read_failed_and_still_shows_the_rest(self):
+        wi = self.plain_delivery(64)
+        code, done = self.deliver(wi)
+        self.assertEqual(code, 0, done)
+        self.options(pr_view_fails=5)
+        code, peek = self.call("ana", "peek", "--wi", wi)
+        self.assertEqual(code, 0, peek)
+        self.assertIn("error", peek["pull_request"])
+        self.assertEqual(peek["hub"]["selected_promotion"]["status"], "SUCCESS")
+        self.assertEqual(peek["record"]["step"], "verified")
+
+    def test_a_failed_test_run_says_not_verified_on_the_pull_request_once(self):
+        """Lifecycle Center closes the work item once the promotion succeeds, so the pull request says it."""
+        wi, (code, body) = self.skipped_tests_delivery(65, tests_fail_after=["InvoiceTest"])
+        self.assertEqual(code, 1, body)
+        self.assertEqual(body["comment"], "sent")
+        comments = self.not_verified_comments()
+        self.assertEqual(len(comments), 1, comments)
+        self.assertTrue(comments[0].startswith(f"Not verified: {wi} (pull request #{self.pr_number(wi)}): tests failed"),
+                        comments[0])
+        self.assertIn(body["test_run"], comments[0])
+        self.assertIn("InvoiceTest", comments[0])
+        self.assertIn("a revert work item undoes them", comments[0])
+        self.assertEqual(self.verified_comments(), [])
+        code, again = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual(code, 1, again)
+        self.assertEqual(len(self.not_verified_comments()), 1, "said once")
+
+    def test_a_failure_comment_github_refused_goes_at_the_next_team_step(self):
+        wi, (code, body) = self.skipped_tests_delivery(66, tests_fail_after=["InvoiceTest"], comment_fails=1)
+        self.assertEqual(code, 1, body)
+        self.assertTrue(body["comment"].startswith("pending"), body)
+        self.assertEqual(self.not_verified_comments(), [])
+        self.assertEqual(self.call("ana", "status")[0], 0)
+        self.assertEqual(len(self.not_verified_comments()), 1)
+
+    def test_a_passing_retry_after_a_failure_adds_the_verified_comment(self):
+        wi, (code, body) = self.skipped_tests_delivery(67, tests_fail_after=["InvoiceTest"])
+        self.assertEqual(code, 1, body)
+        self.options(tests_fail_after=[])
+        code, done = self.call("ana", "deliver", "--wi", wi, "--resume", "--retry")
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+        self.assertEqual((len(self.not_verified_comments()), len(self.verified_comments())), (1, 1))
+
+    def test_copies_changed_during_the_run_say_not_verified_on_the_pull_request(self):
+        wi, (code, body) = self.skipped_tests_delivery(68, tests_edit_org=True)
+        self.assertEqual(code, 1, body)
+        self.assertEqual(body["comment"], "sent")
+        comments = self.not_verified_comments()
+        self.assertEqual(len(comments), 1, comments)
+        self.assertIn("ApexClass:Invoice", comments[0])
+        self.assertEqual(self.verified_comments(), [])
+
+    def test_teammates_see_a_not_verified_comment_in_their_updates(self):
+        wi, (code, body) = self.skipped_tests_delivery(69, tests_fail_after=["InvoiceTest"])
+        self.assertEqual(code, 1, body)
+        self.assertEqual(self.call("bob", "fetch")[0], 0)
+        text = self.hook("bob")
+        self.assertIn(f"Not verified: {wi} (pull request #", text)
+        self.assertIn("tests failed in the common org after the promotion", text)
+
+    @contextlib.contextmanager
+    def as_who(self, who):
+        """Direct calls into the helper as `who`'s machine: its registry, cache and stubbed tools."""
+        saved = dict(os.environ)
+        os.environ.update(self.env(who))
+        try:
+            yield
+        finally:
+            os.environ.clear()
+            os.environ.update(saved)
+
+    def team_id(self, who):
+        with self.as_who(who):
+            return lc.pick(None)[0]
+
+    def call_quiet(self, who, *args):
+        """A call made while another runs (a stop request mid-delivery); it leaves the outer call's stderr alone."""
+        outer = getattr(self, "stderr", "")
+        try:
+            return self.call(who, *args)
+        finally:
+            self.stderr = outer
+
+    def github_drop_comments(self):
+        data = self.github()
+        data["comments"] = []
+        (self.stub / "lc-gh.json").write_text(json.dumps(data))
+
+    def test_a_stop_request_ends_the_wait_at_a_safe_point_and_resume_reads_the_same_run(self):
+        """The test run's ID is recorded before any wait; a stop request (scout_lc.py stop) ends the wait
+        at its next safe point, never mid-call; --resume reads that same run rather than starting another."""
+        def ask_once(_seconds):
+            if sys._getframe(1).f_code.co_name == "wait_for_run" and not getattr(ask_once, "done", False):
+                ask_once.done = True
+                self.assertEqual(self.call_quiet("ana", "stop", "--wi", wi)[0], 0)
+        self.team_up()
+        self.options(deploy_runs_no_tests=True, tests_running_reads=3)
+        wi = self.package("Invoice totals 70", "ApexClass:Invoice")
+        self.build(70)
+        self.handover(wi)
+        self.assertEqual(self.call("ana", "deliver", "--wi", wi)[1].get("needs"), "tests-after")
+        code, plan = self.call("ana", "deliver", "--wi", wi, "--tests-after")
+        with mock.patch.object(lc.time, "sleep", ask_once):
+            code, body = self.call("ana", "deliver", "--wi", wi, "--tests-after", "--yes", "--plan-id", plan["plan_id"])
+        self.assertEqual((code, body.get("pending")), (1, True), body)
+        self.assertIn("stopped at the captain's request, while test run", body["reason"])
+        run = body["reason"].split("test run ", 1)[1].split(" ", 1)[0]
+        code, done = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual((code, done.get("outcome"), done.get("test_run")), (0, "verified", run), done)
+        self.assertEqual(len(self.hub()["test_runs"]), 1, "one run, never a second")
+
+    def test_a_stale_stop_request_doesnt_stop_the_next_delivery(self):
+        wi = self.plain_delivery(71)
+        self.assertEqual(self.call("ana", "stop", "--wi", wi)[0], 0)
+        code, done = self.deliver(wi)
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+
+    def test_a_submitted_promotion_not_yet_visible_is_never_submitted_again(self):
+        """The answer was lost and the platform's record isn't visible yet: resume waits, and only --retry
+        submits again; once the record shows, resume follows it."""
+        self.options(complete_crash_once=True, rows_hidden=100)
+        wi = self.plain_delivery(72)
+        code, body = self.deliver(wi)
+        self.assertEqual(code, 1, body)
+        code, body = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual((code, body.get("pending")), (1, True), body)
+        self.assertIn("won't submit another on its own", body["reason"])
+        self.assertEqual(len(self.submitted()), 1)
+        self.options(rows_hidden=0)
+        code, done = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+        self.assertEqual(len(self.submitted()), 1, "one promotion, never a second")
+
+    def test_a_saved_request_is_followed_when_its_record_isnt_visible(self):
+        """A stop while the promotion ran left its request token in the record; resume follows that request."""
+        def ask_once(_seconds):
+            if sys._getframe(1).f_code.co_name == "poll_promotion" and not getattr(ask_once, "done", False):
+                ask_once.done = True
+                self.assertEqual(self.call_quiet("ana", "stop", "--wi", wi)[0], 0)
+        self.options(status_late=3)
+        wi = self.plain_delivery(73)
+        code, plan = self.call("ana", "deliver", "--wi", wi)
+        with mock.patch.object(lc.time, "sleep", ask_once):
+            code, body = self.call("ana", "deliver", "--wi", wi, "--yes", "--plan-id", plan["plan_id"])
+        self.assertIn("stopped at the captain's request, while request", body.get("reason", ""), body)
+        self.options(rows_hidden=50)
+        code, done = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+        self.assertEqual(len(self.submitted()), 1)
+
+    def test_a_full_promotion_asked_for_once_stays_full_on_a_plain_retry(self):
+        """The full mode is on record from the first --full, so a later --retry never falls back to the default
+        mode, which is known to fail here."""
+        self.team_up()
+        self.options(empty_set=True)
+        wi = self.package("Invoice totals 74", "ApexClass:Invoice")
+        self.build(74)
+        self.handover(wi)
+        code, body = self.deliver(wi)
+        self.assertTrue(body.get("full"), body)
+        code, ask = self.call("ana", "deliver", "--wi", wi, "--resume", "--full")
+        self.assertEqual((code, ask.get("needs")), (3, "full-yes"), ask)
+        code, again = self.call("ana", "deliver", "--wi", wi, "--resume", "--retry")
+        self.assertEqual((code, again.get("needs")), (3, "full-yes"), again)
+        self.assertEqual([p["status"] for p in self.hub()["promotions"]], ["ERROR"], "no second default attempt")
+
+    def test_one_sender_at_a_time_and_a_held_lock_keeps_the_comment_pending(self):
+        """Two Scout processes never post the same comment twice."""
+        wi, (code, body) = self.skipped_tests_delivery(75, tests_fail_after=["InvoiceTest"], comment_fails=1)
+        self.assertTrue(body["comment"].startswith("pending"), body)
+        with self.as_who("ana"):
+            team_id, entry = lc.pick(None)
+            with lc.file_lock(lc.record_path(team_id, wi).with_suffix(".comment.lock")):
+                self.assertFalse(lc.send_comment(team_id, entry, wi), "another sender holds it")
+            self.assertEqual(self.not_verified_comments(), [])
+            self.assertTrue(lc.send_comment(team_id, entry, wi))
+            self.assertTrue(lc.send_comment(team_id, entry, wi))
+        self.assertEqual(len(self.not_verified_comments()), 1)
+
+    def test_a_github_timeout_keeps_the_failure_answer_and_the_comment_pending(self):
+        """GitHub hanging while Scout reports a failed run never hides the failure."""
+        real = lc.gh
+
+        def hang(args, **kwargs):
+            if args[:2] == ["pr", "view"]:
+                raise lc.failed("`gh pr view` timed out after 30 s")
+            return real(args, **kwargs)
+        with mock.patch.object(lc, "gh", hang):
+            wi, (code, body) = self.skipped_tests_delivery(76, tests_fail_after=["InvoiceTest"])
+        self.assertEqual(code, 1, body)
+        self.assertTrue(body["reason"].startswith("not verified: tests failed"), body)
+        self.assertTrue(body["comment"].startswith("pending"), body)
+        self.assertEqual(self.call("ana", "status")[0], 0)
+        self.assertEqual(len(self.not_verified_comments()), 1)
+
+    def test_the_hook_leaves_the_events_alone_while_another_writer_holds_them(self):
+        """One writer at a time; an update held back shows at the next prompt, never twice and never lost."""
+        wi, (code, body) = self.skipped_tests_delivery(77, tests_fail_after=["InvoiceTest"])
+        self.assertEqual(self.call("bob", "fetch")[0], 0)
+        team_id = self.team_id("bob")
+        with self.as_who("bob"), lc.events_lock(team_id):
+            with mock.patch.object(lc, "events_lock", lambda tid: lc.file_lock(
+                    lc.team.cache_dir(tid) / "lc-events.lock", wait=0.1)):
+                self.assertEqual(self.hook("bob").strip(), "")
+        text = self.hook("bob")
+        self.assertIn(f"Not verified: {wi}", text)
+        self.assertEqual(self.hook("bob").strip(), "", "shown once")
+
+    def test_a_failure_recorded_before_this_version_gets_its_comment_when_resumed(self):
+        """Upgrading over a failed delivery: its resume posts the Not verified comment the older version didn't."""
+        wi, (code, body) = self.skipped_tests_delivery(78, tests_fail_after=["InvoiceTest"])
+        team_id = self.team_id("ana")
+        with self.as_who("ana"):
+            record = lc.read_record(team_id, wi)
+            record.pop("comment", None)
+            lc.team.write_json_atomic(lc.record_path(team_id, wi), record)
+        self.github_drop_comments()
+        code, again = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual(code, 1, again)
+        self.assertEqual(len(self.not_verified_comments()), 1)
+
+    def test_an_earlier_failed_record_never_settles_a_newer_unanswered_submit(self):
+        """A retry's answer was lost and its record lags behind an earlier failed one: neither --resume nor --resume
+        --full submits again on its own."""
+        self.options(promotion_fails=True)
+        wi = self.plain_delivery(80)
+        code, body = self.deliver(wi)
+        self.assertEqual(code, 1, body)
+        self.options(promotion_fails=False, complete_crash_once=True, hide_from=1)
+        code, body = self.call("ana", "deliver", "--wi", wi, "--resume", "--retry")
+        self.assertEqual(code, 1, body)
+        for extra in ((), ("--full",)):
+            code, body = self.call("ana", "deliver", "--wi", wi, "--resume", *extra)
+            self.assertEqual((code, body.get("pending")), (1, True), body)
+            self.assertIn("won't submit another on its own", body["reason"])
+        self.assertEqual(len(self.submitted()), 2, "the failed one and the retry, never a third")
+        self.options(hide_from=None)
+        code, done = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+        self.assertEqual(len(self.submitted()), 2)
+
+    def test_a_promotion_known_only_from_its_request_still_times_the_owed_tests(self):
+        """The request's completion time comes along when its record isn't visible, so a passing run isn't failed for a
+        missing time."""
+        def ask_once(_seconds):
+            if sys._getframe(1).f_code.co_name == "poll_promotion" and not getattr(ask_once, "done", False):
+                ask_once.done = True
+                self.assertEqual(self.call_quiet("ana", "stop", "--wi", wi)[0], 0)
+        self.team_up()
+        self.options(deploy_runs_no_tests=True, status_late=3)
+        wi = self.package("Invoice totals 81", "ApexClass:Invoice")
+        self.build(81)
+        self.handover(wi)
+        self.assertEqual(self.call("ana", "deliver", "--wi", wi)[1].get("needs"), "tests-after")
+        code, plan = self.call("ana", "deliver", "--wi", wi, "--tests-after")
+        with mock.patch.object(lc.time, "sleep", ask_once):
+            code, body = self.call("ana", "deliver", "--wi", wi, "--tests-after", "--yes", "--plan-id", plan["plan_id"])
+        self.assertIn("while request", body.get("reason", ""), body)
+        self.options(rows_hidden=100)
+        code, done = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+
+    def test_every_unsent_failure_report_reaches_the_pull_request(self):
+        """Fail, fail again and pass while GitHub refuses comments: both failed runs end up on the pull request."""
+        wi, (code, body) = self.skipped_tests_delivery(82, tests_fail_after=["InvoiceTest"], comment_fails=3)
+        self.assertTrue(body["comment"].startswith("pending"), body)
+        first = body["test_run"]
+        code, again = self.call("ana", "deliver", "--wi", wi, "--resume", "--retry")
+        self.assertEqual(code, 1, again)
+        second = again["test_run"]
+        self.assertNotEqual(first, second)
+        self.options(tests_fail_after=[])
+        code, done = self.call("ana", "deliver", "--wi", wi, "--resume", "--retry")
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+        self.assertEqual(self.call("ana", "status")[0], 0)
+        bodies = " ".join(c["body"] for c in self.github()["comments"])
+        self.assertIn(first, bodies)
+        self.assertIn(second, bodies)
+        self.assertEqual(len(self.verified_comments()), 1)
+
+    def test_a_late_acknowledgement_never_lands_on_a_newer_comment(self):
+        wi, (code, body) = self.skipped_tests_delivery(83, tests_fail_after=["InvoiceTest"], comment_fails=1)
+        self.assertTrue(body["comment"].startswith("pending"), body)
+        team_id = self.team_id("ana")
+        real = lc.gh
+
+        def replaced_meanwhile(args, **kwargs):
+            answer = real(args, **kwargs)
+            if args[:2] == ["pr", "comment"]:  # another session's newer comment lands while this one posts
+                pr = lc.read_record(team_id, wi)["comment"]["pr"]
+                lc.write_record(team_id, wi, comment={"pr": pr, "body": "Verified in the common org at abc: newer"})
+            return answer
+        with self.as_who("ana"), mock.patch.object(lc, "gh", replaced_meanwhile):
+            self.assertTrue(lc.send_comment(team_id, lc.pick(None)[1], wi))
+            record = lc.read_record(team_id, wi)
+        self.assertEqual(record["comment"]["body"], "Verified in the common org at abc: newer")
+        self.assertFalse(record["comment"].get("sent"), "the newer comment is still to send")
+
+    def test_a_stop_request_made_as_the_delivery_starts_is_kept(self):
+        wi = self.plain_delivery(84)
+        code, plan = self.call("ana", "deliver", "--wi", wi)
+        team_id = self.team_id("ana")
+        with self.as_who("ana"):
+            path = lc.stop_file(team_id, wi)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("now\n")
+            later = time.time() + 30
+            os.utime(path, (later, later))
+        code, body = self.call("ana", "deliver", "--wi", wi, "--yes", "--plan-id", plan["plan_id"])
+        self.assertEqual((code, body.get("stopped")), (1, "before the merge"), body)
+
+    def test_a_failure_only_from_a_missing_promotion_time_is_judged_again(self):
+        wi, (code, done) = self.skipped_tests_delivery(85)
+        self.assertEqual(code, 0, done)
+        team_id = self.team_id("ana")
+        with self.as_who("ana"):
+            record = lc.read_record(team_id, wi)
+            record.update(step="tests-failed", promoted_at=None, tests_failed=["the run didn't start after the promotion"])
+            record.pop("comment", None)
+            lc.team.write_json_atomic(lc.record_path(team_id, wi), record)
+        code, again = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual((code, again.get("outcome"), again.get("test_run")), (0, "verified", done["test_run"]), again)
+        self.assertEqual(len(self.hub()["test_runs"]), 1, "the same run, judged again")
+
+    def test_a_failed_promotion_from_the_ui_never_settles_scouts_unanswered_retry(self):
+        """A promotion completed in Lifecycle Center's UI failed; Scout's retry lost its answer while its record lags.
+        The UI attempt was on record before Scout submitted, so neither --resume nor --resume --full submits again."""
+        self.options(promotion_fails=True)
+        wi = self.plain_delivery(90)
+        code, plan = self.call("ana", "deliver", "--wi", wi)
+        self.options(complete_crash_once=True, rows_hidden=100)  # Scout's own first submit: lost, and not visible
+        code, body = self.call("ana", "deliver", "--wi", wi, "--yes", "--plan-id", plan["plan_id"])
+        self.assertEqual(code, 1, body)
+        self.options(rows_hidden=0)
+        code, body = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual(code, 1, body)  # its attempt shows now, and it failed (the stub's promotion_fails)
+        self.sf_stub("devops", "promotion", "complete", "--target-stage-id", "1QV000000000001AAA",
+                     "--work-item-id", self.item(wi)["id"][:15], "--test-level", "NoTestRun")  # the UI's attempt, failed too
+        self.options(promotion_fails=False, complete_crash_once=True, hide_from=2)  # the retry's record lags
+        self.hub_reset("crashed")
+        code, body = self.call("ana", "deliver", "--wi", wi, "--resume", "--retry")
+        self.assertEqual(code, 1, body)
+        for extra in ((), ("--full",)):
+            code, body = self.call("ana", "deliver", "--wi", wi, "--resume", *extra)
+            self.assertEqual((code, body.get("pending")), (1, True), body)
+            self.assertIn("won't submit another on its own", body["reason"])
+        self.assertEqual(len(self.submitted()), 3, "Scout's first, the UI's and the retry, never a fourth")
+
+    def test_the_request_being_followed_is_never_answered_by_another_attempts_record(self):
+        """While the current request can't be read, an earlier attempt's failed record doesn't stand in for it."""
+        self.options(promotion_fails=True)
+        wi = self.plain_delivery(91)
+        code, body = self.deliver(wi)
+        self.assertEqual(code, 1, body)
+        self.options(promotion_fails=False, hide_from=1, request_status_fails=2)
+        code, done = self.call("ana", "deliver", "--wi", wi, "--resume", "--retry")
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+        self.assertEqual(len(self.submitted()), 2)
+
+    def test_a_comment_writer_that_cant_get_the_lock_writes_nothing_and_resume_finishes(self):
+        """No lock, no comment write: the delivery stays resumable, and the failure report comes from the same run."""
+        self.team_up()
+        self.options(deploy_runs_no_tests=True, tests_fail_after=["InvoiceTest"])
+        wi = self.package("Invoice totals 92", "ApexClass:Invoice")
+        self.build(92)
+        self.handover(wi)
+        self.assertEqual(self.call("ana", "deliver", "--wi", wi)[1].get("needs"), "tests-after")
+        code, plan = self.call("ana", "deliver", "--wi", wi, "--tests-after")
+        team_id = self.team_id("ana")
+        with self.as_who("ana"), lc.comment_lock(team_id, wi), mock.patch.object(lc, "COMMENT_WAIT", 0.2):
+            code, body = self.call("ana", "deliver", "--wi", wi, "--tests-after", "--yes", "--plan-id", plan["plan_id"])
+        self.assertEqual((code, body.get("pending")), (1, True), body)
+        self.assertIn("wrote nothing yet", body["reason"])
+        with self.as_who("ana"):
+            self.assertEqual(lc.read_record(team_id, wi)["step"], "tests-running")
+        code, again = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual(code, 1, again)
+        self.assertTrue(again["reason"].startswith("not verified: tests failed"), again)
+        self.assertEqual(len(self.not_verified_comments()), 1)
+        self.assertEqual(len(self.hub()["test_runs"]), 1, "the same run")
 
     def test_lane_teams_dont_see_lifecycle_teams(self):
         self.team_up()

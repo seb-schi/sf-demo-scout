@@ -2,6 +2,11 @@
 
 Newest first. Scout updates itself; each entry says what changed for you.
 
+## 2026-10-19 (Scout 2.3.2)
+
+- **A delivery says where it is while it waits.** On Lifecycle Center, a promotion or the tests after it can take minutes. Scout's delivery now reports each step as it goes, Scout can look at Lifecycle Center and the common org while it waits, and when you'd rather not wait, it stops at the next safe point, so it tells you where things stand instead of going quiet. When an answer from Lifecycle Center goes missing, Scout never submits the promotion a second time on its own.
+- **A failed test after a promotion is said on the pull request too.** When the tests a delivery owes fail after its promotion, Scout comments "Not verified: …" on the pull request, and teammates' Scout sessions show the same line. A builder without Scout learns of it on GitHub, even though Lifecycle Center marks the work item closed.
+
 ## 2026-10-19 (Scout 2.3.1)
 
 - **Asking for a team on Lifecycle Center now always gets you one.** When you tell Scout your team should run on Lifecycle Center, its team guide now points straight to Lifecycle Center mode. Before, Scout found that mode only by looking for it, and could have started a team on its own lane instead.

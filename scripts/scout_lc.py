@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
+import fcntl
 import fnmatch
 import hashlib
 import html
@@ -132,6 +134,16 @@ def kind_of(code, body):
     if code == 0 and isinstance(body, dict) and str(body.get("success", True)).lower() != "false":
         return "ok"
     return "other"
+
+
+def progress(name, step, text, safe=True):
+    """One line per step on stderr, while the JSON answer waits for stdout, so a model watching a background run sees
+    where the delivery is. Whether stopping is safe is code: a stop while a change is in flight is never safe."""
+    note = {True: "nothing in flight: scout_lc.py stop ends it at the next safe point, and --resume picks up",
+            False: "a change is in flight: never kill the helper now; a stop request waits until it lands",
+            None: "the helper ends here; its answer follows"}[safe]
+    print(f"scout_lc {time.strftime('%H:%M:%SZ', time.gmtime())} {name} {step}: {text} ({note})", file=sys.stderr,
+          flush=True)
 
 
 def devops(args, hub, cwd, timeout=600):
@@ -617,6 +629,14 @@ def promotion_for(entry, item, cwd):
             "merge": rows[0].get("MergeRemoteReference")}
 
 
+def visible_tokens(entry, item, cwd):
+    """Every request the stage shows for the work item, Scout's or one completed in Lifecycle Center's UI."""
+    rows = query("SELECT DevopsPipelnStgProm.RequestInfo.RequestToken FROM DevopsPipelnStgPromWkItem WHERE WorkItemId = "
+                 f"{quoted(item['id'])} AND DevopsPipelnStgProm.PipelineStageId = {quoted(id18(entry['stage_id']))} "
+                 "AND DevopsPipelnStgProm.RequestInfoId != null", entry["hub"], cwd)
+    return {((r.get("DevopsPipelnStgProm") or {}).get("RequestInfo") or {}).get("RequestToken") for r in rows} - {None}
+
+
 def synced(entry, item, head, cwd):
     rows = query(f"SELECT Id FROM WorkItemComponentList WHERE WorkItemId = {quoted(item['id'])} "
                  f"AND CommitReference = {quoted(head)}", entry["hub"], cwd)
@@ -664,6 +684,42 @@ def write_record(team_id, wi_name, fresh=False, **changes):
     record.update(changes, at=now())
     team.write_json_atomic(record_path(team_id, wi_name), record)
     return record
+
+
+@contextlib.contextmanager
+def file_lock(path, wait=10.0):
+    """A short exclusive lock for a read-modify-write two Scout processes could interleave (a comment's send, the
+    events cache). Yields False when another holds it past the wait, and the caller then leaves things as they are."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a") as handle:
+        deadline = time.time() + wait
+        while True:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.time() > deadline:
+                    yield False
+                    return
+                time.sleep(0.05)
+        try:
+            yield True
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def stop_file(team_id, wi_name):
+    return team.cache_dir(team_id) / "deliveries" / f"{wi_name}.stop"
+
+
+def stop_point(team_id, name, where):
+    """A safe point, where nothing is in flight: when the captain asked this delivery to stop (scout_lc.py stop), it
+    ends here, and --resume picks up. A stop never interrupts a call that changes something."""
+    path = stop_file(team_id, name)
+    if path.exists():
+        path.unlink(missing_ok=True)
+        raise failed(f"{name} stopped at the captain's request, {where}; nothing was in flight. deliver --wi {name} "
+                     "--resume picks up from here", pending=True, resume=True, work_item=name, stopped=where)
 
 
 def plan_id(head, base, tree, components, seen=None):
@@ -908,6 +964,7 @@ def cmd_handover(a):
 # ---- the captain's delivery: checks, the yes, the merge, then everything from the server's state ----
 
 def cmd_deliver(a):
+    started = time.time()
     team_id, entry = pick(a.team)
     repo, cwd = where(entry), Path.cwd()
     if entry.get("role") != "captain":
@@ -915,6 +972,9 @@ def cmd_deliver(a):
     check_stage(entry, cwd)
     resend_comments(team_id, entry)
     item = work_item(entry, a.wi, cwd)
+    stale = stop_file(team_id, item["name"])
+    if stale.exists() and stale.stat().st_mtime < started:  # a request from before this run isn't for it
+        stale.unlink(missing_ok=True)
     with team.CheckoutLock(repo):
         if a.resume or a.retry or a.full:
             return resume(team_id, entry, repo, item, a, cwd)
@@ -926,6 +986,7 @@ def checks(team_id, entry, repo, item, head, base, tree, pr, a, cwd, merged=Fals
     Returns the plan the yes binds to (the revision, its components, the org copies seen) and what the checks found."""
     after = ("; it's on main already, so Scout won't deploy it: complete it in Lifecycle Center if it's wanted, then "
              "deliver --resume reads it back") if merged else ""
+    progress(item["name"], "checking", "the scope, the builder's base, the effects and the common org's copies")
     scope = scope_of(repo, base, tree, item)
     candidate = team.files_at(repo, tree, set(scope["components"]))
     problems = []
@@ -984,7 +1045,11 @@ def checks(team_id, entry, repo, item, head, base, tree, pr, a, cwd, merged=Fals
                          ["back-flow the org's copy first (scout_lc.py backflow), and deliver that work item before this one",
                           "or overwrite it: --overwrite; Scout backs up the org's copy first, and the yes binds to the copy shown"]),
                      **plan)
+    progress(item["name"], "validating", "a check-only validation against the common org")
     validation = validate(team_id, entry, repo, tree, candidate, components, item["name"], cwd)
+    outcome = "passed" if validation["validated"] else \
+        "compiled, but ran none of the tests asked for" if validation.get("ran_none") else "didn't pass"
+    progress(item["name"], "validated", f"job {validation.get('jobId')}: {outcome}, {validation.get('testsRun')} tests run")
     after = []
     if not validation["validated"]:
         if not validation.get("ran_none"):  # the strict gate: a failure, or anything the platform didn't prove
@@ -1042,7 +1107,10 @@ def plan_and_merge(team_id, entry, repo, item, a, cwd):
     write_record(team_id, item["name"], fresh=True, pr=pr["number"], head=head, base=base, tree=tree,
                  components=plan["components"], plan_id=plan["plan_id"], approved=now(), validated=found["validated"],
                  tests_after=found["tests_after"], overwrite=found["overwrite"], backups=[backup] if backup else [],
-                 step="merging")
+                 step="planned")
+    stop_point(team_id, item["name"], "before the merge")
+    write_record(team_id, item["name"], step="merging")
+    progress(item["name"], "merging", f"pull request #{pr['number']} into main", safe=False)
     code, stdout, stderr = gh(["pr", "merge", str(pr["number"]), "--repo", entry["repo"], "--squash", "--subject", subject,
                                "--match-head-commit", head])
     if code and not any(p.get("state") == "MERGED" for p in pull_requests(entry, item["branch"])):
@@ -1057,13 +1125,25 @@ def resume(team_id, entry, repo, item, a, cwd):
     stands on main, and nothing deploys without a yes for it."""
     name = item["name"]
     record = read_record(team_id, name)
+    progress(name, "continuing", "from what GitHub and Lifecycle Center show")
     if record.get("step") == "verified":
         sent = send_comment(team_id, entry, name)
         return {"work_item": name, "outcome": "verified", "merge": str(record.get("verified"))[:12],
                 "comment": "sent" if sent else "pending", "note": "this delivery finished earlier"}
     if record.get("step") == "tests-running":
         return run_owed_tests(team_id, entry, repo, item, cwd)
+    if record.get("step") == "tests-failed" and not record.get("promoted_at") and record.get("test_run") and \
+            record.get("tests_failed") == ["the run didn't start after the promotion"]:
+        write_record(team_id, name, step="tests-running")  # only the missing time failed it: the same run, judged again
+        return run_owed_tests(team_id, entry, repo, item, cwd)
     if record.get("step") == "tests-failed":
+        if record.get("pr") and not str((record.get("comment") or {}).get("body") or "").startswith("Not verified: "):
+            set_comment(team_id, name,
+                        f"Not verified: {name} (pull request #{record['pr']}): tests failed in the common org after the "
+                        f"promotion (run {record.get('test_run')}): " + "; ".join((record.get("tests_failed") or [])[:6]) +
+                        ". Its changes are in the common org; the fix goes on a new work item, or a revert work item undoes "
+                        "them.")
+        send_comment(team_id, entry, name)
         if a.retry:
             write_record(team_id, name, step="tests-running", test_run=None)
             return run_owed_tests(team_id, entry, repo, item, cwd)
@@ -1093,6 +1173,12 @@ def resume(team_id, entry, repo, item, a, cwd):
     if planned and record.get("merge") != merge:
         record = write_record(team_id, name, merge=merge, step="merged")
     promotion = promotion_for(entry, item, cwd)
+    earlier = set(record.get("earlier_tokens") or []) | set(record.get("tokens") or [])
+    if promotion and record.get("step") == "completing" and promotion.get("token") in earlier:
+        promotion = None  # an earlier attempt's record; this attempt's answer is the one that's unknown
+    if promotion and record.get("step") == "promoting" and record.get("token") and \
+            promotion.get("token") != record["token"] and promotion.get("token") in earlier:
+        promotion = None  # an earlier attempt's record; the saved request is this attempt's
     deployed = bool(promotion and promotion["status"] == "SUCCESS" and not promotion.get("error"))
     running = bool(promotion and promotion["status"] not in TERMINAL)
     if a.full and (deployed or running):
@@ -1101,6 +1187,13 @@ def resume(team_id, entry, repo, item, a, cwd):
         return read_back(team_id, entry, repo, item, state, cwd)  # deployed: by Scout, or in Lifecycle Center
     if running:
         return watch_promotion(team_id, entry, repo, item, state, promotion.get("token"), cwd)
+    if not promotion and record.get("step") == "promoting" and record.get("token"):  # submitted, its record not visible
+        return watch_promotion(team_id, entry, repo, item, state, record["token"], cwd)
+    if not promotion and record.get("step") == "completing" and not a.retry:
+        raise failed(f"Scout submitted {name}'s promotion but got no answer it could read, and Lifecycle Center shows no "
+                     "promotion for it yet, so Scout won't submit another on its own. Wait a minute and resume; if "
+                     "Lifecycle Center still shows none, deliver --resume --retry submits again", pending=True, resume=True,
+                     work_item=name)
     if not planned:
         record = replan(team_id, entry, repo, item, state, record, a, cwd)
         state["components"] = record["components"]
@@ -1171,6 +1264,7 @@ def promote_all(team_id, entry, repo, item, state, record, previous, a, cwd):
     component on main against the org, binds the yes to all of their copies, and looks at main again right before it
     deploys and before it says verified."""
     name, merge = item["name"], state["merge"]
+    write_record(team_id, name, full=True)  # a stop before the submit resumes in full, never quietly in the default mode
     own = record.get("components") or state["components"]
     main = out(repo, "rev-parse", "refs/remotes/origin/main")
     later = out(repo, "log", "--format=%h %s", f"{merge}..{main}", "--", *deployable(repo, main)).splitlines()
@@ -1260,9 +1354,11 @@ def sync(team_id, entry, item, head, cwd):
     with the component list for the merged head in place. A list alone isn't: the hub can make one before the merge
     (measured: WI-000026's, two hours before), and then `complete` is refused."""
     write_record(team_id, item["name"], step="syncing")
-    for _ in range(SYNC_TRIES):
+    for attempt in range(SYNC_TRIES):
+        stop_point(team_id, item["name"], "while syncing the merge")
         code, body, kind = devops(["promotion", "validate", "--target-stage-id", id18(entry["stage_id"]),
                                    "--work-item-id", id15(item["id"])], entry["hub"], cwd)
+        progress(item["name"], "syncing", f"validation {attempt + 1} of {SYNC_TRIES} answered {kind}")
         if kind not in ("external-merges", "already-merged", "ok"):
             raise failed(f"the validation answered something unexpected: {message_of(body)[:300]}", resume=True)
         if kind == "ok" and synced(entry, item, head, cwd):
@@ -1311,7 +1407,11 @@ def complete(team_id, entry, item, previous, cwd, full=False, head=None):
     Any other answer (a timeout, a lost or unknown one) can't prove that, so the record stays at completing."""
     name = item["name"]
     for attempt in (1, 2):
-        write_record(team_id, name, step="completing")
+        stop_point(team_id, name, "before submitting the promotion")
+        known = set(read_record(team_id, name).get("tokens") or []) | visible_tokens(entry, item, cwd) | \
+            ({(previous or {}).get("token")} - {None})
+        write_record(team_id, name, step="completing", earlier_tokens=sorted(known))  # this attempt's history, first
+        progress(name, "completing", "submitting the promotion" + (" of everything on main" if full else ""), safe=False)
         code, body, kind = devops(["promotion", "complete", "--target-stage-id", id18(entry["stage_id"]),
                                    "--work-item-id", id15(item["id"]), "--test-level", "NoTestRun",
                                    *(["--deploy-all"] if full else [])], entry["hub"], cwd)
@@ -1319,8 +1419,8 @@ def complete(team_id, entry, item, previous, cwd, full=False, head=None):
         if token:
             break
         found = promotion_for(entry, item, cwd)
-        if found and found.get("token") and found["token"] != (previous or {}).get("token"):
-            token = found["token"]  # submitted, though the answer didn't say so
+        if found and found.get("token") and found["token"] not in known:
+            token = found["token"]  # submitted, though the answer didn't say so; an earlier attempt's never counts
             break
         if kind in ("ok", "other") and "Pre-flight validation failed" not in message_of(body):
             raise failed(f"promotion complete didn't start: {message_of(body)[:300]}; resume looks at the server again",
@@ -1334,15 +1434,16 @@ def complete(team_id, entry, item, previous, cwd, full=False, head=None):
         raise failed(f"Lifecycle Center refused the promotion ({message_of(body)[:300]}); nothing was submitted. Resume to "
                      "try again", pending=True, resume=True)
     write_record(team_id, name, token=token, tokens=(read_record(team_id, name).get("tokens") or []) + [token], step="promoting")
+    progress(name, "promoting", f"submitted as request {token}")
     return token
 
 
 def watch_promotion(team_id, entry, repo, item, state, token, cwd):
-    promotion = poll_promotion(entry, item, token, cwd)
+    promotion = poll_promotion(team_id, entry, item, token, cwd)
     if promotion["status"] != "SUCCESS" or promotion.get("error"):
         write_record(team_id, item["name"], step="failed")
         raise failed(promotion_failed(item["name"], promotion), promotion=promotion, retry=True, full=empty_set(promotion))
-    return read_back(team_id, entry, repo, item, state, cwd)
+    return read_back(team_id, entry, repo, item, dict(state, promoted_at=promotion.get("completed")), cwd)
 
 
 def empty_set(promotion):
@@ -1361,19 +1462,26 @@ def promotion_failed(name, promotion):
             f"--resume --retry; or complete the promotion in Lifecycle Center, then deliver --wi {name} --resume reads it back")
 
 
-def poll_promotion(entry, item, token, cwd):
-    deadline = time.time() + STATUS_DEADLINE
+def poll_promotion(team_id, entry, item, token, cwd):
+    deadline, last = time.time() + STATUS_DEADLINE, object()
     while True:
         promotion = promotion_for(entry, item, cwd) or {}
         if token and promotion.get("token") != token:
             code, body, kind = devops(["request", "status", "--request-token", token], entry["hub"], cwd)
             if kind == "ok":
-                promotion = {"token": token, "status": str(body.get("status") or "").upper(), "error": body.get("errorDetails")}
+                promotion = {"token": token, "status": str(body.get("status") or "").upper(), "error": body.get("errorDetails"),
+                             "completed": body.get("requestCompletionDate")}
+            else:  # this request can't be read just now; another attempt's record never answers for it
+                promotion = {"token": token, "status": None}
+        if promotion.get("status") != last:
+            last = promotion.get("status")
+            progress(item["name"], "promoting", f"request {token or promotion.get('token')}: {last or 'no status yet'}")
         if promotion.get("status") in TERMINAL:
             return promotion
         if time.time() > deadline:
             raise failed("the promotion hasn't finished within 30 minutes; it's never resubmitted. Resume later",
                          pending=True, resume=True, promotion=promotion)
+        stop_point(team_id, item["name"], f"while request {token} ran (it goes on in Lifecycle Center)")
         time.sleep(STATUS_WAIT)
 
 
@@ -1381,6 +1489,7 @@ def read_back(team_id, entry, repo, item, state, cwd):
     """The org's copies against the merge: only this says verified. Then the baselines, and the pull request's
     comment, kept until GitHub takes it."""
     name, merge, components = item["name"], state["merge"], state["components"]
+    progress(name, "reading back", f"{len(components)} components from the common org")
     target = state.get("target") or merge  # after a full promotion: main as Scout checked it, or as it stands
     expected = team.files_at(repo, target, set(components))
     org = read_org(entry, repo, components)
@@ -1406,9 +1515,10 @@ def read_back(team_id, entry, repo, item, state, cwd):
         promotion = promotion_for(entry, item, cwd) or {}
         write_record(team_id, name, step="tests-running", promoted=merge, read_back=body, pr=state["pr"],
                      checked_against=target, checked_components=components, tests_after=owed, test_run=None,
-                     promoted_at=promotion.get("completed") or promotion.get("at"))
+                     promoted_at=state.get("promoted_at") or promotion.get("completed") or promotion.get("at"))
         return run_owed_tests(team_id, entry, repo, item, cwd)
-    write_record(team_id, name, step="verified", verified=merge, comment={"pr": state["pr"], "body": body})
+    write_record(team_id, name, pr=state["pr"])
+    set_comment(team_id, name, body, step="verified", verified=merge)
     clear_backflow(team_id, name)
     sent = send_comment(team_id, entry, name)
     return {"work_item": name, "outcome": "verified", "merge": merge[:12], "components": components,
@@ -1465,19 +1575,54 @@ def run_owed_tests(team_id, entry, repo, item, cwd):
     with a wait, its ID recorded before anything else. Only that run counts."""
     name, record = item["name"], read_record(team_id, item["name"])
     common_still(entry, cwd)
+    record = settle_promotion_time(team_id, entry, item, record, cwd)
     run_id = record.get("test_run")
     if not run_id:
-        args = ["apex", "run", "test", "--target-org", entry["common_org"]["target"], "--test-level", "RunSpecifiedTests",
-                "--wait", str(TEST_WAIT)]
+        progress(name, "testing", "starting " + ", ".join(record.get("tests_after") or []) + " in the common org", safe=False)
+        args = ["apex", "run", "test", "--target-org", entry["common_org"]["target"], "--test-level", "RunSpecifiedTests"]
         for test in record.get("tests_after") or []:
             args += ["--class-names", test]
-        code, body = sf(args, cwd, timeout=TEST_WAIT * 60 + 300)
-        run_id = ((body.get("summary") or {}).get("testRunId") if isinstance(body, dict) else None) or ""
+        code, body = sf(args, cwd, timeout=300)  # asynchronous: the CLI answers with the run's ID at once
+        body = body if isinstance(body, dict) else {}
+        run_id = str(body.get("testRunId") or (body.get("summary") or {}).get("testRunId") or "")
         if not TEST_RUN.fullmatch(run_id):
             raise failed("the tests owed after the promotion didn't start in the common org (" + message_of(body)[:200]
                          + "), so it isn't verified; resume to start them again", pending=True, resume=True, work_item=name)
         record = write_record(team_id, name, test_run=run_id)
+        progress(name, "testing", f"run {run_id} started")
+    wait_for_run(team_id, entry, name, run_id, cwd)
     return check_test_run(team_id, entry, repo, item, record, run_id, cwd)
+
+
+def settle_promotion_time(team_id, entry, item, record, cwd):
+    """When the promotion finished, which a run of the owed tests must start after: from the record, else the hub's
+    promotion record, else the saved request. Unknown, it stays pending: a run can't be judged against a missing time."""
+    if record.get("promoted_at"):
+        return record
+    found = promotion_for(entry, item, cwd) or {}
+    when = found.get("completed") if found.get("token") in ({record.get("token")} - {None}) or not record.get("token") else None
+    if not when and record.get("token"):
+        code, body, kind = devops(["request", "status", "--request-token", record["token"]], entry["hub"], cwd)
+        when = body.get("requestCompletionDate") if kind == "ok" and isinstance(body, dict) else None
+    if not when:
+        raise failed(f"Lifecycle Center doesn't show when {item['name']}'s promotion finished yet, so a run of the owed "
+                     "tests can't be judged against it; resume reads it again", pending=True, resume=True, work_item=item["name"])
+    return write_record(team_id, item["name"], promoted_at=when)
+
+
+def wait_for_run(team_id, entry, name, run_id, cwd):
+    """Waits on Scout's own run, up to TEST_WAIT minutes. A stop request ends the wait, and --resume reads the same run."""
+    deadline, last = time.time() + TEST_WAIT * 60, object()
+    while True:
+        jobs = query(f"SELECT Status FROM AsyncApexJob WHERE Id = {quoted(run_id)}", entry["common_org"]["target"], cwd)
+        status = (jobs[0] if jobs else {}).get("Status")
+        if status != last:
+            last = status
+            progress(name, "testing", f"run {run_id} is {status or 'not visible yet'}")
+        if status not in RUN_GOING or time.time() > deadline:
+            return
+        stop_point(team_id, name, f"while test run {run_id} ran (it goes on in the common org)")
+        time.sleep(STATUS_WAIT)
 
 
 def check_test_run(team_id, entry, repo, item, record, run_id, cwd):
@@ -1508,30 +1653,91 @@ def check_test_run(team_id, entry, repo, item, record, run_id, cwd):
     if problems:
         text = ("not verified: tests failed in the common org after the promotion (" + "; ".join(problems[:6]) + f"). "
                 f"{name}'s changes are in the common org")
-        write_record(team_id, name, step="tests-failed", tests_failed=problems[:20], tests_failed_text=text)
-        raise failed(text, work_item=name, test_run=run_id, tests_failed=problems[:20], choices=failure_choices(record))
+        body = (f"Not verified: {name} (pull request #{record.get('pr')}): tests failed in the common org after the "
+                f"promotion (run {run_id}): " + "; ".join(problems[:6]) + ". Its changes are in the common org; the fix goes "
+                "on a new work item, or a revert work item undoes them.")
+        set_comment(team_id, name, body, step="tests-failed", tests_failed=problems[:20], tests_failed_text=text)
+        raise failed(text, work_item=name, test_run=run_id, tests_failed=problems[:20], choices=failure_choices(record),
+                     comment=comment_state(team_id, entry, name))
     components = record.get("checked_components") or []
     expected = team.files_at(repo, record.get("checked_against") or record.get("promoted"), set(components))
     org = read_org(entry, repo, components)
     moved = [c for c in components if org[c]["state"] != "present" or not same(expected.get(c) or {}, org[c]["files"])]
     if moved:  # the run tested other copies than the ones read back
-        write_record(team_id, name, step="unverified", tests_moved=moved)
+        body = (f"Not verified: {name} (pull request #{record.get('pr')}): the tests passed in the common org (run {run_id}), "
+                "but its copies of " + ", ".join(moved[:8]) + " changed after Scout's read-back, so the run doesn't prove "
+                "this delivery. The next delivery's checks show what changed.")
+        set_comment(team_id, name, body, step="unverified", tests_moved=moved)
         raise failed("not verified: the tests passed, but the common org's copies of " + ", ".join(moved[:8]) + " changed "
                      "after the read-back, so the run doesn't prove this delivery. Look at what changed (a direct edit, or "
-                     "another delivery); the next delivery's checks show it", work_item=name, test_run=run_id)
+                     "another delivery); the next delivery's checks show it", work_item=name, test_run=run_id,
+                     comment=comment_state(team_id, entry, name))
     body = (record.get("read_back") or f"Verified in the common org at {record.get('promoted')}.") + \
         f" Tests passed in the common org after the promotion: {', '.join(wanted)} (run {run_id})."
-    write_record(team_id, name, step="verified", verified=record.get("promoted"), tests_passed=run_id,
-                 comment={"pr": record.get("pr"), "body": body})
+    set_comment(team_id, name, body, step="verified", verified=record.get("promoted"), tests_passed=run_id)
     clear_backflow(team_id, name)
     sent = send_comment(team_id, entry, name)
     return {"work_item": name, "outcome": "verified", "merge": str(record.get("promoted"))[:12], "tests": wanted,
             "test_run": run_id, "comment": "sent" if sent else "pending: GitHub didn't take it; Scout sends it again at the next team step"}
 
 
+def next_comment(record, body):
+    """The record's next comment. A Not verified report GitHub hasn't taken yet travels along in full, so a retry,
+    failed or passing, never loses one (the reports are bounded where they're made)."""
+    earlier = record.get("comment") or {}
+    if str(earlier.get("body") or "").startswith("Not verified: ") and not earlier.get("sent"):
+        body += "\n\nEarlier, and not on the pull request yet: " + earlier["body"]
+    return {"pr": record["pr"], "body": body} if record.get("pr") else None
+
+
+COMMENT_WAIT = 600  # seconds a comment's writer waits for a sender (two GitHub calls, 30 s each) to finish
+
+
+def comment_lock(team_id, wi_name, wait=120.0):
+    return file_lock(record_path(team_id, wi_name).with_suffix(".comment.lock"), wait=wait)
+
+
+def set_comment(team_id, wi_name, body, **changes):
+    """Writes the record's next comment, with the record's other changes, under the sender's lock, so a sender's
+    acknowledgement never lands on a newer comment."""
+    with comment_lock(team_id, wi_name, wait=COMMENT_WAIT) as held:
+        if not held:  # nothing written: the record stays where it was, and --resume works the outcome out again
+            raise failed(f"another Scout process held {wi_name}'s pull request comment for {COMMENT_WAIT // 60} minutes, "
+                         "so Scout wrote nothing yet; deliver --resume finishes it from the same run", pending=True,
+                         resume=True, work_item=wi_name)
+        comment = next_comment(read_record(team_id, wi_name), body)
+        return write_record(team_id, wi_name, **changes, **({"comment": comment} if comment else {}))
+
+
+def comment_state(team_id, entry, wi_name):
+    if not (read_record(team_id, wi_name).get("comment") or {}).get("pr"):
+        return "none: the record names no pull request"
+    return "sent" if send_comment(team_id, entry, wi_name) else \
+        "pending: GitHub didn't take it; Scout sends it again at the next deliver or status"
+
+
 def send_comment(team_id, entry, wi_name):
     """A delivery's verification comment on its pull request, posted once: the pull request is read first, and the
     comment goes only when that read works and doesn't find it. Anything else keeps it for the next team step."""
+    with comment_lock(team_id, wi_name, wait=10.0) as held:
+        if not held:  # another Scout process is sending it, or writing a newer one; it stays pending
+            return False
+        try:
+            return post_comment(team_id, entry, wi_name)
+        except Stop as stop:  # GitHub timed out or broke: the comment stays pending, the answer around it stands
+            note_comment(team_id, wi_name, (read_record(team_id, wi_name).get("comment") or {}).get("body"),
+                         problem=str(stop.data.get("reason"))[:200])
+            return False
+
+
+def note_comment(team_id, wi_name, body, **marks):
+    """Marks the record's comment (sent, or its problem) only when it's still the one with this body."""
+    current = read_record(team_id, wi_name).get("comment") or {}
+    if body is not None and current.get("body") == body:
+        write_record(team_id, wi_name, comment=dict(current, **marks))
+
+
+def post_comment(team_id, entry, wi_name):
     record = read_record(team_id, wi_name)
     comment = record.get("comment")
     if not comment or comment.get("sent"):
@@ -1542,14 +1748,14 @@ def send_comment(team_id, entry, wi_name):
     except (ValueError, AttributeError):
         bodies = None
     if bodies is None:
-        write_record(team_id, wi_name, comment=dict(comment, problem=f"couldn't read #{comment['pr']}: {(stderr or stdout)[-160:]}"))
+        note_comment(team_id, wi_name, comment["body"], problem=f"couldn't read #{comment['pr']}: {(stderr or stdout)[-160:]}")
         return False
     if comment["body"] not in bodies:
         code, stdout, stderr = gh(["pr", "comment", str(comment["pr"]), "--repo", entry["repo"], "--body", comment["body"]], timeout=30)
         if code:
-            write_record(team_id, wi_name, comment=dict(comment, problem=(stderr or stdout)[-200:] or "no answer"))
+            note_comment(team_id, wi_name, comment["body"], problem=(stderr or stdout)[-200:] or "no answer")
             return False
-    write_record(team_id, wi_name, comment=dict(comment, sent=now()))
+    note_comment(team_id, wi_name, comment["body"], sent=now())
     return True
 
 
@@ -1648,6 +1854,109 @@ def cmd_backflow(a):
 
 # ---- status and teammates' updates ----
 
+PEEK_RECORD = ("step", "at", "pr", "merge", "head", "plan_id", "approved", "full", "token", "tokens", "promoted",
+               "promoted_at", "verified", "test_run", "tests_after", "tests_passed", "tests_failed")
+
+
+def cmd_peek(a):
+    """What a delivery is waiting on, as its record, the hub, the common org and GitHub show it now, with nothing
+    changed: no record, status, promotion or comment is written. Each source answers for itself, so one failing read
+    hides nothing else. What it means is the reader's call."""
+    team_id, entry = pick(a.team)
+    cwd = Path.cwd()
+    record = read_record(team_id, a.wi)
+    comment = record.get("comment") or {}
+    out = {"work_item": a.wi, "reads_only": True,
+           "record": dict({k: record[k] for k in PEEK_RECORD if record.get(k) is not None},
+                          comment={k: comment.get(k) for k in ("pr", "sent", "problem")} if comment else None,
+                          source="this machine's delivery record: a delivery run elsewhere, or an older team on the same "
+                                 "repository, can differ from what the hub shows")}
+
+    def look(key, read):
+        try:
+            out[key] = read()
+        except Stop as stop:
+            out[key] = {"error": str(stop.data.get("reason"))[:300]}
+        except Exception as error:  # a read that broke says so; the others still answer
+            out[key] = {"error": f"{type(error).__name__}: {str(error)[:200]}"}
+
+    item = {}
+
+    def hub():
+        item.update(work_item(entry, a.wi, cwd))
+        rows = query("SELECT CreatedDate, MergeRemoteReference, DevopsPipelnStgProm.Status, DevopsPipelnStgProm.CompletionDate, "
+                     "DevopsPipelnStgProm.RequestInfoId, DevopsPipelnStgProm.RequestInfo.RequestToken, "
+                     "DevopsPipelnStgProm.RequestInfo.Status FROM DevopsPipelnStgPromWkItem WHERE WorkItemId = "
+                     f"{quoted(item['id'])} AND DevopsPipelnStgProm.PipelineStageId = {quoted(id18(entry['stage_id']))} "
+                     "ORDER BY CreatedDate DESC LIMIT 1", entry["hub"], cwd)
+        prom = (rows[0].get("DevopsPipelnStgProm") or {}) if rows else {}
+        info = prom.get("RequestInfo") or {}
+        latest = {"created": rows[0].get("CreatedDate"), "merge": rows[0].get("MergeRemoteReference"),
+                  "status": prom.get("Status"), "completed": prom.get("CompletionDate"), "request": bool(prom.get("RequestInfoId")),
+                  "token": info.get("RequestToken"), "request_status": info.get("Status")} if rows else None
+        return {"work_item_status": item["status"], "stage_busy": stage_busy(entry, cwd),
+                "latest_row": latest, "selected_promotion": promotion_for(entry, item, cwd),
+                "note": "latest_row is the newest record as stored; a merge's record has neither a status nor a request "
+                        "until a promotion fills it in (measured). selected_promotion is the one deliver acts on"}
+    look("hub", hub)
+    shown = out.get("hub") or {}
+    sources = {}
+    for source, token in (("record", record.get("token")), ("selected_promotion", (shown.get("selected_promotion") or {}).get("token")),
+                          ("latest_row", (shown.get("latest_row") or {}).get("token"))):
+        if token:
+            sources.setdefault(token, []).append(source)
+    out["requests"] = []
+
+    def request(token, found_in):
+        code, body, kind = devops(["request", "status", "--request-token", token], entry["hub"], cwd)
+        body = body if isinstance(body, dict) else {}
+        return {"token": token, "from": found_in, "kind": kind, "status": body.get("status"),
+                "message": message_of(body)[:300] or None, "completed": body.get("requestCompletionDate")}
+    for token, found_in in sources.items():
+        try:
+            out["requests"].append(request(token, found_in))
+        except Stop as stop:
+            out["requests"].append({"token": token, "from": found_in, "error": str(stop.data.get("reason"))[:300]})
+
+    def tests():
+        run_id, target = record["test_run"], entry["common_org"]["target"]
+        jobs = query(f"SELECT Status, CreatedDate FROM AsyncApexJob WHERE Id = {quoted(run_id)}", target, cwd)
+        rows = query("SELECT ApexClass.Name, MethodName, Outcome, Message FROM ApexTestResult WHERE AsyncApexJobId = "
+                     f"{quoted(run_id)}", target, cwd)
+        failures = [f"{(r.get('ApexClass') or {}).get('Name')}.{r.get('MethodName')}: {str(r.get('Message') or r.get('Outcome'))[:160]}"
+                    for r in rows if r.get("Outcome") != "Pass"]
+        return {"run": run_id, "status": (jobs[0] if jobs else {}).get("Status"), "created": (jobs[0] if jobs else {}).get("CreatedDate"),
+                "results": len(rows), "passed": len(rows) - len(failures), "failures": failures[:10]}
+    if record.get("test_run"):
+        look("tests", tests)
+
+    def pull_request():
+        prs = pull_requests(entry, a.wi)
+        pr = next((p for p in prs if p.get("number") == record.get("pr")), prs[0] if prs else None)
+        if not pr:
+            return None
+        shown = gh_json(["pr", "view", str(pr["number"]), "--repo", entry["repo"], "--json", "comments"]) or {}
+        bodies = [c.get("body") or "" for c in shown.get("comments") or []]
+        return {"number": pr["number"], "state": pr.get("state"), "merge": (pr.get("mergeCommit") or {}).get("oid"),
+                "scouts_comment": next((b[:200] for b in reversed(bodies) if b.startswith(("Verified in the common org at ",
+                                                                                          "Not verified: "))), None)}
+    look("pull_request", pull_request)
+    return out
+
+
+def cmd_stop(a):
+    """Asks a running delivery to end at its next safe point. It never interrupts a call that changes something, and
+    writes only this machine's request, which the delivery clears when it stops (or the next deliver, when none ran)."""
+    team_id, entry = pick(a.team)
+    if not WI_NAME.match(str(a.wi or "")):
+        raise refused(f"{a.wi} isn't a work item name like WI-000012")
+    path = stop_file(team_id, a.wi)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(now() + "\n")
+    return {"work_item": a.wi, "stop": "requested", "note": "a running delivery ends at its next safe point and says so; "
+            "deliver --resume then picks up"}
+
+
 def cmd_status(a):
     team_id, entry = pick(a.team)
     cwd = Path.cwd()
@@ -1669,6 +1978,10 @@ def cmd_status(a):
 
 def events_file(team_id):
     return team.cache_dir(team_id) / "lc-events.json"
+
+
+def events_lock(team_id):
+    return file_lock(team.cache_dir(team_id) / "lc-events.lock", wait=3.0)
 
 
 def read_events(team_id):
@@ -1716,7 +2029,7 @@ def pr_event(pr):
 def cmd_fetch(a):
     """Refreshes the events cache from the hub and GitHub, each source from its own cursor; the prompt hook only ever
     reads the cache. An event is a change: a work item's or a promotion's status, a pull request's state, or a
-    verification comment, which only the captain's read-back writes."""
+    verification comment, Verified or Not verified, which only the captain's delivery writes."""
     team_id, entry = pick(a.team)
     cwd = Path.cwd()
     data = read_events(team_id)
@@ -1757,22 +2070,26 @@ def cmd_fetch(a):
                                 f"&per_page={PER_PAGE}&page={page}"]) or []
         for comment in batch:
             body = comment.get("body") or ""
-            if body.startswith("Verified in the common org at "):
-                events.append({"key": f"verified:{comment.get('id')}", "at": comment.get("updated_at"),
-                               "text": f"{(comment.get('user') or {}).get('login')}: {body[:200]}"})
+            if body.startswith(("Verified in the common org at ", "Not verified: ")):
+                kind = "verified" if body.startswith("Verified") else "not-verified"
+                events.append({"key": f"{kind}:{comment.get('id')}", "at": comment.get("updated_at"),
+                               "text": f"{(comment.get('user') or {}).get('login')}: {body[:300]}"})
             cursor["comments"] = comment.get("updated_at") or cursor.get("comments")
         if len(batch) < PER_PAGE:
             break
-    latest = read_events(team_id)  # the hook or a watcher may have changed it meanwhile
-    seen = set(latest["seen"])
-    fresh = [e for e in events if e["key"] not in seen]
-    for event in fresh:
-        latest["next"] += 1
-        event["seq"] = latest["next"]
-    latest["pending"] += fresh
-    latest["seen"] = (latest["seen"] + [e["key"] for e in fresh])[-1000:]
-    latest.update(cursor=cursor, statuses=statuses, promotions=promotions, prs=prs, fetched_at=time.time())
-    team.write_json_atomic(events_file(team_id), latest)
+    with events_lock(team_id) as held:
+        if not held:  # another writer holds the cache; this refresh's events come again with the next one
+            return {"fresh": 0, "pending": None, "note": "the events cache was busy; the next refresh brings these"}
+        latest = read_events(team_id)  # the hook or a watcher may have changed it meanwhile
+        seen = set(latest["seen"])
+        fresh = [e for e in events if e["key"] not in seen]
+        for event in fresh:
+            latest["next"] += 1
+            event["seq"] = latest["next"]
+        latest["pending"] += fresh
+        latest["seen"] = (latest["seen"] + [e["key"] for e in fresh])[-1000:]
+        latest.update(cursor=cursor, statuses=statuses, promotions=promotions, prs=prs, fetched_at=time.time())
+        team.write_json_atomic(events_file(team_id), latest)
     return {"fresh": len(fresh), "pending": len(latest["pending"])}
 
 
@@ -1807,22 +2124,24 @@ def cmd_updates(a):
                 spawn_fetch(team_id)
             except (OSError, subprocess.SubprocessError):
                 pass
-        shown, rest = data["pending"][:REPORT_LIMIT], data["pending"][REPORT_LIMIT:]
-        first = bool(payload.get("session_id")) and payload.get("session_id") != data.get("session")
-        if first and not team.watcher_alive(team_id):
-            texts.append(f"No watcher is running for the {entry.get('name')} team in the background.")
+        with events_lock(team_id) as held:
+            if not held:  # a refresh is writing; these show at the next prompt
+                continue
             latest = read_events(team_id)
-            latest["session"] = payload.get("session_id")
+            shown, rest = latest["pending"][:REPORT_LIMIT], latest["pending"][REPORT_LIMIT:]
+            first = bool(payload.get("session_id")) and payload.get("session_id") != latest.get("session")
+            unwatched = first and not team.watcher_alive(team_id)  # said once per session, as before
+            if unwatched:
+                latest["session"] = payload.get("session_id")
+            latest["pending"] = rest
             team.write_json_atomic(events_file(team_id), latest)
+        if unwatched:
+            texts.append(f"No watcher is running for the {entry.get('name')} team in the background.")
         if shown:
             texts.append(f"From the {entry.get('name')} team (Lifecycle Center and GitHub), new since this machine "
                          "last showed it. Scout shows teammates' updates to the SE before its answer:\n" +
                          "\n".join("- " + e["text"] for e in shown) +
                          (f"\n({len(rest)} more follow at the next prompt.)" if rest else ""))
-            shown_keys = {e["key"] for e in shown}
-            latest = read_events(team_id)  # a fetch may have added some meanwhile
-            latest["pending"] = [e for e in latest["pending"] if e["key"] not in shown_keys]
-            team.write_json_atomic(events_file(team_id), latest)
     if a.hook:
         if texts:
             print("\n\n".join(texts))
@@ -1850,9 +2169,13 @@ def cmd_watch(a):
             fresh = [e for e in data["pending"] if int(e.get("seq") or 0) > int(data["watched"])][:REPORT_LIMIT]
             if fresh:
                 upto = max(int(e["seq"]) for e in fresh)
-                latest = read_events(team_id)
-                latest["watched"] = max(int(latest["watched"]), upto)
-                team.write_json_atomic(events_file(team_id), latest)
+                with events_lock(team_id) as held:
+                    if not held:
+                        time.sleep(a.interval)
+                        continue
+                    latest = read_events(team_id)
+                    latest["watched"] = max(int(latest["watched"]), upto)
+                    team.write_json_atomic(events_file(team_id), latest)
                 print(f"From the {entry.get('name')} team (the background watcher):\n" +
                       "\n".join("- " + e["text"] for e in fresh) +
                       f"\nAfter relaying this to the SE, Scout runs `scout_lc.py ack --team {team_id} --upto {upto}` "
@@ -1872,10 +2195,13 @@ def cmd_watch(a):
 def cmd_ack(a):
     """Scout relayed a watcher's report: those events needn't show again."""
     team_id, entry = pick(a.team)
-    latest = read_events(team_id)
-    before = len(latest["pending"])
-    latest["pending"] = [e for e in latest["pending"] if int(e.get("seq") or 0) > a.upto]
-    team.write_json_atomic(events_file(team_id), latest)
+    with events_lock(team_id) as held:
+        if not held:
+            raise failed("the team's events cache is busy; acknowledge again in a moment", pending=True)
+        latest = read_events(team_id)
+        before = len(latest["pending"])
+        latest["pending"] = [e for e in latest["pending"] if int(e.get("seq") or 0) > a.upto]
+        team.write_json_atomic(events_file(team_id), latest)
     return {"acknowledged": before - len(latest["pending"]), "pending": len(latest["pending"])}
 
 
@@ -1916,6 +2242,12 @@ def main(argv=None):
     p.add_argument("--overwrite", action="store_true")
     p.add_argument("--confirm-base", action="store_true")
     p.add_argument("--confirm-other", action="store_true")
+    p = commands.add_parser("peek")
+    p.add_argument("--team")
+    p.add_argument("--wi", required=True)
+    p = commands.add_parser("stop")
+    p.add_argument("--team")
+    p.add_argument("--wi", required=True)
     p = commands.add_parser("backflow")
     p.add_argument("--team")
     p.add_argument("--components", nargs="+", required=True)
@@ -1934,15 +2266,20 @@ def main(argv=None):
     p.add_argument("--upto", type=int, required=True)
     a = parser.parse_args(argv)
     handlers = {"start": cmd_start, "join": cmd_join, "package": cmd_package, "handover": cmd_handover,
-                "deliver": cmd_deliver, "backflow": cmd_backflow, "status": cmd_status, "fetch": cmd_fetch,
+                "deliver": cmd_deliver, "peek": cmd_peek, "stop": cmd_stop, "backflow": cmd_backflow, "status": cmd_status, "fetch": cmd_fetch,
                 "updates": cmd_updates, "watch": cmd_watch, "ack": cmd_ack}
     try:
         result = handlers[a.command](a)
     except Stop as stop:
         if a.command == "updates" and a.hook:
             return 0
+        if a.command == "deliver":
+            progress(a.wi, {1: "stopped", 2: "refused", 3: "waiting for a decision"}.get(stop.code, "stopped"),
+                     str(stop.data.get("needs") or stop.data.get("reason"))[:160], safe=None)
         print(json.dumps(stop.data, indent=1, sort_keys=True, default=str))
         return stop.code
+    if a.command == "deliver" and isinstance(result, dict):
+        progress(a.wi, "done", str(result.get("outcome") or "finished"), safe=None)
     if result is not None:
         print(json.dumps(result, indent=1, default=str))
     return 0
