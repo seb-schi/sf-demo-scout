@@ -1,0 +1,365 @@
+{
+ "complete-18-character-crash": {
+  "answer": {
+   "cause": "CLIError: Pre-flight validation failed. Error type: UNEXPECTED. Details: Unexpected error during validation: common.exception.SfdcSqlException: ERROR: value with length 18 too long for type character varying(15)\n\n{call cStandardEntityDataTemplate.load_stdentdatas(?,?,?,?,?,?,?)}\n\nSQLState: 22001\nFile: varchar.c, Routine: varchar, Line: 640\n; [conn=<redacted>]",
+   "code": "1",
+   "commandName": "DevopsPromotionComplete",
+   "context": "DevopsPromotionComplete",
+   "exitCode": 1,
+   "message": "Pre-flight validation failed. Error type: UNEXPECTED. Details: Unexpected error during validation: common.exception.SfdcSqlException: ERROR: value with length 18 too long for type character varying(15)\n\n{call cStandardEntityDataTemplate.load_stdentdatas(?,?,?,?,?,?,?)}\n\nSQLState: 22001\nFile: varchar.c, Routine: varchar, Line: 640\n; [conn=<redacted>]",
+   "name": "Error",
+   "status": 1,
+   "warnings": []
+  },
+  "note": "an 18-character work-item ID crashes the validation"
+ },
+ "complete-external-merges": {
+  "answer": {
+   "cause": "CLIError: Pre-flight validation failed. Error type: EXTERNAL_MERGES_DETECTED. Details: Merges detected for 1fk000000000001AAA",
+   "code": "1",
+   "commandName": "DevopsPromotionComplete",
+   "context": "DevopsPromotionComplete",
+   "exitCode": 1,
+   "message": "Pre-flight validation failed. Error type: EXTERNAL_MERGES_DETECTED. Details: Merges detected for 1fk000000000001AAA",
+   "name": "Error",
+   "status": 1,
+   "warnings": []
+  },
+  "note": "complete before the sync has finished"
+ },
+ "complete-first-stage-no-item": {
+  "answer": {
+   "cause": "NOT_FOUND: The requested resource does not exist",
+   "code": "1",
+   "commandName": "DevopsPromotionComplete",
+   "context": "DevopsPromotionComplete",
+   "data": {
+    "errorCode": "NOT_FOUND",
+    "message": "The requested resource does not exist"
+   },
+   "exitCode": 1,
+   "message": "The requested resource does not exist",
+   "name": "NOT_FOUND",
+   "status": 1,
+   "warnings": []
+  },
+  "note": "complete without -i on a first stage"
+ },
+ "complete-in-progress": {
+  "answer": {
+   "cause": "CLIError: Pre-flight validation failed. Error type: PROMOTION_IN_PROGRESS. Details: A promotion is already in progress on this pipeline. Wait for it to finish before promoting.",
+   "code": "1",
+   "commandName": "DevopsPromotionComplete",
+   "context": "DevopsPromotionComplete",
+   "exitCode": 1,
+   "message": "Pre-flight validation failed. Error type: PROMOTION_IN_PROGRESS. Details: A promotion is already in progress on this pipeline. Wait for it to finish before promoting.",
+   "name": "Error",
+   "status": 1,
+   "warnings": []
+  },
+  "note": "a second complete while one runs"
+ },
+ "complete-pr-does-not-exist": {
+  "answer": {
+   "cause": "CLIError: Pre-flight validation failed. Error type: CHANGE_REQUEST_VALIDATION. Details: [{&quot;reason&quot;:&quot;PR_DOES_NOT_EXIST&quot;,&quot;workItem&quot;:&quot;WI-000007&quot;}]",
+   "code": "1",
+   "commandName": "DevopsPromotionComplete",
+   "context": "DevopsPromotionComplete",
+   "exitCode": 1,
+   "message": "Pre-flight validation failed. Error type: CHANGE_REQUEST_VALIDATION. Details: [{&quot;reason&quot;:&quot;PR_DOES_NOT_EXIST&quot;,&quot;workItem&quot;:&quot;WI-000007&quot;}]",
+   "name": "Error",
+   "status": 1,
+   "warnings": []
+  },
+  "note": "complete after the item is closed; details HTML-escaped"
+ },
+ "complete-submitted": {
+  "answer": {
+   "result": {
+    "message": "Submitted for promotion",
+    "promotedWorkitemIds": [
+     "1fk000000000007AAA"
+    ],
+    "requestId": "00000000-0000-0000-0000-000000000001",
+    "status": "SUBMITTED",
+    "undeployedWorkitemIds": [
+     "1fk000000000007"
+    ]
+   },
+   "status": 0,
+   "warnings": []
+  },
+  "note": "complete after the sync"
+ },
+ "component-lists-query": {
+  "answer": {
+   "result": {
+    "done": true,
+    "records": [
+     {
+      "CommitReference": "0000000000000000000000000000000000000001",
+      "CreatedDate": "2026-10-18T17:56:40.000+0000"
+     }
+    ],
+    "totalSize": 1
+   },
+   "status": 0,
+   "warnings": []
+  },
+  "note": "WorkItemComponentList rows after the sync"
+ },
+ "inspections-query": {
+  "answer": {
+   "result": {
+    "done": true,
+    "records": [
+     {
+      "CreatedDate": "2026-10-18T17:41:09.000+0000",
+      "Message": "Inspection completed successfully",
+      "OperationType": "INSPECT",
+      "RequestCompletionDate": "2026-10-18T17:41:14.000+0000",
+      "RequestToken": "00000000-0000-0000-0000-000000000004"
+     },
+     {
+      "CreatedDate": "2026-10-18T17:49:02.000+0000",
+      "Message": "Inspection completed successfully",
+      "OperationType": "INSPECT",
+      "RequestCompletionDate": "2026-10-18T17:49:07.000+0000",
+      "RequestToken": "00000000-0000-0000-0000-000000000005"
+     },
+     {
+      "CreatedDate": "2026-10-18T17:52:17.000+0000",
+      "Message": "Inspection completed successfully",
+      "OperationType": "INSPECT",
+      "RequestCompletionDate": "2026-10-18T17:52:22.000+0000",
+      "RequestToken": "00000000-0000-0000-0000-000000000006"
+     },
+     {
+      "CreatedDate": "2026-10-18T17:54:30.000+0000",
+      "Message": "Inspection completed successfully",
+      "OperationType": "INSPECT",
+      "RequestCompletionDate": "2026-10-18T17:54:35.000+0000",
+      "RequestToken": "00000000-0000-0000-0000-000000000007"
+     },
+     {
+      "CreatedDate": "2026-10-18T17:56:36.000+0000",
+      "Message": "Inspection completed successfully",
+      "OperationType": "INSPECT",
+      "RequestCompletionDate": "2026-10-18T17:56:41.000+0000",
+      "RequestToken": "00000000-0000-0000-0000-000000000008"
+     }
+    ],
+    "totalSize": 5
+   },
+   "status": 0,
+   "warnings": []
+  },
+  "note": "DevopsRequestInfo rows: the sync's INSPECT requests"
+ },
+ "pipeline-get": {
+  "answer": {
+   "result": {
+    "connectedProjects": [
+     {
+      "id": "1Qg000000000004CAA",
+      "name": "Example project"
+     }
+    ],
+    "description": null,
+    "id": "1PJ000000000005GAA",
+    "isActive": true,
+    "name": "Example project",
+    "stages": [
+     {
+      "branchName": "main",
+      "environment": {
+       "id": "1Qe000000000009CAA",
+       "name": "common-org"
+      },
+      "id": "1QV000000000003GAA",
+      "name": "Common org",
+      "nextStageId": null,
+      "repositoryName": "example-repo",
+      "repositoryOwner": "example-owner"
+     }
+    ]
+   },
+   "status": 0,
+   "warnings": []
+  },
+  "note": "pipeline get"
+ },
+ "request-status-success": {
+  "answer": {
+   "result": {
+    "errorDetails": null,
+    "id": "8Mw000000000008CAA",
+    "message": "Deployment completed successfully",
+    "requestCompletionDate": "2026-10-18T17:42:53.000+0000",
+    "requestToken": "00000000-0000-0000-0000-000000000002",
+    "status": "SUCCESS"
+   },
+   "status": 0,
+   "warnings": []
+  },
+  "note": "request status at the end of a promotion"
+ },
+ "requests-query": {
+  "answer": {
+   "result": {
+    "done": true,
+    "records": [
+     {
+      "CreatedDate": "2026-10-18T17:57:43.000+0000",
+      "Message": "Deployment completed successfully",
+      "OperationType": "PROMOTE",
+      "RequestToken": "00000000-0000-0000-0000-000000000003",
+      "Status": "SUCCESS"
+     }
+    ],
+    "totalSize": 1
+   },
+   "status": 0,
+   "warnings": []
+  },
+  "note": "DevopsRequestInfo rows: a PROMOTE request"
+ },
+ "review-create": {
+  "answer": {
+   "result": {
+    "success": true,
+    "url": "https://github.com/example-owner/example-repo/pull/3"
+   },
+   "status": 0,
+   "warnings": []
+  },
+  "note": "review create answers success and url only"
+ },
+ "validate-already-merged": {
+  "answer": {
+   "cause": "CLIError: Validation failed (CHANGE_REQUEST_VALIDATION): WI-000007: ALREADY_MERGED",
+   "code": "1",
+   "commandName": "DevopsPromotionValidate",
+   "context": "DevopsPromotionValidate",
+   "exitCode": 1,
+   "message": "Validation failed (CHANGE_REQUEST_VALIDATION): WI-000007: ALREADY_MERGED",
+   "name": "Error",
+   "status": 1,
+   "warnings": []
+  },
+  "note": "the first validate after a merge can miss the sync"
+ },
+ "validate-external-merges": {
+  "answer": {
+   "cause": "CLIError: Validation failed (EXTERNAL_MERGES_DETECTED): Merges detected for 1fk000000000007AAA",
+   "code": "1",
+   "commandName": "DevopsPromotionValidate",
+   "context": "DevopsPromotionValidate",
+   "exitCode": 1,
+   "message": "Validation failed (EXTERNAL_MERGES_DETECTED): Merges detected for 1fk000000000007AAA",
+   "name": "Error",
+   "status": 1,
+   "warnings": []
+  },
+  "note": "the expected answer once the sync has started"
+ },
+ "validate-merge-conflict": {
+  "answer": {
+   "cause": "CLIError: Validation failed (CHANGE_REQUEST_VALIDATION): WI-000005: MERGE_CONFLICT",
+   "code": "1",
+   "commandName": "DevopsPromotionValidate",
+   "context": "DevopsPromotionValidate",
+   "exitCode": 1,
+   "message": "Validation failed (CHANGE_REQUEST_VALIDATION): WI-000005: MERGE_CONFLICT",
+   "name": "Error",
+   "status": 1,
+   "warnings": []
+  },
+  "note": "a conflict with the stage branch"
+ },
+ "work-item-create": {
+  "answer": {
+   "result": {
+    "subject": "Example text",
+    "success": true,
+    "workItemId": "1fk000000000001",
+    "workItemName": "WI-000003"
+   },
+   "status": 0,
+   "warnings": []
+  },
+  "note": "create answers a 15-character workItemId and workItemName, no branch"
+ },
+ "work-item-list": {
+  "answer": {
+   "result": {
+    "workItems": [
+     {
+      "DevopsProjectId": "1Qg000000000004CAA",
+      "PipelineId": "1PJ000000000005GAA",
+      "PipelineStageId": "1QV000000000003GAA",
+      "SourceCodeRepository": {
+       "repoType": "github",
+       "repoUrl": "https://github.com/example-owner/example-repo"
+      },
+      "WorkItemBranch": "WI-000001",
+      "description": "Example text",
+      "id": "1fk000000000002AAA",
+      "name": "WI-000001",
+      "owner": "",
+      "status": "CLOSED",
+      "subject": "Example text"
+     },
+     {
+      "DevopsProjectId": "1Qg000000000004CAA",
+      "PipelineId": "1PJ000000000005GAA",
+      "PipelineStageId": "1QV000000000003GAA",
+      "SourceCodeRepository": {
+       "repoType": "github",
+       "repoUrl": "https://github.com/example-owner/example-repo"
+      },
+      "WorkItemBranch": "WI-000002",
+      "description": "Example text",
+      "id": "1fk000000000006AAA",
+      "name": "WI-000002",
+      "owner": "",
+      "status": "CLOSED",
+      "subject": "Example text"
+     },
+     {
+      "DevopsProjectId": "1Qg000000000004CAA",
+      "PipelineId": "1PJ000000000005GAA",
+      "SourceCodeRepository": {
+       "repoType": "github",
+       "repoUrl": "https://github.com/example-owner/example-repo"
+      },
+      "TargetBranch": "main",
+      "TargetStageId": "1QV000000000003GAA",
+      "WorkItemBranch": "WI-000003",
+      "description": "Example text",
+      "id": "1fk000000000001AAA",
+      "name": "WI-000003",
+      "owner": "",
+      "status": "IN_PROGRESS",
+      "subject": "Example text"
+     }
+    ]
+   },
+   "status": 0,
+   "warnings": []
+  },
+  "note": "list answers under result.workItems"
+ },
+ "work-item-update": {
+  "answer": {
+   "result": {
+    "status": "IN_PROGRESS",
+    "success": true,
+    "workItemId": "1fk000000000001AAA"
+   },
+   "status": 0,
+   "warnings": []
+  },
+  "note": "update answers an 18-character workItemId and the enum status"
+ }
+}

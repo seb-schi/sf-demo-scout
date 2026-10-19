@@ -103,13 +103,15 @@ class ScoutRouteTests(unittest.TestCase):
 
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
-        caps = {'scout.md': 2285, 'history.md': 1015, 'discovery.md': 1100, 'build.md': 1350, 'prep.md': 900,  # W10 C9 and W9 C5;
+        caps = {'scout.md': 2310, 'history.md': 1015, 'discovery.md': 1100, 'build.md': 1350, 'prep.md': 900,  # W10 C9 and W9 C5;
                 # W19: build.md +15 for the hosted Flow route's two pointers
                 'reconcile.md': 335,  # 2.0.1: the handover's form moved to history.md; reconcile.md is new (W13)
                 'hosted-flow.md': 860,  # W19: the hosted Flow route, loaded only for Flow items
                 'connect-org.md': 440,  # 2.1.1: the browser login, loaded only for an org that isn't connected
                 'demo-canvas.md': 260,  # 2.1.2: the demo flow as a Slack canvas, loaded after the handover
-                'industry-sources.md': 560}  # 2.2: read only when a task is industry-specific
+                'industry-sources.md': 560,  # 2.2: read only when a task is industry-specific
+                'team.md': 1290,  # 2.3: read only in a team (session, integrate, or a bound org the team registry names); rc4 +50 for the managed-account and re-adoption lines
+                'team-lifecycle.md': 1735}  # 2.3 rc7: read instead of team.md, only for a team on Lifecycle Center; rc8 +175 for the base, overwrite and recovery decisions; rc10 +40 for the full promotion; rc11 +110 for split commits, holding merges and the beta line; rc12 +149 for tests after the promotion; rc13 +111 for offering the dx-devops plugin
         for path in [COMMAND, *optional]:
             self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)
         text = '\n'.join(p.read_text() for p in [COMMAND, *optional])

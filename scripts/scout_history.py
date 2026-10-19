@@ -1044,6 +1044,32 @@ def pending(directory, org, username):
     return 3 if incomplete else 0
 
 
+def lane_pending(checkout, org):
+    """A team lane's open sf-mp operation on the org, and an unfinished delivery, read-only. They block like an
+    unresolved checkpoint; an unreadable one is unclear, never absent."""
+    rows, slot = [], checkout / '.mp' / 'journal' / f'open-{org[:15]}.json'
+    if slot.exists():
+        try:
+            record = json.loads(slot.read_text())
+            rows.append({'file': str(slot), 'source': 'lane', 'state': 'unresolved',
+                         'heading': f"sf mp operation {record.get('opId')} ({record.get('state')})",
+                         'open_jobs': [record.get('jobId') or record.get('opId')]})
+        except (OSError, ValueError):
+            rows.append({'file': str(slot), 'source': 'lane', 'state': 'unclear', 'reason': 'unreadable lane slot'})
+    receipt = checkout / '.git' / 'scout-delivery.json'
+    if receipt.exists():
+        try:
+            data = json.loads(receipt.read_text())
+            rows.append({'file': str(receipt), 'source': 'team delivery', 'state': 'unresolved',
+                         'heading': f"{data.get('package')} delivery ({data.get('phase')})",
+                         'open_jobs': [data.get('op') or data.get('package')]})
+        except (OSError, ValueError):
+            rows.append({'file': str(receipt), 'source': 'team delivery', 'state': 'unclear', 'reason': 'unreadable receipt'})
+    for row in rows:
+        print(json.dumps(row))
+    return 0
+
+
 def checkpoint_state(heading, title, body):
     """Discovery only: the exact owned FINAL heading is the sole resolved evidence.
 
@@ -1183,13 +1209,15 @@ def main(argv=None):
     sub.add_argument('--orgs-dir', required=True, type=Path)
     sub.add_argument('--org-id', required=True)
     sub.add_argument('--username')
+    sub.add_argument('--lane', type=Path, help="a team's lane checkout: its open sf-mp operation counts too")
     commands.add_parser('reconcile-plan').add_argument('--folder', required=True, type=Path)
     args = parser.parse_args(argv)
     if args.command == 'pending' and not re.fullmatch(r'00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?', args.org_id):
         parser.error('expected a 15- or 18-character org ID')
     try:
         if args.command == 'pending':
-            return pending(orgs_directory(args.orgs_dir), args.org_id, args.username)
+            code = pending(orgs_directory(args.orgs_dir), args.org_id, args.username)
+            return lane_pending(args.lane, args.org_id) or code if args.lane else code
         elif args.command == 'reconcile-plan':
             reconcile_plan(org_folder(args.folder))
         else:

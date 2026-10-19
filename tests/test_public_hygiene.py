@@ -27,7 +27,7 @@ SECRET = re.compile(
     r'|\bsk-[0-9A-Za-z]{20,}')                       # an API key
 DEMO_USERNAME = re.compile(r'[\w.+-]+@(?:[\w-]+\.demo|salesforce\.com)\b')
 FAKE_ORG_ID = re.compile(r'00D0{6,}[0-9]{1,6}[A-Z]{0,3}')
-FIXTURE_JWT_FILES = {'tests/test_scout_metadata_experts.py'}
+FIXTURE_JWT_FILES = {'tests/test_scout_metadata_experts.py', 'packages/sf-mp/test/guard.test.mjs'}
 
 
 def tracked_files(root=ROOT):
@@ -53,7 +53,7 @@ def findings(files):
             text = path.read_text(encoding='utf-8')
         except (UnicodeDecodeError, OSError):
             continue
-        fixture = name.startswith('tests/')
+        fixture = name.startswith('tests/') or bool(re.match(r'packages/[^/]+/test/', name))  # a package's own fixtures
         for number, line in enumerate(text.splitlines(), 1):
             hits = [m.group(0) for m in PERSONAL_PATH.finditer(line)]
             hits += [m.group(0) for m in ORG_ID.finditer(line)

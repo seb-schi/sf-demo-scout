@@ -148,6 +148,24 @@ After setup, kick off your first demo with `/scout`.
 
 `/scout-sparring` and `/scout-building` are the classic command names. They now open `/scout`; `/scout-building` hands it your spec as the brief.
 
+## Building one demo org together
+
+Tell Scout you're working with colleagues on an org ("/scout session: start a team on acme-sdo with Bob"). Each of
+you builds in your own sandbox; the captain delivers the team's work into its common org.
+
+- **Scout's own lane:** a private GitHub repository, a team board, and a guard in each teammate's Salesforce CLI.
+- **On Salesforce's Lifecycle Center (beta):** the team's work items, reviews and promotions are Salesforce's own,
+  and teammates can use Cursor, Agentforce Vibes or Scout. Scout offers Salesforce's Lifecycle Center plugin
+  (`dx-devops`) the first time a team needs it. Scout checks each delivery before it merges, runs the
+  stage's tests, and reads the common org back after it. The beta's known limits:
+  - Lifecycle Center can't promote a new component whose files reach the work item in separate commits. Commit a new
+    component's files together; when that didn't happen, Scout offers a full promotion, which deploys everything on
+    `main` after checking it all against the common org.
+  - DevOps Testing doesn't run on promotions from the command line, so Scout runs the stage's tests itself before
+    the merge. Some orgs, trial demo orgs among them, run no tests during a deploy. There Scout asks first, then
+    runs the stage's tests right after the promotion, and says verified only if they pass.
+  - Required reviews on a protected `main` aren't tested yet, and Back Sync stays a manual step.
+
 ## Updates
 
 Updates are automatic. Claude Code pulls new plugin versions on session

@@ -11,3 +11,7 @@ node_modules/
 # in this PLAN. See pipeline-changes/2026-06-18/2118-purge-sfdx-cache-and-gitignore.)
 .sfdx/
 .sf/
+
+# Python bytecode: never tracked
+__pycache__/
+*.pyc

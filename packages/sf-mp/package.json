@@ -1,0 +1,33 @@
+{
+  "name": "sf-mp",
+  "version": "0.3.2",
+  "description": "Multiplayer guard for one common Salesforce org: refuses unguarded writes to the bound org and deploys named components through a checked, journaled lane",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "commands",
+    "hooks",
+    "src",
+    "LICENSE",
+    "README.md",
+    "CONTRACT.md"
+  ],
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "oclif": {
+    "commands": "./commands",
+    "hooks": {
+      "prerun": "./hooks/prerun.mjs"
+    },
+    "topics": {
+      "mp": {
+        "description": "Work safely with one common org: guarded retrieve and deploy, status and reconcile."
+      }
+    }
+  }
+}

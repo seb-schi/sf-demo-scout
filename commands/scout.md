@@ -23,6 +23,8 @@ python3 [PLUGIN_ROOT_ABS]/scripts/scout_target.py bind --selector [SELECTOR]
 
 Require exit 0; preserve the returned selector, username and org ID. From this point every org-directed `sf` call carries `--target-org [BOUND_USERNAME]`. Never call MCP org tools, even when the bound org is the default. Wherever a file says MCP, the active or default org, `sf config get target-org`, or to omit `--target-org`, use `sf … --target-org [BOUND_USERNAME]`. Keep defaults, aliases and existing logins unchanged; a different target needs the SE to name it and a new binding.
 
+Team: for `/scout session`, `/scout integrate`, collaboration on an org, or a bound org that `python3 [PLUGIN_ROOT_ABS]/scripts/scout_team.py context --org-id [BOUND_ORG_ID]` names, follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/team.md` too.
+
 Before every write (retries too) and every read-back supporting a disposition, run:
 
 ```text

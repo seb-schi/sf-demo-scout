@@ -37,13 +37,27 @@ class OverridesContractTests(unittest.TestCase):
         self.assertEqual(re.findall(r"^## (.+)$", self.reference, flags=re.MULTILINE), [
             "Readiness", "Missing-plugin repair", "Other official plugins", "The official hooks", "Binding and confirmation", "Flow scope",
             "Analyzer prerequisites", "Report tools", "Validation formulas", "FlexiPage scope", "Email-to-Case scope",
-            "Agentforce prerequisites and precedence", "The action log", "Cross-plugin handoffs", "Hosts"])
+            "Agentforce prerequisites and precedence", "The action log", "Cross-plugin handoffs", "Lifecycle Center teams", "Hosts"])
         preamble = self.reference[: self.reference.index("## Readiness")]
         for phrase in ("always by their qualified names", "never Anthropic's copy", "overrides only what it names",
                        "scope, category permissions, retries, preservation and acceptance",
                        "A missing dependency is evidence to report", "never authorization to install",
                        "mark a check passed", "the missing-plugin repair below, which says when it asks first"):
             self.assertIn(phrase, preamble)
+
+    def test_lifecycle_center_teams_follow_the_measured_cli(self):
+        lifecycle = section(self.reference, "Lifecycle Center teams")
+        for phrase in ("open the review right after the push", "`.result.workItems[]`", "15-character `workItemId`",
+                       "`{success, url}`", "Prerequisite 1 (`sf org list`) becomes `sf org display --target-org [hub]`",
+                       "Never assign a provider's Default Suite", "`DevopsTestSuiteGroupExecId`",
+                       "15-character work-item IDs", "`AGENTS.md`", "`Checked: <main commit>`",
+                       "read the work item back to confirm a transition", "Revoke Access",
+                       "Never delete that Named Credential or its principal in Setup", "prints it only without `--json`", "the resolved component set was empty", "Commit a new component's files together", "`--deploy-all`", "the org's own My Domain", "check the username on the Allow page", "Scout's block in the team repository's `AGENTS.md`"):
+            self.assertIn(phrase, lifecycle)
+        handoffs = section(self.reference, "Cross-plugin handoffs")
+        self.assertIn("in a lane team, never", handoffs)
+        self.assertIn("only through the captain's `scout_lc.py deliver`", handoffs)
+        self.assertIn('its "then run complete" advice after success is never followed', handoffs)
 
     def test_readiness_needs_session_evidence_and_blocks_by_name(self):
         readiness = section(self.reference, "Readiness")

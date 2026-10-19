@@ -1,5 +1,5 @@
 {
-  "description": "SF Demo Scout session start: standing rules, setup and official-plugin notices, and the active org",
+  "description": "SF Demo Scout session start: standing rules, setup and official-plugin notices, and the active org; teammates' updates at each prompt in team mode",
   "hooks": {
     "SessionStart": [
       {
@@ -8,6 +8,17 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-startup.sh\"",
             "timeout": 20
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/team-updates.sh\"",
+            "timeout": 8
           }
         ]
       }

@@ -39,7 +39,7 @@ class StandingRulesTests(unittest.TestCase):
 
     def test_rule_coverage_style_and_command_loading(self):
         text = (ROOT / 'AGENTS.md').read_text()
-        self.assertLessEqual(len(text.split()), 1921)
+        self.assertLessEqual(len(text.split()), 1945)  # 2.3: +20 for the team rule (the common org only by delivery)
         prose = re.sub(r'```.*?```|`[^`]*`', '', text, flags=re.S)
         self.assertNotRegex(prose, r'\b(?:CRITICAL|MANDATORY|IMPORTANT|MUST|NEVER|ALWAYS|DO NOT)\b')
         for bullet in BULLETS:
