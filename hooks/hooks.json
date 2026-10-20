@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/probe_hook.py\" session-start",
+            "commandWindows": "python3 \"%PLUGIN_ROOT%\\hooks\\probe_hook.py\" session-start",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

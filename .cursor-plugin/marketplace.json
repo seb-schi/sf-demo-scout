@@ -1,0 +1,7 @@
+{
+  "name": "scout-probe",
+  "owner": {"name": "Scout maintainer"},
+  "plugins": [
+    {"name": "scout-probe", "source": ".", "description": "Throwaway probe. Not Scout."}
+  ]
+}

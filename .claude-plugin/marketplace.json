@@ -1,0 +1,8 @@
+{
+  "name": "scout-probe",
+  "description": "Throwaway probe marketplace for host install and update tests. Not Scout.",
+  "owner": {"name": "Scout maintainer"},
+  "plugins": [
+    {"name": "scout-probe", "source": ".", "description": "Throwaway probe. Not Scout."}
+  ]
+}
