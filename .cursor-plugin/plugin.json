@@ -1,6 +1,6 @@
 {
   "name": "scout-probe",
   "description": "Throwaway probe for testing plugin installs and updates across hosts. Not Scout.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "hooks": "./hooks/cursor-hooks.json"
 }
