@@ -2,8 +2,6 @@
   "permissions": {
     "allow": [
       "mcp__salesforce-docs__*",
-      "mcp__slack__*",
-      "mcp__plugin_slack_*",
       "Bash",
       "Edit",
       "Write",
@@ -17,6 +15,8 @@
       "Bash(rm -rf ~*)",
       "Bash(rm -rf $HOME*)",
       "Bash(rm -rf /Users/*)",
+      "Bash(rm -rf /c/Users/*)",
+      "Bash(rm -rf C:\\Users\\*)",
       "Bash(rm -rf /*)",
       "Bash(rm -rf ~/.sf*)",
       "Bash(rm -rf .sf*)",

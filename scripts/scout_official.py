@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Scout's one view of Salesforce's official Claude plugins: the installation from Salesforce's own GitHub
-marketplace (whatever its local name; Anthropic's copy is never used), what each capability Scout routes to needs,
+"""Scout's one view of Salesforce's official plugins: on Claude Code and Codex, the installation from Salesforce's own
+GitHub marketplace (whatever its local name; Anthropic's copy is never used); on Cursor and other hosts, a clone of
+that repository read in place. Also what each capability Scout routes to needs,
 and the settings under which the official hooks would fight Scout's binding. Read-only: it never installs, enables
 or edits anything.
 
@@ -20,14 +21,17 @@ import subprocess
 import sys
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import scout_portable  # noqa: E402  (ships beside this helper)
+
 ROOT = Path(__file__).resolve().parents[1]
 CAPABILITIES = ROOT / "assets" / "official-capabilities.json"
 # Worst first: a capability takes the worst state of the plugins it needs.
 STATES = ("unknown", "unsupported-host", "setup-needed", "conflict", "disabled", "missing", "installable", "installed")
 ACTIONS = {
     "unknown": "Claude's plugin records couldn't be read; ask the SE to run /scout-setup",
-    "unsupported-host": "needs Claude Code, or a local sf-skills checkout named by SCOUT_OFFICIAL_SKILLS_ROOT",
-    "setup-needed": "Salesforce's official plugins aren't set up from GitHub; install them (official-skill-overrides.md §Missing-plugin repair)",
+    "unsupported-host": "this host can't load Salesforce's official skills; run /scout-setup",
+    "setup-needed": "Salesforce's official skills aren't set up from GitHub; install them (official-skill-overrides.md §Missing-plugin repair), with /scout-setup on Codex and Cursor",
     "conflict": "another copy of the same plugin is switched on; /scout-setup offers to switch it off",
     "disabled": "installed but switched off; Scout can switch it on after the SE's yes",
     "missing": "the installed official plugin doesn't have this; report the item blocked",
@@ -38,6 +42,10 @@ NAMED_LEVELS = ("off", "low", "standard", "high")  # the official recommender's 
 
 class Unreadable(Exception):
     """A plugin record exists but can't be read: never proof that nothing is installed."""
+
+
+class Refused(Exception):
+    """The CLI never ran: scout_portable.sf_command refused an argument cmd.exe would re-read. Its message says why."""
 
 
 def normalize(source):
@@ -55,7 +63,7 @@ def normalize(source):
 def read_json(path, default=None):
     """The parsed file; `default` when it doesn't exist; Unreadable when it exists but won't parse."""
     try:
-        return json.loads(Path(path).read_text())
+        return json.loads(Path(path).read_text(encoding="utf-8"))
     except FileNotFoundError:
         return default
     except (OSError, ValueError, UnicodeError) as error:
@@ -178,14 +186,131 @@ class Records:
         return [str(Path(r).expanduser().resolve()) for r in roots]
 
 
-def resolve(plugin, host="claude", data=None, records=None):
-    """One official plugin's state: {state, provider, root, roots, version, ident, reason?}."""
+def checkout_root(recorded=True):
+    """A clone of Salesforce's sf-skills repository that the skills are read from in place: the one named by
+    SCOUT_OFFICIAL_SKILLS_ROOT, or (with `recorded`) the one Scout's installer recorded. None when neither is set."""
+    named = os.environ.get("SCOUT_OFFICIAL_SKILLS_ROOT")
+    if not named and recorded:
+        try:
+            record = read_json(Path.home() / ".config" / "sf-demo-scout" / "official-skills.json", {})
+        except Unreadable:
+            record = {}
+        named = record.get("root") if isinstance(record, dict) and isinstance(record.get("root"), str) else None
+    return Path(named).expanduser().resolve() if named else None
+
+
+def codex_home():
+    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+
+
+def codex_config():
+    """Codex's marketplaces and plugins tables from its config.toml: {"marketplaces": {...}, "plugins": {...}}.
+    Python 3.11+ reads it with tomllib; earlier versions use a reader for just these two tables' string and
+    boolean values. Unreadable when the file exists but won't parse."""
+    path = codex_home() / "config.toml"
+    try:
+        raw = path.read_bytes()
+    except FileNotFoundError:
+        return {"marketplaces": {}, "plugins": {}}
+    except OSError as error:
+        raise Unreadable(str(path)) from error
+    try:
+        import tomllib
+    except ImportError:
+        tomllib = None
+    if tomllib:
+        try:
+            data = tomllib.loads(raw.decode("utf-8"))
+        except (ValueError, UnicodeError) as error:
+            raise Unreadable(str(path)) from error
+        return {key: data.get(key) if isinstance(data.get(key), dict) else {} for key in ("marketplaces", "plugins")}
+    tables, current = {"marketplaces": {}, "plugins": {}}, None
+    for line in raw.decode("utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        header = re.fullmatch(r'\[\s*(marketplaces|plugins)\s*\.\s*(?:"([^"]+)"|\'([^\']+)\'|([\w-]+))\s*\]\s*(?:#.*)?', line)
+        if header:
+            current = tables[header.group(1)].setdefault(header.group(2) or header.group(3) or header.group(4), {})
+        elif line.startswith("["):
+            if re.match(r"\[+\s*[\"']?(marketplaces|plugins)\b", line):
+                raise Unreadable(str(path))  # a table of interest in a form this narrow reader doesn't settle
+            current = None
+        elif current is None and re.match(r"[\"']?(marketplaces|plugins)\b", line):
+            raise Unreadable(str(path))  # a dotted or inline selection outside a table: never read as absence
+        elif current is not None:
+            pair = re.fullmatch(r'([A-Za-z_][\w-]*)\s*=\s*(?:"((?:[^"\\]|\\.)*)"|\'([^\']*)\'|(true|false))\s*(?:#.*)?',
+                                line)
+            if pair is None:
+                raise Unreadable(str(path))  # never guess at a line this narrow reader can't settle
+            value = pair.group(2) if pair.group(2) is not None else pair.group(3)
+            current[pair.group(1)] = value if value is not None else pair.group(4) == "true"
+    return tables
+
+
+def project_selects_plugins(launch_dir):
+    """Whether a project Codex configuration selects plugins or marketplaces, from the session's folder up to its project root (the
+    nearest folder with `.git`, Codex's default marker; without one, the folder alone). Scout reads only the user
+    configuration, so such a project leaves the answer unknown."""
+    folder = Path(launch_dir or Path.cwd()).expanduser().resolve()
+    chain = [folder, *folder.parents]
+    root = next((index for index, candidate in enumerate(chain) if (candidate / ".git").exists()), 0)
+    user = (codex_home() / "config.toml").resolve()
+    for candidate in chain[:root + 1]:
+        config = candidate / ".codex" / "config.toml"
+        if config.resolve() != user and config.is_file() and re.search(  # a table, or a dotted or inline key
+                r"(?m)^\s*(?:\[+\s*)?[\"']?(?:plugins|marketplaces)\b", config.read_text(encoding="utf-8", errors="replace")):
+            return True
+    return False
+
+
+def resolve_codex(plugin, data, launch_dir=None):
+    """The official plugin as Codex installed it from Salesforce's GitHub marketplace: its one cached version."""
+    try:
+        if project_selects_plugins(launch_dir):
+            return {"state": "unknown", "reason": "a project's Codex configuration also selects plugins"}
+        config = codex_config()
+    except (Unreadable, OSError):
+        return {"state": "unknown"}
+    wanted = normalize(accepted_source(data))
+    names = [name for name, entry in config["marketplaces"].items()
+             if isinstance(entry, dict) and isinstance(entry.get("source"), str) and normalize(entry["source"]) == wanted]
+    if not names:
+        return {"state": "setup-needed", "reason": "Salesforce's GitHub marketplace isn't added to Codex"}
+    for name in names:
+        ident = "%s@%s" % (plugin, name)
+        entry = config["plugins"].get(ident)
+        if not isinstance(entry, dict):
+            continue
+        cache = codex_home() / "plugins" / "cache" / name / plugin
+        try:
+            versions = sorted(p for p in cache.iterdir() if p.is_dir()) if cache.is_dir() else []
+        except OSError:
+            return {"state": "unknown", "ident": ident}
+        if entry.get("enabled") is not True:
+            return {"state": "disabled", "ident": ident}
+        if len(versions) != 1:
+            return {"state": "unknown", "ident": ident}  # mid-upgrade or missing: Codex keeps one version folder
+        root = str(versions[0].resolve())
+        return {"state": "installed", "provider": "salesforce-github", "root": root, "roots": [root],
+                "version": versions[0].name, "ident": ident}
+    return {"state": "installable", "ident": "%s@%s" % (plugin, names[0])}
+
+
+def resolve(plugin, host="claude", data=None, records=None, launch_dir=None):
+    """One official plugin's state: {state, provider, root, roots, version, ident, reason?}. Claude and Codex use
+    their own installations; a recorded clone of Salesforce's repository serves Cursor and any other host."""
     data = data or capability_map()
     if host != "claude":
-        local = os.environ.get("SCOUT_OFFICIAL_SKILLS_ROOT")
-        if not local:
-            return {"state": "unsupported-host"}  # prompts/host-runtime.md: another host's registry is never read
-        root = Path(local).expanduser().resolve() / "plugins" / "builder" / plugin  # read in place, never copied
+        local = checkout_root(recorded=False)  # an explicit clone wins on every host
+        if local is None and host == "codex":
+            found = resolve_codex(plugin, data, launch_dir)  # Codex's own installation comes before a clone recorded for Cursor
+            if found["state"] != "setup-needed" or checkout_root() is None:
+                return found
+        local = local or checkout_root()
+        if local is None:
+            return {"state": "setup-needed", "reason": "no clone of Salesforce's sf-skills repository is recorded"}
+        root = local / "plugins" / "builder" / plugin  # read in place, never copied
         return {"state": "installed" if root.is_dir() else "missing", "provider": "local-checkout", "root": str(root),
                 "roots": [str(root)], "version": None, "ident": plugin}
     try:
@@ -250,7 +375,8 @@ def check(names, host="claude", launch_dir=None):
             if plugin == "sf-demo-scout":
                 continue  # Scout's own skill ships with Scout
             if plugin not in plugins:
-                plugins[plugin] = resolve(plugin, host, data, records) if records or host != "claude" else {"state": "unknown"}
+                plugins[plugin] = (resolve(plugin, host, data, records, launch_dir) if records or host != "claude"
+                                   else {"state": "unknown"})
             found = plugins[plugin]
             if found["state"] == "installed":
                 relative = ("skills/%s/SKILL.md" % rest) if entry in spec.get("skills", []) else rest
@@ -272,7 +398,7 @@ def verify(plugin, skill_dir, host="claude", launch_dir=None):
         records = Records(capability_map(), launch_dir) if host == "claude" else None
     except Unreadable:
         return {"state": "unknown"}
-    found = resolve(plugin, host, None, records)
+    found = resolve(plugin, host, None, records, launch_dir)
     if found["state"] != "installed":
         return {"state": found["state"], **({"action": ACTIONS[found["state"]]} if found["state"] in ACTIONS else {})}
     try:
@@ -343,15 +469,20 @@ def sensitivity(raw):
 
 
 def private_text(path, max_bytes=512):
-    """The saved preference as the official hook reads it: one owned regular file, no links, small, ASCII; else None."""
+    """The saved preference as the official hook reads it: one owned regular file, no links, small, ASCII; else None.
+    Windows has neither O_NOFOLLOW nor user IDs, so there the link check comes first and no owner is compared."""
     import stat
     try:
-        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        if scout_portable.windows() and scout_portable.is_link(os.lstat(path)):
+            return None
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0))
     except OSError:
         return None
     try:
         info = os.fstat(descriptor)
-        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != os.getuid():
+        owner = getattr(os, "getuid", None)
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or (owner is not None and info.st_uid != owner())):
             return None
         data = os.read(descriptor, max_bytes + 1)
         return data.decode("ascii") if len(data) <= max_bytes else None
@@ -387,9 +518,10 @@ def default_org(sf, launch_dir):
     target = os.environ.get("SF_TARGET_ORG") or os.environ.get("SFDX_TARGET_ORG")
     if target:
         return target, None, "environment"
-    try:
-        result = subprocess.run([sf, "config", "get", "target-org", "--json"], cwd=launch_dir, stdin=subprocess.DEVNULL,
-                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=75)
+    try:  # sf_command's refusal is a ValueError: the query fails, explained as any other failed query
+        result = subprocess.run(scout_portable.sf_command(sf, ["config", "get", "target-org", "--json"]),
+                                cwd=launch_dir, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, timeout=75)
         data = json.loads(result.stdout)
     except (OSError, ValueError, UnicodeError, subprocess.SubprocessError):
         return None, "query-failed", None
@@ -404,9 +536,15 @@ def default_org(sf, launch_dir):
 
 
 def reachable(sf, target):
+    """Whether the org answers `sf org display`, run through the CLI's Node entry on Windows. Raises Refused when the
+    CLI could only be started in a way that re-reads this target: then no org was asked anything."""
     try:
-        result = subprocess.run([sf, "org", "display", "--target-org", target, "--json"], stdin=subprocess.DEVNULL,
-                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=75)
+        command = scout_portable.sf_command(sf, ["org", "display", "--target-org", target, "--json"])
+    except ValueError as error:
+        raise Refused(str(error)) from error
+    try:
+        result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                timeout=75)
         data = json.loads(result.stdout)
     except (OSError, ValueError, UnicodeError, subprocess.SubprocessError):
         return False
@@ -452,8 +590,14 @@ def coexistence(sf, host, launch_dir, installed=None):
     if checks["recommender"]["fires_here"]:
         issues.append({"issue": "recommender", "detail": setting["source"]})
     target, problem, origin = default_org(sf, launch_dir)
-    if problem is None and not reachable(sf, target):
-        problem = "default-unreachable"
+    if problem is None:
+        try:
+            if not reachable(sf, target):
+                problem = "default-unreachable"
+        except Refused as error:  # the CLI never ran: nothing is known about the default org or its sign-in
+            checks["deploy-gate"] = "cli-refused"
+            issues.append({"issue": "deploy-gate", "detail": "cli-refused", "reason": str(error)})
+            return issues, checks
     checks["deploy-gate"] = problem or "ok"
     if problem:
         scope, folder = default_scope(launch_dir, origin)
@@ -487,9 +631,10 @@ def inspect(report, host, launch_dir):
             records = Records(data, launch_dir)
         except Unreadable:
             records = None
+    if host != "unknown":
         for plugin, spec in data["plugins"].items():
             if spec.get("offer"):
-                state = resolve(plugin, host, data, records)["state"] if records else "unknown"
+                state = resolve(plugin, host, data, records, launch_dir)["state"] if records or host != "claude" else "unknown"
                 optional[plugin] = {"state": state, "area": spec["offer"]}
     pinned = sorted({"%s@%s" % (f["ident"].rpartition("@")[2], f["pinned"]) for f in plugins.values() if f.get("pinned")})
     copies = (personal_copies(launch_dir, records) if records else None) if host == "claude" else []
@@ -510,17 +655,17 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("check", "inspect"):
         sub = commands.add_parser(name)
-        sub.add_argument("--host", required=True, choices=("claude", "codex", "unknown"))
+        sub.add_argument("--host", required=True, choices=("claude", "codex", "cursor", "unknown"))
         sub.add_argument("--capabilities", nargs="*", help="names from assets/official-capabilities.json (default: all)")
         if name == "inspect":
             sub.add_argument("--launch-dir", type=Path, default=Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()),
                              help="the folder this session started in, where the official hooks run")
     sub = commands.add_parser("resolve")
-    sub.add_argument("--host", required=True, choices=("claude", "codex", "unknown"))
+    sub.add_argument("--host", required=True, choices=("claude", "codex", "cursor", "unknown"))
     sub.add_argument("--plugin", required=True)
     sub.add_argument("--launch-dir", type=Path, help="the folder this session started in")
     sub = commands.add_parser("verify")
-    sub.add_argument("--host", required=True, choices=("claude", "codex", "unknown"))
+    sub.add_argument("--host", required=True, choices=("claude", "codex", "cursor", "unknown"))
     sub.add_argument("--plugin", required=True)
     sub.add_argument("--skill-dir", required=True, help="the loaded skill's base directory")
     sub.add_argument("--launch-dir", type=Path, help="the folder this session started in")
@@ -530,7 +675,7 @@ def main(argv=None):
             records = Records(capability_map(), args.launch_dir) if args.host == "claude" else None
         except Unreadable:
             records = None  # resolve reports the unreadable records itself
-        found = resolve(args.plugin, args.host, None, records)
+        found = resolve(args.plugin, args.host, None, records, args.launch_dir)
         print(json.dumps(found, sort_keys=True))
         return 0 if found["state"] == "installed" else 5
     if args.command == "verify":

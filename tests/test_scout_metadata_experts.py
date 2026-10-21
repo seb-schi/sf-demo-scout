@@ -1,5 +1,7 @@
 """metadata-experts helper tested through a fake CLI and a fake official proxy, never an org or a network."""
 import contextlib
+import hashlib
+import inspect
 import io
 import json
 import os
@@ -9,11 +11,16 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import scout_metadata_experts as experts
+import stand_ins
+
+SENDS_SIGTERM = unittest.skipIf(stand_ins.WINDOWS, "sends SIGTERM, which Windows doesn't deliver: it ends the process "
+                                                   "at once")
 
 HELPER = Path(__file__).resolve().parents[1] / 'scripts/scout_metadata_experts.py'
 ORG = '00D000000000001EAA'
@@ -78,7 +85,8 @@ state = json.loads(open(os.environ['MX_STATE']).read())
 probes = os.environ['MX_STATE'] + '.probes'
 starts = int(open(probes).read()) + 1 if os.path.exists(probes) else 1
 open(probes, 'w').write(str(starts))
-child = subprocess.Popen(['sleep', '60']) if state.get('child') else None
+# A grandchild that outlives the proxy's input: Scout ends it with the proxy's process group, or on Windows its tree.
+child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']) if state.get('child') else None
 with open(os.environ['MX_CALLS'], 'a') as f:
     f.write(json.dumps({'proxy': sys.argv[1:], 'cwd': os.getcwd(), 'target': os.environ.get('SF_TARGET_ORG'),
                         'pid': os.getpid(), 'child': child.pid if child else None,
@@ -154,11 +162,8 @@ class MetadataExpertsTests(unittest.TestCase):
         self.root = Path(temp.name).resolve()
         self.bin = self.root / 'bin'
         self.bin.mkdir()
-        for name, body in (('sf', FAKE_SF), ('node', FAKE_NODE)):
-            binary = self.bin / name
-            binary.write_text('#!' + sys.executable + '\n' + body)
-            binary.chmod(0o700)
-        (self.bin / 'sleep').symlink_to('/bin/sleep')
+        stand_ins.tool(self.bin, 'sf', FAKE_SF)
+        self.node = stand_ins.tool(self.bin, 'node', FAKE_NODE)
         self.plugin = self.root / 'official'
         (self.plugin / 'scripts').mkdir(parents=True)
         (self.plugin / 'scripts/sf-mcp-proxy.bundled.js').write_text('// stand-in; the fake node ignores it\n')
@@ -168,9 +173,10 @@ class MetadataExpertsTests(unittest.TestCase):
         self.state, self.calls = self.root / 'state.json', self.root / 'calls.jsonl'
         self.project = self.root / 'workspace'
         self.project.mkdir()
-        self.env = dict(HOME=str(self.root), PATH=str(self.bin), MX_STATE=str(self.state), MX_CALLS=str(self.calls),
-                        CLAUDE_CONFIG_DIR=str(self.config), SCOUT_CACHE_DIR=str(self.root / 'cache'),
-                        CLAUDE_PROJECT_DIR=str(self.project), PYTHONDONTWRITEBYTECODE='1')
+        self.env = stand_ins.keep(dict(
+            stand_ins.home(self.root), PATH=str(self.bin), MX_STATE=str(self.state), MX_CALLS=str(self.calls),
+            CLAUDE_CONFIG_DIR=str(self.config), SCOUT_CACHE_DIR=str(self.root / 'cache'),
+            CLAUDE_PROJECT_DIR=str(self.project), PYTHONDONTWRITEBYTECODE='1'))
         patcher = patch.dict(os.environ, self.env, clear=True)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -219,9 +225,14 @@ class MetadataExpertsTests(unittest.TestCase):
         return {'Id': RECORD, 'DeveloperName': 'platform_metadata_experts', 'Active': active}
 
     def assert_reaped(self):
+        """The proxy and its grandchild have ended: through the process group on macOS and Linux, and on Windows
+        through the tree, which Scout ends while the proxy still runs."""
         for row in self.proxy_calls():
             for pid in (row['pid'], row['child']):
                 if pid:
+                    if stand_ins.WINDOWS:
+                        self.assertTrue(stand_ins.ended(pid), pid)
+                        continue
                     with self.assertRaises(ProcessLookupError):
                         os.kill(pid, 0)
 
@@ -279,13 +290,14 @@ class MetadataExpertsTests(unittest.TestCase):
 
     def test_local_capability_comes_before_any_org_call(self):
         self.configure(rows=[])
-        (self.bin / 'node').rename(self.bin / 'node-away')
+        away = self.node.with_name('node-away' + self.node.suffix)
+        self.node.rename(away)
         for args in (('status', *BINDING, '--probe'), ('activate', *BINDING, '--confirmed'),
                      ('flow', *BINDING, '--prompt-file', str(self.write_prompt()), '--out-dir', str(self.root / 'o'),
                       '--candidate', '1')):
             code, data = self.run_helper(*args)
             self.assertEqual((code, data['state'], data['reason']), (5, 'no-official-plugin', 'node unavailable'))
-        (self.bin / 'node-away').rename(self.bin / 'node')
+        away.rename(self.node)
         self.install(records=[])
         code, data = self.run_helper('status', *BINDING, '--probe')
         self.assertEqual((code, data['reason']), (5, experts.NO_PLUGIN))
@@ -384,6 +396,26 @@ class MetadataExpertsTests(unittest.TestCase):
         self.assert_reaped()
         self.assert_no_sidecars()
 
+    def test_the_receipt_hashes_the_published_bytes(self):
+        # Multiline XML with an international label: the file holds exactly its UTF-8 bytes, on every platform (no
+        # newline translation, no code page), and the receipt's digest names that file.
+        flow = FLOW.replace('Negotiation Follow-up', 'Négociation – Nachfass für Ölwechsel').replace('><', '>\n<')
+        self.configure(xml=flow)
+        code, data = self.generate()
+        self.assertEqual((code, data['state']), (0, 'complete'))
+        published = Path(data['xml']).read_bytes()
+        self.assertEqual(published, flow.encode('utf-8'))
+        receipt = json.loads((self.root / 'out/candidate-1.receipt.json').read_bytes().decode('utf-8'))
+        self.assertEqual(receipt['sha256'], hashlib.sha256(published).hexdigest())
+        spec = self.root / 'spec.json'
+        spec.write_bytes(json.dumps({'max_api_version': '66.0'}).encode())
+        self.assertEqual(self.run_helper('check', '--xml', data['xml'], '--spec', str(spec))[1]['label'],
+                         'Négociation – Nachfass für Ölwechsel')
+        folder = self.root / 'bytes'
+        folder.mkdir()
+        experts.publish(folder, [('a.xml', b'<a>\r\n\xc3\xa9</a>\n')])
+        self.assertEqual((folder / 'a.xml').read_bytes(), b'<a>\r\n\xc3\xa9</a>\n')
+
     def test_one_server_error_is_retried_once(self):
         self.configure(pipeline={'flaky': 1})
         with patch.object(experts, 'POLL_SECONDS', 0.1):
@@ -430,6 +462,39 @@ class MetadataExpertsTests(unittest.TestCase):
         self.assertEqual((code, data['state'], data['reason']), (4, 'unavailable', 'timed out'))
         self.assert_reaped()
 
+    def test_the_proxy_is_started_and_ended_the_portable_way(self):
+        # A process group of its own, and kill_tree() at the end: os.killpg and SIGKILL don't exist on Windows.
+        self.configure(pipeline={'incomplete': 1}, child=True)
+        with patch.object(experts.scout_portable, 'process_group_options',
+                          wraps=experts.scout_portable.process_group_options) as options, \
+                patch.object(experts.scout_portable, 'kill_tree', wraps=experts.scout_portable.kill_tree) as kill:
+            code, data = self.generate()
+        self.assertEqual((code, data['state']), (0, 'complete'))
+        self.assertEqual(options.call_count, 1)
+        self.assertEqual(kill.call_count, 1)  # once, after the graceful close; on Windows the tree, with its .cmd
+        self.assertTrue((self.root / 'out/candidate-1.receipt.json').is_file())
+        self.assert_reaped()
+        self.assert_no_sidecars()
+        self.assertNotIn('killpg', Path(experts.__file__).read_text(encoding='utf-8'))
+
+    def test_windows_ends_the_tree_before_the_proxy_can_exit_and_elsewhere_the_group_after_a_grace(self):
+        # taskkill finds a proxy's children only through the proxy, so on Windows its tree ends while it still runs.
+        calls = []
+        process = types.SimpleNamespace(stdin=types.SimpleNamespace(close=lambda: calls.append('close input')),
+                                        wait=lambda timeout=None: calls.append('wait'))
+        proxy = experts.Proxy.__new__(experts.Proxy)
+        proxy.process, proxy.writer, proxy.folder = process, None, self.root / 'proxy-folder'
+        with patch.object(experts.scout_portable, 'kill_tree', side_effect=lambda proc, grace: calls.append('end tree')):
+            with patch.object(experts.scout_portable, 'PLATFORM', 'win32'):
+                proxy.close()
+            self.assertEqual(calls, ['end tree', 'close input'])
+            calls.clear()
+            with patch.object(experts.scout_portable, 'PLATFORM', 'darwin'):
+                proxy.close()
+            self.assertEqual(calls, ['close input', 'wait', 'end tree'])
+        self.assertFalse(proxy.sidecars_left)
+
+    @SENDS_SIGTERM
     def test_sigterm_reaps_the_proxy_and_removes_its_sidecars(self):
         self.configure(proxy='stall', child=True)
         command = [sys.executable, '-B', str(HELPER), 'flow', *BINDING, '--prompt-file', str(self.write_prompt()),
@@ -450,6 +515,7 @@ class MetadataExpertsTests(unittest.TestCase):
         self.assert_reaped()
         self.assert_no_sidecars()
 
+    @SENDS_SIGTERM
     def test_sigterm_during_the_readiness_wait_keeps_the_verified_activation(self):
         self.configure(rows=[self.row(False)], proxy='stall', child=True)
         command = [sys.executable, '-B', str(HELPER), 'activate', *BINDING, '--confirmed']
@@ -467,6 +533,8 @@ class MetadataExpertsTests(unittest.TestCase):
         self.assertNotIn('Traceback', err)
         self.assert_reaped()
 
+    @unittest.skipIf(stand_ins.WINDOWS, "locks a folder with POSIX permission bits, which Windows doesn't apply to "
+                                        "folders")
     def test_a_failed_sidecar_cleanup_is_reported_not_hidden(self):
         self.configure(rows=[self.row(True)], lock_sidecars=True)
         folder = self.root / 'cache/metadata-experts' / ORG / '.sf'
@@ -485,8 +553,17 @@ class MetadataExpertsTests(unittest.TestCase):
             stream.write = write
             return stream
         with patch.object(experts.os, 'fdopen', failing), self.assertRaises(OSError):
-            experts.publish(folder, [('candidate-1.flow-meta.xml', FLOW), ('candidate-1.receipt.json', '{}')])
+            experts.publish(folder, [('candidate-1.flow-meta.xml', FLOW.encode()), ('candidate-1.receipt.json', b'{}')])
         self.assertEqual(list(folder.iterdir()), [])
+
+    def test_exactly_the_tests_that_send_sigterm_skip_on_windows(self):
+        # The portable cleanup runs on Windows; only a test that sends SIGTERM can't.
+        for name in sorted(n for n in dir(type(self)) if n.startswith('test_')):
+            if name == 'test_exactly_the_tests_that_send_sigterm_skip_on_windows':
+                continue
+            source = inspect.getsource(getattr(type(self), name))
+            with self.subTest(name=name):
+                self.assertEqual('@SENDS_SIGTERM' in source, 'send_signal(signal.SIGTERM)' in source)
 
     def test_flow_without_the_official_plugin(self):
         self.install(records=[])

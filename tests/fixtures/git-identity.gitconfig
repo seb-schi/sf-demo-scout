@@ -1,0 +1,9 @@
+[user]
+	name = Scout Test
+	email = scout-test@example.com
+[commit]
+	gpgsign = false
+[tag]
+	gpgsign = false
+[init]
+	defaultBranch = main

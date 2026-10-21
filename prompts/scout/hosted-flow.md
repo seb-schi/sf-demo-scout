@@ -1,6 +1,6 @@
 # /scout: the hosted Flow route
 
-`commands/scout.md` and `build.md` still govern targeting, confirmation, write order and dispositions. This route generates Flow XML with Salesforce's hosted metadata-experts server, through the official `salesforce-development` plugin's own proxy, pinned to the bound org. `sf-flow` stays the fallback. The orchestrator runs this route in write order. It is the one exception to `commands/scout.md`'s MCP rule, because the helper binds the proxy to the bound org itself; that binding was verified for `salesforce-development` 2.3.0–2.5.0, and receipts record the version used.
+The router (`skills/scout/SKILL.md` and `prompts/scout/router-build.md`) and `build.md` still govern targeting, confirmation, write order and dispositions. This route generates Flow XML with Salesforce's hosted metadata-experts server, through the official `salesforce-development` plugin's own proxy, pinned to the bound org. `sf-flow` stays the fallback. The orchestrator runs this route in write order. It is the one exception to `skills/scout/SKILL.md`'s MCP rule, because the helper binds the proxy to the bound org itself; that binding was verified for `salesforce-development` 2.3.0–2.5.0, and receipts record the version used.
 
 Helper: `python3 [PLUGIN_ROOT_ABS]/scripts/scout_metadata_experts.py [COMMAND] --host [SCOUT_HOST] --selector [SELECTOR] --username [BOUND_USERNAME] --org-id [BOUND_ORG_ID]`. It prints one JSON object; act on `state`. It never deploys, never prints a token and never changes defaults.
 

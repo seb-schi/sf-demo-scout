@@ -15,6 +15,7 @@ ROOT = fixtures.ROOT
 BULLETS = ('- Delete existing metadata or records', '- Modify existing profiles or permission sets',
            '- Touch anything prefixed `sb_` or `managed__`')
 QUALIFIER = "Get the SE's explicit confirmation before:"
+NEEDS_BASH = unittest.skipUnless(Path('/bin/bash').exists(), 'the startup fixture\'s sf and claude stubs are bash scripts')
 
 
 class StandingRulesTests(unittest.TestCase):
@@ -39,7 +40,7 @@ class StandingRulesTests(unittest.TestCase):
 
     def test_rule_coverage_style_and_command_loading(self):
         text = (ROOT / 'AGENTS.md').read_text()
-        self.assertLessEqual(len(text.split()), 1945)  # 2.3: +20 for the team rule (the common org only by delivery)
+        self.assertLessEqual(len(text.split()), 1975)  # 2.3: +20 for the team rule (the common org only by delivery); 2.4: +10 for uninstall, +20 for writes only to demo orgs
         prose = re.sub(r'```.*?```|`[^`]*`', '', text, flags=re.S)
         self.assertNotRegex(prose, r'\b(?:CRITICAL|MANDATORY|IMPORTANT|MUST|NEVER|ALWAYS|DO NOT)\b')
         for bullet in BULLETS:
@@ -60,7 +61,7 @@ class StandingRulesTests(unittest.TestCase):
                          'Before a multi-step loop', 'orgs/lessons/INDEX.md', '`sf org display --target-org [name]`',
                          'only explicitly enabled', 'App Builder provides a live preview'):
             self.assertIn(required, text)
-        command = (ROOT / 'commands/scout.md').read_text()
+        command = (ROOT / 'skills/scout/SKILL.md').read_text() + (ROOT / 'prompts/scout/router-build.md').read_text()
         host = command.index('Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md`')
         bootstrap = command.index('`${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md`')
         rules = command.index('`${CLAUDE_PLUGIN_ROOT}/AGENTS.md`')
@@ -81,6 +82,7 @@ class StandingRulesTests(unittest.TestCase):
         self.assertIn('redispatch the prelude envelope', audit)
         self.assertIn('auto-redispatch the envelope', audit)
 
+    @NEEDS_BASH
     def test_global_plain_json_and_normal_context_roundtrip(self):
         fx = self.fixture()
         outside = self.base / 'outside'
@@ -107,6 +109,7 @@ class StandingRulesTests(unittest.TestCase):
             fx.run(cwd=outside)
         self.assertFalse(fx.log.exists())
 
+    @NEEDS_BASH
     def test_bad_roots_probe_and_json_failures_keep_fail_open_output(self):
         fx = self.fixture()
         outside = self.base / 'outside'

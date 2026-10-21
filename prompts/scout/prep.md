@@ -3,7 +3,7 @@
 Read this only in prep mode. Prep is read-only: it returns before any task record, change log or history step. Its only local writes are `demo-path.md`, its backup under `.scout-work/prep/`, and scratch from `python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py scratch`.
 
 ## Start
-Bind, check the target and choose the folder as `commands/scout.md` requires, but never create a folder: with no matching folder, say so and stop. Note the demo's date and time if the SE gave one ("demo tomorrow 10:00"), with a timezone; otherwise checks run against now. Before the first check, set `started_at` from `date +%Y-%m-%dT%H:%M:%S%z`.
+Bind, check the target and choose the folder as `skills/scout/SKILL.md` requires, but never create a folder: with no matching folder, say so and stop. Note the demo's date and time if the SE gave one ("demo tomorrow 10:00"), with a timezone; otherwise checks run against now. Before the first check, set `started_at` from `date +%Y-%m-%dT%H:%M:%S%z`.
 
 ## Collect the obligations
 Build one results file in scratch, `results.json`:

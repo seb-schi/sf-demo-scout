@@ -2,17 +2,25 @@
 
 End-to-end install procedure. Run on `STATE=FRESH`.
 
-Apply `prompts/host-runtime.md`. On Codex, run the shared prerequisite and
-Salesforce workspace steps a, b and d–f, optional provider checks h/h.5/h.7, and config
-postcondition i. Skip all g steps and j (Claude settings, marketplace, hooks,
-model pins, and shell changes); return `ZSHRC_UNCHANGED`. Do not install or
-configure Claude as a prerequisite for Codex. Substitute `[SCOUT_HOST]` in
-every helper call; unknown host must return to the orchestrator before writes. In a
-self-repair run, ask its one question first (`commands/scout-setup.md`).
+Apply `prompts/host-runtime.md`. On Codex and Cursor, run the shared
+prerequisite and Salesforce workspace steps a, b and d–f, then
+`${CLAUDE_PLUGIN_ROOT}/prompts/setup/other-hosts.md` in place of g.6 and h.7, and
+config postcondition i. Skip the g steps (Claude's marketplace setting, the
+running Claude client and its official plugins). Do not install or configure Claude as
+a prerequisite for Codex. Substitute `[SCOUT_HOST]` in every helper call; unknown
+host must return to the orchestrator before writes. In a self-repair run, ask
+its one question first (`skills/scout-setup/SKILL.md`).
 
-**Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an abort (e.g. SE returning from `/mcp` Slack auth) is safe and fast — completed steps fast-no-op via their own probes (`BREW_OK`, `NODE_PRESENT`, `SETTINGS_PRESENT`, `USER_SETTINGS_NO_CHANGES`, `AUTOUPDATE_ALREADY_ON`, etc.). Always run end-to-end; do NOT skip steps trying to "resume" — the no-ops are the resume mechanism. Within the same CC session you may rely on conversation memory to fast-forward; across sessions, just run the full sequence — it will land in the right place naturally.
+Setup changes nothing outside Scout's own files except what a step below names:
+it never edits shell files such as `~/.zshrc`, other tools' hooks or settings,
+or permission rules in `~/.claude/settings.json`.
+
+**Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an abort (e.g. after a step the SE ran in a terminal) is safe and fast — completed steps fast-no-op via their own probes (`BREW_OK`, `NODE_PRESENT`, `SETTINGS_PRESENT`, `AUTOUPDATE_ALREADY`, etc.). Always run end-to-end; do NOT skip steps trying to "resume" — the no-ops are the resume mechanism. Within the same CC session you may rely on conversation memory to fast-forward; across sessions, just run the full sequence — it will land in the right place naturally.
 
 ## a: Brew Check (hard abort if missing)
+
+**macOS only.** On Windows and Linux, skip this step: step b names the install
+commands there.
 
 `command -v brew` misses when brew is installed but not yet on PATH (Apple
 Silicon installs to `/opt/homebrew/bin`; the post-install `eval` line adds it
@@ -59,11 +67,14 @@ If `BREW_MISSING`, ABORT and emit:
 
 ## b: Auto-install Node, Python, sf CLI
 
-Each tool runs through the shipped Bash bootstrap independently. Before each
-invocation, resolve this active Scout plugin installation's root from the
-current plugin context to a concrete absolute path. Do not pass a literal
-`${CLAUDE_PLUGIN_ROOT}`, reuse a variable from another shell invocation, search
-for another cached version, or reconstruct the helper if it is unavailable.
+Each tool runs through the shipped Python bootstrap independently, one command
+per tool. Before each call, replace `/absolute/path/of/active/sf-demo-scout`
+with this active Scout plugin installation's root, resolved from the current
+plugin context to a concrete absolute path. Do not pass a literal
+`${CLAUDE_PLUGIN_ROOT}`, search for another cached version, or reconstruct the
+helper if it is unavailable. When Python can't open the file, the shipped
+bootstrap is missing: report `NODE_UNAVAILABLE (shipped bootstrap missing)`, or
+the `PYTHON_` or `SF_CLI_` form, and ABORT.
 Run the Node, Python, and sf blocks below in that order, in separate shell
 invocations. Inspect each exit/result before starting the next; do not batch or
 run them in parallel because the sf installation may depend on npm supplied by
@@ -71,36 +82,19 @@ the preceding Node installation.
 
 The helper probes the actual selected executable and installs only when that
 executable is missing. An existing broken, malformed, unreadable, or unsupported
-tool is left unchanged; Scout never installs a competing runtime over it.
+tool is left unchanged; Scout never installs a competing runtime over it. On
+Windows it installs nothing.
 
 ```bash
-SCOUT_BOOTSTRAP_SCRIPT="/absolute/path/of/active/sf-demo-scout/scripts/setup-bootstrap.sh"
-if [ ! -f "$SCOUT_BOOTSTRAP_SCRIPT" ]; then
-  echo "NODE_UNAVAILABLE (shipped bootstrap missing)"
-  exit 1
-else
-  /bin/bash "$SCOUT_BOOTSTRAP_SCRIPT" node
-fi
+python3 -B "/absolute/path/of/active/sf-demo-scout/scripts/setup_bootstrap.py" node
 ```
 
 ```bash
-SCOUT_BOOTSTRAP_SCRIPT="/absolute/path/of/active/sf-demo-scout/scripts/setup-bootstrap.sh"
-if [ ! -f "$SCOUT_BOOTSTRAP_SCRIPT" ]; then
-  echo "PYTHON_UNAVAILABLE (shipped bootstrap missing)"
-  exit 1
-else
-  /bin/bash "$SCOUT_BOOTSTRAP_SCRIPT" python
-fi
+python3 -B "/absolute/path/of/active/sf-demo-scout/scripts/setup_bootstrap.py" python
 ```
 
 ```bash
-SCOUT_BOOTSTRAP_SCRIPT="/absolute/path/of/active/sf-demo-scout/scripts/setup-bootstrap.sh"
-if [ ! -f "$SCOUT_BOOTSTRAP_SCRIPT" ]; then
-  echo "SF_CLI_UNAVAILABLE (shipped bootstrap missing)"
-  exit 1
-else
-  /bin/bash "$SCOUT_BOOTSTRAP_SCRIPT" sf
-fi
+python3 -B "/absolute/path/of/active/sf-demo-scout/scripts/setup_bootstrap.py" sf
 ```
 
 For each independent call:
@@ -112,6 +106,11 @@ For each independent call:
   executable. Do not claim success or try another runtime.
 - `PYTHON_UNSUPPORTED` — ABORT. Keep the existing Python unchanged and explain
   Scout requires Python 3.9+ within major 3.
+- `NODE_UNSUPPORTED` — ABORT. Keep the existing Node unchanged and explain
+  Scout requires Node 22.20 or later.
+- `*_MISSING` (Windows) — ABORT. Scout installs nothing on Windows: give the SE
+  the install command from the line in a copyable block, to run in a terminal,
+  then rerun `/scout-setup`.
 - `*_INSTALL_FAILED` — ABORT. Report the installer exit code and warn that a
   failed installer may have partially changed state; do not promise the old
   state survived.
@@ -131,28 +130,17 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and extract its
 `${CLAUDE_PLUGIN_ROOT}` to its absolute active plugin directory for
 `[PLUGIN_ROOT]`; neither placeholder is a shell expression.
 
-Run the shipped helper once with explicit paths:
+Run the shipped helper once, with the host contract's `[PYTHON]` in place of
+`python3`. It runs the same in any shell; the workspace and configuration paths
+are its defaults, `~/claude-projects/sf-demo-scout` and
+`~/.config/sf-demo-scout/config.json`.
 
 ```bash
-/bin/bash <<'SCOUT_WORKSPACE_SETUP_BASH'
-WORKSPACE="$HOME/claude-projects/sf-demo-scout"
-CONFIG="$HOME/.config/sf-demo-scout/config.json"
-WORKSPACE_HELPER="[PLUGIN_ROOT]/scripts/setup-workspace.py"
-SETTINGS_TEMPLATE="[PLUGIN_ROOT]/assets/workspace-settings.template.json"
-PYTHON_EXE=$(/usr/bin/which python3 2>/dev/null || true)
-case "$PYTHON_EXE" in ""|/*) ;; *) PYTHON_EXE="$PWD/$PYTHON_EXE" ;; esac
-if [ -z "$PYTHON_EXE" ] || [ ! -f "$WORKSPACE_HELPER" ]; then
-  echo "WORKSPACE_SETUP_FAILED (verified Python or shipped helper missing)"
-  exit 1
-fi
-"$PYTHON_EXE" -B "$WORKSPACE_HELPER" setup \
-  --workspace "$WORKSPACE" \
-  --config "$CONFIG" \
-  --template "$SETTINGS_TEMPLATE" \
-  --plugin-version "[PLUGIN_VERSION]" \
-  --host "[SCOUT_HOST]"
-SCOUT_WORKSPACE_SETUP_BASH
+python3 -B "[PLUGIN_ROOT]/scripts/setup-workspace.py" setup --template "[PLUGIN_ROOT]/assets/workspace-settings.template.json" --plugin-version "[PLUGIN_VERSION]" --host "[SCOUT_HOST]"
 ```
+
+If Python or the helper can't start, report `WORKSPACE_SETUP_FAILED` with that
+reason, and ABORT.
 
 The helper stages `sf project generate --json` in a unique temporary
 directory and accepts it only when the process exits zero, the JSON reports
@@ -163,165 +151,52 @@ the SFDX project, `force-app`, and lessons validate (plus workspace settings
 on Claude; Codex neither requires nor changes those files).
 
 On any nonzero helper exit, surface its outcome token and ABORT. Do not run
-user-scope merges, optional MCP setup, shell changes, or Done. `WORKSPACE_READY`
-is the only success token.
+the later steps or Done. `WORKSPACE_READY` is the only success token.
 
-## g: User-scope permissions merge
+## g.8: Report the running client and model routing (read-only)
 
-Merge the 5 fixed Scout entries into `~/.claude/settings.json` `permissions.allow` so MCP calls don't prompt when CC is launched outside the workspace. Idempotent, safe-fail.
-
-```bash
-USER_SETTINGS="$HOME/.claude/settings.json"
-mkdir -p "$(dirname "$USER_SETTINGS")"
-
-python3 - "$USER_SETTINGS" <<'PYEOF'
-import json, os, sys, tempfile
-path = sys.argv[1]
-SCOUT_ALLOW = [
-    "mcp__salesforce-docs__*",
-    "mcp__slack__*",
-    "mcp__plugin_slack_*",
-    "Agent",
-    "Skill",
-]
-
-if os.path.exists(path):
-    try:
-        with open(path) as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        print(f"USER_SETTINGS_PARSE_ERROR: {e}")
-        sys.exit(0)
-else:
-    data = {}
-
-if not isinstance(data, dict):
-    print("USER_SETTINGS_NOT_OBJECT")
-    sys.exit(0)
-
-perms = data.setdefault("permissions", {})
-if not isinstance(perms, dict):
-    print("USER_SETTINGS_PERMS_NOT_OBJECT")
-    sys.exit(0)
-
-allow = perms.setdefault("allow", [])
-if not isinstance(allow, list):
-    print("USER_SETTINGS_ALLOW_NOT_LIST")
-    sys.exit(0)
-
-added = [e for e in SCOUT_ALLOW if e not in allow]
-if not added:
-    print("USER_SETTINGS_NO_CHANGES")
-    sys.exit(0)
-
-allow.extend(added)
-
-tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".settings.", suffix=".tmp")
-try:
-    with os.fdopen(tmp_fd, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-    os.rename(tmp_path, path)
-except Exception as e:
-    try: os.unlink(tmp_path)
-    except OSError: pass
-    print(f"USER_SETTINGS_WRITE_FAILED: {e}")
-    sys.exit(0)
-
-print(f"USER_SETTINGS_UPDATED: added {len(added)} of {len(SCOUT_ALLOW)} entries")
-PYEOF
-```
-
-Surface inline:
-- `USER_SETTINGS_NO_CHANGES` — silent.
-- `USER_SETTINGS_UPDATED: added N of 5 entries` — "Added N Scout entries to `~/.claude/settings.json` allowlist (inert outside Scout sessions)."
-- Any error variant — one-line note, proceed.
-
-## g.7: Scrub stale AI-Suite hooks (self-heal)
-
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/aisuite-scrub.md` and execute its procedure (the fragment carries the full "why"). Carry any `AISUITE_HOOKS_REMOVED` / `FLAGS` note into the closing message — a hook removal means a CC restart is pending.
-
-## g.8: Preserve model routing and clean retired Scout settings
-
-On Claude, also report the running client with
+On Claude, report the running client with
 `SCOUT_HOST=claude python3 -B "[PLUGIN_ROOT]/scripts/client-version.py" setup`,
 using the resolved active plugin root. Carry its version or unverified reason
 and any floor notice into the setup message; it never updates the client.
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/model-pin-strip.md` and execute its procedure (the fragment carries the full "why"). Carry actual cleanup and preservation results into the closing message. Read-only mapping checks need no restart.
-
-## g.5: Ensure marketplace autoUpdate is enabled
-
-Fresh-install SEs add the Scout marketplace via `/plugin marketplace add` BEFORE running `/scout-setup`, so CC writes the `extraKnownMarketplaces.scout` entry without `autoUpdate: true`. The migration trampoline pre-writes the flag; fresh installs need this fallback. Idempotent, safe-fail.
+Then run the read-only model-routing report:
 
 ```bash
-USER_SETTINGS="$HOME/.claude/settings.json"
+SCOUT_HOST=claude python3 -B "[PLUGIN_ROOT]/scripts/setup-model-report.py"
+```
 
-python3 - "$USER_SETTINGS" <<'PYEOF'
-import json, os, sys, tempfile
-path = sys.argv[1]
+It reads settings files, the session environment, literal `.zshrc` assignments,
+VS Code and launchctl values, and changes none of them. Managed policy supplied through MDM, a server or an
+embedding API may not be visible to it, so it doesn't certify effective routing.
+Carry each reported older model's source and its provider-specific fix into the
+closing message verbatim; don't invent model IDs. Unknown or deployment-name
+values are unassessed.
 
-if not os.path.exists(path):
-    print("AUTOUPDATE_NO_SETTINGS"); sys.exit(0)
+## g.5: Turn on marketplace autoUpdate when the SE hasn't chosen
 
-try:
-    with open(path) as f:
-        data = json.load(f)
-except (json.JSONDecodeError, OSError) as e:
-    print(f"AUTOUPDATE_PARSE_ERROR: {e}"); sys.exit(0)
+Fresh-install SEs add the Scout marketplace via `/plugin marketplace add` BEFORE running `/scout-setup`, so CC writes the `extraKnownMarketplaces.scout` entry without `autoUpdate`. This step turns it on only when the entry has no `autoUpdate` at all. An explicit `autoUpdate: false` is the SE's choice and stays as it is. Idempotent, safe-fail.
 
-if not isinstance(data, dict):
-    print("AUTOUPDATE_NOT_OBJECT"); sys.exit(0)
-
-marketplaces = data.get("extraKnownMarketplaces")
-if not isinstance(marketplaces, dict):
-    print("AUTOUPDATE_NO_MARKETPLACES"); sys.exit(0)
-
-scout = marketplaces.get("scout")
-if not isinstance(scout, dict):
-    print("AUTOUPDATE_NO_SCOUT_ENTRY"); sys.exit(0)
-
-if scout.get("autoUpdate") is True:
-    print("AUTOUPDATE_ALREADY_ON"); sys.exit(0)
-
-scout["autoUpdate"] = True
-
-tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".settings.", suffix=".tmp")
-try:
-    with os.fdopen(tmp_fd, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-    os.rename(tmp_path, path)
-except Exception as e:
-    try: os.unlink(tmp_path)
-    except OSError: pass
-    print(f"AUTOUPDATE_WRITE_FAILED: {e}"); sys.exit(0)
-
-print("AUTOUPDATE_ENABLED")
-PYEOF
+```bash
+python3 -B "[PLUGIN_ROOT]/scripts/setup-settings.py" marketplace-autoupdate --name scout --settings "$HOME/.claude/settings.json"
 ```
 
 Surface inline:
-- `AUTOUPDATE_ALREADY_ON` — silent.
-- `AUTOUPDATE_ENABLED` — "Enabled auto-updates for Scout marketplace — future versions will install automatically on session start."
-- `AUTOUPDATE_NO_SETTINGS` / `AUTOUPDATE_NO_MARKETPLACES` / `AUTOUPDATE_NO_SCOUT_ENTRY` — silent (the marketplace add step writes these; absence means setup is being run in an unexpected state, not Scout's problem).
-- Any error variant — one-line note, proceed.
+- `AUTOUPDATE_ALREADY[…]` — silent.
+- `AUTOUPDATE_SET[…]` — "Enabled auto-updates for Scout marketplace — future versions will install automatically on session start."
+- `AUTOUPDATE_LEFT_AS_CHOSEN[…]` — one line: "Scout's marketplace has auto-update switched off, as you set it; turn it on under `/plugin` → Marketplaces if you want updates to arrive on their own."
+- `AUTOUPDATE_ABSENT[…]` / `AUTOUPDATE_NO_ENTRY[…]` — silent (the marketplace add step writes these; absence means setup is being run in an unexpected state, not Scout's problem).
+- Any other `AUTOUPDATE_…` line — one-line note, proceed.
 
 ## g.6: Salesforce's official plugins
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/official-plugins.md` and execute it. Carry its non-silent lines into the done summary.
 
-## h: Slack MCP
-
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/slack-mcp.md` and execute it. Report the observed registration/transport state without inferring authentication or tool availability. Existing connections are preserved; an optional new registration is an explicit SE choice. Return and continue setup.
-
-## h.5: Google Workspace MCP
-
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/google-mcp.md` and execute it. Optional discovery enhancement for Docs/Sheets during sparring. Preserve existing connections even when their launcher differs from Scout's known default; check the DevBar adaptor only when offering that default. Return with observed status and continue setup.
-
 ## h.7: Salesforce Docs MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute it. Preserve existing registrations and report observed status; the historical default is offered only for an explicit new connection. Required Docs tools are checked when needed. Return and continue setup.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute it. Preserve existing registrations and report observed status; when none is observed, offer the Agentforce Labs Salesforce Docs MCP and register it only on the SE's yes. Required Docs tools are checked when needed. Return and continue setup.
+
+Scout registers no other connection. Slack, Google Drive and similar tools come from the SE's own host connectors, if any; the closing message carries the heads-up note about them (`done.md`).
 
 ## i: Config Postcondition
 
@@ -329,10 +204,6 @@ Config creation and validation completed in step d–f after every mandatory
 workspace artifact validated. Do not rewrite it here. If step d–f did not emit
 `WORKSPACE_READY`, this procedure already aborted and must not reach this step.
 
-## j: .zshrc Scout-managed block
-
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/zshrc-block.md` and execute it. Capture the result (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) — the orchestrator's done step needs it.
-
 ## Done
 
-Fresh-install procedure complete. Return to the orchestrator. Pass the result of step j (`ZSHRC_UNCHANGED` or `ZSHRC_MODIFIED`, plus optional `ANTHROPIC_MODEL_PRESENT`) so the done message can include the shell-refresh note.
+Fresh-install procedure complete. Return to the orchestrator with every outcome line the steps above printed, so the done message can report them.

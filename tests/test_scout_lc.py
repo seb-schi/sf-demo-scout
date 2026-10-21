@@ -25,6 +25,7 @@ import scout_team as team  # noqa: E402
 
 SF_STUB = ROOT / "tests" / "fixtures" / "lc_stub_sf.py"
 GH_STUB = ROOT / "tests" / "fixtures" / "lc_stub_gh.py"
+GIT_IDENTITY = ROOT / "tests" / "fixtures" / "git-identity.gitconfig"
 SHAPES = json.loads((ROOT / "tests" / "fixtures" / "lc_cli_shapes.json").read_text())
 COMMON, BOB_ORG, ELSEWHERE = "00D000000000042EAC", "00D000000000044EAC", "00D000000000099EAC"
 REMOTE_URL = "https://github.com/acme/team.git"
@@ -45,15 +46,45 @@ SUITE_PATH = "force-app/main/default/testSuites/InvoiceSuite.testSuite-meta.xml"
 SUITE = ('<?xml version="1.0" encoding="UTF-8"?>\n<ApexTestSuite xmlns="http://soap.sforce.com/2006/04/metadata">\n'
          '    <testClassName>InvoiceTest</testClassName>\n</ApexTestSuite>\n')
 OWN_AGENTS = "# Our own rules\n\nBe kind to the org.\n"
+OBJECT = ('<?xml version="1.0" encoding="UTF-8"?>\n<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">\n'
+          '    <label>{label}</label>\n    <pluralLabel>{label}s</pluralLabel>\n    <deploymentStatus>Deployed</deploymentStatus>\n'
+          '    <sharingModel>ReadWrite</sharingModel>\n</CustomObject>\n')
+TAB = ('<?xml version="1.0" encoding="UTF-8"?>\n<CustomTab xmlns="http://soap.sforce.com/2006/04/metadata">\n'
+       '    <customObject>true</customObject>\n    <motif>Custom20: Airplane</motif>\n</CustomTab>\n')
+PERMSET = ('<?xml version="1.0" encoding="UTF-8"?>\n<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">\n'
+           '    <label>{label}</label>\n    <tabSettings>\n        <tab>{tab}</tab>\n        <visibility>{visibility}</visibility>\n'
+           '    </tabSettings>\n</PermissionSet>\n')
+JOIN = ["join", "--hub", "common", "--pipeline-id", "1PJ000000000001", "--common-org", "common", "--build-org", "bob-sbx"]
+START = ["start", "--hub", "common", "--pipeline-id", "1PJ000000000001", "--common-org", "common"]
+
+
+def object_path(name):
+    return f"force-app/main/default/objects/{name}/{name}.object-meta.xml"
+
+
+def tab_path(name):
+    return f"force-app/main/default/tabs/{name}.tab-meta.xml"
+
+
+def permset_path(name):
+    return f"force-app/main/default/permissionsets/{name}.permissionset-meta.xml"
+
+
+def git_env():
+    """The environment for the tests' own Git calls, with an identity: a CI runner has none. A config file rather
+    than GIT_AUTHOR_NAME, which would override the `git -c user.name=...` some tests author commits with; a
+    teammate's own config, when a test has set one, stays in charge."""
+    return dict(os.environ, GIT_CONFIG_GLOBAL=os.environ.get("GIT_CONFIG_GLOBAL") or str(GIT_IDENTITY))
 
 
 def sh(*args, cwd=None):
-    result = subprocess.run(args, cwd=cwd, capture_output=True, text=True)
+    result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, env=git_env())
     if result.returncode:
         raise AssertionError(f"{' '.join(map(str, args))} failed: {result.stderr.strip()}")
     return result.stdout.strip()
 
 
+@unittest.skipIf(os.name == "nt", "team mode on Windows comes later; these fixtures are POSIX shell stand-ins")
 class LifecycleTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="scout-lc-test-")).resolve()
@@ -90,7 +121,7 @@ class LifecycleTests(unittest.TestCase):
                "SCOUT_WORKSPACE": str(home / "ws"), "GIT_CONFIG_GLOBAL": str(home / "gitconfig"), "GIT_CONFIG_NOSYSTEM": "1",
                "SCOUT_TEAM_SF": str(SF_STUB), "SCOUT_TEAM_GH": str(GH_STUB), "SCOUT_TEAM_NODE": str(self.node),
                "STUB_ROOT": str(self.stub), "STUB_REMOTE": str(self.remote), "STUB_REPO": "acme/team",
-               "STUB_GUARD": team.sf_mp_version(), "SCOUT_TEAM_WATCH_OFF": ""}
+               "STUB_GUARD": team.sf_mp_version(), "SCOUT_TEAM_WATCH_OFF": "", "SF_DATA_DIR": str(home / "sf-data")}
         env.update(extra)
         return env
 
@@ -237,7 +268,7 @@ class LifecycleTests(unittest.TestCase):
         code, body = self.call("ana", "start", "--hub", "common", "--pipeline-id", "1PJ000000000001", "--common-org", "common", "--yes")
         self.assertEqual(code, 0, body)
         code, body = self.call("bob", "join", "--hub", "common", "--pipeline-id", "1PJ000000000001", "--common-org", "common",
-                               "--build-org", "bob-sbx", "--yes")
+                               "--build-org", "bob-sbx", "--yes", "--yes-guard")
         self.assertEqual(code, 0, body)
         self.ana = Path(json.loads((self.tmp / "ana" / "teams.json").read_text())["teams"][TEAM_ID]["checkout"])
         self.bob = Path(json.loads((self.tmp / "bob" / "teams.json").read_text())["teams"][TEAM_ID]["checkout"])
@@ -1865,6 +1896,701 @@ class LifecycleTests(unittest.TestCase):
             os.environ.update(saved)
         self.assertEqual(context["mode"], "lifecycle")
         self.assertTrue(context["prompt"].endswith("team-lifecycle.md"))
+
+    # ---- the guard at join: an explained choice, and Lifecycle Center mode works without it ----
+
+    def registry(self):
+        path = self.stub / "mp-registry.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+
+    def member_record(self, member_id):
+        return json.loads(sh("git", "-C", str(self.remote), "show", f"{lc.MEMBERS_BRANCH}:members/{member_id}.json"))
+
+    def sf_calls(self):
+        path = self.stub / "sf-calls.log"
+        return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+    def test_a_join_explains_the_guard_and_puts_it_on_only_on_a_yes(self):
+        self.assertEqual(self.call("ana", *START, "--yes")[0], 0)
+        code, ask = self.call("bob", *JOIN, STUB_GUARD="")
+        self.assertEqual((code, ask.get("needs")), (3, "start-yes"), ask)
+        self.assertIn(team.GUARD_WHAT, ask["reason"])
+        self.assertIn("stops this machine's Salesforce CLI from deploying to the team's common org outside the captain's "
+                      "delivery", ask["guard"])
+        self.assertEqual(len(re.findall(r"[.!?](?:\s|$)", ask["guard"])), 2, "two sentences")
+        code, ask = self.call("bob", *JOIN, "--yes", STUB_GUARD="")
+        self.assertEqual((code, ask.get("needs")), (3, "guard-choice"), ask)
+        self.assertEqual(self.call("bob", *JOIN, "--yes", "--yes-guard", "--no-guard")[0], 2)
+        self.assertFalse([c for c in self.sf_calls() if c[:2] == ["plugins", "install"]], "nothing went in before the yes")
+        self.assertFalse((self.tmp / "bob" / "teams.json").exists(), "and nothing was set up")
+        code, joined = self.call("bob", *JOIN, "--yes", "--yes-guard", STUB_GUARD="")
+        self.assertEqual(code, 0, joined)
+        self.assertEqual(joined["guard"]["guard"], "installed now")
+        self.assertTrue([c for c in self.sf_calls() if c[:2] == ["plugins", "install"]])
+        self.assertIn(COMMON[:15], self.registry()[str(self.tmp / "bob" / "teams.json")], "it guards the common org")
+        self.assertEqual(self.member_record("bob-example-com")["guard"], "on")
+        code, body = self.call("ana", *START, "--yes", "--no-guard")
+        self.assertEqual(code, 2, body)
+        self.assertIn("captain's machine needs Scout's guard", body["reason"])
+
+    def test_without_the_guard_a_member_builds_and_the_captains_checks_and_view_stay(self):
+        self.assertEqual(self.call("ana", *START, "--yes")[0], 0)
+        code, joined = self.call("bob", *JOIN, "--yes", "--no-guard", STUB_GUARD="")
+        self.assertEqual((code, joined["guard"]["guard"]), (0, "off"), joined)
+        self.assertIn("build only in your own sandbox", joined["guard"]["note"])
+        self.assertIn(lc.MEMBERS_BRANCH, joined["member_record"])
+        self.assertFalse([c for c in self.sf_calls() if c[:2] in (["plugins", "install"], ["mp", "init"])
+                          and "--lifecycle-captain" not in c], "no guard went in or was bound on his machine")
+        self.assertNotIn(str(self.tmp / "bob" / "teams.json"), self.registry())
+        record = self.member_record("bob-example-com")
+        self.assertEqual((record["name"], record["role"], record["guard"], record["build_org"]),
+                         ("Bob Builder", "builder", "off", "bob-sbx"))
+        wi = self.package("Invoice totals 95", "ApexClass:Invoice")
+        self.build(95)
+        self.handover(wi)
+        code, done = self.deliver(wi)
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+        self.assertEqual(json.loads((self.stub / "validations.json").read_text())[-1]["tests"], ["InvoiceTest"],
+                         "the captain's test gate ran as before")
+        code, status = self.call("ana", "status")
+        self.assertEqual(code, 0, status)
+        self.assertEqual(status["guard_off"], ["Bob Builder"])
+        self.assertEqual([(m["name"], m["guard"], m["builds_in"]) for m in status["members"]],
+                         [("Bob Builder", "off", "bob-sbx")])
+
+    # ---- a protected main: the rules come as a pull request ----
+
+    def protect_main(self):
+        hook = self.remote / "hooks" / "pre-receive"
+        hook.write_text('#!/bin/sh\nwhile read old new ref; do\n  if [ "$ref" = "refs/heads/main" ]; then\n'
+                        '    echo "GH006: Protected branch update failed for refs/heads/main." >&2; exit 1\n  fi\ndone\n')
+        hook.chmod(0o755)
+
+    def test_a_protected_main_gets_the_rules_through_a_pull_request_and_start_carries_on_once_merged(self):
+        self.protect_main()
+        before = self.main_sha()
+        code, body = self.call("ana", *START, "--yes")
+        self.assertEqual((code, body.get("needs")), (3, "rules-review"), body)
+        self.assertIn("merge the pull request, then run start again", body["reason"])
+        self.assertEqual((body["branch"], body["files"]), (lc.RULES_BRANCH, [".gitattributes", ".gitignore", "AGENTS.md"]))
+        number = body["pull_request"]["number"]
+        self.assertEqual(self.main_sha(), before, "main is as it was")
+        proposal = sh("git", "-C", str(self.remote), "rev-parse", lc.RULES_BRANCH)
+        self.assertEqual(sh("git", "-C", str(self.remote), "rev-parse", f"{proposal}^"), before, "one commit on main")
+        self.assertIn(lc.RULES_START, self.main_text("AGENTS.md", ref=lc.RULES_BRANCH))
+        checkout = self.tmp / "ana" / "ws" / "teams" / "team"
+        self.assertEqual((sh("git", "-C", str(checkout), "rev-parse", "HEAD"),
+                          sh("git", "-C", str(checkout), "status", "--porcelain")), (before, ""),
+                         "the captain's checkout stays clean, at origin's main")
+        self.assertFalse((self.tmp / "ana" / "teams.json").exists(), "the team isn't set up until the rules are on main")
+        code, again = self.call("ana", *START, "--yes")
+        self.assertEqual((code, again["pull_request"]["number"]), (3, number), again)
+        self.assertEqual(sh("git", "-C", str(self.remote), "rev-parse", lc.RULES_BRANCH), proposal, "the same proposal")
+        creates = [l for l in (self.stub / "gh-calls.log").read_text().splitlines() if '"pr", "create"' in l]
+        self.assertEqual(len(creates), 1, "one pull request")
+        self.assertEqual(self.gh_stub("pr", "merge", str(number), "--repo", "acme/team", "--squash").returncode, 0)
+        code, done = self.call("ana", *START, "--yes")
+        self.assertEqual((code, done.get("written_on_main")), (0, []), done)
+        self.assertIn(lc.RULES_START, self.main_text("AGENTS.md"))
+        self.assertTrue(self.registry()[str(self.tmp / "ana" / "teams.json")][COMMON[:15]]["lifecycleCaptain"])
+        self.assertEqual((sh("git", "-C", str(checkout), "rev-parse", "HEAD"), sh("git", "-C", str(checkout), "status",
+                         "--porcelain")), (self.main_sha(), ""), "the captain's checkout moved forward to the merged main")
+        for name in ("AGENTS.md", ".gitignore", ".gitattributes"):
+            self.assertEqual((checkout / name).read_text(), self.main_text(name), name)
+
+    def test_without_gh_a_protected_main_names_the_branch_and_its_compare_link(self):
+        self.protect_main()
+        code, body = self.call("ana", *START, "--yes", SCOUT_TEAM_GH=str(self.tmp / "no-gh"))
+        self.assertEqual((code, body.get("needs")), (3, "rules-review"), body)
+        compare = f"https://github.com/acme/team/compare/main...{lc.RULES_BRANCH}?expand=1"
+        self.assertEqual((body["compare"], body["pull_request"]), (compare, None))
+        self.assertIn(compare, body["reason"])
+        self.assertIn("merge the pull request, then run start again", body["reason"])
+        self.assertIn("isn't installed", body["gh"])
+        self.assertIn(lc.RULES_START, self.main_text("AGENTS.md", ref=lc.RULES_BRANCH))
+
+    # ---- line endings from Windows builders ----
+
+    def test_the_team_start_sets_lf_line_endings_first_and_keeps_the_teams_own_attributes(self):
+        self.push_to_main({".gitattributes": "*.png binary\n"}, "the team's own attributes")
+        self.team_up()
+        self.assertEqual(self.main_text(".gitattributes"), "* text=auto eol=lf\n*.png binary\n")
+        code, again = self.call("ana", *START, "--yes")
+        self.assertEqual((code, again["written_on_main"]), (0, []), "a second start writes nothing")
+
+    def test_the_rules_and_the_markers_read_the_same_from_a_windows_checkout(self):
+        def crlf(text):
+            return text.replace("\n", "\r\n")
+        wanted = lc.rules_files(OWN_AGENTS, "", "")["AGENTS.md"]
+        ignore, attributes = "\n".join(lc.GITIGNORE_LINES) + "\n", lc.ATTRIBUTES_LINE + "\n"
+        self.assertEqual(lc.rules_files(crlf(wanted), crlf(ignore), crlf(attributes)), {}, "current, so nothing to write")
+        older = wanted.replace("Open the review as soon as you've pushed", "Open the review once you've pushed")
+        self.assertEqual(lc.rules_files(crlf(older), crlf(ignore), crlf(attributes)), {"AGENTS.md": wanted},
+                         "one block, brought up to date, and the team's own text kept")
+        description = crlf("Components: `ApexClass:Invoice`, `Layout:Probe__c-Probe Layout`\nChecked: abc1234def\nBuilder: Dana\n")
+        self.assertEqual(lc.declared({"description": description}), ["ApexClass:Invoice", "Layout:Probe__c-Probe Layout"])
+        self.assertEqual(lc.CHECKED.search(description)[1], "abc1234def")
+        self.assertEqual(lc.CHECKED_LINE.sub("", description),
+                         crlf("Components: `ApexClass:Invoice`, `Layout:Probe__c-Probe Layout`\nBuilder: Dana\n"))
+
+    def test_a_windows_builders_line_endings_never_widen_a_delivery(self):
+        """Her editor saved the layout with CRLF line endings only; the team's .gitattributes keeps it out of her
+        commit, and the Lifecycle Center UI's CRLF line breaks in the work item still read."""
+        self.team_up()
+        wi = self.package("Dana on Windows", "ApexClass:Invoice", who="ana", owner="Dana")
+        self.describe(wi, (self.item(wi)["description"] + f"\nChecked: {self.main_sha()}\n").replace("\n", "\r\n"))
+        layout = self.main_text(LAYOUT_PATH).replace("\n", "\r\n")
+        head = self.dana_commits(wi, {CLS: CLASS.format(n=96), LAYOUT_PATH: layout}, "totals 96, saved on Windows")
+        self.assertEqual(sh("git", "-C", str(self.remote), "diff", "--name-only", "main", head).splitlines(), [CLS])
+        self.review(wi)
+        code, plan = self.call("ana", "deliver", "--wi", wi)
+        self.assertEqual((code, plan.get("needs")), (3, "deliver-yes"), plan)
+        self.assertEqual((plan["components"], plan["declared"]), (["ApexClass:Invoice"], ["ApexClass:Invoice"]))
+        self.assertEqual((plan["checks"]["base"]["state"], plan["checks"]["scope"]), ("checked", "ok"))
+
+    # ---- gates whose input is missing stop, or say not verified ----
+
+    def test_a_stage_whose_answer_names_no_branch_or_no_org_is_refused(self):
+        self.options(stage_branch=None)
+        code, body = self.call("ana", *START, "--yes")
+        self.assertEqual(code, 2, body)
+        self.assertIn("not named in the answer", body["reason"])
+        self.options(stage_branch="main", stage_org="")
+        code, body = self.call("ana", *START, "--yes")
+        self.assertEqual(code, 2, body)
+        self.assertIn("deploys to no org yet", body["reason"])
+
+    def test_a_delivery_of_a_missing_work_item_or_review_stops(self):
+        self.team_up()
+        code, body = self.call("ana", "deliver", "--wi", "WI-000999")
+        self.assertEqual(code, 2, body)
+        self.assertIn("isn't a work item of this team's project", body["reason"])
+        wi = self.package("Not reviewed yet", "ApexClass:Invoice")
+        code, body = self.call("ana", "deliver", "--wi", wi)
+        self.assertEqual(code, 2, body)
+        self.assertIn("has no open review", body["reason"])
+
+    def test_a_work_item_without_a_components_line_says_so_in_the_plan(self):
+        self.team_up()
+        wi = self.package("Dana's undeclared change", "ApexClass:Invoice", who="ana", owner="Dana")
+        self.describe(wi, f"Checked: {self.main_sha()}")  # her description lost its Components line
+        self.dana_commits(wi, {CLS: CLASS.format(n=97)}, "totals 97")
+        self.review(wi)
+        code, plan = self.call("ana", "deliver", "--wi", wi)
+        self.assertEqual((code, plan.get("needs")), (3, "deliver-yes"), plan)
+        self.assertEqual(plan["declared"], [])
+        self.assertTrue(plan["checks"]["scope"].startswith("not declared"), plan["checks"])
+
+    def test_effect_checks_without_an_answer_stop_before_the_merge(self):
+        silent = self.tmp / "node-silent"
+        silent.write_text("#!/bin/sh\ncat >/dev/null\n")
+        silent.chmod(0o755)
+        wi = self.plain_delivery(98)
+        code, body = self.call("ana", "deliver", "--wi", wi, SCOUT_TEAM_NODE=str(silent))
+        self.assertEqual(code, 1, body)
+        self.assertIn("effect checks gave no answer", body["reason"])
+        self.assertEqual(self.github()["prs"][0]["state"], "OPEN", "nothing merged")
+
+    def test_an_unnamed_stage_suite_or_a_silent_validation_stops_the_test_gate(self):
+        self.team_up()
+        self.suites([None])
+        wi = self.package("Invoice totals 99", "ApexClass:Invoice", "ApexClass:InvoiceTest")
+        self.build(99, extra_test=True)
+        self.handover(wi)
+        code, body = self.call("ana", "deliver", "--wi", wi)
+        self.assertEqual((code, body.get("needs"), body["validation"].get("stop")), (3, "tests", "missing-suite"), body)
+        self.assertIn("a stage suite the hub returned without its name", body["validation"]["missing_suites"])
+        self.suites(["InvoiceSuite"])
+        self.options(validate_silent=True)
+        code, body = self.call("ana", "deliver", "--wi", wi)
+        self.assertEqual((code, body.get("needs"), body["validation"]["validated"]), (3, "tests", False), body)
+        self.assertEqual(self.github()["prs"][0]["state"], "OPEN", "nothing merged")
+
+    def test_an_undeployed_merge_older_than_the_merged_list_still_holds_the_stage(self):
+        self.team_up()
+        self.options(promotion_fails=True)
+        first = self.package("Invoice totals 104", "ApexClass:Invoice")
+        self.build(104)
+        self.handover(first)
+        self.assertEqual(self.deliver(first)[0], 1, "merged, and its promotion failed")
+        self.options(promotion_fails=False)
+        work = self.tmp / "dana" / "notes"
+        self.git_as("dana", "clone", "--quiet", REMOTE_URL, str(work))
+        self.git_as("dana", "-C", str(work), "checkout", "--quiet", "-b", "docs/notes")
+        self.write(work, "docs/NOTES.md", "Notes.\n")
+        self.git_as("dana", "-C", str(work), "add", "-A")
+        self.git_as("dana", "-C", str(work), "commit", "--quiet", "-m", "notes")
+        self.git_as("dana", "-C", str(work), "push", "--quiet", "origin", "docs/notes")
+        self.assertEqual(self.gh_stub("pr", "create", "--repo", "acme/team", "--base", "main", "--head", "docs/notes",
+                                      "--title", "Notes").returncode, 0)
+        notes = next(p["number"] for p in self.github()["prs"] if p["head"] == "docs/notes")
+        self.assertEqual(self.gh_stub("pr", "merge", str(notes), "--repo", "acme/team", "--squash").returncode, 0)
+        later = self.package("Layout tweak", "Layout:Probe__c-Probe Layout")
+        self.org_write("bob-sbx", LAYOUT_PATH, LAYOUT.replace("Info", "Tweak"))
+        self.handover(later)
+        with mock.patch.object(lc, "MERGED_LIMIT", 1):  # the newest merge alone is read: the notes, not the first one
+            code, body = self.call("ana", "deliver", "--wi", later)
+        self.assertEqual(code, 2, body)
+        self.assertIn(f"{first} (#{self.pr_number(first)}) is merged into main but not deployed", body["reason"])
+
+    def promote_in_the_ui(self, wi):
+        """The merge's promotion, completed in Lifecycle Center: ready, the validations that sync it, then complete."""
+        self.sf_stub("devops", "work-item", "update", "--work-item-name", wi, "--status", "Ready to Promote")
+        for _ in range(2):
+            self.sf_stub("devops", "promotion", "validate", "--target-stage-id", STAGE18, "--work-item-id",
+                         self.item(wi)["id"][:15])
+        answer = self.sf_stub("devops", "promotion", "complete", "--target-stage-id", STAGE18, "--work-item-id",
+                              self.item(wi)["id"][:15], "--test-level", "NoTestRun")
+        self.assertEqual(answer["status"], 0, answer)
+
+    def test_a_read_back_with_nothing_to_read_is_never_verified(self):
+        self.team_up()
+        wi = self.package("Notes only", "ApexClass:Invoice", who="ana", owner="Dana")
+        self.dana_commits(wi, {"docs/NOTES.md": "Notes.\n"}, "notes only")
+        self.review(wi)
+        self.assertEqual(self.gh_stub("pr", "merge", str(self.pr_number(wi)), "--repo", "acme/team", "--squash").returncode, 0)
+        self.promote_in_the_ui(wi)
+        code, body = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual(code, 1, body)
+        self.assertIn("nothing to read back and it isn't verified", body["reason"])
+        self.assertEqual(self.verified_comments(), [])
+
+    def test_a_merge_scout_didnt_plan_owes_its_own_tests_after_a_plan_for_another_revision(self):
+        """A plan's validation ran the tests on one revision; the branch moved and was merged and promoted elsewhere.
+        Those earlier tests never stand in for the revision that went out."""
+        wi = self.plain_delivery(100)
+        code, plan = self.call("ana", "deliver", "--wi", wi)
+        self.assertEqual(plan.get("needs"), "deliver-yes", plan)
+        with self.as_who("ana"):
+            stop = lc.stop_file(lc.pick(None)[0], wi)
+        stop.parent.mkdir(parents=True, exist_ok=True)
+        stop.write_text("now\n")
+        later = time.time() + 30
+        os.utime(stop, (later, later))
+        code, body = self.call("ana", "deliver", "--wi", wi, "--yes", "--plan-id", plan["plan_id"])
+        self.assertEqual((code, body.get("stopped")), (1, "before the merge"), body)
+        self.assertEqual(self.github()["prs"][0]["state"], "OPEN")
+        self.dana_commits(wi, {CLS: CLASS.format(n=101)}, "another change, pushed after the plan")
+        self.assertEqual(self.gh_stub("pr", "merge", str(self.pr_number(wi)), "--repo", "acme/team", "--squash").returncode, 0)
+        self.promote_in_the_ui(wi)
+        code, done = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+        self.assertEqual(done.get("tests"), ["InvoiceTest"], "the merged revision's own tests ran after the promotion")
+        self.assertEqual(len(self.hub()["test_runs"]), 1)
+
+    def test_a_test_run_without_results_is_never_verified(self):
+        wi, (code, body) = self.skipped_tests_delivery(102, tests_no_results=True)
+        self.assertEqual(code, 1, body)
+        self.assertTrue(body["reason"].startswith("not verified: tests failed"), body)
+        self.assertIn("InvoiceTest didn't run", body["reason"])
+        self.assertEqual(self.verified_comments(), [])
+
+    def test_a_run_judged_without_its_owed_tests_or_its_read_back_copies_is_never_verified(self):
+        wi, (code, body) = self.skipped_tests_delivery(103, tests_dont_start=True)
+        self.assertEqual((code, body.get("pending")), (1, True), body)
+        team_id = self.team_id("ana")
+
+        def edit(**changes):
+            with self.as_who("ana"):
+                record = lc.read_record(team_id, wi)
+                for key, value in changes.items():
+                    if value is None:
+                        record.pop(key, None)
+                    else:
+                        record[key] = value
+                lc.team.write_json_atomic(lc.record_path(team_id, wi), record)
+        edit(checked_against=None, promoted=None)  # an older record: which copies were read back is unknown
+        self.options(tests_dont_start=False)
+        code, body = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual(code, 1, body)
+        self.assertTrue(body["reason"].startswith("not verified: the tests passed"), body)
+        edit(step="tests-running", tests_after=None)  # and one that names no owed test for its run
+        code, body = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual(code, 1, body)
+        self.assertIn("names no tests it owes", body["reason"])
+        self.assertEqual(self.verified_comments(), [])
+        edit(step="unverified")
+        code, done = self.call("ana", "deliver", "--wi", wi, "--resume")  # read back again, and the owed tests run again
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+
+    # ---- the rules for builders without Scout, and the read-back's tab warning ----
+
+    def test_the_rules_carry_the_lines_for_builders_without_scout(self):
+        self.team_up()
+        flat = " ".join(self.main_text("AGENTS.md").split())
+        for line in ("**When an official deploy skill fails,** deploy to your own sandbox with `sf project deploy start "
+                     "--target-org <your sandbox>`, never to the common org.",
+                     "**A new custom object ships with its tab** and a permission set that makes the tab visible",
+                     "**Tests that insert records of a new record type** create their own user and grant the record type "
+                     "through a permission set, outside `System.runAs`"):
+            self.assertIn(line, flat)
+        rules = " ".join((ROOT / "skills/demo-deployment-rules/SKILL.md").read_text().split())
+        note = ("Tests that insert records of a new record type create their own user and grant the record type through a "
+                "permission set, outside `System.runAs`; they insert those records as that user, inside it.")
+        apex = rules.split("## Apex Rules (Phase 2)", 1)[1].split(" ## ", 1)[0]
+        self.assertIn(note, apex, "in the Apex section")
+        self.assertEqual((rules.count("grant the record type through a permission set"), rules.count("System.runAs")),
+                         (1, 1), "and nowhere else in that file")
+
+    def test_the_read_back_warns_about_a_new_object_without_a_visible_tab(self):
+        self.team_up()
+        self.org_write("bob-sbx", object_path("Gadget__c"), OBJECT.format(label="Gadget"))
+        wi = self.package("A gadget object", "CustomObject:Gadget__c")
+        self.handover(wi)
+        code, done = self.deliver(wi)
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+        self.assertEqual(len(done["warnings"]), 1, done)
+        self.assertTrue(done["warnings"][0].startswith("Git holds no tab for the new object Gadget__c"), done["warnings"])
+        self.assertIn("Warning: Git holds no tab for the new object Gadget__c", self.verified_comments()[-1])
+        self.assertEqual(done["presenter"], "admin@common.example", "the captain's user in the common org, by default")
+
+    def test_the_tab_check_reads_git_only_and_asks_for_the_assignment_to_the_presenter(self):
+        base = self.main_sha()
+        objects = {name: object_path(name) for name in ("Plain__c", "Setting__c", "Shown__c", "Tabbed__c")}
+        files = {path: OBJECT.format(label=name) for name, path in objects.items()}
+        files[objects["Setting__c"]] = OBJECT.format(label="Setting").replace(
+            "<label>", "<customSettingsType>List</customSettingsType>\n    <label>", 1)  # a custom setting has no tab
+        files.update({tab_path("Tabbed__c"): TAB, tab_path("Shown__c"): TAB,
+                      permset_path("Hidden_Access"): PERMSET.format(label="Hidden", tab="Tabbed__c", visibility="None"),
+                      permset_path("Shown_Access"): PERMSET.format(label="Shown", tab="Shown__c",
+                                                                   visibility="Available").replace("\n", "\r\n")})
+        target = self.push_to_main(files, "four new objects")
+        components = [f"CustomObject:{name}" for name in objects]
+        warnings = lc.tab_warnings(self.remote, base, target, components)
+        self.assertEqual(len(warnings), 3, warnings)
+        self.assertTrue(warnings[0].startswith("Git holds no tab for the new object Plain__c, so whether it shows in the "
+                                               "App Launcher is unverified"), warnings)
+        self.assertIn("Git gives the new object Shown__c a tab and a permission set that makes it visible (Shown_Access), "
+                      "but Scout checked Git only, not who can see it", warnings[1])
+        self.assertIn("Git holds no permission set that makes the new object Tabbed__c's tab visible, so its visibility "
+                      "is unverified", warnings[2])
+        for warning in warnings:
+            self.assertIn("the user who presents (the captain's user", warning)
+            self.assertNotIn("stays out", warning, "Git alone can't say the object is hidden")
+        self.assertEqual(lc.tab_warnings(self.remote, target, target, components), [], "objects main had already aren't new")
+
+    # ---- the review's round: identities, missing answers, the rules' proposal, the checkout, the guard's state ----
+
+    def test_a_build_org_that_is_the_common_org_is_refused_at_join_and_at_work(self):
+        self.assertEqual(self.call("ana", *START, "--yes")[0], 0)
+        into_common = JOIN[:-1] + ["common", "--yes"]
+        for guard in ("--yes-guard", "--no-guard"):
+            code, body = self.call("bob", *into_common, guard)
+            self.assertEqual(code, 2, body)
+            self.assertIn("never the common org", body["reason"])
+        self.assertFalse((self.tmp / "bob" / "teams.json").exists(), "nothing was set up")
+        code, body = self.call("ana", *START, "--yes", "--build-org", "common")
+        self.assertEqual(code, 2, body)
+        self.assertEqual(self.call("bob", *JOIN, "--yes", "--no-guard")[0], 0)
+        self.options(rebind={"bob-sbx": COMMON})  # his sandbox's alias now names the common org
+        code, body = self.call("bob", "package", "start", "--title", "Rebound", "--components", "ApexClass:Invoice")
+        self.assertEqual(code, 2, body)
+        self.assertIn("now names the team's common org", body["reason"])
+        self.assertEqual(self.hub().get("items") or {}, {}, "no work item was created")
+        self.options(rebind={})
+        teams = self.tmp / "bob" / "teams.json"
+        registry = json.loads(teams.read_text())
+        bad = registry["teams"][TEAM_ID]
+        bad["build_org"]["org_id"] = bad["build_org_id"] = COMMON[:15]  # accepted before this check existed
+        teams.write_text(json.dumps(registry))
+        for args in (["package", "start", "--title", "Old", "--components", "ApexClass:Invoice"],
+                     ["package", "check", "--wi", "WI-000001"], ["handover", "--wi", "WI-000001"]):
+            code, body = self.call("bob", *args)
+            self.assertEqual(code, 2, body)
+            self.assertIn("names the common org as its build org", body["reason"])
+
+    def test_answers_without_their_records_or_list_stop_the_delivery_gates(self):
+        """A success that leaves its records or its list out is a missing input, never "no suites", "stage clear" or
+        "nothing waiting"; genuine empty answers still work."""
+        wi = self.plain_delivery(105)
+        other = self.package("Layout in review", "Layout:Probe__c-Probe Layout")
+        self.org_write("bob-sbx", LAYOUT_PATH, LAYOUT.replace("Info", "Review"))
+        self.handover(other)  # in review, so the unresolved-work gate asks GitHub about it
+        gates = {"the stage's suites": {"silent_queries": ["FROM DevopsTestSuiteStage"]},
+                 "a running promotion": {"silent_queries": ["FROM DevopsPipelnStgProm WHERE"]},
+                 "unresolved work on the hub": {"silent_queries": ["Status IN ('IN_REVIEW', 'READY_TO_PROMOTE')"]},
+                 "unresolved work on GitHub": {"gh_silent": ["--state merged"]},
+                 "the work item's review": {"gh_silent": ["--head " + wi]}}
+        for gate, option in gates.items():
+            with self.subTest(gate=gate):
+                self.options(**dict({"silent_queries": [], "gh_silent": []}, **option))
+                code, body = self.call("ana", "deliver", "--wi", wi)
+                self.assertEqual(code, 1, body)
+                self.assertTrue("answered without its records" in body["reason"] or "answered without a list" in body["reason"],
+                                body["reason"])
+        self.assertEqual(self.github()["prs"][0]["state"], "OPEN", "nothing merged")
+        self.options(silent_queries=[], gh_silent=[])
+        code, done = self.deliver(wi)
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+
+    def test_a_reviewers_edit_to_the_rules_proposal_is_kept(self):
+        self.protect_main()
+        code, body = self.call("ana", *START, "--yes")
+        self.assertEqual((code, body.get("needs")), (3, "rules-review"), body)
+        number = body["pull_request"]["number"]
+        work = self.tmp / "dana" / "review"
+        self.git_as("dana", "clone", "--quiet", REMOTE_URL, str(work))
+        self.git_as("dana", "-C", str(work), "checkout", "--quiet", lc.RULES_BRANCH)
+        self.write(work, "AGENTS.md", "Reviewed by the team.\n\n" + (work / "AGENTS.md").read_text())
+        self.git_as("dana", "-C", str(work), "commit", "--quiet", "-am", "a reviewer's note")
+        self.git_as("dana", "-C", str(work), "push", "--quiet", "origin", lc.RULES_BRANCH)
+        edited = sh("git", "-C", str(self.remote), "rev-parse", lc.RULES_BRANCH)
+        code, again = self.call("ana", *START, "--yes")
+        self.assertEqual((code, again.get("needs"), again.get("kept")), (3, "rules-review", True), again)
+        self.assertIn("keeps it as it is", again["reason"])
+        self.assertEqual(again["pull_request"]["number"], number, "the same pull request")
+        self.assertEqual(sh("git", "-C", str(self.remote), "rev-parse", lc.RULES_BRANCH), edited, "never replaced")
+        self.assertEqual(len([l for l in (self.stub / "gh-calls.log").read_text().splitlines() if '"pr", "create"' in l]), 1)
+        self.assertEqual(self.gh_stub("pr", "merge", str(number), "--repo", "acme/team", "--squash").returncode, 0)
+        code, done = self.call("ana", *START, "--yes")
+        self.assertEqual((code, done.get("written_on_main")), (0, []), done)
+        self.assertTrue(self.main_text("AGENTS.md").startswith("Reviewed by the team.\n"), "the reviewer's edit is on main")
+
+    def test_start_moves_the_captains_checkout_forward_but_never_over_their_work(self):
+        self.team_up()
+        checkout = self.ana
+        newer = self.push_to_main({"docs/NOTES.md": "Notes.\n"}, "a note on main")
+        self.assertEqual(self.call("ana", *START, "--yes")[0], 0)
+        self.assertEqual(sh("git", "-C", str(checkout), "rev-parse", "HEAD"), newer, "fast-forwarded to origin's main")
+        self.write(checkout, "docs/NOTES.md", "Notes, edited here.\n")
+        code, body = self.call("ana", *START, "--yes")
+        self.assertEqual(code, 2, body)
+        self.assertIn("uncommitted changes", body["reason"])
+        self.assertEqual((checkout / "docs/NOTES.md").read_text(), "Notes, edited here.\n", "the edit stays")
+        self.git_as("ana", "-C", str(checkout), "commit", "--quiet", "-am", "a local commit on main")
+        local = sh("git", "-C", str(checkout), "rev-parse", "HEAD")
+        code, body = self.call("ana", *START, "--yes")
+        self.assertEqual(code, 2, body)
+        self.assertIn("commits origin's main doesn't", body["reason"])
+        self.assertEqual(sh("git", "-C", str(checkout), "rev-parse", "main"), local, "never reset")
+
+    def test_start_reports_crlf_already_committed_and_leaves_it_out_of_the_rules(self):
+        self.push_to_main({LAYOUT_PATH: LAYOUT.replace("\n", "\r\n")}, "a layout saved on Windows")
+        code, body = self.call("ana", *START, "--yes")
+        self.assertEqual(code, 0, body)
+        self.assertEqual((body["crlf"]["files"], body["crlf"]["components"]), ([LAYOUT_PATH], ["Layout:Probe__c-Probe Layout"]))
+        self.assertIn("git add --renormalize .", body["crlf"]["next"])
+        self.assertIn("never inside the rules' pull request", body["crlf"]["next"])
+        changed = sh("git", "-C", str(self.remote), "show", "--name-only", "--format=", "main").splitlines()
+        self.assertEqual(sorted(changed), [".gitattributes", ".gitignore", "AGENTS.md"], "nothing else swept in")
+        stored = subprocess.run(["git", "-C", str(self.remote), "show", f"main:{LAYOUT_PATH}"], capture_output=True).stdout
+        self.assertIn(b"\r\n", stored, "the layout stays as it was until its own work item")
+
+    def test_a_member_who_says_no_keeps_an_earlier_guard_until_they_take_it_off(self):
+        self.team_up()  # Bob joined with the guard, as every join did before it became a choice
+        bound = self.tmp / "bob" / "sf-data" / "sf-mp" / "bound-orgs.json"
+        self.assertIn(COMMON[:15], json.loads(bound.read_text())["orgs"])
+        code, again = self.call("bob", *JOIN, "--yes", "--no-guard")
+        self.assertEqual((code, again["guard"]["binding"], again["guard"]["choice"]), (0, "on", "no"), again)
+        self.assertIn("still guards the common org", again["guard"]["note"])
+        record = self.member_record("bob-example-com")
+        self.assertEqual((record["guard"], record["guard_choice"]), ("on", "no"))
+        self.assertEqual(self.call("ana", "status")[1]["guard_off"], [], "his guard is still on")
+        self.assertIn(COMMON[:15], json.loads(bound.read_text())["orgs"], "the join took nothing off")
+        code, ask = self.call("bob", "unguard")
+        self.assertEqual((code, ask.get("needs")), (3, "unguard-yes"), ask)
+        code, done = self.call("bob", "unguard", "--yes")
+        self.assertEqual((code, done["guard"], done["removed"]), (0, "off", True), done)
+        self.assertNotIn(COMMON[:15], json.loads(bound.read_text())["orgs"])
+        self.assertEqual(self.member_record("bob-example-com")["guard"], "off")
+        self.assertEqual(self.call("ana", "status")[1]["guard_off"], ["Bob Builder"])
+        code, body = self.call("ana", "unguard", "--yes")
+        self.assertEqual(code, 2, body)
+        self.assertIn("captain's machine keeps Scout's guard", body["reason"])
+
+    def test_a_squash_merged_rules_branch_left_in_place_never_blocks_the_next_rules_update(self):
+        """GitHub's squash merge keeps no ancestry, and the merged branch can stay: the next rules update goes out on a
+        branch name not used yet, and the merged one stays as it is, with gh and without."""
+        self.protect_main()
+        code, body = self.call("ana", *START, "--yes")
+        self.assertEqual((code, body.get("branch")), (3, lc.RULES_BRANCH), body)
+        self.assertEqual(self.gh_stub("pr", "merge", str(body["pull_request"]["number"]), "--repo", "acme/team",
+                                      "--squash").returncode, 0)
+        self.assertEqual(self.call("ana", *START, "--yes")[0], 0, "the rules are on main")
+        merged = sh("git", "-C", str(self.remote), "rev-parse", lc.RULES_BRANCH)
+        later = lc.AGENTS_MD + "10. **A rule a later Scout adds.**\n"
+        with mock.patch.object(lc, "AGENTS_MD", later):
+            code, body = self.call("ana", *START, "--yes", SCOUT_TEAM_GH=str(self.tmp / "no-gh"))
+            self.assertEqual((code, body.get("needs"), body.get("kept")), (3, "rules-review", None), body)
+            self.assertEqual(body["branch"], lc.RULES_BRANCH + "-2", "a new name: the merged branch stays as it is")
+            self.assertEqual(body["compare"], f"https://github.com/acme/team/compare/main...{lc.RULES_BRANCH}-2?expand=1")
+            self.assertEqual(body["earlier"], [lc.RULES_BRANCH])
+            code, body = self.call("ana", *START, "--yes")  # with gh: the same new proposal, now with its pull request
+            self.assertEqual((code, body["branch"], body["pull_request"]["number"]), (3, lc.RULES_BRANCH + "-2", 2), body)
+        self.assertEqual(sh("git", "-C", str(self.remote), "rev-parse", lc.RULES_BRANCH), merged)
+        self.assertIn("10. **A rule a later Scout adds.**", self.main_text("AGENTS.md", ref=lc.RULES_BRANCH + "-2"))
+
+    def test_open_work_items_hear_how_to_take_the_lf_rule_even_when_main_is_already_lf(self):
+        """On a protected main the branch step waits for the rules' pull request, fetch first, and comes again with the
+        start that brings the merged rules in; only renormalizing CRLF files stays conditional."""
+        self.protect_main()
+        code, body = self.call("ana", *START, "--yes")
+        self.assertEqual((code, body.get("needs")), (3, "rules-review"), body)
+        self.assertNotIn("crlf", body, "main holds no CRLF files")
+        self.assertTrue(body["active_branches"].startswith("Once the rules' pull request is merged, and not before"), body)
+        self.assertIn("`git fetch origin`, then `git merge origin/main`", body["active_branches"])
+        self.assertEqual(self.gh_stub("pr", "merge", str(body["pull_request"]["number"]), "--repo", "acme/team",
+                                      "--squash").returncode, 0)
+        code, body = self.call("ana", *START, "--yes")  # main stays protected: the merged rules arrive by fast-forward
+        self.assertEqual((code, body["written_on_main"]), (0, []), body)
+        self.assertTrue(body["active_branches"].startswith("The rules are on main now"), body)
+        self.assertIn("`git fetch origin`, then `git merge origin/main`", body["active_branches"])
+        self.assertIn("Checked line", body["active_branches"])
+        code, again = self.call("ana", *START, "--yes")
+        self.assertEqual((code, again.get("active_branches")), (0, None), "said when the rule comes in, not after")
+
+    def test_a_start_that_writes_the_lf_rule_onto_main_says_the_rules_are_there(self):
+        code, body = self.call("ana", *START, "--yes")
+        self.assertEqual((code, body["written_on_main"]), (0, [".gitattributes", ".gitignore", "AGENTS.md"]), body)
+        self.assertTrue(body["active_branches"].startswith("The rules are on main now"), body)
+
+    def test_the_crlf_report_names_every_component_its_step_covers(self):
+        """The step renormalizes every CRLF file, so the components it names are all of them, never a cut list."""
+        classes = {f"force-app/main/default/classes/Legacy{n:02d}.cls": f"public class Legacy{n:02d} {{\r\n}}\r\n"
+                   for n in range(55)}
+        self.push_to_main(dict(classes, **{"docs/README.txt": "Notes\r\n"}), "an older project saved on Windows")
+        code, body = self.call("ana", *START, "--yes")
+        self.assertEqual(code, 0, body)
+        report = body["crlf"]
+        self.assertEqual(report["count"], 56)
+        self.assertEqual(report["components"], sorted(f"ApexClass:Legacy{n:02d}" for n in range(55)), "all 55, none cut")
+        self.assertEqual(sorted(report["files"]), sorted([*classes, "docs/README.txt"]))
+        self.assertEqual(report["other_files"], ["docs/README.txt"])
+        self.assertEqual(len(report["preview"]), 10, "only the preview is short")
+        self.assertIn("git add --renormalize -- <its files>", report["next"])
+
+    def test_a_plugin_list_that_failed_never_says_the_guard_is_off(self):
+        """Only a successful, readable plugin list without sf-mp proves the guard is off; anything else is unknown,
+        and unguard reports no success on it."""
+        self.team_up()  # Bob's guard is bound
+        bound = self.tmp / "bob" / "sf-data" / "sf-mp" / "bound-orgs.json"
+        code, again = self.call("bob", *JOIN, "--yes", "--no-guard", STUB_PLUGINS="fail")
+        self.assertEqual((code, again["guard"]["binding"]), (0, "unknown"), again)
+        self.assertIn("can't tell", again["guard"]["note"])
+        self.assertEqual(self.member_record("bob-example-com")["guard"], "unknown")
+        self.assertEqual(self.call("ana", "status")[1]["guard_off"], ["Bob Builder"], "not proven on, so it's listed")
+        for listing in ("fail", "garbage"):
+            code, body = self.call("bob", "unguard", "--yes", STUB_PLUGINS=listing)
+            self.assertEqual(code, 1, body)
+            self.assertIn("can't tell whether the guard is on", body["reason"])
+        self.assertIn(COMMON[:15], json.loads(bound.read_text())["orgs"], "nothing was taken off")
+        self.assertEqual(self.member_record("bob-example-com")["guard"], "unknown", "and nothing claimed")
+
+    def test_a_missing_answer_after_the_promotion_went_out_says_where_the_delivery_stands(self):
+        """The adapters can't know what an earlier step changed, so they say nothing about it; once the promotion is
+        submitted, the delivery's answer keeps its phase and request and says to resume."""
+        def ask_once(_seconds):
+            if sys._getframe(1).f_code.co_name == "poll_promotion" and not getattr(ask_once, "done", False):
+                ask_once.done = True
+                self.assertEqual(self.call_quiet("ana", "stop", "--wi", wi)[0], 0)
+        self.options(status_late=3)
+        wi = self.plain_delivery(106)
+        code, plan = self.call("ana", "deliver", "--wi", wi)
+        with mock.patch.object(lc.time, "sleep", ask_once):
+            code, body = self.call("ana", "deliver", "--wi", wi, "--yes", "--plan-id", plan["plan_id"])
+        self.assertIn("while request", body.get("reason", ""), body)
+        with self.as_who("ana"):
+            token = lc.read_record(self.team_id("ana"), wi)["token"]
+        self.options(silent_queries=["ORDER BY CreatedDate DESC LIMIT 1"])  # the promotion's record, read without rows
+        code, body = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual(code, 1, body)
+        self.assertIn("answered without its records", body["reason"])
+        self.assertNotIn("nothing changed", body["reason"])
+        self.assertIn(f"past its merge (promoting, request {token}), so deliver --wi {wi} --resume picks up", body["reason"])
+        self.assertEqual((body["resume"], body["phase"], body["token"]), (True, "promoting", token))
+        self.options(silent_queries=[])
+        code, done = self.call("ana", "deliver", "--wi", wi, "--resume")
+        self.assertEqual((code, done.get("outcome")), (0, "verified"), done)
+        self.assertEqual(len(self.submitted()), 1, "one promotion, never a second")
+
+
+    def test_a_merged_pull_request_from_a_deleted_branch_of_the_same_name_never_retires_a_pending_proposal(self):
+        """A deleted branch's name comes back for the next proposal; the earlier pull request, merged from another
+        commit, says nothing about the pending one, which is reused rather than passed over."""
+        self.protect_main()
+        code, body = self.call("ana", *START, "--yes")
+        self.assertEqual((code, body.get("branch")), (3, lc.RULES_BRANCH), body)
+        self.assertEqual(self.gh_stub("pr", "merge", str(body["pull_request"]["number"]), "--repo", "acme/team",
+                                      "--squash").returncode, 0)
+        sh("git", "-C", str(self.remote), "branch", "-D", lc.RULES_BRANCH)  # the team deletes merged branches
+        self.assertEqual(self.call("ana", *START, "--yes")[0], 0, "the rules are on main")
+        later = lc.AGENTS_MD + "10. **A rule a later Scout adds.**\n"
+        with mock.patch.object(lc, "AGENTS_MD", later):
+            code, body = self.call("ana", *START, "--yes", SCOUT_TEAM_GH=str(self.tmp / "no-gh"))  # no pull request yet
+            self.assertEqual((code, body["branch"], body["pull_request"]), (3, lc.RULES_BRANCH, None), body)
+            pending = sh("git", "-C", str(self.remote), "rev-parse", lc.RULES_BRANCH)
+            code, body = self.call("ana", *START, "--yes")  # gh is back: the pending proposal gets its pull request
+        self.assertEqual((code, body.get("needs"), body["branch"]), (3, "rules-review", lc.RULES_BRANCH), body)
+        self.assertEqual(body["pull_request"]["number"], 2, "a pull request for the pending proposal")
+        self.assertEqual(sh("git", "-C", str(self.remote), "rev-parse", lc.RULES_BRANCH), pending, "kept as it was")
+        self.assertEqual(sh("git", "-C", str(self.remote), "branch", "--list", lc.RULES_BRANCH + "-*"), "",
+                         "no second proposal beside it")
+
+
+    def test_sf_mps_record_is_read_where_the_cli_keeps_its_data(self):
+        """SF_DATA_DIR, then SFDX_DATA_DIR (the CLI's alias), then the XDG data home, then ~/.local/share."""
+        home = self.tmp / "home"
+        cases = [({"SF_DATA_DIR": "/data/sf", "SFDX_DATA_DIR": "/data/sfdx"}, Path("/data/sf")),
+                 ({"SFDX_DATA_DIR": "/data/sfdx", "XDG_DATA_HOME": "/data/xdg"}, Path("/data/sfdx")),
+                 ({"XDG_DATA_HOME": "/data/xdg"}, Path("/data/xdg/sf")),
+                 ({}, home / ".local" / "share" / "sf")]
+        for env, folder in cases:
+            with self.subTest(env=env), mock.patch.dict(os.environ, {"HOME": str(home)}):
+                for key in ("SF_DATA_DIR", "SFDX_DATA_DIR", "XDG_DATA_HOME"):
+                    os.environ.pop(key, None)
+                os.environ.update(env)
+                self.assertEqual(lc.sf_mp_registry(), folder / "sf-mp" / "bound-orgs.json")
+        legacy = self.tmp / "legacy-data"
+        (legacy / "sf-mp").mkdir(parents=True)
+        (legacy / "sf-mp" / "bound-orgs.json").write_text(json.dumps({"orgs": {COMMON[:15]: {"role": "guard", "checkout": "x"}}}))
+        with mock.patch.dict(os.environ, {"SFDX_DATA_DIR": str(legacy)}), \
+                mock.patch.object(lc, "sf_mp_plugin", lambda: ("installed", team.sf_mp_version())):
+            os.environ.pop("SF_DATA_DIR", None)
+            self.assertEqual(lc.guard_binding(COMMON[:15]), ("on", None), "a guard bound under the alias is found")
+
+
+    def test_a_lock_left_by_a_process_that_died_is_named_with_the_way_to_clear_it(self):
+        """Waiting can't free a lock whose owner is gone, so unguard says whose it is and how to clear it, and changes
+        nothing until it's cleared."""
+        self.team_up()  # Bob's guard is bound
+        bound = self.tmp / "bob" / "sf-data" / "sf-mp" / "bound-orgs.json"
+        lock = Path(str(bound) + ".lock")
+        lock.write_text(json.dumps({"pid": 999999, "host": "a-builders-mac", "at": "2026-10-21T01:00:00Z"}))
+        with mock.patch.object(lc.time, "sleep", lambda seconds: None):  # the retries, without their waits
+            code, body = self.call("bob", "unguard", "--yes")
+        self.assertEqual(code, 1, body)
+        self.assertIn("process 999999 on a-builders-mac", body["reason"])
+        self.assertIn(str(lock), body["reason"])
+        self.assertIn("once it's gone", body["reason"])
+        self.assertIn("delete the lock file, then run unguard again", body["reason"])
+        self.assertEqual((body["lock"], body["owner"]["pid"]), (str(lock), 999999))
+        self.assertIn(COMMON[:15], json.loads(bound.read_text())["orgs"], "nothing was taken off")
+        lock.unlink()
+        code, done = self.call("bob", "unguard", "--yes")
+        self.assertEqual((code, done["removed"]), (0, True), done)
+
+
+class LifecycleOnWindowsTests(unittest.TestCase):
+    """Team mode runs on macOS for now: on Windows the Lifecycle Center helper refuses before any step, and the prompt
+    hook's form stays silent. The module imports there too (it skips fcntl), so this class runs on every runner."""
+
+    def test_the_lifecycle_helper_refuses_on_windows_before_any_step(self):
+        handler = mock.Mock(side_effect=AssertionError("no team step runs on Windows"))
+        out = io.StringIO()
+        with mock.patch.object(lc.os, "name", "nt"), mock.patch.object(lc, "cmd_status", handler), \
+                contextlib.redirect_stdout(out):
+            code = lc.main(["status"])
+        self.assertEqual(code, 2)
+        self.assertEqual(json.loads(out.getvalue())["reason"], lc.ON_WINDOWS)
+        self.assertIn("runs on macOS for now; on Windows it comes in a later release", lc.ON_WINDOWS)
+        handler.assert_not_called()
+        quiet = io.StringIO()
+        updates = mock.Mock(side_effect=AssertionError("no team step runs on Windows"))
+        with mock.patch.object(lc.os, "name", "nt"), mock.patch.object(lc, "cmd_updates", updates), \
+                contextlib.redirect_stdout(quiet):
+            self.assertEqual(lc.main(["updates", "--hook"]), 0, "the prompt hook stays silent")
+        self.assertEqual(quiet.getvalue(), "")
+        updates.assert_not_called()
 
 
 if __name__ == "__main__":

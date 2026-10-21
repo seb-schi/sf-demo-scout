@@ -236,7 +236,7 @@ def via_curl(url, cap=MAX_FILE, timeout=TIMEOUT, proto="=https"):
                    "--max-filesize", str(cap), "--output", str(body), "--write-out", "%{http_code}", url]
         try:
             result = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                                    timeout=timeout + 10)
+                                    errors="replace", timeout=timeout + 10)  # curl's messages may not be UTF-8
         except (OSError, subprocess.SubprocessError) as error:
             raise TransportFailure(type(error).__name__) from None
         code = result.stdout.strip()[-3:]

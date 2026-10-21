@@ -14,6 +14,8 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
+import stand_ins
+
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 HELPER = REPOSITORY / "scripts" / "build-assets.py"
@@ -265,13 +267,14 @@ class BuildAssetsContractTests(unittest.TestCase):
                 )
         self.assertEqual(list(self.rollback.rglob("component-preedit/*/receipt.json")), [])
 
+    @stand_ins.needs_symlinks
     def test_component_preedit_rejects_symlinked_ancestors_and_incomplete_receipts(self):
         """Exact-looking paths and self-consistent receipts must still name a complete component."""
         external = self.base / "external-reports"
         external.mkdir()
         (external / "Escaped.report-meta.xml").write_text("<Report/>", encoding="utf-8")
         shutil.rmtree(self.source_root / "reports")
-        os.symlink(external, self.source_root / "reports")
+        os.symlink(external, self.source_root / "reports", target_is_directory=True)
         self.rejected(
             "preserve", "--source-root", self.source_root,
             "--rollback-dir", self.rollback, "--kind", "component-preedit",
@@ -471,6 +474,7 @@ for _ in range(2):
         receipt.write_text(json.dumps(contents))
         self.rejected("verify", "--artifact", payload["artifact"])
 
+    @stand_ins.needs_symlinks
     def test_rejects_traversal_and_symlinked_source_or_destination(self):
         """Catches selectors or filesystem links that escape the intended boundary."""
         self.rejected(
@@ -479,7 +483,7 @@ for _ in range(2):
         )
         external = self.base / "external"
         external.mkdir()
-        os.symlink(external, self.source_root / "flows" / "linked")
+        os.symlink(external, self.source_root / "flows" / "linked", target_is_directory=True)
         self.rejected(
             "preserve", "--source-root", self.source_root, "--rollback-dir", self.rollback,
             "--kind", "imports", "--path", "flows",
@@ -488,16 +492,17 @@ for _ in range(2):
         payload = self.preserve("flows")
         destination_root = self.project_root / "force-app" / "main" / "default"
         destination_root.mkdir(parents=True)
-        os.symlink(external, destination_root / "flows")
+        os.symlink(external, destination_root / "flows", target_is_directory=True)
         self.rejected(
             "stage", "--artifact", payload["artifact"], "--project-root", self.project_root,
             "--path", "flows/OrderFlow.flow-meta.xml",
         )
 
+    @stand_ins.needs_symlinks
     def test_rejects_source_root_with_a_symlinked_parent(self):
         """Catches source-root resolution that silently traverses a symlinked ancestor."""
         alias = self.base / "aliased-workspace"
-        os.symlink(self.base / "workspace", alias)
+        os.symlink(self.base / "workspace", alias, target_is_directory=True)
         self.rejected(
             "preserve", "--source-root", alias / "force-app/main/default",
             "--rollback-dir", self.rollback, "--kind", "imports", "--path", "flows",

@@ -16,7 +16,7 @@ Merge the spine and proposal into one message when round 1 has no gap that chang
 
 The open-ended baseline is read-only: installed managed namespaces and industry cloud, apps/objects matching the domain nouns, Account record types and folder history. Record it in the task, never an audit file. A full audit runs only on request.
 
-When the request names a customer, ask once, as you begin discovery, whether the SE would like you to pull in what Slack and Google have on them. On a yes, search them read-only, delegating if useful, and use what you find as attributed leads, as `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/slack-lookup.md` §"Epistemic Framing" describes. On a no, or when neither is connected, carry on without.
+Don't search connected tools such as Slack or Google Drive on your own. When the SE asks you to look something up there, do it read-only and treat each finding as an attributed lead, not a fact: say where it came from and how current it is, and confirm anything that shapes the build with the SE or the org.
 
 Discover selected cartridges through `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/knowledge-cartridge.md` §"Step 1 — Discover enabled, selected cartridges (cheap; always runs)" and §"Step 2 — Match the audited industry against each cartridge's Coverage". When the industry or touched industry objects match, follow §"Step 3 — Consult the matched cartridge (proactive, read-only)". Announce the consult in one line; record findings as `skill` grounding in the task and proposal. A hub worker follows the command's model-mirroring rule. When the task is industry-specific and no cartridge covers it, follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/industry-sources.md`.
 

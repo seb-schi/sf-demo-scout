@@ -14,6 +14,9 @@ import sys
 import tempfile
 from urllib.parse import urlsplit
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import scout_portable  # noqa: E402  (ships beside this helper)
+
 _BUILD_SPEC = importlib.util.spec_from_file_location('scout_build', Path(__file__).with_name('scout_build.py'))
 BUILD = importlib.util.module_from_spec(_BUILD_SPEC)
 _BUILD_SPEC.loader.exec_module(BUILD)  # Complex-plan rules live in scout_build.py
@@ -537,17 +540,20 @@ def resolve(task, record):
             changes.append(match[2])
     if updated != original:
         mode = stat.S_IMODE(log.stat().st_mode)
-        with tempfile.NamedTemporaryFile(dir=log.parent, delete=False) as temporary:
-            temp = Path(temporary.name)
-            try:
+        temp = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=log.parent, delete=False) as temporary:
+                temp = Path(temporary.name)
                 temporary.write(updated.encode('utf-8'))
                 temporary.flush()
                 os.fsync(temporary.fileno())
-                os.chmod(temp, mode)
-                if read(log) != original:
-                    raise OSError('log changed during resolve')
-                os.replace(temp, log)
-            finally:
+            # Closed before the comparison, the move and the cleanup: Windows moves or deletes no file still open.
+            os.chmod(temp, mode)
+            if read(log) != original:
+                raise OSError('log changed during resolve')
+            scout_portable.replace(temp, log)
+        finally:
+            if temp is not None:
                 temp.unlink(missing_ok=True)
     print(json.dumps({'changed': list(reversed(changes)), 'log': str(log)}))
 
@@ -1050,7 +1056,7 @@ def lane_pending(checkout, org):
     rows, slot = [], checkout / '.mp' / 'journal' / f'open-{org[:15]}.json'
     if slot.exists():
         try:
-            record = json.loads(slot.read_text())
+            record = json.loads(slot.read_text(encoding='utf-8'))
             rows.append({'file': str(slot), 'source': 'lane', 'state': 'unresolved',
                          'heading': f"sf mp operation {record.get('opId')} ({record.get('state')})",
                          'open_jobs': [record.get('jobId') or record.get('opId')]})
@@ -1059,7 +1065,7 @@ def lane_pending(checkout, org):
     receipt = checkout / '.git' / 'scout-delivery.json'
     if receipt.exists():
         try:
-            data = json.loads(receipt.read_text())
+            data = json.loads(receipt.read_text(encoding='utf-8'))
             rows.append({'file': str(receipt), 'source': 'team delivery', 'state': 'unresolved',
                          'heading': f"{data.get('package')} delivery ({data.get('phase')})",
                          'open_jobs': [data.get('op') or data.get('package')]})

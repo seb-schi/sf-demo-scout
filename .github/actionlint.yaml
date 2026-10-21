@@ -1,0 +1,4 @@
+# GitHub-hosted Windows ARM runners, which the pinned actionlint doesn't know yet.
+self-hosted-runner:
+  labels:
+    - windows-11-arm

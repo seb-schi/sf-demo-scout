@@ -1,0 +1,4 @@
+# Every text file checks out with LF on every platform, whatever core.autocrlf says. That includes the hook
+# launcher: cmd.exe and sh both read hooks/run-hook.cmd with LF endings, and a CR breaks shell code and Scout's
+# own markers.
+* text=auto eol=lf

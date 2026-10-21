@@ -14,6 +14,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+import stand_ins
+
 
 HELPER = Path(__file__).resolve().parents[1] / "scripts/build-assets.py"
 
@@ -58,7 +60,8 @@ class OwnedWorkspaceTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         ignore = Path(payload["project_root"]) / ".forceignore"
         self.assertTrue(stat.S_ISREG(ignore.lstat().st_mode))
-        self.assertEqual(stat.S_IMODE(ignore.stat().st_mode), 0o600)
+        if not stand_ins.WINDOWS:  # Windows keeps no POSIX permission bits to compare
+            self.assertEqual(stat.S_IMODE(ignore.stat().st_mode), 0o600)
         contents = ignore.read_text(encoding="utf-8")
         self.assertTrue(contents.strip())
         self.assertTrue(all(line.startswith("#") for line in contents.splitlines()))
@@ -76,7 +79,7 @@ class OwnedWorkspaceTests(unittest.TestCase):
 
     def files(self, root):
         return {
-            str(path.relative_to(root)): path.read_bytes()
+            path.relative_to(root).as_posix(): path.read_bytes()  # the metadata paths' own form, on every platform
             for path in root.rglob("*") if path.is_file() and not path.is_symlink()
         }
 
@@ -202,6 +205,7 @@ class OwnedWorkspaceTests(unittest.TestCase):
         self.assertEqual({path: self.retained_state(path) for path in retained}, before)
         self.assertFalse((old_project / ".forceignore").exists())
 
+    @stand_ins.needs_symlinks
     def test_symlinked_workspace_customer_and_source_config_are_rejected(self):
         alias = self.base / "alias"
         alias.symlink_to(self.workspace, target_is_directory=True)
@@ -221,7 +225,7 @@ class OwnedWorkspaceTests(unittest.TestCase):
         sentinel = external / "sentinel"
         sentinel.write_bytes(b"keep")
         for name in (".scout-work", "rollback"):
-            for kind in ("symlink", "file"):
+            for kind in ("symlink", "file") if stand_ins.symlinks() else ("file",):
                 with self.subTest(name=name, kind=kind):
                     blocker = self.customer / name
                     if kind == "symlink":
@@ -338,7 +342,7 @@ class OwnedWorkspaceTests(unittest.TestCase):
         external = self.base / "external-ignore"
         external.write_bytes(b"external policy")
         real_mkdtemp = module.tempfile.mkdtemp
-        for kind in ("file", "symlink"):
+        for kind in ("file", "symlink") if stand_ins.symlinks() else ("file",):
             with self.subTest(kind=kind):
                 created = []
 
@@ -385,6 +389,8 @@ class OwnedWorkspaceTests(unittest.TestCase):
         receipt_path.write_text(json.dumps(receipt))
         self.assertNotEqual(self.cli("verify-workspace", "--project-root", project).returncode, 0)
         receipt_path.write_bytes(original["ownership.json"])
+        if not stand_ins.symlinks():  # Windows allows links only with Developer Mode or as an administrator
+            return
         source = Path(payload["source_root"])
         source.rmdir()
         source.symlink_to(self.shared_source, target_is_directory=True)
@@ -449,7 +455,7 @@ class OwnedWorkspaceTests(unittest.TestCase):
                 result = module.main([
                     "preserve", "--source-root", str(source),
                     "--rollback-dir", prepared["rollback_dir"],
-                    "--kind", "component-preedit", "--path", str(target.relative_to(source)),
+                    "--kind", "component-preedit", "--path", target.relative_to(source).as_posix(),
                 ])
         self.assertEqual(result, 1)
         self.assertEqual(output.getvalue(), "")

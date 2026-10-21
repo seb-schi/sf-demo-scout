@@ -41,8 +41,12 @@ TRACK_REF = "refs/remotes/origin/" + LEDGER
 SOURCE = "force-app/main/default/"
 OPEN = ("building", "handed-over", "delivering", "returned", "failed")  # returned: back with its owner to merge
 LANE_TYPES = {"ApexClass", "LightningComponentBundle", "CustomField"}  # sf-mp's lane contracts; others: --steward
+# sf mp retrieve's outcomes a delivery acts on: matches, unchanged and absent go on, a conflict only once accepted,
+# and the rest stop it. Anything else, or no outcome at all, stops it too.
+RETRIEVE_OUTCOMES = {"matches", "unchanged", "absent", "conflict", "unknown", "deleted-in-org", "refused"}
 COMPONENT = re.compile(r"^[A-Za-z][A-Za-z0-9]*:[^\s*:](?:[^*]*[^\s*])?$")  # names may hold spaces (layouts)
 GITHUB = re.compile(r"github\.com[:/]([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
+CONFLICT_MARKER = re.compile(rb"(?m)^(<{7}|>{7})( |\r?$)")  # a conflict's marker line, from a Windows checkout too
 FETCH_EVERY = 60
 REPORT_LIMIT = 12
 HOOK_CHARS = 9000  # Claude Code caps a prompt hook's added context at 10,000 characters
@@ -666,6 +670,13 @@ def board_lines(entry, state):
 
 # ---- the guard (sf-mp in the SE's sf CLI) ----
 
+# What the guard does, said at every join before it goes in (Lifecycle Center mode reuses the first sentence).
+GUARD_WHAT = ("Scout's guard (sf-mp, a Salesforce CLI plugin that isn't signed by Salesforce) stops this machine's "
+              "Salesforce CLI from deploying to the team's common org outside the captain's delivery.")
+LANE_GUARD = ("This team runs on Scout's own lane, which relies on the guard on every member's machine, so joining it "
+              "needs the guard.")
+
+
 def sf_mp_version():
     return json.loads((SF_MP / "package.json").read_text())["version"]
 
@@ -900,7 +911,15 @@ def accept_invitation(repository):
 
 
 def cmd_join(a):
+    if a.no_guard:  # before anything changes: the lane can't work without it
+        raise refused("this team runs on Scout's own lane, which relies on the guard on every member's machine, so it "
+                      "can't be joined without it; nothing changed. A team on Lifecycle Center works without the guard",
+                      guard="required")
     build = org_info(a.build_org)
+    if not a.yes_guard:
+        raise decide(f"{GUARD_WHAT} {LANE_GUARD}", needs="guard-install", guard="required", version=sf_mp_version(),
+                     choices=["join with the guard: run join again with --yes-guard",
+                              "or don't join: this team can't be joined without it"])
     invitation = None
     repository = github_repo(a.remote)
     if a.accept_invite and repository:
@@ -1507,13 +1526,14 @@ def newest_journal(repo, receipt):
 
 
 def verified(record):
-    """A real deploy whose read-back matched; a settlement by hand counts only when it says so."""
+    """A real deploy whose read-back matched for every component it deployed; a settlement by hand counts only when it
+    says so. A record without components, or a read-back missing one of them, verifies nothing."""
     if not record or record.get("checkOnly") or record.get("state") not in SUCCESS:
         return False
     if "verified" in record:
         return record["verified"] is True
-    readback = record.get("readback") or {}
-    return bool(readback) and all(isinstance(v, dict) and v.get("matches") for v in readback.values())
+    readback, components = record.get("readback") or {}, record.get("components") or []
+    return bool(components) and all(isinstance(readback.get(c), dict) and readback[c].get("matches") for c in components)
 
 
 def record_delivery(repo, ident, entry, team_id, package_id, record, status, note=None, allowed=("delivering",),
@@ -1750,6 +1770,10 @@ def deliver(repo, ident, entry, team_id, a):
         raise refused(f"there's no work package {a.id}")
     if package.get("status") != "handed-over" or not package.get("head"):
         raise refused(f"{a.id} is {package.get('status')}, not handed over")
+    components = package.get("components") or []
+    if not components:  # nothing named is nothing checked: never "already in the org"
+        raise refused(f"{a.id} names no components, so there's nothing Scout can deliver or verify; its owner names them "
+                      f"(package update --id {a.id} --component Type:Name) and hands it over again", outcome="scope")
     require_clean(repo)
     lane = lane_status(repo)
     if not lane.get("thisCheckoutIsTheLane"):
@@ -1759,7 +1783,6 @@ def deliver(repo, ident, entry, team_id, a):
     git(repo, "fetch", "--quiet", "origin", timeout=120)
     if git(repo, "cat-file", "-e", package["head"] + "^{commit}", check=False).returncode:
         raise refused(f"{a.id}'s handed-over commit {package['head'][:12]} isn't in the team repository")
-    components = package.get("components") or []
     stray = scope_problems(repo, package, "refs/remotes/origin/main")
     if stray:
         raise refused(f"{a.id} also changes files outside its components: {', '.join(stray[:8])}; ask its owner to split "
@@ -1799,14 +1822,21 @@ def deliver(repo, ident, entry, team_id, a):
                              timeout=1800)
         if not isinstance(retrieved, dict) or "components" not in retrieved:
             raise refused("sf mp retrieve refused", detail=retrieved)
-        plan = {item["component"]: item for item in retrieved["components"]}
+        plan = {item.get("component"): item for item in retrieved["components"] if isinstance(item, dict)}
+        # A component the read left out, or an outcome this step doesn't know, is never taken for "go on".
+        odd = {c: (plan.get(c) or {}).get("outcome") for c in components
+               if (plan.get(c) or {}).get("outcome") not in RETRIEVE_OUTCOMES}
+        if odd:
+            raise refused("sf mp retrieve gave no outcome Scout can act on for " + ", ".join(sorted(odd)) + ", so "
+                          "Scout can't tell what the common org holds; nothing was sent. Deliver again, and if it "
+                          "persists, run sf mp status with the captain", outcome="unreported", components=odd)
         accepted = set(components_of(a.accept_org_change))
         for item in list(plan.values()):
-            if item["outcome"] == "conflict" and item["component"] not in accepted and org_matches_base(repo, package, item):
+            if item.get("outcome") == "conflict" and item.get("component") not in accepted and org_matches_base(repo, package, item):
                 accepted.add(item["component"])
                 item["detail"] = "the common org still holds the version this hand-over started from"
-        blocked = [item for item in plan.values() if item["outcome"] in ("unknown", "deleted-in-org", "refused")
-                   or (item["outcome"] == "conflict" and item["component"] not in accepted)]
+        blocked = [item for item in plan.values() if item.get("outcome") in ("unknown", "deleted-in-org", "refused")
+                   or (item.get("outcome") == "conflict" and item.get("component") not in accepted)]
         if blocked:
             write_json_atomic(cache_dir(team_id) / "last-conflict.json", {"package": a.id, "head": package["head"],
                                                                          "at": now(), "components": blocked})
@@ -1814,7 +1844,7 @@ def deliver(repo, ident, entry, team_id, a):
                          components=blocked, options=["keep the org's change: take it into main (takeorg), then the owner "
                                                       "brings main in and hands over again",
                                                       "overwrite it with the hand-over (deliver again with --accept-org-change)"])
-        for component in sorted(accepted & {c for c, i in plan.items() if i["outcome"] == "conflict"}):
+        for component in sorted(accepted & {c for c, i in plan.items() if i.get("outcome") == "conflict"}):
             code, merged = sf(["mp", "retrieve", "--metadata", component, "--merged", *flags], cwd=repo, timeout=1800)
             item = (merged.get("components") or [{}])[0] if isinstance(merged, dict) else {}
             if item.get("outcome") != "merged":
@@ -1958,7 +1988,11 @@ def resume_delivery(repo, ident, entry, team_id, recheck=False, give_back=None):
         receipt_path(repo).unlink(missing_ok=True)
         return {"outcome": "never sent", "package": package["id"]}
     if recheck and record.get("state") in SUCCESS and not record.get("checkOnly") and not verified(record):
-        components = receipt.get("components") or []
+        components = receipt.get("components") or record.get("components") or []
+        if not components:  # nothing to read is nothing read back: main stays as it is
+            raise decide("neither the receipt nor the lane's record names the delivered components, so a recheck has "
+                         "nothing to read back and main doesn't move. Check the org, then give the package back",
+                         outcome="unverified", differs=[])
         theirs = org_files(entry["common_target"], components, source_api(repo, receipt["integration"]))
         ours = files_at(repo, receipt["integration"], set(components))
         differs = sorted(c for c in components
@@ -2093,7 +2127,7 @@ def cmd_refresh(a):
             if out(repo, "rev-parse", "--abbrev-ref", "HEAD") != branch:
                 raise refused(f"the team checkout isn't on {branch}, so there's no merge of main to finish there")
             conflicted = out(repo, "diff", "--name-only", "--diff-filter=U").splitlines()
-            marked = [p for p in conflicted if re.search(rb"(?m)^(<{7}|>{7})( |$)", (repo / p).read_bytes())]
+            marked = [p for p in conflicted if CONFLICT_MARKER.search((repo / p).read_bytes())]
             if marked:
                 raise refused("these files still have conflict markers to resolve: " + ", ".join(marked), files=marked)
             if conflicted:
@@ -2493,6 +2527,7 @@ def main(argv=None):
         p.add_argument(flag)
     p.add_argument("--accept-invite", action="store_true")
     p.add_argument("--yes-guard", action="store_true")
+    p.add_argument("--no-guard", action="store_true", help="the SE said no to the guard, which this lane needs")
     p = commands.add_parser("package")
     p.add_argument("action", choices=("start", "update", "stop", "sync", "accept"))
     for flag in ("--team", "--id", "--title", "--task", "--note"):
@@ -2557,6 +2592,8 @@ def main(argv=None):
         parser.error("package start needs --title: a retry finds its package by owner, title and components")
     handler = globals()["cmd_" + args.command.replace("-", "_")]
     try:
+        if os.name == "nt":  # team mode on Windows comes later; there os.kill(pid, 0) would end the process it checks
+            raise refused("building one demo org together runs on macOS for now; on Windows it comes in a later release")
         result = handler(args)
     except Stop as stop:
         if args.command == "updates" and args.hook:

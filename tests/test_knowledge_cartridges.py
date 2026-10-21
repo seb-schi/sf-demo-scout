@@ -13,6 +13,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import stand_ins
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/knowledge-cartridges.py"
@@ -20,6 +21,17 @@ SPEC = importlib.util.spec_from_file_location("knowledge_cartridges", SCRIPT)
 assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+# Stand-ins for Claude Code: the one on the PATH, and the running client's own binary, which also names itself.
+PATH_CLAUDE = r"""import os, sys
+if sys.argv[1:] != ["plugin", "list", "--json"]:
+    sys.exit(97)
+sys.stdout.write(os.environ["SCOUT_TEST_INVENTORY"])
+"""
+RUNNING_CLAUDE = r"""import sys
+if sys.argv[1:] == ["--version"]:
+    print("2.1.295 (Claude Code)")
+    sys.exit(0)
+""" + PATH_CLAUDE
 
 
 class KnowledgeCartridgeTests(unittest.TestCase):
@@ -99,6 +111,7 @@ class KnowledgeCartridgeTests(unittest.TestCase):
         self.cartridge("newer")
         self.assertEqual(MODULE.selected_cartridges([self.row(selected)])["cartridges"], [])
 
+    @stand_ins.needs_symlinks
     def test_contract_symlink_cannot_escape_selected_root(self) -> None:
         selected = self.cartridge("selected")
         outside = self.cartridge("outside")
@@ -109,6 +122,7 @@ class KnowledgeCartridgeTests(unittest.TestCase):
         self.assertEqual(result["cartridges"], [])
         self.assertEqual(result["unavailable"][0]["reason"], "contract_outside_selected_root")
 
+    @stand_ins.needs_symlinks
     def test_contract_symlink_inside_selected_root_is_allowed(self) -> None:
         selected = self.cartridge("selected")
         nested = selected / "docs"
@@ -152,7 +166,8 @@ class KnowledgeCartridgeTests(unittest.TestCase):
 
     def test_cli_collector_is_read_only_scoped_and_redacts_failure_output(self) -> None:
         completed = subprocess.CompletedProcess([], 0, b'[]', b'')
-        with patch.object(MODULE.subprocess, "run", return_value=completed) as run:
+        with patch.object(MODULE.subprocess, "run", return_value=completed) as run, \
+                patch.object(MODULE.shutil, "which", return_value=None):  # not this machine's own claude
             self.assertEqual(MODULE.claude_inventory(str(self.base)), b'[]')
         args, kwargs = run.call_args
         self.assertEqual(args[0], ["claude", "plugin", "list", "--json"])
@@ -172,6 +187,7 @@ class KnowledgeCartridgeTests(unittest.TestCase):
             with self.assertRaises(MODULE.InventoryError):
                 MODULE.claude_inventory(directory)
 
+    @unittest.skipIf(os.name == "nt", "runs the shipped bash caller with /bin/bash and POSIX shell stand-ins")
     def test_shipped_caller_uses_selected_inventory_in_native_session_directory(self) -> None:
         prompt = (ROOT / "prompts/sparring/knowledge-cartridge.md").read_text()
         blocks = re.findall(r"```bash\n(.*?)\n```", prompt, re.S)
@@ -213,16 +229,12 @@ class KnowledgeCartridgeTests(unittest.TestCase):
         session.mkdir()
         app = self.base / "Claude.app"
         app.mkdir()
-        desktop = app / "claude"
-        desktop.write_text(
-            '#!/bin/sh\n[ "$*" = "--version" ] && { echo "2.1.295 (Claude Code)"; exit 0; }\n'
-            '[ "$*" = "plugin list --json" ] || exit 97\nprintf "%s" "$SCOUT_TEST_INVENTORY"\n'
-        )
-        desktop.chmod(0o700)
+        desktop = stand_ins.tool(app, "claude", RUNNING_CLAUDE)
         result = subprocess.run(
             [sys.executable, "-B", str(SCRIPT), "--claude", "--directory", str(session)], cwd=self.base,
-            env={"PATH": "/usr/bin:/bin", "HOME": str(self.base), "CLAUDE_CODE_EXECPATH": str(desktop),
-                 "SCOUT_TEST_INVENTORY": json.dumps([self.row(selected)])},
+            env=stand_ins.keep({"PATH": os.pathsep.join(("/usr/bin", "/bin")), **stand_ins.home(self.base),
+                                "CLAUDE_CODE_EXECPATH": str(desktop),
+                                "SCOUT_TEST_INVENTORY": json.dumps([self.row(selected)])}),
             capture_output=True, text=True, check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -233,19 +245,17 @@ class KnowledgeCartridgeTests(unittest.TestCase):
         session = self.base / "npm session"
         session.mkdir()
         sentinel = self.base / "node-received-inventory"
-        node = self.base / "node"
-        node.write_text('#!/bin/sh\n[ "$*" = "--version" ] && { echo "v22.11.0"; exit 0; }\n'
-                        f'touch "{sentinel}"; exit 97\n')
-        node.chmod(0o700)
+        node = stand_ins.tool(self.base, "node", 'import sys\nfrom pathlib import Path\n'
+                              'if sys.argv[1:] == ["--version"]:\n    print("v22.11.0")\n    sys.exit(0)\n'
+                              'Path(%r).touch()\nsys.exit(97)\n' % str(sentinel))
         binary = self.base / "bin"
         binary.mkdir()
-        stub = binary / "claude"
-        stub.write_text('#!/bin/sh\n[ "$*" = "plugin list --json" ] || exit 97\nprintf "%s" "$SCOUT_TEST_INVENTORY"\n')
-        stub.chmod(0o700)
+        stand_ins.tool(binary, "claude", PATH_CLAUDE)
         result = subprocess.run(
             [sys.executable, "-B", str(SCRIPT), "--claude", "--directory", str(session)], cwd=self.base,
-            env={"PATH": f"{binary}:/usr/bin:/bin", "HOME": str(self.base), "CLAUDE_CODE_EXECPATH": str(node),
-                 "SCOUT_TEST_INVENTORY": json.dumps([self.row(selected)])},
+            env=stand_ins.keep({"PATH": os.pathsep.join((str(binary), "/usr/bin", "/bin")), **stand_ins.home(self.base),
+                                "CLAUDE_CODE_EXECPATH": str(node),
+                                "SCOUT_TEST_INVENTORY": json.dumps([self.row(selected)])}),
             capture_output=True, text=True, check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -260,7 +270,12 @@ class KnowledgeCartridgeTests(unittest.TestCase):
                     patch.dict(os.environ, {"CLAUDE_CODE_EXECPATH": sys.executable}), \
                     patch.object(MODULE.subprocess, "run",
                                  **({"side_effect": failure} if isinstance(failure, BaseException) else {"return_value": failure})):
-                self.assertEqual(MODULE.claude_command(), "claude")
+                with patch.object(MODULE.shutil, "which", return_value=None):
+                    self.assertEqual(MODULE.claude_command(), "claude")
+                # The PATH's claude by its full path, which is how Windows starts an npm install's claude.cmd.
+                found = str(self.base / "bin" / "claude.cmd")
+                with patch.object(MODULE.shutil, "which", side_effect=lambda name: found if name == "claude" else None):
+                    self.assertEqual(MODULE.claude_command(), found)
 
 
 if __name__ == "__main__":

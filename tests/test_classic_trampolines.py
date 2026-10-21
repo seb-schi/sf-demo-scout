@@ -6,7 +6,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 GATE = ("On Claude, when this session identifies its model as an Opus, Sonnet or Haiku model older than 5.5, send only "
         "“Heads-up: this is a Classic command, and Scout 2.0 is built for Opus 5.5 and later. Pick Opus 5.5 (model picker or `/model`), "
-        "then run `/scout` with your {}. Details in #sf-demo-scout.” and stop.")
+        "then run `/scout` with your {}.” and stop.")
 
 
 def frontmatter(text):
@@ -19,7 +19,7 @@ def tools(text):
 
 class ClassicTrampolineTests(unittest.TestCase):
     def setUp(self):
-        self.scout = (ROOT / 'commands/scout.md').read_text()
+        self.scout = (ROOT / 'skills/scout/SKILL.md').read_text()
         self.shells = {name: (ROOT / 'commands' / f'{name}.md').read_text() for name in ('scout-sparring', 'scout-building')}
 
     def test_shells_carry_scouts_exact_tools_and_no_dx_mcp(self):
@@ -37,7 +37,7 @@ class ClassicTrampolineTests(unittest.TestCase):
                 self.assertIn('$ARGUMENTS', text)
                 self.assertIn(f'“Heads-up: `/{name}` is a Classic command. Scout 2.0 replaces it, so I\'m starting `/scout`', text)
                 host = text.index('${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md')
-                scout = text.index('read `commands/scout.md` from that root and follow it exactly')
+                scout = text.index('read `skills/scout/SKILL.md` from that root and follow it exactly')
                 self.assertLess(text.index(GATE.format(noun)), host)
                 self.assertLess(host, scout)
                 self.assertLessEqual(len(text.split()), 220)
@@ -51,7 +51,8 @@ class ClassicTrampolineTests(unittest.TestCase):
 
     def test_classic_bodies_are_gone_and_unreferenced(self):
         self.assertFalse((ROOT / 'prompts/classic').exists())
-        for path in [*(ROOT / 'commands').glob('*.md'), *(ROOT / 'hooks').glob('*'), ROOT / 'AGENTS.md']:
+        for path in [*(ROOT / 'commands').glob('*.md'), *(ROOT / 'skills').glob('scout*/SKILL.md'), *(ROOT / 'hooks').glob('*'),
+                     ROOT / 'AGENTS.md']:
             with self.subTest(path=path.name):
                 self.assertNotIn('prompts/classic/', path.read_text())
 

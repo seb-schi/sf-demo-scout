@@ -14,7 +14,7 @@ else
 fi
 ```
 
-In a self-repair run where the SE said no (`commands/scout-setup.md`), add `--keep-se-choices` to that command, and skip the next block.
+In a self-repair run where the SE said no (`skills/scout-setup/SKILL.md`), add `--keep-se-choices` to that command, and skip the next block.
 
 Then update the Salesforce CLI's own add-on plugins (built-in ones update with the CLI; plugins such as `flow` and `code-analyzer` install themselves the first time Scout uses them):
 
@@ -23,11 +23,11 @@ sf plugins update >/dev/null 2>&1 && echo "SF_PLUGINS_UPDATED" || echo "SF_PLUGI
 ```
 
 Surface in plain language, and carry every non-silent line into the done summary:
-- `OFFICIAL_PLUGINS_SKIPPED host=codex …` — "Scout uses Salesforce's official plugins on Claude Code only. On Codex, Scout builds with its own rules and the Salesforce CLI."
+- `OFFICIAL_PLUGINS_SKIPPED host=…` — silent: on Codex and Cursor, `prompts/setup/other-hosts.md` sets up Salesforce's skills instead.
 - `OFFICIAL_PLUGINS_UNAVAILABLE <reason>` — "Scout couldn't install Salesforce's plugins (<reason>). Run `/scout-setup` again from the Terminal app (`claude`, then `/scout-setup`)."
 - `OFFICIAL_MARKETPLACE_ADDED <name>` — "Added Salesforce's official plugin marketplace from GitHub." `…_PRESENT` — silent.
 - `OFFICIAL_MARKETPLACE_FAILED <reason>` or `…_UNKNOWN` — "Scout couldn't add Salesforce's plugin marketplace (<reason>). Scout needs it for building: check your network or company plugin policy, then run `/scout-setup` again." Skip the remaining lines' messages.
-- `OFFICIAL_AUTOUPDATE_SET[…]` — "Turned on automatic updates for Salesforce's plugins." `…_ALREADY[…]` — silent. `…_NO_ENTRY[…]` — "Turn on auto-update for the `salesforce` marketplace in `/plugin` → Marketplaces." Any other `OFFICIAL_AUTOUPDATE_…` — one-line note.
+- `OFFICIAL_AUTOUPDATE_SET[…]` — "Turned on automatic updates for Salesforce's plugins." `…_ALREADY[…]` — silent. `…_LEFT_AS_CHOSEN[…]` — "Automatic updates for Salesforce's plugins are switched off, as you set them; turn them on under `/plugin` → Marketplaces if you want Scout to drive Salesforce's latest skills." `…_NO_ENTRY[…]` — "Turn on auto-update for the `salesforce` marketplace in `/plugin` → Marketplaces." Any other `OFFICIAL_AUTOUPDATE_…` — one-line note.
 - `OFFICIAL_PLUGIN_INSTALLED <name>` / `…_ENABLED <name>` — one combined line naming them, with versions from `OFFICIAL_PLUGIN_VERSION <name> <version>`. `…_PRESENT` and `…_VERSION` alone — silent. When `experience-lwc` was just installed, add: "Salesforce's LWC plugin also runs a quick style check whenever Claude writes a web file (HTML, CSS or JavaScript), in any folder; the first time, it downloads Salesforce's style checker."
 - `OFFICIAL_PLUGIN_LEFT <name> <state>` — a self-repair run left, as the SE asked, a plugin that's switched off (`disabled`) or not installed (`installable`, whether removed or never installed): "<name> stays as it is; builds that need it will ask."
 - `OFFICIAL_PLUGIN_FAILED <name> <reason>` — one line each: "<name> didn't install (<reason>). Builds that need it will report those items blocked until `/scout-setup` succeeds."

@@ -95,10 +95,12 @@ This demo isn't locked. Pick the door that fits:
 **New scenario or structural rework — run `/scout`.** A different headline, a new agent, a story rebuild: open a new Claude Code session and run `/scout` with the change (and if you know the scenario cold, just tell Scout to move fast). It spars on the story first, then builds and checks each item, keeping this folder's history.
 
 **Your Files**
-All files for this demo live in one folder. To open it in Finder:
+All files for this demo live in one folder. To open it, run this line in a terminal:
 ```
-open [ORG_FOLDER]/
+[OPEN] "[ORG_FOLDER]"
 ```
+(`[OPEN]` is `open` on macOS, which shows the folder in Finder; `explorer.exe` on Windows, with the folder's path
+written with backslashes; and `xdg-open` on Linux. Give only the line for the SE's computer.)
 - `demo-spec-[...].md` — full build spec (what and why)
 - `changes-[...].md` — deployment log (what actually happened, rollback commands)
 - `audit-[...].md` — org snapshot before deployment
@@ -108,4 +110,3 @@ open [ORG_FOLDER]/
 
 (Skip this block entirely if the change log's Script Deliverables section reads "None — deployment was metadata-only.")
 
-**Caller note (not part of the rendered brief):** after the handover, `/scout` offers the demo flow as a Slack canvas, following `prompts/scout/demo-canvas.md`.

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Canonical folder-slug transform for SF Demo Scout.
 
-Reference implementation used by hooks/session-startup.sh; mirrors
-prompts/sparring/slug-rule.md. Input: ONE alias or customer token as argv[1].
-Output: the slug on stdout, exit 0. If no usable slug results (empty input or a
-token that reduces to nothing), print nothing and exit 1.
+Reference implementation that /scout runs to match customer folders
+(skills/scout/SKILL.md); mirrors prompts/sparring/slug-rule.md. Input: ONE
+alias or customer token as argv[1]. Output: the slug on stdout, exit 0. If no
+usable slug results (empty input or a token that reduces to nothing), print
+nothing and exit 1.
 
 The alias is read as a command ARGUMENT, never interpolated into program
 source, so alias characters are always data (never shell/regex/glob syntax).
@@ -57,7 +58,21 @@ def slugify(text):
     return text
 
 
+def developer_name(label):
+    """A Custom Metadata record's DeveloperName from its label: the official skill's sanitize-developer-name rule
+    (runs of other characters become `_`, no leading or trailing `_`, an `X` before a leading digit, 40 at most)."""
+    text = re.sub(r"[^A-Za-z0-9]+", "_", label).lstrip("_")
+    text = re.sub(r"^([0-9])", r"X\1", text).rstrip("_")
+    return text[:MAX_LEN].rstrip("_")
+
+
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--developer-name":
+        name = developer_name(sys.argv[2])
+        if not name:
+            sys.exit(1)
+        print(name)
+        return
     if len(sys.argv) < 2:
         sys.exit(1)
     slug = slugify(sys.argv[1])

@@ -46,7 +46,8 @@ class PhaseRuleTests(unittest.TestCase):
 
     def test_scout_ships_only_its_own_skills(self):
         shipped = {path.parent.name for path in (ROOT / "skills").glob("*/SKILL.md") if path.is_file()}
-        self.assertEqual(shipped, {"demo-deployment-rules", "demo-docs-consultation", "demo-org-audit", "sf-flow"})
+        self.assertEqual(shipped, {"demo-deployment-rules", "demo-docs-consultation", "demo-org-audit", "sf-flow",
+                                   "scout", "scout-setup"})  # 2.4: the two entry points are skills on every host
 
 
 if __name__ == "__main__":

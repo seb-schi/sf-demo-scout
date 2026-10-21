@@ -109,7 +109,6 @@ If any occurred, propose 1-3 candidate lessons:
 
 If approved, follow the Append Format + Routing sections above to append each
 lesson to the right topic file, then run the Per-Topic Review if a topic went
-over length. Then run the Slack Upstream offer (if any lesson was added) and the
-Legacy Flat-File Drain offer (if legacy files remain). If the deployment was
+over length. Then run the Legacy Flat-File Drain offer (if legacy files remain). If the deployment was
 clean, skip lesson-proposal silently — but still run the drain offer if legacy
 files remain.

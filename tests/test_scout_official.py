@@ -1,7 +1,11 @@
 """The official-plugin resolver, readiness check, skill verification and coexistence check, tested against
 synthetic Claude config folders and a fake `sf`."""
+import contextlib
 import json
 import os
+import shutil
+import subprocess
+import types
 from pathlib import Path
 import sys
 import tempfile
@@ -11,6 +15,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import scout_official as official
+import stand_ins
 
 GITHUB = {'source': 'git', 'url': 'https://github.com/forcedotcom/sf-skills.git'}
 ANTHROPIC = {'source': 'github', 'repo': 'anthropics/claude-plugins-official'}
@@ -37,7 +42,7 @@ class Fixture(unittest.TestCase):
         self.root = Path(temp.name).resolve()
         self.config = self.root / 'claude'
         (self.config / 'plugins').mkdir(parents=True)
-        patcher = patch.dict(os.environ, {'CLAUDE_CONFIG_DIR': str(self.config), 'HOME': str(self.root)}, clear=False)
+        patcher = patch.dict(os.environ, {'CLAUDE_CONFIG_DIR': str(self.config), **stand_ins.home(self.root)}, clear=False)
         patcher.start()
         self.addCleanup(patcher.stop)
         for key in ('SCOUT_OFFICIAL_SOURCE', 'SCOUT_OFFICIAL_SKILLS_ROOT', 'SF_DISABLE_PLUGIN_MATCH',
@@ -114,18 +119,96 @@ class ResolverTests(Fixture):
         self.assertEqual(official.resolve('salesforce-development'), {'state': 'unknown'})
         self.assertEqual(official.check(['soql'])['soql']['state'], 'unknown')
 
-    def test_codex_reads_only_an_explicit_checkout(self):
+    def codex(self, enabled=True, versions=('0.4.0',), source='https://github.com/forcedotcom/sf-skills.git'):
+        codex = self.root / '.codex'
+        codex.mkdir(exist_ok=True)
+        (codex / 'config.toml').write_text(
+            '[marketplaces.salesforce]\nsource_type = "git"\nsource = "%s"\n\n'
+            '[plugins."salesforce-development@salesforce"]\nenabled = %s  # a comment\n\n'
+            '[projects."/somewhere"]\ntrust_level = "trusted"\n' % (source, 'true' if enabled else 'false'))
+        for version in versions:
+            skill = codex / 'plugins/cache/salesforce/salesforce-development' / version / 'skills/platform-soql-query'
+            skill.mkdir(parents=True, exist_ok=True)
+            (skill / 'SKILL.md').write_text('x')
+
+    def test_codex_reads_its_own_installation_from_salesforces_marketplace(self):
         root = self.plugin_dir('github', 'salesforce-development', skills=['platform-soql-query'])
-        self.register('salesforce', GITHUB, 'salesforce-development', root)
-        self.assertEqual(official.check(['soql'], host='codex')['soql']['state'], 'unsupported-host')
+        self.register('salesforce', GITHUB, 'salesforce-development', root)  # Claude's records are never read on Codex
+        self.assertEqual(official.check(['soql'], host='codex')['soql']['state'], 'setup-needed')
+        for tomllib in (True, False):  # Python 3.11+ reads TOML itself; 3.9 and 3.10 use Scout's narrow reader
+            with self.subTest(tomllib=tomllib), patch.dict(sys.modules, {} if tomllib else {'tomllib': None}):
+                self.codex()
+                report = official.check(['soql'], host='codex')['soql']
+                found = report['plugins']['salesforce-development']
+                self.assertEqual((report['state'], found['provider'], found['version']),
+                                 ('installed', 'salesforce-github', '0.4.0'))
+                self.assertEqual(Path(found['root']).parts[-6:],
+                                 ('.codex', 'plugins', 'cache', 'salesforce', 'salesforce-development', '0.4.0'))
+                self.codex(enabled=False)
+                self.assertEqual(official.resolve('salesforce-development', host='codex')['state'], 'disabled')
+                self.codex(source='https://github.com/someone/fork.git')
+                self.assertEqual(official.resolve('salesforce-development', host='codex')['state'], 'setup-needed')
+                self.assertEqual(official.resolve('experience-lwc', host='codex')['state'], 'setup-needed')
+        self.codex(versions=('0.4.0', '0.5.0'))  # mid-upgrade: never guess
+        self.assertEqual(official.resolve('salesforce-development', host='codex')['state'], 'unknown')
+        self.codex()
+        (self.root / '.codex' / 'config.toml').write_text('[marketplaces.salesforce\nbroken')
+        self.assertEqual(official.resolve('salesforce-development', host='codex')['state'], 'unknown')
+        # Ordinary TOML the narrow reader must still read on Python 3.9 and 3.10: comments after headers, literal strings.
+        shutil.rmtree(self.root / '.codex/plugins/cache/salesforce/salesforce-development/0.5.0')  # the upgrade finished
+        (self.root / '.codex' / 'config.toml').write_text(
+            "[marketplaces.salesforce]  # Salesforce's skills\nsource = 'https://github.com/forcedotcom/sf-skills.git'\n"
+            '[plugins."salesforce-development@salesforce"]\nenabled = true\n')
+        with patch.dict(sys.modules, {'tomllib': None}):
+            self.assertEqual(official.resolve('salesforce-development', host='codex')['state'], 'installed')
+            (self.root / '.codex' / 'config.toml').write_text(  # whitespace inside the brackets is valid TOML
+                "[ marketplaces.salesforce ]\nsource = 'https://github.com/forcedotcom/sf-skills.git'\n"
+                '[ plugins."salesforce-development@salesforce" ]\nenabled = true\n')
+            self.assertEqual(official.resolve('salesforce-development', host='codex')['state'], 'installed')
+            for broken in ('[plugins."salesforce-development@salesforce"]\nenabled = [true]\n',
+                           '[marketplaces.salesforce\nbroken', '[[plugins]]\nname = "x"\n',
+                           'plugins."salesforce-development@salesforce".enabled = true\n',
+                           'marketplaces = { salesforce = { source = "x" } }\n'):
+                with self.subTest(broken=broken):
+                    (self.root / '.codex' / 'config.toml').write_text(broken)
+                    self.assertEqual(official.resolve('salesforce-development', host='codex')['state'], 'unknown')
+        self.codex()
+        project = self.root / 'work' / 'repo'
+        (project / 'sub').mkdir(parents=True)
+        (project / '.git').mkdir()  # the project root, as Codex finds it
+        self.assertEqual(official.resolve('salesforce-development', host='codex', launch_dir=project / 'sub')['state'],
+                         'installed')  # the user configuration in the home folder is never taken for a project's
+        (project / '.codex').mkdir()
+        (project / '.codex' / 'config.toml').write_text('[plugins."salesforce-development@salesforce"]\nenabled = false\n')
+        found = official.resolve('salesforce-development', host='codex', launch_dir=project / 'sub')
+        self.assertEqual((found['state'], found['reason']), ('unknown', "a project's Codex configuration also selects plugins"))
+        for selection in ('plugins."salesforce-development@salesforce".enabled = false\n',
+                          'marketplaces.salesforce = { source_type = "git", source = "https://github.com/forcedotcom/sf-skills.git" }\n',
+                          '[marketplaces.salesforce]\nsource = "https://github.com/forcedotcom/sf-skills.git"\n'):
+            with self.subTest(selection=selection):
+                (project / '.codex' / 'config.toml').write_text(selection)
+                self.assertEqual(official.resolve('salesforce-development', host='codex', launch_dir=project)['state'],
+                                 'unknown')
+
+    def test_a_named_or_recorded_checkout_serves_codex_and_cursor(self):
         checkout = self.root / 'sf-skills'
         (checkout / 'plugins/builder/salesforce-development/skills/platform-soql-query').mkdir(parents=True)
         (checkout / 'plugins/builder/salesforce-development/skills/platform-soql-query/SKILL.md').write_text('x')
+        self.assertEqual(official.check(['soql'], host='cursor')['soql']['state'], 'setup-needed')
         with patch.dict(os.environ, {'SCOUT_OFFICIAL_SKILLS_ROOT': str(checkout)}):
-            report = official.check(['soql'], host='codex')['soql']
-            self.assertEqual((report['state'], report['plugins']['salesforce-development']['provider']),
-                             ('installed', 'local-checkout'))
+            for host in ('codex', 'cursor'):
+                report = official.check(['soql'], host=host)['soql']
+                self.assertEqual((report['state'], report['plugins']['salesforce-development']['provider']),
+                                 ('installed', 'local-checkout'))
             self.assertEqual(official.check(['email-to-case'], host='codex')['email-to-case']['state'], 'missing')
+        record = self.root / '.config' / 'sf-demo-scout' / 'official-skills.json'
+        record.parent.mkdir(parents=True)
+        record.write_text(json.dumps({'root': str(checkout)}))  # what Scout's installer writes
+        self.assertEqual(official.check(['soql'], host='cursor')['soql']['state'], 'installed')
+        self.assertEqual(official.resolve('salesforce-development', host='codex')['provider'], 'local-checkout')
+        self.codex()  # once Codex has its own installation, it comes first; a clone recorded for Cursor doesn't override it
+        self.assertEqual(official.resolve('salesforce-development', host='codex')['provider'], 'salesforce-github')
+        self.assertEqual(official.resolve('salesforce-development', host='cursor')['provider'], 'local-checkout')
 
     def test_the_trial_mode_accepts_a_named_local_source(self):
         clone = self.root / 'clone'
@@ -341,9 +424,7 @@ class CoexistenceTests(Fixture):
         super().setUp()
         bin_dir = self.root / 'bin'
         bin_dir.mkdir()
-        (bin_dir / 'sf').write_text('#!' + sys.executable + '\n' + FAKE_SF)
-        (bin_dir / 'sf').chmod(0o700)
-        self.sf = str(bin_dir / 'sf')
+        self.sf = str(stand_ins.salesforce_cli(bin_dir, FAKE_SF))
 
     def issues(self, **env):
         with patch.dict(os.environ, env):
@@ -406,11 +487,79 @@ class CoexistenceTests(Fixture):
         self.assertEqual(official.recommender()['source'], "default (the plugin's own option isn't visible)")
         with patch.dict(os.environ, {'SF_DISABLE_PLUGIN_MATCH': '1', 'SF_PLUGIN_MATCH_SENSITIVITY': 'high'}):
             self.assertEqual(official.recommender()['source'], 'SF_DISABLE_PLUGIN_MATCH')
+        if not stand_ins.symlinks():  # Windows allows links only with Developer Mode or as an administrator
+            return
         dotfile = self.root / 'dotfiles-config.json'  # a dotfile-managed link: the official hook ignores it, so Scout does too
         dotfile.write_text('{"sensitivity": "off"}')
         saved.unlink()
         saved.symlink_to(dotfile)
         self.assertEqual(official.recommender()['source'], "default (the plugin's own option isn't visible)")
+
+
+class CliRouteTests(Fixture):
+    """The two CLI calls go through scout_portable.sf_command: on Windows the CLI's Node entry, and a batch launcher
+    alone never gets an argument cmd.exe would re-read."""
+
+    def test_both_calls_take_the_portable_route(self):
+        sf = str(stand_ins.salesforce_cli(self.root, FAKE_SF))
+        with patch.object(official.scout_portable, 'sf_command', wraps=official.scout_portable.sf_command) as route, \
+                patch.dict(os.environ, {'FAKE_DEFAULT': 'R&D', 'FAKE_REACHABLE': 'R&D'}):
+            self.assertEqual(official.default_org(sf, self.root)[:2], ('R&D', None))
+            self.assertTrue(official.reachable(sf, 'R&D'))
+        self.assertEqual([call.args[1] for call in route.call_args_list],
+                         [['config', 'get', 'target-org', '--json'], ['org', 'display', '--target-org', 'R&D', '--json']])
+
+    def test_a_batch_launcher_alone_never_gets_an_argument_cmd_would_reread(self):
+        launcher = self.root / 'launcher' / 'sf.cmd'
+        launcher.parent.mkdir()
+        launcher.write_text('@echo off\r\nrem a launcher whose Node entry Scout cannot find\r\n')
+        with patch.object(official.scout_portable, 'PLATFORM', 'win32'):
+            with patch.object(official.subprocess, 'run', side_effect=AssertionError('the CLI ran')):
+                with self.assertRaisesRegex(official.Refused, 'batch launcher'):
+                    official.reachable(str(launcher), 'R&D')
+            # The refusal stays apart from an unreachable org: no question about the default org or its login.
+            self.register('salesforce', GITHUB, 'salesforce-development', self.plugin_dir('github', 'salesforce-development'))
+            answers = [subprocess.CompletedProcess([], 0, json.dumps({'status': 0, 'result': [
+                {'name': 'target-org', 'value': 'R&D', 'location': 'Global'}]}).encode(), b'')]
+            with patch.object(official.subprocess, 'run', side_effect=answers):
+                issues, checks = official.coexistence(str(launcher), 'claude', self.root)
+        gate, = [issue for issue in issues if issue['issue'] == 'deploy-gate']
+        self.assertEqual(set(gate), {'issue', 'detail', 'reason'})
+        self.assertEqual(gate['detail'], 'cli-refused')
+        self.assertIn('batch launcher', gate['reason'])
+        self.assertEqual(checks['deploy-gate'], 'cli-refused')
+
+
+class WindowsPreferenceTests(Fixture):
+    """The saved recommender preference on Windows, with the platform injected: no user IDs to compare, and a link
+    found by its reparse tag, because there is no O_NOFOLLOW."""
+
+    @contextlib.contextmanager
+    def as_windows(self):
+        getuid = getattr(os, 'getuid', None)
+        if getuid is not None:
+            del os.getuid
+        try:
+            with patch.object(official.scout_portable, 'PLATFORM', 'win32'):
+                yield
+        finally:
+            if getuid is not None:
+                os.getuid = getuid
+
+    def test_the_saved_preference_is_read_without_user_ids_and_a_link_is_refused(self):
+        saved = self.root / '.sf/plugin-recommendations/config.json'
+        saved.parent.mkdir(parents=True)
+        saved.write_bytes(b'{"sensitivity": "off"}\r\n')
+        with self.as_windows():
+            self.assertEqual(official.recommender(), {'on': False, 'setting': 'off', 'source': 'saved preference'})
+            real = os.lstat
+            def linked(path, *args, **kwargs):
+                info = real(path, *args, **kwargs)
+                if Path(path) == saved:
+                    return types.SimpleNamespace(st_mode=info.st_mode, st_reparse_tag=official.scout_portable.IO_REPARSE_TAG_SYMLINK)
+                return info
+            with patch.object(os, 'lstat', side_effect=linked):
+                self.assertEqual(official.recommender()['source'], "default (the plugin's own option isn't visible)")
 
 
 class FolderContextTests(Fixture):
@@ -420,9 +569,7 @@ class FolderContextTests(Fixture):
         super().setUp()
         bin_dir = self.root / 'bin'
         bin_dir.mkdir()
-        (bin_dir / 'sf').write_text('#!' + sys.executable + '\n' + FAKE_SF)
-        (bin_dir / 'sf').chmod(0o700)
-        self.sf = str(bin_dir / 'sf')
+        self.sf = str(stand_ins.salesforce_cli(bin_dir, FAKE_SF))
 
     def test_verify_agrees_with_inspection_for_the_folder(self):
         github = self.plugin_dir('github', 'salesforce-development', skills=['platform-soql-query'])

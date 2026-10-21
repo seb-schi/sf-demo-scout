@@ -122,7 +122,7 @@ def message(data):
 def declared_source(name):
     """The registration's source as user settings declare it: Claude accepts a re-add only from exactly that form."""
     try:
-        data = json.loads(user_settings().read_text())
+        data = json.loads(user_settings().read_text(encoding="utf-8"))
         source = data["extraKnownMarketplaces"][name]["source"]
     except (OSError, ValueError, KeyError, TypeError):
         return None
@@ -238,7 +238,7 @@ def snapshot():
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", required=True, choices=("claude", "codex", "unknown"))
+    parser.add_argument("--host", required=True, choices=("claude", "codex", "cursor", "unknown"))
     parser.add_argument("--source", default=scout_official.accepted_source(CAPABILITIES),
                         help="the marketplace source (default: Salesforce's GitHub repo, or SCOUT_OFFICIAL_SOURCE in trials)")
     parser.add_argument("--workspace-settings", type=Path, help="Scout's workspace settings, for the recommender switch")

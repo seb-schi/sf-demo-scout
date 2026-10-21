@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 from typing import Any
@@ -101,8 +102,9 @@ def selected_cartridges(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def claude_command() -> str:
-    """The running client's own Claude Code binary when it is one, else `claude` from the PATH. A desktop-only SE has
-    no `claude` command; the app's bundled binary reads the same plugin inventory."""
+    """The running client's own Claude Code binary when it is one, else `claude` from the PATH, by its full path:
+    Windows starts an npm install's `claude.cmd` only that way. A desktop-only SE has no `claude` command; the app's
+    bundled binary reads the same plugin inventory."""
     running = os.environ.get("CLAUDE_CODE_EXECPATH", "")
     if os.path.isabs(running) and os.access(running, os.X_OK):
         try:
@@ -112,7 +114,7 @@ def claude_command() -> str:
                 return running
         except (OSError, subprocess.SubprocessError):
             pass
-    return "claude"
+    return shutil.which("claude") or "claude"
 
 
 def claude_inventory(directory: str) -> bytes:

@@ -15,7 +15,14 @@ and the shared operation-safety block for this repair. Retain its source at fini
    and exclusions from the current instruction. Ask only when the target, requested
    state, or required permission is genuinely ambiguous. Do not start a scenario
    interview, create a new spec/ledger, or restart the phased build for a filter,
-   value, trigger, seed, or similarly bounded repair.
+   value, trigger, seed, or similarly bounded repair. Outside `/scout`, bind the target
+   with `python3 [PLUGIN_ROOT_ABS]/scripts/scout_target.py bind --selector [ORG]` first and
+   require exit 0; keep the selector, username and org ID it returns, and use that
+   username as `--target-org` from then on. When it reports `writes: read-only`
+   (production, or an org it can't classify), write nothing there, say so, and stop.
+   Before every write and retry, run `scout_target.py check --selector [SELECTOR]
+   --username [USERNAME] --org-id [ORG_ID] --write`; on a nonzero exit, write nothing
+   and report the reason.
 2. Read `${CLAUDE_PLUGIN_ROOT}/prompts/building/official-skill-overrides.md` before
    resolving or invoking an official skill. Run its §"Readiness" inspection before any
    source write, then apply its common preamble, §"The official hooks", §"The action log"

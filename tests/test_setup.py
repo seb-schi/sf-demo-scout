@@ -1,10 +1,10 @@
-"""Hermetic regressions for the shipped setup shell scripts."""
+"""Hermetic regressions for the shipped Salesforce CLI refresh (scripts/setup_cli_refresh.py)."""
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
-import stat
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -13,320 +13,10 @@ import json
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ZSHRC_SCRIPT = ROOT / "scripts" / "setup-zshrc.sh"
-CLI_SCRIPT = ROOT / "scripts" / "setup-cli-refresh.sh"
-BEGIN = "# BEGIN SF-DEMO-SCOUT"
-END = "# END SF-DEMO-SCOUT"
-VALID_BLOCK = f"{BEGIN}\n# old\n{END}\n"
-MULTILINE_EXPORT = (
-    'export MAX_THINKING_TOKENS=$(\n  printf "example-model"\n)\n'
-    + VALID_BLOCK
-    + "export UNRELATED_USER_SETTING=important\n"
-)
+CLI_SCRIPT = ROOT / "scripts" / "setup_cli_refresh.py"
 
 
-class ZshrcScriptTests(unittest.TestCase):
-    """The 65 historical B2 assertions, adapted to temporary fixtures."""
-
-    def setUp(self) -> None:
-        self.temp = tempfile.TemporaryDirectory(prefix="scout-zshrc-test-")
-        self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
-
-    def run_script(
-        self, fixture: Path, extra_env: dict[str, str] | None = None
-    ) -> subprocess.CompletedProcess[str]:
-        env = dict(os.environ)
-        env.pop("PYTHONPATH", None)
-        env.pop("SCOUT_ZSH_BIN", None)
-        env.update(
-            SCOUT_ZSHRC_OVERRIDE=str(fixture),
-            PYTHONDONTWRITEBYTECODE="1",
-        )
-        if extra_env:
-            env.update(extra_env)
-        return subprocess.run(
-            ["/bin/bash", str(ZSHRC_SCRIPT)],
-            env=env,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-
-    def assert_case(
-        self,
-        name: str,
-        content: str,
-        token: str,
-        *,
-        diagnostic: str | None = None,
-        unchanged: bool = True,
-        symlink: bool = False,
-        extra_env: dict[str, str] | None = None,
-    ) -> None:
-        case_dir = self.base / name
-        case_dir.mkdir()
-        fixture = case_dir / ".zshrc"
-        target = case_dir / "real_zshrc"
-        if symlink:
-            target.write_text(content)
-            fixture.symlink_to(target)
-            readback = target
-        else:
-            fixture.write_text(content)
-            readback = fixture
-        result = self.run_script(fixture, extra_env)
-        lines = result.stdout.splitlines()
-        self.assertTrue(lines, result.stderr)
-        self.assertEqual(lines[0], token)
-        if diagnostic is not None:
-            self.assertIn(diagnostic, result.stdout)
-        if unchanged:
-            self.assertEqual(readback.read_text(), content)
-        if symlink:
-            self.assertTrue(fixture.is_symlink())
-
-    def test_missing_file_creation(self) -> None:
-        fixture = self.base / "missing" / ".zshrc"
-        fixture.parent.mkdir()
-        result = self.run_script(fixture)
-        self.assertEqual(result.stdout.splitlines()[0], "ZSHRC_MODIFIED")
-        self.assertTrue(fixture.is_file() and BEGIN in fixture.read_text())
-
-    def test_existing_pair_backup_and_idempotency(self) -> None:
-        fixture = self.base / "existing.zshrc"
-        fixture.write_text("export KEEP_ME=1\n" + VALID_BLOCK + "alias ll='ls -la'\n")
-        first = self.run_script(fixture)
-        self.assertEqual(first.stdout.splitlines()[0], "ZSHRC_MODIFIED")
-        body = fixture.read_text()
-        self.assertTrue("KEEP_ME=1" in body and "alias ll" in body)
-        self.assertTrue(Path(str(fixture) + ".scout-bak-zshrc").is_file())
-        second = self.run_script(fixture)
-        self.assertEqual(second.stdout.splitlines()[0], "ZSHRC_UNCHANGED")
-
-    def test_provider_mappings_outside_block_survive_including_multiline(self) -> None:
-        fixture = self.base / "routing.zshrc"
-        mapping = ('export ANTHROPIC_DEFAULT_OPUS_MODEL=$(\n  printf "custom-opus"\n)\n'
-                   'export ANTHROPIC_DEFAULT_SONNET_MODEL="custom-sonnet"\n'
-                   'export ANTHROPIC_DEFAULT_HAIKU_MODEL="custom-haiku"\n')
-        fixture.write_text(mapping + VALID_BLOCK + "export MAX_THINKING_TOKENS=123\n")
-        result = self.run_script(fixture)
-        self.assertEqual(result.stdout.splitlines()[0], "ZSHRC_MODIFIED")
-        self.assertIn(mapping, fixture.read_text())
-        self.assertNotIn("MAX_THINKING_TOKENS", fixture.read_text())
-        self.assertNotIn("custom-opus", result.stdout)
-        self.assertEqual(self.run_script(fixture).stdout.splitlines()[0], "ZSHRC_UNCHANGED")
-
-    def test_provider_mapping_inside_block_preserves_entire_file(self) -> None:
-        for key in ("ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_MODEL",
-                    "ANTHROPIC_DEFAULT_FABLE_MODEL", "CLAUDE_CODE_SUBAGENT_MODEL",
-                    "ANTHROPIC_BASE_URL"):
-            with self.subTest(key=key):
-                self.assert_case(
-                    "managed_" + key,
-                    BEGIN + '\nexport ' + key + '="custom"\n' + END + '\n',
-                    "ZSHRC_UNCHANGED", diagnostic="model routing", unchanged=True,
-                )
-
-    def test_literal_historical_scout_blocks_are_retired(self) -> None:
-        # Literal exports from 0ed78db and 7ff1b30, independent of the helper.
-        for revision, output, thinking, opus in (
-            ("0ed78db", "8192", "4096", "us.anthropic.claude-opus-4-7"),
-            ("7ff1b30", "16384", "8192", "us.anthropic.claude-opus-4-7[1m]"),
-        ):
-            with self.subTest(revision=revision):
-                block = (BEGIN + '\n# Managed by Scout plugin — do not edit. Refreshed on first-run setup.\n'
-                         + 'export CLAUDE_CODE_MAX_OUTPUT_TOKENS=' + output + '\n'
-                         + 'export MAX_THINKING_TOKENS=' + thinking + '\n'
-                         + 'export ANTHROPIC_DEFAULT_OPUS_MODEL=' + opus + '\n'
-                         + 'export ANTHROPIC_DEFAULT_SONNET_MODEL=us.anthropic.claude-sonnet-4-6\n'
-                         + 'export ANTHROPIC_DEFAULT_HAIKU_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0\n'
-                         + END + '\n')
-                fixture = self.base / (revision + '.zshrc')
-                fixture.write_text(block)
-                self.assertIn('ZSHRC_MODIFIED', self.run_script(fixture).stdout)
-                self.assertNotIn('export ANTHROPIC_', fixture.read_text())
-                self.assertNotIn('export MAX_THINKING_TOKENS', fixture.read_text())
-                self.assertNotIn('export CLAUDE_CODE_MAX_OUTPUT_TOKENS', fixture.read_text())
-                self.assertEqual(Path(str(fixture) + '.scout-bak-zshrc').read_text(), block)
-                self.assertIn('ZSHRC_UNCHANGED', self.run_script(fixture).stdout)
-
-    def test_comments_do_not_freeze_but_unknown_executable_content_does(self) -> None:
-        self.assert_case('comment_model', BEGIN + '\n# ANTHROPIC_MODEL is user-owned\n' + END + '\n',
-                         'ZSHRC_MODIFIED', unchanged=False)
-        self.assert_case('unknown_command', BEGIN + '\nexport SOMETHING_CUSTOM=1\n' + END + '\n',
-                         'ZSHRC_UNCHANGED', diagnostic='unknown shell content')
-        self.assert_case('quoted_old_model', BEGIN + '\nexport ANTHROPIC_DEFAULT_OPUS_MODEL="us.anthropic.claude-opus-4-7"\n' + END + '\n',
-                         'ZSHRC_UNCHANGED', diagnostic='unknown shell content')
-
-    def test_malformed_markers_and_safe_rejections(self) -> None:
-        cases = (
-            ("lone_begin", BEGIN + "\n# body\nexport UNRELATED_USER_SETTING=important\n", "malformed", False),
-            ("space_end", BEGIN + "\n# body\n" + END + " \nexport UNRELATED_USER_SETTING=important\n", "malformed", False),
-            ("tab_begin", BEGIN + "\t\n# body\n" + END + "\nexport UNRELATED_USER_SETTING=important\n", "malformed", False),
-            ("reversed", END + "\n# x\n" + BEGIN + "\n", "malformed", False),
-            ("duplicate", VALID_BLOCK + VALID_BLOCK, "malformed", False),
-            ("marker_words", "# talking about SF-DEMO-SCOUT here\nexport KEEP=1\n", None, True),
-            ("multiline", MULTILINE_EXPORT, "rejected", False),
-            ("original_invalid", 'export BROKEN="unterminated\n', "pre-existing", False),
-        )
-        for name, content, diagnostic, modifies in cases:
-            with self.subTest(name=name):
-                self.assert_case(
-                    name,
-                    content,
-                    "ZSHRC_MODIFIED" if modifies else "ZSHRC_UNCHANGED",
-                    diagnostic=diagnostic,
-                    unchanged=not modifies,
-                )
-
-    def test_validator_unavailable(self) -> None:
-        self.assert_case(
-            "validator_unavailable",
-            VALID_BLOCK + "export KEEP=1\n",
-            "ZSHRC_UNCHANGED",
-            diagnostic="validator",
-            extra_env={"SCOUT_ZSH_BIN": "/nonexistent/zsh"},
-        )
-
-    def test_symlink_success_and_rejected_edit(self) -> None:
-        case_dir = self.base / "symlink_success"
-        case_dir.mkdir()
-        target = case_dir / "real_zshrc"
-        fixture = case_dir / ".zshrc"
-        target.write_text("export KEEP=1\n" + VALID_BLOCK)
-        fixture.symlink_to(target)
-        result = self.run_script(fixture)
-        self.assertEqual(result.stdout.splitlines()[0], "ZSHRC_MODIFIED")
-        self.assertTrue(fixture.is_symlink())
-        self.assertIn("KEEP=1", target.read_text())
-        self.assertTrue(Path(str(target) + ".scout-bak-zshrc").is_file())
-
-        self.assert_case(
-            "symlink_rejected",
-            MULTILINE_EXPORT,
-            "ZSHRC_UNCHANGED",
-            diagnostic="rejected",
-            symlink=True,
-        )
-
-    def test_dangling_symlinks_do_not_create_targets(self) -> None:
-        existing = self.base / "dangling_existing"
-        existing.mkdir()
-        fixture = existing / ".zshrc"
-        target = existing / "gone"
-        fixture.symlink_to(target)
-        result = self.run_script(fixture)
-        self.assertTrue(
-            result.stdout.splitlines()[0] == "ZSHRC_UNCHANGED"
-            and "symlink" in result.stdout
-        )
-        self.assertFalse(target.exists())
-        self.assertTrue(fixture.is_symlink())
-
-        missing = self.base / "dangling_missing_parent"
-        missing.mkdir()
-        fixture = missing / ".zshrc"
-        target = missing / "nodir" / "gone"
-        fixture.symlink_to(target)
-        result = self.run_script(fixture)
-        self.assertTrue(
-            result.stdout.splitlines()[0] == "ZSHRC_UNCHANGED"
-            and "symlink" in result.stdout
-        )
-        self.assertFalse(target.parent.exists())
-
-    def write_sitecustomize(self, case_dir: Path, body: str) -> dict[str, str]:
-        injection = case_dir / "injection"
-        injection.mkdir()
-        (injection / "sitecustomize.py").write_text(body)
-        return {"PYTHONPATH": str(injection)}
-
-    def test_staging_write_failure_preserves_original(self) -> None:
-        case_dir = self.base / "staging_failure"
-        case_dir.mkdir()
-        fixture = case_dir / ".zshrc"
-        before = "export KEEP=1\n" + VALID_BLOCK + "alias x='y'\n"
-        fixture.write_text(before)
-        env = self.write_sitecustomize(
-            case_dir,
-            """import os
-import tempfile
-_original_mkstemp = tempfile.mkstemp
-def fail_fixture_stage(*args, **kwargs):
-    if os.fspath(kwargs.get("dir", "")) == os.environ.get("SCOUT_TEST_STAGE_DIR"):
-        raise OSError("injected staging write failure")
-    return _original_mkstemp(*args, **kwargs)
-tempfile.mkstemp = fail_fixture_stage
-""",
-        )
-        env["SCOUT_TEST_STAGE_DIR"] = str(case_dir)
-        result = self.run_script(fixture, env)
-        self.assertEqual(result.stdout.splitlines()[0], "ZSHRC_UNCHANGED")
-        self.assertTrue(
-            "WRITE_FAILED" in result.stdout or "preserved" in result.stdout
-        )
-        self.assertEqual(fixture.read_text(), before)
-
-    def test_additional_marker_shapes_mode_and_exact_backup(self) -> None:
-        for index, suffix in enumerate((" ", "\t")):
-            with self.subTest(suffix=repr(suffix)):
-                self.assert_case(
-                    f"both_padded_{index}",
-                    BEGIN + suffix + "\n# old\n" + END + suffix + "\nexport KEEP=1\n",
-                    "ZSHRC_UNCHANGED",
-                    diagnostic="malformed",
-                )
-        self.assert_case(
-            "lone_end",
-            END + "\nexport KEEP=1\n",
-            "ZSHRC_UNCHANGED",
-            diagnostic="malformed",
-        )
-        self.assert_case(
-            "nested",
-            BEGIN + "\n" + VALID_BLOCK + END + "\n",
-            "ZSHRC_UNCHANGED",
-            diagnostic="malformed",
-        )
-
-        fixture = self.base / "mode.zshrc"
-        before = "export KEEP=1\n" + VALID_BLOCK
-        fixture.write_text(before)
-        fixture.chmod(0o600)
-        result = self.run_script(fixture)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(stat.S_IMODE(fixture.stat().st_mode), 0o600)
-        self.assertEqual(Path(str(fixture) + ".scout-bak-zshrc").read_text(), before)
-
-    def test_final_replace_failure_preserves_original_backup_and_cleans_stage(self) -> None:
-        case_dir = self.base / "replace_failure"
-        case_dir.mkdir()
-        fixture = case_dir / ".zshrc"
-        before = "export KEEP=1\n" + VALID_BLOCK
-        fixture.write_text(before)
-        env = self.write_sitecustomize(
-            case_dir,
-            """import os
-_original_replace = os.replace
-def fail_fixture_replace(src, dst):
-    if os.fspath(dst) == os.environ.get("SCOUT_TEST_REPLACE_TARGET"):
-        raise OSError("injected final replace failure")
-    return _original_replace(src, dst)
-os.replace = fail_fixture_replace
-""",
-        )
-        env["SCOUT_TEST_REPLACE_TARGET"] = str(fixture)
-        result = self.run_script(fixture, env)
-        self.assertTrue(
-            "ZSHRC_UNCHANGED" in result.stdout
-            and "injected final replace failure" in result.stdout
-        )
-        self.assertEqual(fixture.read_text(), before)
-        self.assertEqual(Path(str(fixture) + ".scout-bak-zshrc").read_text(), before)
-        self.assertFalse(any(path.name.startswith(".scout-zshrc.") for path in case_dir.iterdir()))
-
-
+@unittest.skipUnless(Path("/bin/bash").exists(), "the npm and sf stubs are bash scripts")
 class CliRefreshScriptTests(unittest.TestCase):
     """The 24 behavioral B3 assertions; done-summary assertions are packaging tests."""
 
@@ -428,7 +118,7 @@ exit 0
         )
         env.update(overrides)
         return subprocess.run(
-            ["/bin/bash", str(CLI_SCRIPT), cli],
+            [sys.executable, "-B", str(CLI_SCRIPT), cli],
             env=env,
             text=True,
             capture_output=True,
@@ -542,7 +232,7 @@ exit 0
             with self.subTest(selector=selector):
                 case_dir = self.base / (selector or "missing")
                 bin_dir, calls = self.make_stubs(case_dir, "sf")
-                arguments = ["/bin/bash", str(CLI_SCRIPT)]
+                arguments = [sys.executable, "-B", str(CLI_SCRIPT)]
                 if selector is not None:
                     arguments.append(selector)
                 result = subprocess.run(
@@ -591,7 +281,7 @@ exit 0
                 (shadow / cli).chmod(0o700)
                 config = self.CONFIG[cli]
                 result = subprocess.run(
-                    ["/bin/bash", str(CLI_SCRIPT), cli],
+                    [sys.executable, "-B", str(CLI_SCRIPT), cli],
                     env={
                         **os.environ,
                         "PATH": f"{shadow}:{bin_dir}:/usr/bin:/bin",
@@ -646,7 +336,7 @@ exit 0
                 if not executable:
                     (package / "bin" / "sf").chmod(0o600)
                 result = subprocess.run(
-                    ["/bin/bash", str(CLI_SCRIPT), "sf"],
+                    [sys.executable, "-B", str(CLI_SCRIPT), "sf"],
                     env={
                         **os.environ,
                         "PATH": f"{bin_dir}:/usr/bin:/bin",
@@ -675,10 +365,11 @@ exit 0
         )
         self.assertEqual(self.outcome(result), "SF_CLI_CURRENT")
 
-    def test_missing_npm_or_python_skips_without_running_npm(self) -> None:
-        for missing in ("npm", "python3"):
+    def test_missing_npm_cli_or_owner_helper_skips_without_running_npm(self) -> None:
+        # Each prerequisite the refresh still has; Python itself is the one running it.
+        for missing in ("npm", "sf", "owner helper"):
             with self.subTest(missing=missing):
-                case_dir = self.base / f"missing_{missing}"
+                case_dir = self.base / f"missing_{missing.replace(' ', '_')}"
                 bin_dir = case_dir / "bin"
                 bin_dir.mkdir(parents=True)
                 calls = case_dir / "calls.log"
@@ -686,13 +377,19 @@ exit 0
                     npm = bin_dir / "npm"
                     npm.write_text("#!/bin/bash\necho called >> \"$CALLS\"\n")
                     npm.chmod(0o700)
-                if missing != "python3":
-                    (bin_dir / "python3").symlink_to(sys.executable)
-                sf = bin_dir / "sf"
-                sf.write_text("#!/bin/bash\necho native\n")
-                sf.chmod(0o700)
+                if missing != "sf":
+                    sf = bin_dir / "sf"
+                    sf.write_text("#!/bin/bash\necho native\n")
+                    sf.chmod(0o700)
+                script = CLI_SCRIPT
+                if missing == "owner helper":
+                    scripts = case_dir / "scripts"
+                    scripts.mkdir()
+                    for name in ("setup_cli_refresh.py", "scout_portable.py"):
+                        shutil.copyfile(ROOT / "scripts" / name, scripts / name)
+                    script = scripts / "setup_cli_refresh.py"
                 result = subprocess.run(
-                    ["/bin/bash", str(CLI_SCRIPT), "sf"],
+                    [sys.executable, "-B", str(script), "sf"],
                     env={
                         **os.environ,
                         "PATH": f"{bin_dir}:/bin",
@@ -703,7 +400,6 @@ exit 0
                 )
                 self.assertEqual(self.outcome(result), "SF_CLI_OWNERSHIP_UNVERIFIED")
                 self.assertFalse(calls.exists())
-
 
 if __name__ == "__main__":
     unittest.main()

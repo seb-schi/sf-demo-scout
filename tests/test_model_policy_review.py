@@ -3,19 +3,20 @@ import json
 import os
 from pathlib import Path
 import runpy
-import subprocess
-import sys
 import unittest
 from unittest.mock import patch
 
+import stand_ins
 import test_model_policy as fixtures
 
 CLIENT, PIN, REPORT, ROOT = fixtures.CLIENT, fixtures.PIN, fixtures.REPORT, fixtures.ROOT
+HOOK = fixtures.module('scout_session_startup', ROOT / 'hooks/session_startup.py')
 
 
 class ReviewTests(unittest.TestCase):
     setUp = fixtures.PolicyTests.setUp
     script = fixtures.PolicyTests.script
+    client = fixtures.PolicyTests.client
     collect = fixtures.PolicyTests.collect
 
     def test_environment_distinct_value_and_real_source_duplicates(self):
@@ -35,7 +36,7 @@ class ReviewTests(unittest.TestCase):
         self.assertIn('Remove it at this source first', text)
 
     def test_observed_entrypoints_and_host_parity(self):
-        running = self.script('running', 'echo 2.1.280\n')
+        running = self.client('running', '2.1.280')
         os.environ['CLAUDE_CODE_EXECPATH'] = str(running)
         for entry, kind, remedy in [('claude-vscode', 'IDE', 'extension in your IDE'),
                                    ('claude-jetbrains', 'IDE', 'extension in your IDE'),
@@ -59,7 +60,7 @@ class ReviewTests(unittest.TestCase):
 
     def test_cache_hit_miss_change_corruption_and_failed_io(self):
         calls = self.base / 'calls'
-        running = self.script('running', f'echo call >> "{calls}"\necho 2.1.280\n')
+        running = self.client('running', '2.1.280', log=calls)
         data = self.home / 'data'
         os.environ.update(CLAUDE_CODE_EXECPATH=str(running), CLAUDE_CODE_ENTRYPOINT='claude-vscode',
                           CLAUDE_PLUGIN_DATA=str(data))
@@ -68,7 +69,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(len(calls.read_text().splitlines()), 1)
         self.assertEqual(CLIENT.observe()['version'], '2.1.280')
         self.assertEqual(len(calls.read_text().splitlines()), 1)
-        self.script('running', f'echo changed >> "{calls}"\necho 2.1.296\n')
+        self.client('running', '2.1.296', log=calls, note='changed')
         self.assertEqual(CLIENT.observe()['version'], '2.1.296')
         self.assertEqual(len(calls.read_text().splitlines()), 2)
         cache.write_text('{broken')
@@ -100,7 +101,7 @@ class ReviewTests(unittest.TestCase):
         cache = data / 'scout-client-versions.txt'
         os.environ['CLAUDE_PLUGIN_DATA'] = str(data)
         for n in range(20):
-            running = self.script(f'running-{n}', 'echo 2.1.280\n')
+            running = self.client(f'running-{n}', '2.1.280')
             os.environ['CLAUDE_CODE_EXECPATH'] = str(running)
             self.assertEqual(CLIENT.observe()['version'], '2.1.280')
         self.assertEqual(len(CLIENT.read_cache(str(cache))), 16)
@@ -108,14 +109,16 @@ class ReviewTests(unittest.TestCase):
         outside = self.home / 'outside'
         outside.write_text('unchanged')
         cache.unlink()
-        cache.symlink_to(outside)
-        self.assertEqual(CLIENT.observe()['version'], '2.1.280')
-        self.assertEqual(outside.read_text(), 'unchanged')
-        cache.unlink()
-        os.mkfifo(cache)
-        self.assertEqual(CLIENT.read_cache(str(cache)), [])
+        if stand_ins.symlinks():  # Windows allows links only with Developer Mode or as an administrator
+            cache.symlink_to(outside)
+            self.assertEqual(CLIENT.observe()['version'], '2.1.280')
+            self.assertEqual(outside.read_text(), 'unchanged')
+            cache.unlink()
+        if hasattr(os, 'mkfifo'):  # Windows has no FIFOs
+            os.mkfifo(cache)
+            self.assertEqual(CLIENT.read_cache(str(cache)), [])
+            cache.unlink()
 
-        cache.unlink()
         # A replacement during --version must not cache the earlier key.
         original = CLIENT.fingerprint(str(running))
         with patch.object(CLIENT, 'fingerprint', side_effect=[original, [original[0], 1, 2]]):
@@ -124,13 +127,12 @@ class ReviewTests(unittest.TestCase):
         cache.write_text('x' * 16385)
         self.assertEqual(CLIENT.read_cache(str(cache)), [])
 
-    @unittest.skipUnless(sys.platform == 'darwin', 'macOS stat fast path; other hosts use Python')
-    def test_shell_fast_path_checks_full_fingerprint_and_rejects_bad_cache(self):
+    @unittest.skipUnless(Path('/bin/bash').exists(), 'the stub client is a bash script')
+    def test_startup_fast_path_checks_full_fingerprint_and_rejects_bad_cache(self):
         running = self.script('current client', 'echo 2.1.296\n')
         os.environ.update(CLAUDE_CODE_EXECPATH=str(running), CLAUDE_PLUGIN_DATA=str(self.home / 'data'))
         def fast():
-            return subprocess.run(['/bin/bash', '-c', 'source "$1"; scout_current_client_cached',
-                                   'fixture', str(ROOT / 'scripts/client-cache.sh')], capture_output=True).returncode
+            return 0 if HOOK.current_client_cached() else 1  # the shell function's status, as before
         self.assertEqual(fast(), 1)
         self.assertEqual(CLIENT.observe()['version'], '2.1.296')
         self.assertEqual(fast(), 0)
@@ -168,5 +170,5 @@ class ReviewTests(unittest.TestCase):
         self.assertIn('prelude, all\n   three audit worker calls, and every redispatch', audit)
         contract = (ROOT / 'prompts/host-runtime.md').read_text()
         for phrase in ('per-call `model`', "orchestrator's own model family", 'omit `model`',
-                       'CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1', 'Codex keeps'):
+                       'CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1', 'Codex and Cursor keep'):
             self.assertIn(phrase, contract)

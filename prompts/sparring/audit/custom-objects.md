@@ -45,7 +45,7 @@ This returns all custom objects. Filter out managed package objects (those where
 
 **Step C0 — Bulk record-count signal (has-data map).** Before relevance enumeration, get an approximate has-data flag for every unmanaged `__c` object from the discovery query in 1–3 HTTP calls via the REST `recordCount` endpoint — far cheaper than the per-object `SELECT COUNT()` loop this replaces. Build a comma-separated list of the unmanaged `__c` API names and call (keep each URL under ~4000 chars — roughly 100–150 objects per call; split into multiple calls if the list is larger):
 ```
-sf api request rest "/services/data/v62.0/limits/recordCount?sObjects=Obj1__c,Obj2__c,..." --target-org {{ORG_ALIAS}}
+sf api request rest "services/data/v62.0/limits/recordCount?sObjects=Obj1__c,Obj2__c,..." --target-org {{ORG_ALIAS}}
 ```
 The response is `{"sObjects":[{"name":"Obj1__c","count":N}, ...]}`. Parse it (pipe through `python3 -c` or `jq`) into `HAS_DATA_MAP` keyed by API name. **Interpretation rules (verified against a live org):**
 - An object **present** with `count: 0` genuinely has **no data** → `has_data: false`.
