@@ -25,13 +25,14 @@ def fenced_block(relative_path: str, marker: str) -> str:
     return matches[0]
 
 
+@unittest.skipUnless(all(Path(shell).exists() for _, shell in SHELLS), "runs the prompts' fences in /bin/bash and /bin/zsh")
 class ShellCallerTests(unittest.TestCase):
     """Execute shipped prompt fences; no model, installer, settings, or org is used."""
 
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="scout-shell-callers-")
         self.addCleanup(self.temporary.cleanup)
-        self.base = Path(self.temporary.name)
+        self.base = Path(self.temporary.name).resolve()  # macOS temp folders sit behind the /var link
         self.workspace = self.base / "workspace"
         self.config = self.base / "config" / "config.json"
         self.plugin = self.base / "plugin"
@@ -53,7 +54,9 @@ class ShellCallerTests(unittest.TestCase):
         environment["PATH"] = str(self.bin_dir if include_python else self.no_python_bin)
         environment["PYTHONDONTWRITEBYTECODE"] = "1"
         environment["TEST_LOG"] = str(self.log)
-        environment.pop("SCOUT_WORKSPACE", None)  # the workspace seam some fences honour; these tests use the default
+        # The one-line gates read these seams; the real workspace and configuration are never touched.
+        environment["SCOUT_WORKSPACE"] = str(self.workspace)
+        environment["SCOUT_CONFIG_FILE"] = str(self.config)
         self.assertEqual(os.environ.get("HOME"), environment.get("HOME"))
         return environment
 
@@ -129,25 +132,9 @@ class ShellCallerTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def install_settings_stub(self) -> None:
-        helper = self.plugin / "scripts" / "setup-settings.py"
-        helper.parent.mkdir(parents=True, exist_ok=True)
-        helper.write_text(
-            """import json, os, sys
-with open(os.environ["TEST_LOG"], "a", encoding="utf-8") as stream:
-    stream.write(json.dumps(sys.argv[1:]) + "\\n")
-print("STUB_SETTINGS_OK")
-""",
-            encoding="utf-8",
-        )
-
-    def read_calls(self) -> list[list[str]]:
-        if not self.log.exists():
-            return []
-        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
-
     def test_workspace_bootstrap_accepts_real_valid_workspace_in_bash_and_zsh(self) -> None:
-        block = fenced_block("prompts/workspace-bootstrap.md", "STATE=OK")
+        block = fenced_block("prompts/workspace-bootstrap.md", "gate --host")
+        self.assertEqual(len(block.strip().splitlines()), 1)  # one command: the same in sh, PowerShell and cmd.exe
         self.make_valid_workspace()
 
         for name, shell in SHELLS:
@@ -155,25 +142,24 @@ print("STUB_SETTINGS_OK")
                 result = self.run_block(block, shell, plugin=ROOT)
                 self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
                 self.assertIn("WORKSPACE_READY", result.stdout)
-                self.assertIn("STATE=OK", result.stdout)
+                self.assertIn("STATE=OK WORKSPACE=%s" % self.workspace.resolve(), result.stdout)
                 self.assertNotIn("STATE=CHECK_FAILED", result.stdout)
 
     def test_workspace_bootstrap_reports_failures_and_never_creates_workspace(self) -> None:
-        block = fenced_block("prompts/workspace-bootstrap.md", "STATE=OK")
+        block = fenced_block("prompts/workspace-bootstrap.md", "gate --host")
 
         for name, shell in SHELLS:
             with self.subTest(shell=name, case="missing-python"):
                 result = self.run_block(block, shell, plugin=ROOT, include_python=False)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn("STATE=CHECK_FAILED", result.stdout)
-                self.assertIn("Python", result.stderr)
+                self.assertNotIn("STATE=OK", result.stdout)
                 self.assertFalse(self.workspace.exists())
 
             with self.subTest(shell=name, case="missing-helper"):
                 result = self.run_block(block, shell)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn("STATE=CHECK_FAILED", result.stdout)
-                self.assertIn("helper", result.stderr.lower())
+                self.assertNotIn("STATE=OK", result.stdout)
+                self.assertIn("setup-workspace.py", result.stderr)
                 self.assertFalse(self.workspace.exists())
 
             with self.subTest(shell=name, case="missing-workspace"):
@@ -228,7 +214,7 @@ print("STUB_SETTINGS_OK")
                 self.assertIn("STATE=CHECK_FAILED", result.stdout)
 
     def test_workspace_bootstrap_preserves_nonzero_verifier_output_and_status(self) -> None:
-        block = fenced_block("prompts/workspace-bootstrap.md", "STATE=OK")
+        block = fenced_block("prompts/workspace-bootstrap.md", "gate --host")
         self.make_valid_workspace()
         helper = self.plugin / "scripts" / "setup-workspace.py"
         helper.parent.mkdir(parents=True)
@@ -247,10 +233,10 @@ raise SystemExit(37)
                 self.assertEqual(result.returncode, 37)
                 self.assertIn("VERIFIER_STDOUT_DETAIL", result.stdout)
                 self.assertIn("VERIFIER_STDERR_DETAIL", result.stderr)
-                self.assertIn("STATE=CHECK_FAILED", result.stdout)
+                self.assertNotIn("STATE=OK", result.stdout)
 
     def test_setup_state_detection_is_truthful_in_bash_and_zsh(self) -> None:
-        block = fenced_block("commands/scout-setup.md", "STATE=REFRESH")
+        block = fenced_block("skills/scout-setup/SKILL.md", "state --host")
         self.make_valid_workspace()
 
         for name, shell in SHELLS:
@@ -269,13 +255,14 @@ raise SystemExit(37)
                 self.assertIn("STATE=FRESH", result.stdout)
 
         for name, shell in SHELLS:
-            with self.subTest(shell=name, case="missing-python"):
+            with self.subTest(shell=name, case="missing-python"):  # the skill reads a Python that can't start as FRESH
                 result = self.run_block(block, shell, plugin=ROOT, include_python=False)
-                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-                self.assertIn("STATE=FRESH", result.stdout)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("STATE=REFRESH", result.stdout)
 
     def test_fresh_install_workspace_setup_keeps_exact_arguments(self) -> None:
-        setup_block = fenced_block("prompts/setup/fresh-install.md", "WORKSPACE_SETUP_FAILED")
+        setup_block = fenced_block("prompts/setup/fresh-install.md", 'setup-workspace.py" setup')
+        self.assertEqual(len(setup_block.strip().splitlines()), 1)  # one command, the same in every shell
         helper = self.plugin / "scripts" / "setup-workspace.py"
         helper.parent.mkdir(parents=True, exist_ok=True)
         helper.write_text(
@@ -290,12 +277,8 @@ print("WORKSPACE_READY")
         template.parent.mkdir()
         template.write_text("{}\n", encoding="utf-8")
 
-        expected = [
+        expected = [  # the workspace and configuration come from the helper's own defaults
             "setup",
-            "--workspace",
-            str(self.workspace),
-            "--config",
-            str(self.config),
             "--template",
             str(template),
             "--plugin-version",
@@ -309,47 +292,26 @@ print("WORKSPACE_READY")
                 self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
                 self.assertEqual(json.loads(self.log.read_text(encoding="utf-8")), expected)
 
-    def test_self_heal_blocks_keep_helper_operations_and_paths(self) -> None:
-        blocks = (
-            (
-                "json-pins",
-                fenced_block("prompts/setup/model-pin-strip.md", "json-pins --settings"),
-                [
-                    ["json-pins", "--settings", str(self.settings)],
-                    ["json-pins", "--settings", str(self.local_settings)],
-                ],
-            ),
-            (
-                "vscode-pins",
-                fenced_block("prompts/setup/model-pin-strip.md", "vscode-pins"),
-                [["vscode-pins", "--settings", str(self.vscode_settings)]],
-            ),
-            (
-                "retired-allow",
-                fenced_block("prompts/setup/model-pin-strip.md", "retired-allow --settings"),
-                [
-                    ["retired-allow", "--settings", str(self.workspace / ".claude" / "settings.json")],
-                    ["retired-allow", "--settings", str(self.settings)],
-                ],
-            ),
-            (
-                "aisuite-hooks",
-                fenced_block("prompts/setup/aisuite-scrub.md", "aisuite-hooks --settings"),
-                [
-                    ["aisuite-hooks", "--settings", str(self.settings)],
-                    ["aisuite-hooks", "--settings", str(self.local_settings)],
-                ],
-            ),
+    def test_marketplace_auto_update_fills_only_a_missing_choice(self) -> None:
+        block = fenced_block("prompts/setup/fresh-install.md", "marketplace-autoupdate --name scout")
+        self.assertEqual(len(block.strip().splitlines()), 1)
+        cases = (
+            ({"source": {"source": "github"}}, "AUTOUPDATE_SET[settings.json]", True),
+            ({"source": {"source": "github"}, "autoUpdate": False}, "AUTOUPDATE_LEFT_AS_CHOSEN[settings.json]", False),
+            ({"source": {"source": "github"}, "autoUpdate": True}, "AUTOUPDATE_ALREADY[settings.json]", True),
         )
-        self.install_settings_stub()
-
-        for operation, block, expected in blocks:
+        for entry, outcome, expected in cases:
             for name, shell in SHELLS:
-                with self.subTest(operation=operation, shell=name):
-                    self.log.unlink(missing_ok=True)
-                    result = self.run_block(block, shell)
+                with self.subTest(outcome=outcome, shell=name):
+                    before = json.dumps({"extraKnownMarketplaces": {"scout": entry}}, indent=2) + "\n"
+                    self.settings.write_text(before, encoding="utf-8")
+                    result = self.run_block(block, shell, plugin=ROOT)
                     self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-                    self.assertEqual(self.read_calls(), expected)
+                    self.assertEqual(result.stdout.strip(), outcome)
+                    after = json.loads(self.settings.read_text(encoding="utf-8"))
+                    self.assertIs(after["extraKnownMarketplaces"]["scout"]["autoUpdate"], expected)
+                    if not outcome.startswith("AUTOUPDATE_SET"):
+                        self.assertEqual(self.settings.read_text(encoding="utf-8"), before)
 
 
 if __name__ == "__main__":

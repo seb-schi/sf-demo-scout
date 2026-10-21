@@ -185,6 +185,11 @@ fix-loop (`salesforce-development:platform-apex-test-run` → `salesforce-develo
 Author a test class for every class/trigger; a failing / low-coverage test is
 recorded in `issues` and NEVER blocks the deploy (the build ships test-unvalidated
 for the SE to finish in this session).
+Tests that insert records of a new record type create their own user and grant the
+record type through a permission set, outside `System.runAs`; they insert those
+records as that user, inside it. From API 67.0, a test that inserts them on the
+deploying admin's own access fails with `INVALID_CROSS_REFERENCE_KEY`, "this ID value
+isn't valid for the user": grant the record type first, to the test's user or to the admin.
 
 1. Invoke `salesforce-development:platform-apex-generate` skill for generation rules.
 2. Run Code Analyzer before deploying through

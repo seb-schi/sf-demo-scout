@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import scout_target as target
+import stand_ins
 
 ORG = '00D000000000001EAA'
 OTHER = '00D000000000002EAA'
@@ -39,10 +40,16 @@ if args[:2] == ['org','display']:
     data = state.get('display', {'id':state['org'], 'username':state['username']})
 else:
     assert args[args.index('--target-org')+1] == state['username']
-    assert args[args.index('--query')+1] == 'SELECT Id FROM Organization'
-    data = state.get('query', {'records':[{'Id':state.get('query_id', state['org'])}]})
+    query = args[args.index('--query')+1]
+    assert query in ('SELECT Id, IsSandbox, OrganizationType, TrialExpirationDate FROM Organization',
+                     'SELECT Id FROM Organization'), query
+    if state.get('type_query_fails') and 'IsSandbox' in query: sys.exit(1)
+    row = {'Id': state.get('query_id', state['org'])}
+    row.update(state.get('organization', {'IsSandbox': False, 'OrganizationType': 'Developer Edition',
+                                          'TrialExpirationDate': None}))
+    data = state.get('query', {'records': [row]})
 data['accessToken'] = 'SYNTHETIC-SECRET-DO-NOT-PRINT'
-data['instanceUrl'] = 'https://example.test'
+data['instanceUrl'] = state.get('instance', 'https://example.test')
 print(json.dumps({'status':state.get('status',0), 'result':data}))
 '''
 
@@ -52,14 +59,12 @@ class ScoutTargetTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory(prefix='scout-target-')
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name).resolve()
-        binary = self.root / 'sf'
-        binary.write_text('#!' + sys.executable + '\n' + FAKE)
-        binary.chmod(0o700)
+        stand_ins.salesforce_cli(self.root, FAKE)
         self.state = self.root / 'state.json'
         self.calls = self.root / 'calls.jsonl'
-        self.env = dict(HOME=str(self.root), PATH=str(self.root),
-                        SCOUT_TARGET_FIXTURE=str(self.state), SCOUT_TARGET_CALLS=str(self.calls),
-                        PYTHONDONTWRITEBYTECODE='1')
+        self.env = stand_ins.keep(dict(stand_ins.home(self.root), PATH=stand_ins.path(self.root, node=True),
+                                       SCOUT_TARGET_FIXTURE=str(self.state), SCOUT_TARGET_CALLS=str(self.calls),
+                                       PYTHONDONTWRITEBYTECODE='1'))
         patcher = patch.dict(os.environ, self.env, clear=True)
         patcher.start(); self.addCleanup(patcher.stop)
         self.configure()
@@ -91,11 +96,69 @@ class ScoutTargetTests(unittest.TestCase):
         for command in ('bind', 'check'):
             code, data, error = (self.run_target('bind', '--selector', 'maple') if command == 'bind' else self.check())
             self.assertEqual(code, 0, error)
-            self.assertEqual(data, dict(selector='maple', username=USER, org_id=ORG, reason='identity verified'))
+            self.assertEqual(data, dict(selector='maple', username=USER, org_id=ORG, reason='identity verified',
+                                        **{'class': 'trial', 'writes': 'allowed'}))
         self.assertEqual(self.call_log(), [
             ['org', 'display', '--target-org', 'maple', '--json'],
-            ['data', 'query', '--target-org', USER, '--query', 'SELECT Id FROM Organization', '--json']
+            ['data', 'query', '--target-org', USER, '--query', target.ORGANIZATION, '--json']
         ] * 2)
+
+    def test_the_org_class_follows_the_official_gates_buckets_in_order(self):
+        today = target.datetime.date(2026, 10, 20)
+        def org(sandbox=False, edition='Enterprise Edition', expiry=None):
+            return {'IsSandbox': sandbox, 'OrganizationType': edition, 'TrialExpirationDate': expiry}
+        cases = [
+            ('https://acme--uat.sandbox.my.salesforce.com', org(), 'sandbox'),
+            ('https://acme.my.salesforce.com', org(sandbox=True), 'sandbox'),
+            ('https://test.salesforce.com', org(), 'sandbox'),
+            ('https://acme-dev-ed.scratch.my.salesforce.com', org(sandbox=True), 'scratch'),
+            ('https://acme.my.salesforce.com', org(expiry='2026-11-30T00:00:00.000+0000'), 'trial'),
+            ('https://acme.my.salesforce.com', org(expiry='2026-10-20T00:00:00.000+0000'), 'trial'),
+            ('https://acme-dev-ed.develop.my.salesforce.com', org(edition='Developer Edition'), 'trial'),
+            ('https://orgfarm-abc123.my.salesforce.com', org(), 'trial'),
+            # A trial converted to production keeps its old expiry date: only a future date counts.
+            ('https://acme.my.salesforce.com', org(expiry='2025-01-31T00:00:00.000+0000'), 'production'),
+            ('https://acme.my.salesforce.com', org(expiry='not a date'), 'production'),
+            ('https://acme.my.salesforce.com', org(), 'production'),
+            ('https://acme.my.salesforce.com', {'OrganizationType': 'Enterprise Edition'}, 'unknown'),
+            ('https://acme.my.salesforce.com', org(edition=None), 'unknown'),
+            (None, org(), 'unknown'),
+        ]
+        for instance, organization, expected in cases:
+            with self.subTest(instance=instance, organization=organization):
+                self.assertEqual(target.classify(instance, organization, today), expected)
+
+    def test_a_failed_type_query_binds_read_only_when_the_identity_holds(self):
+        self.configure(type_query_fails=True)
+        code, data, _ = self.run_target('bind', '--selector', 'maple')
+        self.assertEqual((code, data['class'], data['writes']), (0, 'unknown', 'read-only'))
+        self.assertEqual(self.run_target('check', '--selector', 'maple', '--username', USER, '--org-id', ORG,
+                                         '--write')[0], 5)
+        self.configure(type_query_fails=True, query_id=OTHER)  # the identity still decides first
+        self.assertEqual(self.run_target('bind', '--selector', 'maple')[0], 3)
+
+    def test_the_clis_scratch_flag_counts(self):
+        org = {'IsSandbox': False, 'OrganizationType': 'Developer Edition', 'TrialExpirationDate': None}
+        self.assertEqual(target.classify('https://acme.my.salesforce.com', org, scratch=True), 'scratch')
+
+    def test_check_write_refuses_production_and_unknown_orgs_and_reads_still_pass(self):
+        for organization, cls in (({'IsSandbox': False, 'OrganizationType': 'Enterprise Edition',
+                                    'TrialExpirationDate': None}, 'production'),
+                                   ({'OrganizationType': 'Enterprise Edition'}, 'unknown')):
+            with self.subTest(cls=cls):
+                self.configure(organization=organization, instance='https://acme.my.salesforce.com')
+                code, data, _ = self.run_target('check', '--selector', 'maple', '--username', USER,
+                                                '--org-id', ORG, '--write')
+                self.assertEqual((code, data['class'], data['writes']), (5, cls, 'read-only'))
+                self.assertIn("Scout doesn't write here", data['reason'])
+                code, data, _ = self.check()
+                self.assertEqual((code, data['writes']), (0, 'read-only'))
+                code, data, _ = self.run_target('bind', '--selector', 'maple')
+                self.assertEqual((code, data['class']), (0, cls))
+        self.configure(organization={'IsSandbox': True, 'OrganizationType': 'Enterprise Edition',
+                                     'TrialExpirationDate': None})
+        code, data, _ = self.run_target('check', '--selector', 'maple', '--username', USER, '--org-id', ORG, '--write')
+        self.assertEqual((code, data['writes']), (0, 'allowed'))
 
     def test_selector_repoint_username_and_displayed_org_are_mismatches(self):
         for display, reason in ((dict(id=ORG, username='second@example.test'), 'another username'),
@@ -159,6 +222,22 @@ class ScoutTargetTests(unittest.TestCase):
         self.assertEqual(self.run_target('check', '--selector', 'maple')[0], 2)
         self.assertEqual(self.run_target('check', '--selector', 'maple', '--username', USER, '--org-id', 'bad')[0], 2)
         self.assertEqual(self.call_log(), [])
+
+    def test_a_selector_cmd_would_split_reaches_the_cli_unchanged(self):
+        # R&D has no space, so nothing quotes it: run through a batch launcher, cmd.exe would end the command at &.
+        # On Windows Scout runs the CLI's Node entry instead; elsewhere the CLI itself.
+        code, data, error = self.run_target('bind', '--selector', 'R&D')
+        self.assertEqual((code, data['selector']), (0, 'R&D'), error)
+        self.assertEqual(self.call_log()[0], ['org', 'display', '--target-org', 'R&D', '--json'])
+
+    def test_a_batch_launcher_alone_never_gets_an_argument_cmd_would_reread(self):
+        launcher = self.root / 'launcher' / 'sf.cmd'
+        launcher.parent.mkdir()
+        launcher.write_text('@echo off\r\nrem a launcher whose Node entry Scout cannot find\r\n')
+        with patch.object(target.scout_portable, 'PLATFORM', 'win32'), \
+                patch.object(target.subprocess, 'run', side_effect=AssertionError('the CLI ran')):
+            with self.assertRaisesRegex(target.Unverified, 'batch launcher'):
+                target.query_cli(str(launcher), ['org', 'display', '--target-org', 'R&D'])
 
     def test_selector_is_one_literal_argument_and_cli_entrypoint_works(self):
         selector = 'maple; $(echo unexpected)'

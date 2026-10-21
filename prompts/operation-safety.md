@@ -10,9 +10,7 @@ retrieve, authoring, staging or repair, prepare a separate project for each writ
 (including each audit worker and parent editability probe):
 
 ```bash
-python3 "$ASSET_HELPER" prepare-workspace \
-  --workspace-root "$WORKSPACE_ROOT" --customer-dir "$CUSTOMER_DIR" \
-  --writer "$WRITER"
+python3 "$ASSET_HELPER" prepare-workspace --workspace-root "$WORKSPACE_ROOT" --customer-dir "$CUSTOMER_DIR" --writer "$WRITER"
 ```
 
 Require exit 0 and retain the JSON receipt. Carry its `project_root`, `source_root`,

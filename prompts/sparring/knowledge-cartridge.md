@@ -43,8 +43,7 @@ session's project directory**, not a staging/retrieval directory or an arbitrary
 customer folder: it determines the host's project-scoped enablement.
 
 ```bash
-python3 "/absolute/path/of/active/sf-demo-scout/scripts/knowledge-cartridges.py" \
-  --claude --directory "/absolute/native/session/directory"
+python3 "/absolute/path/of/active/sf-demo-scout/scripts/knowledge-cartridges.py" --claude --directory "/absolute/native/session/directory"
 ```
 
 The helper uses only `claude plugin list --json`; it never installs, updates or
@@ -96,7 +95,7 @@ require all.
 
 Distinguish the no-match cases:
 
-- **No conforming cartridge discovered** (Step 1 found none) → this fragment is done. Proceed silently — do NOT tell the SE a cartridge is missing. Scout grounds the scenario in docs + audit exactly as it always has. (Knowledge cartridges are rare; the LS Booster Pack is the only one today. A "no cartridge for this industry" flag would nag the SE about something they cannot install, and Scout can't tell "no cartridge exists" from "exists but not installed" — it sees only this host's confirmed plugin selections. Where a future cartridge should go is a maintainer signal, gathered outside the SE's prep session.)
+- **No conforming cartridge discovered** (Step 1 found none) → this fragment is done. Proceed silently — do NOT tell the SE a cartridge is missing. Scout grounds the scenario in docs + audit exactly as it always has. (Knowledge cartridges are rare. A "no cartridge for this industry" flag would nag the SE about something they cannot install, and Scout can't tell "no cartridge exists" from "exists but not installed" — it sees only this host's confirmed plugin selections. Where a future cartridge should go is a maintainer signal, gathered outside the SE's prep session.)
 - **Conforming cartridge, Coverage present, industry doesn't overlap** → silent (same rationale: the cartridge legitimately doesn't cover this org's industry).
 - **Conforming cartridge, Coverage ABSENT or unparseable** (no `## Coverage` block at all, OR a Coverage block missing BOTH `namespaces` and `objects`) → emit exactly one diagnostic line, then proceed as no-match (do NOT block, do NOT guess a match):
   > "⚠ Knowledge cartridge [plugin name] is installed and contract-conforming, but its KNOWLEDGE-INDEX.md has no parseable `## Coverage` block — I can't match it to this org's industry, so I'm grounding the scenario in docs + audit as usual. (This is a cartridge-side contract gap, not something you can fix from here.)"

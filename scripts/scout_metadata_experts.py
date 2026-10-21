@@ -31,6 +31,7 @@ try:
     from scout_report_repair import LIMIT, RepairError, decode, org_id, text
     from scout_target import Mismatch, Unverified, bind, query_cli
     import scout_official
+    import scout_portable
 except ImportError:
     print(json.dumps({"reason": "metadata-experts helper dependencies unavailable"}))
     raise SystemExit(4)
@@ -174,7 +175,7 @@ class Proxy:
         try:
             self.process = subprocess.Popen([shutil.which("node") or "node", str(script), SERVER], cwd=self.folder,
                                             env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0,
-                                            stderr=subprocess.DEVNULL, start_new_session=True)
+                                            stderr=subprocess.DEVNULL, **scout_portable.process_group_options())
         except OSError as error:
             raise ProxyError("unavailable", "proxy could not start") from error
         threading.Thread(target=self._read, daemon=True).start()
@@ -191,22 +192,25 @@ class Proxy:
         self.close()
 
     def close(self):
-        """Reap the whole process group on every exit path, then remove the proxy's diagnostic sidecars."""
+        """On every exit path, end the proxy together with everything it started, then remove its sidecars.
+
+        On macOS and Linux its input closes first and it gets a moment to finish; then its process group ends, which
+        reaches a descendant even after the proxy itself has exited. Windows has no process groups: taskkill finds the
+        descendants only through the proxy, so there the tree ends first, while the proxy still runs, and its input
+        closes after. What stays open there: a proxy that already exited on its own before this point, such as one
+        that crashed, can leave a descendant that nothing finds."""
+        windows = scout_portable.windows()
+        if windows:
+            scout_portable.kill_tree(self.process, grace=GRACE_SECONDS)
         if self.writer is None or not self.writer.is_alive():  # a blocked write must not delay termination
             try:
                 self.process.stdin.close()
-                self.process.wait(timeout=GRACE_SECONDS)
+                if not windows:
+                    self.process.wait(timeout=GRACE_SECONDS)
             except (OSError, subprocess.TimeoutExpired):
                 pass
-        for sig in (signal.SIGTERM, signal.SIGKILL):
-            try:
-                os.killpg(self.process.pid, sig)
-            except OSError:
-                break  # no member of the group is left
-            try:
-                self.process.wait(timeout=GRACE_SECONDS)
-            except subprocess.TimeoutExpired:
-                pass
+        if not windows:
+            scout_portable.kill_tree(self.process, grace=GRACE_SECONDS)
         sidecars = self.folder / ".sf" / "mcp-health"
         shutil.rmtree(sidecars, ignore_errors=True)
         self.sidecars_left = sidecars.exists()
@@ -315,13 +319,14 @@ def flow_xml(raw):
 
 
 def publish(folder, files):
-    """Publish a candidate's files together, never over an earlier one: stage each, then link them all, or none."""
+    """Publish a candidate's files together, never over an earlier one: stage each, then link them all, or none.
+    Each file's content is bytes, written as they are, so a receipt's digest names the published file."""
     staged, linked = [], []
     try:
         for name, content in files:
             descriptor, temporary = tempfile.mkstemp(prefix=".candidate-", dir=folder)
             staged.append((temporary, folder / name))  # registered before writing, so a full disk can't strand it
-            with os.fdopen(descriptor, "w") as stream:
+            with os.fdopen(descriptor, "wb") as stream:
                 stream.write(content)
         for temporary, final in staged:
             os.link(temporary, final)
@@ -395,9 +400,11 @@ def generate(plugin, target, prompt, folder, candidate):
                    sidecars_left=bool(proxy and proxy.sidecars_left))
     if receipt["sidecars_left"]:
         outcome = dict(outcome, sidecars_left=True, sidecars_reason=SIDECARS)
-    if xml is not None:
-        receipt.update(xml=names[0], sha256=hashlib.sha256(xml.encode()).hexdigest())
-    files = ([(names[0], xml)] if xml is not None else []) + [(names[1], json.dumps(receipt, sort_keys=True, indent=1) + "\n")]
+    content = xml.encode("utf-8") if xml is not None else None  # encoded once: these bytes are hashed and published
+    if content is not None:
+        receipt.update(xml=names[0], sha256=hashlib.sha256(content).hexdigest())
+    files = (([(names[0], content)] if content is not None else [])
+             + [(names[1], (json.dumps(receipt, sort_keys=True, indent=1) + "\n").encode("utf-8"))])
     try:
         publish(folder, files)
     except OSError:
@@ -477,7 +484,8 @@ def check(xml, spec):
 
 
 def main(argv=None):
-    previous = {sig: signal.signal(sig, interrupted) for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)}
+    signals = [sig for sig in (signal.SIGTERM, getattr(signal, "SIGHUP", None), signal.SIGINT) if sig]  # no SIGHUP on Windows
+    previous = {sig: signal.signal(sig, interrupted) for sig in signals}
     try:
         return dispatch(argv)
     finally:
@@ -490,7 +498,7 @@ def dispatch(argv):
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("status", "activate", "flow", "coexistence"):
         sub = commands.add_parser(name)
-        sub.add_argument("--host", required=True, choices=("claude", "codex", "unknown"))
+        sub.add_argument("--host", required=True, choices=("claude", "codex", "cursor", "unknown"))
         sub.add_argument("--official-root", default=os.environ.get("SCOUT_OFFICIAL_PLUGIN_ROOT"),
                          help="an explicitly selected official plugin root (default: $SCOUT_OFFICIAL_PLUGIN_ROOT)")
         if name == "coexistence":
@@ -525,7 +533,7 @@ def dispatch(argv):
 def run(parser, args):
     if args.command == "check":
         try:
-            problems = check(args.xml.read_text(), decode(args.spec.read_bytes()))
+            problems = check(args.xml.read_text(encoding="utf-8"), decode(args.spec.read_bytes()))
         except (OSError, ValueError, UnicodeError, KeyError, TypeError, AttributeError, RepairError, ElementTree.ParseError):
             problems = ["candidate or spec unreadable"]
         result = {"state": "rejected" if problems else "accepted", "problems": problems}
@@ -586,7 +594,7 @@ def run(parser, args):
             code = EXIT.get(result["state"], 4)
         else:
             args.out_dir.mkdir(parents=True, exist_ok=True)
-            result = generate(plugin, target, text(args.prompt_file.read_text(), "prompt", 20000),
+            result = generate(plugin, target, text(args.prompt_file.read_text(encoding="utf-8"), "prompt", 20000),
                               args.out_dir, args.candidate)
             code = EXIT.get(result["state"], 4)
     except Unverified as error:

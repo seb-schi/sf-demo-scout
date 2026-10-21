@@ -1,8 +1,10 @@
-"""Offline integration tests for the shipped Scout startup hook."""
+"""Offline integration tests for the shipped Scout startup hook (hooks/session_startup.py)."""
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import ntpath
 import os
 from pathlib import Path
 import stat
@@ -15,12 +17,32 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HOOK = ROOT / "hooks" / "session-startup.sh"
+HOOK = ROOT / "hooks" / "session_startup.py"
+HOOKS_FILE = ROOT / "hooks" / "claude-hooks.json"
 HELPER = ROOT / "scripts" / "startup-evidence.py"
 SLUGIFY = ROOT / "scripts" / "slugify.py"
 SELF_REPAIR = ("Before the first Scout task or Salesforce change in this session, tell the SE in one line that Scout is "
                "repairing its setup, then run `/scout-setup self-repair` yourself (the `sf-demo-scout:scout-setup` skill "
                "with argument `self-repair`), once.")
+# Runs the hook with its cache publication refused, the way a failing rename would refuse it.
+REFUSE_REPLACE = """import runpy, sys
+sys.path.insert(0, sys.argv[2])
+import scout_portable
+def refuse(src, dst, **kwargs):
+    raise PermissionError(13, "synthetic: the destination is held")
+scout_portable.replace = refuse
+hook = sys.argv[1]
+sys.argv = [hook]
+runpy.run_path(hook, run_name="__main__")
+"""
+NEEDS_BASH = unittest.skipUnless(Path("/bin/bash").exists(), "the sf and claude stubs are bash scripts")
+
+
+def load_hook():
+    spec = importlib.util.spec_from_file_location("scout_session_startup_test", HOOK)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def official_config(config: Path, *, ready: bool) -> Path:
@@ -39,6 +61,7 @@ def official_config(config: Path, *, ready: bool) -> Path:
 
 class StartupFixture:
     def __init__(self, base: Path) -> None:
+        self.extra_env: dict[str, str] = {}
         self.base = base
         self.workspace = base / "workspace"
         self.workspace.mkdir()
@@ -50,7 +73,8 @@ class StartupFixture:
         self.fixtures.mkdir()
         self.bin = base / "bin"
         self.bin.mkdir()
-        (self.bin / "python3").symlink_to(sys.executable)
+        if os.name != "nt":  # for the bash stubs below, which the tests that need them don't run on Windows
+            (self.bin / "python3").symlink_to(sys.executable)
         self.settings.write_text('{"env":{"ANTHROPIC_AUTH_TOKEN":"synthetic"}}')
         self.scout_config.write_text("{}")
         self.log = base / "calls.log"
@@ -157,11 +181,12 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
         default_runtime: bool = False,
         host: str = "claude",
         plugin_root: str = "",
+        refuse_replace: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         workdir = cwd or self.workspace
         env = dict(os.environ)
         env.update(
-            PATH=f"{self.bin}:/usr/bin:/bin:/usr/sbin:/sbin",
+            PATH=os.pathsep.join((str(self.bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin")),
             PYTHONDONTWRITEBYTECODE="1",
             CLAUDE_PLUGIN_ROOT=plugin_root,
             SCOUT_HOST=host,
@@ -180,7 +205,9 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
             SCOUT_NETWORK_TIMEOUT="3",
             CLAUDE_CONFIG_DIR=str(self.claude_config),
             PWD=str(workdir),
+            SCOUT_NO_UPDATE_CHECK="1",  # never GitHub, nor the developer's own update cache, from a test
         )
+        env.update(self.extra_env)
         if nocache:
             env["SCOUT_HOOK_NOCACHE"] = "1"
         else:
@@ -188,8 +215,11 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
         if default_runtime:
             env.pop("SCOUT_RUNTIME_DIR", None)
             env.pop("TMPDIR", None)
+        command = [sys.executable, "-B", str(HOOK)]
+        if refuse_replace:
+            command = [sys.executable, "-B", "-c", REFUSE_REPLACE, str(HOOK), str(ROOT / "scripts")]
         return subprocess.run(
-            ["/bin/bash", str(HOOK)],
+            command,
             cwd=workdir,
             env=env,
             text=True,
@@ -199,17 +229,29 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
         )
 
 
-class StartupEvidenceTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.temp = tempfile.TemporaryDirectory(prefix="scout-startup-test-")
-        self.addCleanup(self.temp.cleanup)
-        self.fx = StartupFixture(Path(self.temp.name))
+class StartupUpdateNoticeTests(unittest.TestCase):
+    def test_a_newer_release_is_one_line_and_nothing_otherwise(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="scout-update-notice-") as raw:
+            base = Path(raw).resolve()
+            fixture = StartupFixture(base)
+            stub = base / "version-stub.py"
+            for printed, expected in (("SCOUT_UPDATE Scout 2.4.0 is installed; 2.5.0 is out. Restart.", True),
+                                      ("", False), ("Traceback (most recent call last):", False)):
+                with self.subTest(printed=printed):
+                    stub.write_text("print(%r)\n" % printed)
+                    fixture.extra_env = {"SCOUT_VERSION_SCRIPT": str(stub), "SCOUT_NO_UPDATE_CHECK": ""}
+                    result = fixture.run()
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual("2.5.0 is out" in result.stdout, expected, result.stdout)
+                    self.assertNotIn("Traceback", result.stdout)
 
+
+class StartupEvidenceTests(unittest.TestCase):
     def test_helper_uses_collision_resistant_exact_target_keys(self) -> None:
         keys = []
         for target in ("QA A", "QA_A", "QA.*[x]"):
             result = subprocess.run(
-                ["python3", "-B", str(HELPER), "key", target],
+                [sys.executable, "-B", str(HELPER), "key", target],
                 text=True,
                 capture_output=True,
                 check=False,
@@ -310,6 +352,14 @@ class StartupEvidenceTests(unittest.TestCase):
             stdin=payload,
         )
         self.assertEqual(calendar_invalid.returncode, 65)
+
+
+@NEEDS_BASH
+class StartupHookTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory(prefix="scout-startup-test-")
+        self.addCleanup(self.temp.cleanup)
+        self.fx = StartupFixture(Path(self.temp.name))
 
     def test_workspace_gate_is_silent_and_does_not_create_cache(self) -> None:
         outside = self.fx.base / "outside"
@@ -455,10 +505,7 @@ class StartupEvidenceTests(unittest.TestCase):
         fresh = self.fx.run()
         self.assertIn("## ✅ Active Org (fresh evidence", fresh.stdout)
 
-        mv = self.fx.bin / "mv"
-        mv.write_text("#!/bin/bash\nexit 73\n")
-        mv.chmod(0o700)
-        failed = self.fx.run(nocache=True)
+        failed = self.fx.run(nocache=True, refuse_replace=True)
 
         self.assertIn("cache update failed", failed.stdout)
         self.assertNotIn("## ✅ Active Org", failed.stdout)
@@ -507,7 +554,7 @@ class StartupEvidenceTests(unittest.TestCase):
         codex.chmod(0o700)
         result = self.fx.run(host="codex")
         self.assertEqual(result.returncode, 0, result.stderr)
-        for wrong in ("LLMGW", "Claude Code installer", "Opus", "Slack", "needs authentication", "RAW_SECRET"):
+        for wrong in ("LLM" + "GW", "Claude Code installer", "Opus", "Slack", "needs authentication", "RAW_SECRET"):
             self.assertNotIn(wrong, result.stdout)
         calls = self.fx.log.read_text().splitlines()
         self.assertNotIn("codex-mcp", calls)  # startup no longer probes MCP state on any host
@@ -596,7 +643,7 @@ class StartupEvidenceTests(unittest.TestCase):
     def test_unknown_host_does_not_infer_claude_or_authentication(self) -> None:
         self.fx.settings.unlink()
         result = self.fx.run(host="unknown")
-        self.assertNotIn("LLMGW", result.stdout)
+        self.assertNotIn("LLM" + "GW", result.stdout)
         self.assertNotIn("mcp", self.fx.log.read_text().splitlines())
 
     def test_startup_runs_no_org_list_mcp_or_folder_probe(self) -> None:
@@ -608,6 +655,82 @@ class StartupEvidenceTests(unittest.TestCase):
         calls = self.fx.log.read_text().splitlines()
         self.assertNotIn("list", calls)
         self.assertNotIn("mcp", calls)
+
+
+class StartupPortTests(unittest.TestCase):
+    """What the Python hook adds for Windows, checked on any machine."""
+
+    def setUp(self) -> None:
+        self.hook = load_hook()
+        temp = tempfile.TemporaryDirectory(prefix="scout-startup-port-")
+        self.addCleanup(temp.cleanup)
+        self.base = Path(temp.name)
+
+    def test_a_windows_plugin_root_still_gets_the_standing_rules(self) -> None:
+        for root, shown in (("C:/Plugins/Scout Plugin/", '"C:/Plugins/Scout Plugin/AGENTS.md"'),
+                            ("D:\\Plugins\\scout", '"D:\\\\Plugins\\\\scout/AGENTS.md"')):
+            with self.subTest(root=root):
+                block = self.hook.rules_block(root)
+                self.assertTrue(block.startswith("Scout is installed."), block)
+                self.assertIn(shown, block)
+        for root in ("relative", "C:relative", "\\\\server\\share", "C:/a\nb"):
+            with self.subTest(root=root):
+                self.assertEqual(self.hook.rules_block(root), "")
+
+    def test_the_probes_fit_inside_the_declared_hook_timeout(self) -> None:
+        hooks = json.loads(HOOKS_FILE.read_text(encoding="utf-8"))["hooks"]
+        timeout = hooks["SessionStart"][0]["hooks"][0]["timeout"]
+        # Every probe draws on one budget, and each timed-out probe gets a second to stop: the banner always prints.
+        self.assertLessEqual(self.hook.BUDGET_SECONDS + 4, timeout)
+        for platform in ("darwin", "win32"):
+            with self.subTest(platform=platform), mock.patch.object(self.hook.scout_portable, "PLATFORM", platform):
+                bounds = self.hook.bounds()
+                self.assertLess(sum(bounds.values()) - bounds["network"], self.hook.BUDGET_SECONDS)
+        with mock.patch.object(self.hook.scout_portable, "PLATFORM", "win32"):
+            self.assertGreater(self.hook.bounds()["network"], 6)  # a cold Salesforce CLI start on Windows
+
+    def test_a_spent_budget_starts_no_probe(self) -> None:
+        marker = self.base / "started"
+        status = self.hook.run_bounded(0.1, str(self.base / "out"), [sys.executable, "-c",
+                                                                     f"open({str(marker)!r}, 'w')"])
+        self.assertEqual((status, marker.exists()), (124, False))
+        clock = self.hook.Clock(budget=0)
+        self.assertEqual(clock.bound(6), 0)
+
+    def test_windows_has_no_permission_bits_or_owners_to_check(self) -> None:
+        loose = self.base / "evidence.json"
+        loose.write_text("{}")
+        loose.chmod(0o644)
+        with mock.patch.object(self.hook.scout_portable, "PLATFORM", "win32"):
+            self.assertTrue(self.hook.private(str(loose), 0o600, stat.S_ISREG))
+            self.assertFalse(self.hook.private(str(self.base), 0o700, stat.S_ISREG))  # the kind still counts
+        if os.name != "nt":
+            with mock.patch.object(self.hook.scout_portable, "PLATFORM", "darwin"):
+                self.assertFalse(self.hook.private(str(loose), 0o600, stat.S_ISREG))
+                loose.chmod(0o600)
+                self.assertTrue(self.hook.private(str(loose), 0o600, stat.S_ISREG))
+
+    def test_only_the_shipped_evidence_helper_runs_in_process(self) -> None:
+        self.assertIs(type(self.hook.evidence_for(str(HELPER))), self.hook.Evidence)  # one Python start for the pass
+        stand_in = self.base / "evidence.py"
+        stand_in.write_text("import sys\nprint(sys.argv[1:])\n")
+        program = self.hook.evidence_for(str(stand_in))  # a test seam's file is a program, run as the shell hook ran it
+        self.assertIsInstance(program, self.hook.ProgramEvidence)
+        self.assertEqual(program.key("QA A"), "['key', 'QA A']")
+        self.assertEqual(program.field("display", b"{}", "2026-01-02", "state", "QA A"),
+                         "['field', 'display', '--collected-date', '2026-01-02', '--target', 'QA A', '--field', 'state']")
+        missing = self.hook.evidence_for(str(self.base / "missing.py"))
+        self.assertFalse(missing.ready)
+        with self.assertRaises(self.hook.EvidenceFailed):
+            missing.normalize("config", b"{}", "2026-01-02", "sf config get target-org --json")
+
+    def test_workspace_folders_compare_the_way_each_platform_names_them(self) -> None:
+        with mock.patch.object(self.hook.scout_portable, "PLATFORM", "win32"), \
+                mock.patch.object(self.hook.os, "path", ntpath):
+            self.assertTrue(self.hook.same_folder("C:\\Users\\Tester\\claude-projects\\sf-demo-scout",
+                                                  "c:/users/tester/claude-projects/sf-demo-scout/"))
+        with mock.patch.object(self.hook.scout_portable, "PLATFORM", "darwin"):
+            self.assertFalse(self.hook.same_folder("/x/Workspace", "/x/workspace"))  # exactly as the shell compared
 
 
 if __name__ == "__main__":

@@ -12,17 +12,22 @@ import sys
 import tempfile
 import unittest
 
+import stand_ins
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE_HELPER = ROOT / "scripts" / "setup-workspace.py"
-SF_STUB = """#!/bin/bash
-while [ "$#" -gt 0 ]; do
-  if [ "$1" = "--output-dir" ]; then shift; out="$1"; fi
-  shift
-done
-mkdir -p "$out/sf-demo-scout/force-app/main/default"
-printf '{"packageDirectories":[{"path":"force-app","default":true}],"sourceApiVersion":"65.0"}\\n' > "$out/sf-demo-scout/sfdx-project.json"
-printf '{"status": 0, "result": {}}\\n'
+# Stands in for `sf project generate`: the scaffold the workspace helper checks for.
+SF_STUB = r"""import os
+from pathlib import Path
+import sys
+
+arguments = sys.argv[1:]
+project = Path(arguments[arguments.index("--output-dir") + 1]) / "sf-demo-scout"
+(project / "force-app" / "main" / "default").mkdir(parents=True, exist_ok=True)
+(project / "sfdx-project.json").write_bytes(
+    b'{"packageDirectories":[{"path":"force-app","default":true}],"sourceApiVersion":"65.0"}\n')
+print('{"status": 0, "result": {}}')
 """
 
 
@@ -49,8 +54,8 @@ def verifier_tokens() -> set[str]:
 
 
 def held_steps() -> dict[str, set[str]]:
-    """The steps a self-repair run holds for the SE's yes, by procedure, from `commands/scout-setup.md`."""
-    section = (ROOT / "commands/scout-setup.md").read_text().split("## Self-repair runs", 1)[1].split("\n## ", 1)[0]
+    """The steps a self-repair run holds for the SE's yes, by procedure, from `skills/scout-setup/SKILL.md`."""
+    section = (ROOT / "skills/scout-setup/SKILL.md").read_text().split("## Self-repair runs", 1)[1].split("\n## ", 1)[0]
     held: dict[str, set[str]] = {"fresh install": set(), "refresh": set()}
     for line in section.splitlines():
         if line.startswith("- "):
@@ -62,11 +67,10 @@ def held_steps() -> dict[str, set[str]]:
 # Every bash fence in setup, classified by the command that identifies it. A fence that changes the SE's machine is
 # "machine"; one that only reads is "read"; Scout's own files and Salesforce's official plugins repair on their own.
 FENCE_KINDS = {
-    "setup-bootstrap.sh": "machine", "setup-cli-refresh.sh": "machine", "sf plugins update": "machine",
-    "setup-zshrc.sh": "machine", "json-pins --settings": "machine", "retired-allow --settings": "machine",
-    "aisuite-hooks --settings": "machine", 'USER_SETTINGS="$HOME/.claude/settings.json"': "machine",
-    "vscode-pins": "read", "launchctl getenv": "read", "setup-model-report.py": "read", "client-version.py": "read",
-    "setup-mcp-status.py": "read", "command -v npm": "read", "command -v brew": "read",
+    "setup_bootstrap.py": "machine", "setup_cli_refresh.py": "machine", "sf plugins update": "machine",
+    "marketplace-autoupdate": "machine",
+    "setup-model-report.py": "read", "client-version.py": "read",
+    "setup-mcp-status.py": "read", "npm --version": "read", "command -v brew": "read", "scout_official.py": "read",
     "setup-workspace.py": "scout", "setup-official-plugins.py": "plugins",
 }
 
@@ -103,9 +107,8 @@ class SelfRepairTests(unittest.TestCase):
         self.workspace, self.config = base / "sf-demo-scout", base / "config" / "config.json"
         bin_dir = base / "bin"
         bin_dir.mkdir()
-        (bin_dir / "sf").write_text(SF_STUB)
-        (bin_dir / "sf").chmod(0o700)
-        self.env = {**os.environ, "PATH": f"{bin_dir}:/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"}
+        stand_ins.salesforce_cli(bin_dir, SF_STUB)
+        self.env = {**os.environ, **stand_ins.cli_environment(bin_dir), "PYTHONDONTWRITEBYTECODE": "1"}
         self.env.pop("PYTHONPATH", None)
 
     def helper(self, command: str, *extra: str) -> subprocess.CompletedProcess[str]:
@@ -115,6 +118,7 @@ class SelfRepairTests(unittest.TestCase):
 
     def setup_workspace(self) -> subprocess.CompletedProcess[str]:
         """What /scout-setup runs for the workspace (fresh-install.md, steps d–f)."""
+        stand_ins.require_node()  # setup reaches the CLI through Node on Windows
         return self.helper("setup", "--template", str(ROOT / "assets/workspace-settings.template.json"),
                            "--plugin-version", "fixture")
 
@@ -153,12 +157,12 @@ class SelfRepairTests(unittest.TestCase):
         self.assertEqual(self.config.read_text(), "{not json\n")
         gate = " ".join((ROOT / "prompts/workspace-bootstrap.md").read_text().split())
         self.assertIn("Scout repairs itself: say so in one line, run `/scout-setup self-repair` once (the "
-                      "`sf-demo-scout:scout-setup` skill, or `[PLUGIN_ROOT]/commands/scout-setup.md`), then rerun this "
+                      "`sf-demo-scout:scout-setup` skill, or `[PLUGIN_ROOT]/skills/scout-setup/SKILL.md`), then rerun this "
                       "gate. Otherwise, or if it still fails, stop.", gate)
 
     def test_every_setup_fence_is_classified(self) -> None:
         # The guarantee below is only as good as this classification: a new fence must name a known command.
-        for path in sorted((ROOT / "prompts/setup").glob("*.md")) + [ROOT / "commands/scout-setup.md"]:
+        for path in sorted((ROOT / "prompts/setup").glob("*.md")) + [ROOT / "skills/scout-setup/SKILL.md"]:
             for fence in fences(path.read_text()):
                 with self.subTest(path=path.name, fence=fence.splitlines()[0]):
                     fence_kind(fence)
@@ -166,36 +170,35 @@ class SelfRepairTests(unittest.TestCase):
             fence_kind('python3 -c "open(\'/tmp/x\', \'w\')"\n')
 
     def test_a_self_repair_run_holds_exactly_the_steps_that_change_the_machine(self) -> None:
-        # Workspace files and the official plugins repair on their own; the CLI, `~/.zshrc` and Claude settings wait for
-        # one yes. Every step with a classified "machine" fence is held, and the list names no other step.
+        # Workspace files and the official plugins repair on their own; the CLI and Claude's marketplace setting wait
+        # for one yes. Every step with a classified "machine" fence is held, and the list names no other step.
         held = held_steps()
         self.assertEqual(machine_wide_steps("fresh-install"), held["fresh install"])
         self.assertEqual(machine_wide_steps("refresh"), held["refresh"])
-        self.assertEqual(held["fresh install"], {"b", "g", "g.5", "g.6", "g.7", "g.8", "j"})
-        self.assertEqual(held["refresh"], {"a", "b.5", "d", "d.7", "d.8"})
-        for name in ("slack-mcp.md", "google-mcp.md", "salesforce-docs-mcp.md"):  # registrations stay the SE's explicit choice
-            fragment = (ROOT / "prompts/setup" / name).read_text()
-            self.assertIn("claude mcp add", fragment)
-            self.assertTrue("never run it automatically" in fragment or "offer this command without running it" in fragment)
+        self.assertEqual(held["fresh install"], {"b", "g.5", "g.6"})
+        self.assertEqual(held["refresh"], {"a", "b.5"})
+        fragment = (ROOT / "prompts/setup/salesforce-docs-mcp.md").read_text()  # the registration stays the SE's choice
+        self.assertIn("claude mcp add", fragment)
+        self.assertIn("run this only on the SE's yes", fragment)
 
     def test_every_entry_point_starts_a_self_repair_run_and_a_no_is_reported(self) -> None:
-        for path in ("hooks/session-startup.sh", "prompts/workspace-bootstrap.md", "AGENTS.md"):
+        for path in ("hooks/session_startup.py", "prompts/workspace-bootstrap.md", "AGENTS.md"):
             self.assertIn("/scout-setup self-repair", (ROOT / path).read_text().replace("\\`", "`"), path)
-        command = (ROOT / "commands/scout.md").read_text()
+        command = (ROOT / "skills/scout/SKILL.md").read_text() + (ROOT / "prompts/scout/router-build.md").read_text()
         self.assertIn("On `CHECK_FAILED`, absent success evidence or nonzero exit, follow the gate's rules.", command)
-        setup = (ROOT / "commands/scout-setup.md").read_text()
-        for phrase in ("this run's arguments are `$ARGUMENTS`", "fixes Scout's workspace files and installs Salesforce's "
+        setup = (ROOT / "skills/scout-setup/SKILL.md").read_text()
+        for phrase in ("this run's arguments are the text sent with it (on Claude Code, the `ARGUMENTS:` line)", "fixes Scout's workspace files and installs Salesforce's "
                        "official plugins without asking", "Before its first step, it asks the SE one question",
                        "On a yes, run the procedure as usual.", "On a no, skip those steps, and fresh install `a` too, "
                        "since the Homebrew check only serves `b`'s installs", "add `--keep-se-choices`",
-                       "Read-only reports run either way, such as the running-client report and `model-pin-strip.md`'s "
-                       "model checks", "Name each skipped step and left plugin in the closing message",
+                       "Read-only reports run either way, such as the running-client and model-routing reports.",
+                       "Name each skipped step and left plugin in the closing message",
                        "A `/scout-setup` the SE runs themselves asks nothing extra.", "--keep-se-choices"):
             self.assertIn(phrase, setup)
         self.assertIn("If the SE said no to the held steps, name each as skipped", (ROOT / "prompts/setup/done.md").read_text())
         for name in ("refresh.md", "fresh-install.md"):
             text = " ".join((ROOT / "prompts/setup" / name).read_text().split())
-            self.assertIn("self-repair run, ask its one question first (`commands/scout-setup.md`)", text, name)
+            self.assertIn("self-repair run, ask its one question first (`skills/scout-setup/SKILL.md`)", text, name)
         overrides = (ROOT / "prompts/building/official-skill-overrides.md").read_text()
         self.assertIn("the one exception is the missing-plugin repair below, which says when it asks first", overrides)
         self.assertIn("official-plugins.md` with `--keep-se-choices`, with this session's launch folder", overrides)
@@ -207,7 +210,7 @@ class SelfRepairTests(unittest.TestCase):
                       "its own questions still need their answers, and if it can't fix the problem, say why.", rule)
         # `sf-demo-scout:scout-setup` is this plugin's command, and the model may invoke it.
         self.assertIn('"name": "sf-demo-scout"', (ROOT / ".claude-plugin/plugin.json").read_text())
-        command = (ROOT / "commands/scout-setup.md").read_text()
+        command = (ROOT / "skills/scout-setup/SKILL.md").read_text()
         frontmatter = command.split("---", 2)[1]
         self.assertRegex(frontmatter, r"(?m)^name: scout-setup$")
         self.assertNotIn("disable-model-invocation", frontmatter)

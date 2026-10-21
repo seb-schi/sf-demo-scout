@@ -42,9 +42,8 @@ Read this when a request starts, joins or works in a team (`/scout session`, `/s
 
 ## Join a team (a builder)
 1. Bind the SE's own build org.
-2. Confirm once that the guard goes into their sf CLI.
-3. Run `join --remote [URL] --build-org [BUILD_USERNAME] --github [LOGIN] --accept-invite --yes-guard`.
-4. Report the captain and the open packages.
+2. Run `join --remote [URL] --build-org [BUILD_USERNAME] --github [LOGIN] --accept-invite`. It first explains the guard in two sentences: relay them. This lane needs the guard, so on a no the join stops; on a yes, run it again with `--yes-guard`.
+3. Report the captain and the open packages.
 
 From then on, sf on their machine refuses writes to the common org, as expected.
 

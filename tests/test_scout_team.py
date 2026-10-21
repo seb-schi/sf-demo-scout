@@ -34,6 +34,7 @@ def sh(*args, cwd=None):
     return result.stdout.strip()
 
 
+@unittest.skipIf(os.name == "nt", "team mode on Windows comes later; scout_team.py refuses there")
 class TeamTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="scout-team-test-")).resolve()
@@ -101,7 +102,8 @@ class TeamTests(unittest.TestCase):
         code, started = self.call("ana", "start", "--name", "Acme demo", "--remote", remote, "--common-org", "common",
                                   "--build-org", "ana-sbx", "--github", "ana-gh")
         self.assertEqual(code, 0, started)
-        code, joined = self.call("bob", "join", "--remote", remote, "--build-org", "bob-sbx", "--github", "bob-gh")
+        code, joined = self.call("bob", "join", "--remote", remote, "--build-org", "bob-sbx", "--github", "bob-gh",
+                                 "--yes-guard")
         self.assertEqual(code, 0, joined)
         self.checkouts = {"ana": started["checkout"], "bob": joined["checkout"]}
         return started, joined
@@ -843,6 +845,96 @@ class TeamTests(unittest.TestCase):
         self.assertEqual(sorted(listing.splitlines()), ["force-app/main/default/lwc/card/card.js",
                                                         "force-app/main/default/lwc/card/card.js-meta.xml"])
 
+    # ---- the guard at join: explained, and required by the lane ----
+
+    def test_joining_the_lane_explains_the_guard_and_stops_on_a_no(self):
+        code, started = self.call("ana", "start", "--name", "Acme demo", "--remote", self.remote, "--common-org", "common",
+                                  "--build-org", "ana-sbx", "--github", "ana-gh")
+        self.assertEqual(code, 0, started)
+        join = ["join", "--remote", self.remote, "--build-org", "bob-sbx", "--github", "bob-gh"]
+        code, ask = self.call("bob", *join)
+        self.assertEqual((code, ask.get("needs"), ask.get("guard")), (3, "guard-install", "required"), ask)
+        self.assertIn(team.GUARD_WHAT, ask["reason"])
+        self.assertIn("relies on the guard on every member's machine", ask["reason"])
+        code, body = self.call("bob", *join, "--no-guard")
+        self.assertEqual(code, 2, body)
+        self.assertIn("can't be joined without it; nothing changed", body["reason"])
+        self.assertFalse((self.tmp / "bob" / "ws" / "teams").exists(), "nothing was cloned")
+        self.assertFalse((self.tmp / "bob" / "teams.json").exists())
+        self.assertEqual(sorted(self.ledger()["members"]), ["ana-captain"])
+        code, joined = self.call("bob", *join, "--yes-guard", STUB_GUARD="")  # his sf has no guard yet
+        self.assertEqual(code, 0, joined)
+        self.assertIn('"plugins", "install"', (self.stub / "sf-calls.log").read_text())
+        self.assertIn("bob-builder", self.ledger()["members"])
+
+    # ---- gates whose input is missing stop, or say not verified ----
+
+    def test_a_package_that_isnt_there_or_names_no_components_is_never_delivered(self):
+        self.start_team()
+        code, body = self.call("ana", "deliver", "--id", "WP-9")
+        self.assertEqual(code, 2, body)
+        self.assertIn("there's no work package WP-9", body["reason"])
+        self.deliver_new_invoice()
+        code, wp = self.call("bob", "package", "start", "--title", "Same again", "--component", "ApexClass:Invoice")
+        self.assertEqual(code, 0, wp)
+        self.assertEqual(self.call("bob", "handover", "--id", wp["package"])[0], 0)  # his copy is main's: nothing new
+        code, body = self.call("bob", "package", "update", "--id", wp["package"], "--remove", "ApexClass:Invoice")
+        self.assertEqual(code, 0, body)
+        main = self.main_tip()
+        code, body = self.call("ana", "deliver", "--id", wp["package"])
+        self.assertEqual((code, body.get("outcome")), (2, "scope"), body)
+        self.assertIn("names no components", body["reason"])
+        self.assertEqual(self.main_tip(), main)
+        self.assertEqual(self.ledger()["packages"][wp["package"]]["status"], "handed-over", "never delivered")
+
+    def test_a_read_of_the_common_org_that_leaves_a_component_out_sends_nothing(self):
+        self.start_team()
+        package = self.handed_over()
+        main = self.main_tip()
+        for mode in ("drop", "odd"):  # a component missing from sf mp retrieve's answer, or an outcome Scout doesn't know
+            code, body = self.call("ana", "deliver", "--id", package, STUB_RETRIEVE=mode)
+            self.assertEqual((code, body.get("outcome")), (2, "unreported"), body)
+            self.assertIn("ApexClass:Invoice", body["components"])
+        self.assertIsNone(self.org("common"), "nothing was deployed")
+        self.assertNotIn('"mp", "deploy"', (self.stub / "sf-calls.log").read_text())
+        self.assertEqual(self.main_tip(), main)
+        self.assertFalse(team.receipt_path(self.checkout("ana")).exists())
+        self.assertEqual(self.call("ana", "deliver", "--id", package)[0], 0, "a full answer delivers it")
+
+    def test_a_read_back_that_misses_a_deployed_component_never_publishes(self):
+        self.start_team()
+        self.org("bob-sbx", body=CLASS.format(a="", b=""))
+        self.org("bob-sbx", name="Helper", body="public class Helper {}\n")
+        code, wp = self.call("bob", "package", "start", "--title", "Two", "--component", "ApexClass:Invoice",
+                             "--component", "ApexClass:Helper")
+        self.assertEqual(code, 0, wp)
+        self.assertEqual(self.call("bob", "handover", "--id", wp["package"])[0], 0)
+        main = self.main_tip()
+        code, body = self.call("ana", "deliver", "--id", wp["package"], STUB_DEPLOY="partial-readback")
+        self.assertEqual((code, body.get("outcome")), (3, "unverified"), body)
+        self.assertEqual(self.main_tip(), main)
+        self.assertTrue(team.receipt_path(self.checkout("ana")).exists(), "the delivery waits for the captain's check")
+        self.assertFalse(team.verified({"state": "settled-success", "components": [], "readback": {"A": {"matches": True}}}))
+
+    def test_a_recheck_with_nothing_named_to_read_never_publishes(self):
+        self.start_team()
+        package = self.handed_over()
+        main = self.main_tip()
+        code, body = self.call("ana", "deliver", "--id", package, STUB_DEPLOY="unverified")
+        self.assertEqual((code, body["outcome"]), (3, "unverified"), body)
+        repo = self.checkout("ana")
+        receipt = json.loads(team.receipt_path(repo).read_text())
+        receipt.pop("components")
+        team.receipt_path(repo).write_text(json.dumps(receipt))
+        journal = repo / ".mp" / "journal" / f"{receipt['op']}.json"
+        record = json.loads(journal.read_text())
+        record.pop("components")
+        journal.write_text(json.dumps(record))
+        code, body = self.call("ana", "deliver", "--resume", "--recheck")
+        self.assertEqual((code, body["outcome"], body["differs"]), (3, "unverified", []), body)
+        self.assertIn("nothing to read back", body["reason"])
+        self.assertEqual(self.main_tip(), main)
+
 
 class TeamStaticTests(unittest.TestCase):
     def test_the_guard_tarball_ships_the_plugin_without_its_tests(self):
@@ -858,13 +950,40 @@ class TeamStaticTests(unittest.TestCase):
         self.assertEqual(team.sf_mp_version(), manifest["version"])
 
     def test_the_prompt_hook_is_wired_and_quiet_without_a_team(self):
-        hooks = json.loads((ROOT / "hooks/hooks.json").read_text())["hooks"]
+        hooks = json.loads((ROOT / "hooks/claude-hooks.json").read_text())["hooks"]
         command = hooks["UserPromptSubmit"][0]["hooks"][0]
-        self.assertIn("hooks/team-updates.sh", command["command"])
+        self.assertIn("hooks/run-hook.cmd", command["command"])
+        self.assertIn("team_updates.py", command["command"])
         self.assertLessEqual(command["timeout"], 10)
-        result = subprocess.run(["bash", str(ROOT / "hooks/team-updates.sh")], input="{}", capture_output=True, text=True,
+        result = subprocess.run([sys.executable, "-B", str(ROOT / "hooks/team_updates.py")], input="{}",
+                                capture_output=True, text=True,
                                 env=dict(os.environ, SCOUT_TEAMS_FILE="/nonexistent/teams.json"), timeout=10)
         self.assertEqual((result.returncode, result.stdout), (0, ""))
+
+    def test_the_prompt_hook_reads_the_payload_once_for_both_helpers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin = Path(tmp) / "plugin"
+            (plugin / "hooks").mkdir(parents=True)
+            (plugin / "scripts").mkdir()
+            (plugin / "hooks" / "team_updates.py").write_bytes((ROOT / "hooks/team_updates.py").read_bytes())
+            log = Path(tmp) / "calls.jsonl"
+            for name, fails in (("scout_team.py", True), ("scout_lc.py", False)):
+                (plugin / "scripts" / name).write_text(
+                    "import json, sys\n"
+                    "payload = sys.stdin.buffer.read().decode()\n"
+                    f"open({str(log)!r}, 'a').write(json.dumps([{name!r}, sys.argv[1:], payload]) + '\\n')\n"
+                    f"print({name!r} + ' update')\n"
+                    + ("sys.stderr.write('helper noise\\n'); sys.exit(3)\n" if fails else ""))
+            teams = Path(tmp) / "teams.json"
+            teams.write_text("{}")
+            result = subprocess.run([sys.executable, "-B", str(plugin / "hooks/team_updates.py")],
+                                    input='{"prompt": "hi"}\n\n', capture_output=True, text=True,
+                                    env=dict(os.environ, SCOUT_TEAMS_FILE=str(teams)), timeout=30)
+            calls = [json.loads(line) for line in log.read_text().splitlines()]
+        self.assertEqual((result.returncode, result.stderr), (0, ""))  # a failing helper never fails the prompt
+        self.assertEqual(result.stdout, "scout_team.py update\nscout_lc.py update\n")
+        self.assertEqual(calls, [["scout_team.py", ["updates", "--hook"], '{"prompt": "hi"}'],
+                                 ["scout_lc.py", ["updates", "--hook"], '{"prompt": "hi"}']])
 
     def test_team_mode_keeps_its_rules(self):
         text = (ROOT / "prompts/scout/team.md").read_text()
@@ -873,7 +992,7 @@ class TeamStaticTests(unittest.TestCase):
                        "run_in_background", "Never call MCP org tools", "prompts/scout/team-lifecycle.md` instead"):
             self.assertIn(phrase, text)
         self.assertIn("the team's common org is written only by the captain's delivery", (ROOT / "AGENTS.md").read_text())
-        self.assertIn("scripts/scout_team.py context --org-id [BOUND_ORG_ID]", (ROOT / "commands/scout.md").read_text())
+        self.assertIn("scripts/scout_team.py context --org-id [BOUND_ORG_ID]", (ROOT / "skills/scout/SKILL.md").read_text())
 
     def test_component_names_may_hold_spaces_but_no_wildcards(self):
         self.assertEqual(team.components_of(["Layout:Account-Account Layout", "ApexClass:A, ApexClass:B"]),
@@ -930,6 +1049,18 @@ class TeamStaticTests(unittest.TestCase):
                  "README.md": None, "force-app/main/default/objects/Inv__c/fields/x.txt": None}
         for path, component in cases.items():
             self.assertEqual(team.component_of(path), component, path)
+
+    def test_the_lanes_markers_read_the_same_from_a_windows_checkout(self):
+        body = "Components:\r\n- `Layout:Account-Account Layout`\r\n- ApexClass:B\r\n"
+        self.assertEqual(team.components_of(team.components_in(body)), ["ApexClass:B", "Layout:Account-Account Layout"])
+        for marked in (b"<<<<<<< HEAD\r\nours\r\n", b"ours\r\n>>>>>>>\r\n", b"<<<<<<<\n"):
+            self.assertTrue(team.CONFLICT_MARKER.search(marked), marked)
+        for clean in (b"a <<<<<<< b\r\n", b"=======\r\n", b"<<<<<<<<\r\n"):
+            self.assertFalse(team.CONFLICT_MARKER.search(clean), clean)
+        with tempfile.TemporaryDirectory() as tmp:
+            task = Path(tmp) / "task.md"
+            task.write_bytes(b'# Task\r\n```scout-items\r\n{"schema":1,"items":[{"id":"I1","criterion":"Invoice runs"}]}\r\n```\r\n')
+            self.assertEqual([c["text"] for c in team.criteria_from_task(task)], ["Invoice runs"])
 
 
 if __name__ == "__main__":

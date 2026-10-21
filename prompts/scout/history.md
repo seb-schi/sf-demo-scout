@@ -21,7 +21,7 @@ Exit 0 permits handover; warnings disclose Docs-unavailable grounding or SE sect
 
 ## Hand over
 
-Send one outcome-first message: verified items; visual QA; each uncompleted item with disposition, reason and next step; manual checklist; any copy scan; task/log paths. Then the Demo Story and history block, with proposed decisions and lessons for yes/edit/skip, and the offer in `${CLAUDE_PLUGIN_ROOT}/prompts/scout/demo-canvas.md`. A task with a story tells its beats as `${CLAUDE_PLUGIN_ROOT}/prompts/scout/discovery.md` §"Tell the verified story" says, reread after compaction: each with persona, click path, record, KP, verified claims and climax, the proof moment marked, unfulfilled beats labelled planned/unverified. A bounded change gets one line naming the beat it serves. Write neither without the SE's answer. Follow this file through the post-answer check/receipt.
+Send one outcome-first message: verified items; visual QA; each uncompleted item with disposition, reason and next step; manual checklist; any copy scan; task/log paths. Then the Demo Story and history block, with proposed decisions and lessons for yes/edit/skip. A task with a story tells its beats as `${CLAUDE_PLUGIN_ROOT}/prompts/scout/discovery.md` §"Tell the verified story" says, reread after compaction: each with persona, click path, record, KP, verified claims and climax, the proof moment marked, unfulfilled beats labelled planned/unverified. A bounded change gets one line naming the beat it serves. Write neither without the SE's answer. Follow this file through the post-answer check/receipt.
 
 ## The map and one history question
 

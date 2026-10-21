@@ -14,6 +14,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import scout_report_repair as repair
+import stand_ins
+
+POSIX_MODES = os.name != 'nt'  # Windows keeps no POSIX permission bits to compare
 
 FIXTURES = Path(__file__).parent / 'fixtures/report-repair'
 MEMBER = 'Sales_Reports/Pipeline'
@@ -390,8 +393,11 @@ class ReportRepairTests(unittest.TestCase):
         proof = Path(self.release_proof())
         empty = self.customer / 'empty.md'; empty.write_text(' \n')
         large = self.customer / 'large.md'; large.write_bytes(b'x' * (repair.LIMIT + 1))
-        link = self.customer / 'link.md'; link.symlink_to(proof)
-        for invalid in (empty, large, link, self.customer, Path('relative.md')):
+        invalid_paths = [empty, large, self.customer, Path('relative.md')]
+        if stand_ins.symlinks():  # Windows allows links only with Developer Mode or as an administrator
+            link = self.customer / 'link.md'; link.symlink_to(proof)
+            invalid_paths.insert(2, link)
+        for invalid in invalid_paths:
             with self.subTest(path=invalid), self.assertRaises(repair.RepairError):
                 self.engine.reconcile(task, sha, release_evidence=str(invalid))
             self.assertFalse((task / 'resolution.json').exists())
@@ -405,6 +411,7 @@ class ReportRepairTests(unittest.TestCase):
         proof.write_text('earlier evidence')
         self.assertEqual(self.engine.reconcile(task, sha, release_evidence=str(proof))['outcome'], 'released_unverified')
 
+    @stand_ins.NOT_WINDOWS_MODES
     def test_checkpoint_preserves_existing_change_log_mode(self):
         log = self.customer / 'changes-2026-10-12-0900-maple.md'
         log.write_text('# Existing log\n'); log.chmod(0o644)
@@ -543,7 +550,9 @@ class ReportRepairTests(unittest.TestCase):
         secret = self.customer / 'unread.md'
         secret.write_bytes(b'unread data')
         original_open = os.open
-        for kind in ('symlink', 'fifo'):
+        # The swaps need a symlink, a FIFO and O_NOFOLLOW, none of which Windows has; the bound below holds there too.
+        swaps = ('symlink', 'fifo') if hasattr(os, 'mkfifo') and stand_ins.symlinks() else ()
+        for kind in swaps:
             file.write_bytes(b'original')
             def swapped(name, flags, *args, **kwargs):
                 self.assertTrue(flags & os.O_NOFOLLOW)
@@ -587,7 +596,8 @@ class ReportRepairTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             repair.write(destination, b'changed', exclusive=True)
         self.assertEqual(destination.read_bytes(), content)
-        self.assertEqual(destination.stat().st_mode & 0o777, 0o600)
+        if POSIX_MODES:
+            self.assertEqual(destination.stat().st_mode & 0o777, 0o600)
 
     def test_operator_attribution_is_recorded_and_old_job_is_rejected(self):
         task, sha = self.inspect()
@@ -678,8 +688,9 @@ class ReportRepairTests(unittest.TestCase):
         task, sha = self.inspect()
         (task / 'request.md').write_text('changed')
         with self.assertRaises(repair.RepairError): self.engine.apply(task, sha)
-        link = self.workspace / 'request-link';link.symlink_to(self.request)
-        with self.assertRaises(repair.RepairError): repair.read(link)
+        if stand_ins.symlinks():  # Windows allows links only with Developer Mode or as an administrator
+            link = self.workspace / 'request-link';link.symlink_to(self.request)
+            with self.assertRaises(repair.RepairError): repair.read(link)
         self.assertEqual(self.count('deploy'), 0)
 
     def test_snapshot_failure_prevents_write(self):
@@ -746,12 +757,11 @@ class ReportRepairTests(unittest.TestCase):
         state = self.workspace / 'fake-sf.json'
         state.write_text(json.dumps({'report': BEFORE.decode(), 'folder': FOLDER.decode(), 'mode': mode}))
         binary = self.workspace / 'bin';binary.mkdir()
-        sf = binary / 'sf'
-        sf.write_text('#!' + sys.executable + '\n' + (FIXTURES / 'sf_fixture.py').read_text())
-        sf.chmod(0o700)
-        env = dict(os.environ, PATH=str(binary), PYTHONDONTWRITEBYTECODE='1',
+        stand_ins.require_node()  # the repair reaches the CLI through Node on Windows
+        stand_ins.salesforce_cli(binary, (FIXTURES / 'sf_fixture.py').read_text())
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1',
                    SCOUT_REPORT_TEST_STATE=str(state), SCOUT_REPORT_TEST_FIXTURES=str(FIXTURES.resolve()),
-                   SCOUT_REPORT_SCRIPTS=str(repair.ASSETS.parent))
+                   SCOUT_REPORT_SCRIPTS=str(repair.ASSETS.parent), **stand_ins.cli_environment(binary))
         def call(*args):
             result = subprocess.run([sys.executable, '-S', '-B', str(FIXTURES / 'cli_harness.py'), *args],
                                     capture_output=True, text=True, env=env)
@@ -771,7 +781,8 @@ class ReportRepairTests(unittest.TestCase):
         self.assertEqual(process.returncode, 0, process.stderr + process.stdout)
         self.assertEqual(state['mutation'], 'job_recorded')
         receipt = Path(state['task']) / 'deploy-start.json'
-        self.assertEqual(receipt.stat().st_mode & 0o777, 0o600)
+        if POSIX_MODES:
+            self.assertEqual(receipt.stat().st_mode & 0o777, 0o600)
         process, state = call('verify-report', *selectors)
         self.assertEqual(process.returncode, 0, process.stderr + process.stdout)
         self.assertEqual(state['outcome'], 'applied')

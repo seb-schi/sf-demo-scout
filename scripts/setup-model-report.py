@@ -63,8 +63,9 @@ def provider_from(environment: dict) -> str:
 
 
 def read_text(path: Path) -> str:
-    # Nonblocking open avoids hanging on a FIFO; bounded reads avoid huge inputs.
-    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    # Nonblocking open avoids hanging on a FIFO (Windows has neither, so the flag is 0 there); binary mode keeps the
+    # bytes as they are on Windows too; bounded reads avoid huge inputs.
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0) | getattr(os, 'O_BINARY', 0))
     with os.fdopen(descriptor, 'rb') as stream:
         if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
             raise ValueError('not a regular file')
@@ -219,10 +220,33 @@ def report(rows: list[dict], provider: str, failed: bool = False) -> list[str]:
                       if uncertain or provider == 'unknown' else 'Model routing preserved; no below-5.5 routing found in the inspected sources.')]
 
 
+def default_managed(platform: str = sys.platform) -> Path:
+    """Claude Code's managed settings file where its docs place it: https://code.claude.com/docs/en/managed-settings
+    (Windows no longer reads the older C:\\ProgramData\\ClaudeCode path)."""
+    if platform == 'darwin':
+        return Path('/Library/Application Support/ClaudeCode/managed-settings.json')
+    if platform == 'win32':
+        return Path('C:\\Program Files\\ClaudeCode\\managed-settings.json')
+    return Path('/etc/claude-code/managed-settings.json')
+
+
+def default_vscode(home: Path, platform: str = sys.platform) -> Path:
+    """VS Code's user settings file where its docs place it: https://code.visualstudio.com/docs/configure/settings"""
+    if platform == 'darwin':
+        return home / 'Library/Application Support/Code/User/settings.json'
+    if platform == 'win32':
+        roaming = os.environ.get('APPDATA')
+        return (Path(roaming) if roaming else home / 'AppData' / 'Roaming') / 'Code' / 'User' / 'settings.json'
+    return home / '.config/Code/User/settings.json'
+
+
 def main() -> None:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", newline="\n")  # the report's lines and paths, the same everywhere
+    except (AttributeError, ValueError):
+        pass
     parser = argparse.ArgumentParser()
-    parser.add_argument('--managed', type=Path, default=Path('/Library/Application Support/ClaudeCode/managed-settings.json')
-                        if sys.platform == 'darwin' else Path('/etc/claude-code/managed-settings.json'))
+    parser.add_argument('--managed', type=Path, default=default_managed())
     parser.add_argument('--project', type=Path, default=Path.cwd())
     parser.add_argument('--vscode', type=Path)
     parser.add_argument('--zshrc', type=Path)
@@ -230,8 +254,8 @@ def main() -> None:
     if runpy.run_path(str(HERE / 'setup-mcp-status.py'))['active_host']() != 'claude':
         return
     home = Path.home()
-    rows, provider, failed = collect(home, args.project, args.managed,
-        args.vscode or home / 'Library/Application Support/Code/User/settings.json', args.zshrc or home / '.zshrc')
+    rows, provider, failed = collect(home, args.project, args.managed, args.vscode or default_vscode(home),
+                                     args.zshrc or home / '.zshrc')
     print('\n'.join(report(rows, provider, failed)))
 
 

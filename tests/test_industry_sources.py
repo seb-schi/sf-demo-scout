@@ -22,6 +22,8 @@ import time
 import unittest
 from unittest.mock import patch
 
+import stand_ins
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/industry_sources.py"
 SPEC = importlib.util.spec_from_file_location("industry_sources", SCRIPT)
@@ -386,12 +388,11 @@ class BuildIndexTests(unittest.TestCase):
         self.fixture = Fixture(self.base, {"docs/a.md": b"a"}, paths=("docs/", "README.md"))
 
     def fake_gh(self, payload, code=0):
-        path = self.base / "gh"
         answer = self.base / "answer.json"
         answer.write_text(json.dumps(payload) if not isinstance(payload, str) else payload)
-        path.write_text("#!/bin/sh\ncat '%s'\nexit %d\n" % (answer, code))
-        path.chmod(0o755)
-        return str(path)
+        return str(stand_ins.tool(self.base, "gh", "import sys\nwith open(%r, 'rb') as answer:\n"
+                                                   "    sys.stdout.buffer.write(answer.read())\nsys.exit(%d)\n"
+                                                   % (str(answer), code)))
 
     def tree(self, *nodes, truncated=False):
         return {"sha": "f" * 40, "truncated": truncated, "tree": list(nodes)}

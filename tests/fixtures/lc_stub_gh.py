@@ -104,6 +104,8 @@ def main():
         handle.write(json.dumps(args) + "\n")
     data = load()
     options = load(STATE, {}).get("options", {})
+    if any(part in " ".join(args) for part in options.get("gh_silent") or []):  # a success that says nothing
+        return 0
     if args[:2] == ["pr", "list"]:
         head, state = flag(args, "--head"), (flag(args, "--state") or "open").upper()
         prs = [p for p in data["prs"] if (not head or p["head"] == head) and (state == "ALL" or p["state"] == state)]
@@ -126,6 +128,19 @@ def main():
         return 0
     if args[:2] == ["pr", "merge"]:
         return merge(data, args)
+    if args[:2] == ["pr", "create"]:  # Scout's own pull requests (the team's rules on a protected main)
+        head = flag(args, "--head")
+        if not tip(head):
+            print(f"pull request create failed: GraphQL: Head sha can't be blank, No commits between main and {head}",
+                  file=sys.stderr)
+            return 1
+        number = len(data["prs"]) + 1
+        data["prs"].append({"number": number, "head": head, "base": flag(args, "--base") or "main", "state": "OPEN",
+                            "title": flag(args, "--title"), "mergeCommit": None, "updatedAt": stamp(),
+                            "author": "stub-captain"})
+        save(data)
+        print(f"https://github.com/{os.environ.get('STUB_REPO', 'acme/team')}/pull/{number}")
+        return 0
     if args[:2] == ["pr", "comment"]:
         if data.get("refused_comments", 0) < options.get("comment_fails", 0):
             data["refused_comments"] = data.get("refused_comments", 0) + 1

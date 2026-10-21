@@ -13,6 +13,9 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Mapping, Sequence, Set, Tuple
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import scout_portable  # noqa: E402  (ships beside this helper)
+
 
 RECEIPT_VERSION = 1
 VALID_KINDS = {"imports", "agent-recovery", "agent-preedit", "component-preedit"}
@@ -137,7 +140,7 @@ def copy_file(source: Path, destination: Path) -> None:
             output_stream.flush()
             os.fsync(output_stream.fileno())
         os.chmod(str(temporary), 0o600)
-        os.replace(str(temporary), str(destination))
+        scout_portable.replace(str(temporary), str(destination))
     except Exception:
         if fd >= 0:
             os.close(fd)
@@ -153,14 +156,14 @@ def write_receipt(path: Path, receipt: Mapping[str, object]) -> None:
     fd, temporary_name = tempfile.mkstemp(prefix=".receipt-", dir=str(path.parent))
     temporary = Path(temporary_name)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
             fd = -1
             json.dump(receipt, stream, indent=2, sort_keys=True)
             stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
         os.chmod(str(temporary), 0o600)
-        os.replace(str(temporary), str(path))
+        scout_portable.replace(str(temporary), str(path))
     except Exception:
         if fd >= 0:
             os.close(fd)

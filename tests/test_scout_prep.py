@@ -13,12 +13,23 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 from unittest.mock import patch
 
 SCRIPTS = Path(__file__).resolve().parents[1] / 'scripts'
 sys.path.insert(0, str(SCRIPTS))
 import scout_prep as prep
+import stand_ins
+
+POSIX_MODES = os.name != 'nt'  # Windows keeps no POSIX permission bits to compare
+
+
+def scratch_base():
+    """Where prep makes its scratch: the root-owned, sticky /tmp, or on Windows the user's own temp folder."""
+    if os.name == 'nt':
+        return os.path.realpath(os.environ.get('TMP') or os.environ.get('TEMP') or tempfile.gettempdir())
+    return os.path.realpath(prep.SCRATCH_BASE)
 
 ORG, USER = '00D000000000001EAA', 'maple@example.test'
 NOW, STARTED, STAMP = '2026-10-13T16:00:00+02:00', '2026-10-13T14:50:00+02:00', '2026-10-13T15:00:00+02:00'
@@ -227,15 +238,16 @@ class QueryGrammarTests(unittest.TestCase):
 class FakeCli(Fixture):
     def setUp(self):
         super().setUp()
-        binary = self.root / 'bin' / 'sf'
-        binary.parent.mkdir()
-        binary.write_text('#!' + sys.executable + '\n' + FAKE)
-        binary.chmod(0o700)
+        stand_ins.require_node()  # prep reaches the CLI through Node on Windows, so a query keeps every character
+        folder = self.root / 'bin'
+        folder.mkdir()
+        stand_ins.salesforce_cli(folder, FAKE)
         self.calls = self.root / 'calls.jsonl'
         self.state = self.root / 'state.json'
         self.set_state()
-        patcher = patch.dict(os.environ, dict(PATH=str(binary.parent), HOME=str(self.root), PREP_CALLS=str(self.calls),
-                                              PREP_STATE=str(self.state), PYTHONDONTWRITEBYTECODE='1'), clear=True)
+        patcher = patch.dict(os.environ, stand_ins.keep(dict(stand_ins.home(self.root), PATH=stand_ins.path(folder, node=True),
+                                                             PREP_CALLS=str(self.calls), PREP_STATE=str(self.state),
+                                                             PYTHONDONTWRITEBYTECODE='1')), clear=True)
         patcher.start()
         self.addCleanup(patcher.stop)
         real = getattr(prep, 'scratch_dir', None)
@@ -317,7 +329,7 @@ class RunTests(FakeCli):
         call = [c for c in self.log() if c['args'][:3] == ['project', 'retrieve', 'start']][0]
         self.assertEqual(Path(call['args'][call['args'].index('--target-metadata-dir') + 1]), directory)
         self.assertEqual(Path(call['cwd']).resolve(), directory.parent.resolve())  # N3: cwd inside that scratch
-        self.assertEqual(str(directory.parent.parent), os.path.realpath(prep.SCRATCH_BASE))
+        self.assertEqual(str(directory.parent.parent), scratch_base())
         self.assertEqual((observed['files'], observed['complete']), (['objects/X.object'], True))
         self.assertEqual(inventory(self.orgs), before)
 
@@ -329,6 +341,8 @@ class RunTests(FakeCli):
         self.assertEqual(list(self.folder.iterdir()), [])
         for call in self.log():
             self.assertFalse(call['cwd'].startswith(str(self.orgs)), call)  # F05
+        if os.name == 'nt' or not stand_ins.symlinks():
+            self.skipTest('the root-owned, sticky scratch base and its symlink check are POSIX rules')
         link = self.root / 'base-link'
         link.symlink_to(self.folder, target_is_directory=True)
         with patch.object(prep, 'SCRATCH_BASE', str(link)):
@@ -657,6 +671,7 @@ class RenderTests(Fixture):
         code, output, candidate = self.render(results(obligation(text='Updated observation')))
         self.assertEqual(code, 0, output)
 
+    @stand_ins.needs_symlinks
     def test_prep_never_creates_or_follows_a_customer_folder(self):
         self.save(results(obligation()))
         linked = self.scratch / 'linked-folder'
@@ -688,11 +703,12 @@ class RenderTests(Fixture):
             self.cli('render', '--results', self.results, '--folder', self.folder, '--out', self.orgs / 'other' / 'task-new.md')
         first, second = (Path(json.loads(self.cli('render', '--results', self.results, '--folder', self.folder)[1])['candidate'])
                          for _ in range(2))
-        base = Path(os.path.realpath(prep.SCRATCH_BASE))
+        base = Path(scratch_base())
         for candidate in (first, second):
             self.assertEqual(candidate.parent.parent, base)
             self.assertTrue(candidate.parent.name.startswith('scout-prep-'))
-            self.assertEqual(stat.S_IMODE(candidate.parent.stat().st_mode), 0o700)
+            if POSIX_MODES:
+                self.assertEqual(stat.S_IMODE(candidate.parent.stat().st_mode), 0o700)
             self.assertTrue(prep.meta_path(candidate).is_file())
         self.assertNotEqual(first.parent, second.parent)  # every render gets a new folder; nothing is overwritten
         self.assertEqual(task.read_text(), 'ORIGINAL TASK EVIDENCE\n')
@@ -801,7 +817,7 @@ class PublishTests(Fixture):
         _, _, candidate = self.render(data)
         real = os.rename
         def racing(source, destination, *args, **kwargs):
-            if source == prep.NAME:  # R02 changed this hook: publish moves and links by name, relative to the folder's descriptor
+            if Path(source).name == prep.NAME:  # By name, relative to the folder's descriptor; on Windows, by path
                 self.destination.write_text(self.destination.read_text() + '\nLAST SECOND SE SAVE\n')
             return real(source, destination, *args, **kwargs)
         with patch.object(prep.os, 'rename', racing):
@@ -818,7 +834,7 @@ class PublishTests(Fixture):
         real = os.rename
         def racing(source, destination, *args, **kwargs):
             moved = real(source, destination, *args, **kwargs)
-            if source == prep.NAME:  # R02 changed this hook: publish moves and links by name, relative to the folder's descriptor
+            if Path(source).name == prep.NAME:  # By name, relative to the folder's descriptor; on Windows, by path
                 self.destination.write_text('NEW FILE SAVED BY THE EDITOR\n')
             return moved
         with patch.object(prep.os, 'rename', racing):
@@ -834,7 +850,7 @@ class PublishTests(Fixture):
         _, _, candidate = self.render(data)
         real = os.link
         def racing(source, destination, *args, **kwargs):
-            if destination == prep.NAME:  # R02 changed this hook: publish moves and links by name, relative to the folder's descriptor
+            if Path(destination).name == prep.NAME:  # By name, relative to the folder's descriptor; on Windows, by path
                 self.destination.write_text('HAND-MADE, SAVED DURING PREP\n')
             return real(source, destination, *args, **kwargs)
         with patch.object(prep.os, 'link', racing):
@@ -854,6 +870,7 @@ class PublishTests(Fixture):
         self.assertEqual(self.destination.read_bytes(), previous)
         self.assertEqual((self.backups(), self.staged()), ([], []))
 
+    @stand_ins.needs_symlinks
     def test_backups_and_the_destination_never_follow_a_symlink(self):
         data = results(obligation())
         self.published(data)
@@ -996,9 +1013,10 @@ class Round3Tests(FakeCli):
         code, output = self.cli('scratch')
         self.assertEqual(code, 0, output)
         folder = Path(json.loads(output)['scratch'])
-        self.assertEqual(folder.parent, Path(os.path.realpath(prep.SCRATCH_BASE)))
+        self.assertEqual(folder.parent, Path(scratch_base()))
         self.assertTrue(folder.name.startswith('scout-prep-'))
-        self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o700)
+        if POSIX_MODES:
+            self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o700)
         self.assertNotEqual(folder, Path(json.loads(self.cli('scratch')[1])['scratch']))
 
     def test_r03_a_later_demo_never_revives_an_expired_date(self):
@@ -1167,6 +1185,7 @@ class Round4Tests(FakeCli):
         self.assertEqual(self.staged(), [])
         self.assertEqual(sorted(p.name for p in self.folder.iterdir()), ['.scout-work', 'demo-path.md'])
 
+    @unittest.skipUnless(hasattr(os, 'mkfifo'), 'needs a FIFO')
     def test_q11_the_destination_read_never_blocks_and_checks_the_descriptor(self):
         """F2 changed this pin: call read_nofollow itself on a FIFO. Without O_NONBLOCK it hangs past the timeout; without
         the descriptor check it returns empty bytes. Either way it fails."""
@@ -1202,13 +1221,79 @@ class Round4Tests(FakeCli):
         self.assertIn('Show the saved screenshot', seams)
 
 
+class WindowsPublishTests(PublishTests):
+    """Every publication case again, through the Windows branch: no directory descriptors, each folder held by path
+    and checked by identity, links refused by an explicit check."""
+
+    def setUp(self):
+        windows = patch.object(prep.scout_portable, 'PLATFORM', 'win32')
+        windows.start()
+        self.addCleanup(windows.stop)
+        super().setUp()
+        self.assertFalse(prep.descriptors())
+
+
+class WindowsPrepTests(Fixture):
+    def setUp(self):
+        windows = patch.object(prep.scout_portable, 'PLATFORM', 'win32')
+        windows.start()
+        self.addCleanup(windows.stop)
+        super().setUp()
+
+    def test_scratch_is_a_private_folder_in_the_users_temp_folder(self):
+        with patch.dict(os.environ, {'TMP': str(self.scratch)}):
+            folder = prep.scratch_dir()
+        self.assertEqual(folder.parent, Path(os.path.realpath(str(self.scratch))))
+        self.assertTrue(folder.name.startswith('scout-prep-'))
+        if os.name != 'nt':
+            self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o700)
+
+    @stand_ins.needs_symlinks
+    def test_an_explicit_check_stands_in_for_o_nofollow(self):
+        target = self.orgs / 'other' / 'task-2026-10-01-0900-other.md'
+        self.destination.symlink_to(target)
+        with self.assertRaises(prep.Refused):
+            prep.read_nofollow(self.destination)
+        self.destination.unlink()
+        self.destination.write_bytes(b'line one\r\nline two\n')
+        self.assertEqual(prep.read_nofollow(self.destination), b'line one\r\nline two\n')  # bytes exact
+        folder = prep.open_directory(str(self.folder))
+        self.assertIsInstance(folder, prep.PathFolder)
+        (self.folder / '.scout-work').symlink_to(self.orgs / 'other', target_is_directory=True)
+        with self.assertRaises(prep.Refused):
+            prep.open_directory('.scout-work', folder, create=True)
+
+    def test_a_link_reparse_point_counts_as_a_link_and_a_cloud_folder_doesnt(self):
+        info = os.lstat(str(self.folder))
+        def reparse(tag):
+            return types.SimpleNamespace(st_mode=info.st_mode, st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT,
+                                         st_reparse_tag=tag)
+        self.assertTrue(prep.plain(info, stat.S_ISDIR))
+        for tag in (prep.scout_portable.IO_REPARSE_TAG_MOUNT_POINT, prep.scout_portable.IO_REPARSE_TAG_SYMLINK,
+                    0xA0000027):  # a junction, a symlink, and another name surrogate
+            self.assertFalse(prep.plain(reparse(tag), stat.S_ISDIR), hex(tag))
+        self.assertTrue(prep.plain(reparse(0x9000601A), stat.S_ISDIR))  # a OneDrive folder's cloud-file tag
+
+    def test_it_imports_without_the_posix_only_flags(self):
+        probe = ('import os, sys\n'
+                 'for name in ("O_DIRECTORY", "O_NOFOLLOW", "O_NONBLOCK"):\n'
+                 '    delattr(os, name)\n'
+                 'sys.path.insert(0, sys.argv[1])\n'
+                 'import scout_prep\n'
+                 'print(scout_prep.DIRECTORY == os.O_RDONLY, scout_prep.NOFOLLOW, scout_prep.NONBLOCK)\n')
+        result = subprocess.run([sys.executable, '-B', '-c', probe, str(SCRIPTS)], capture_output=True, text=True,
+                                timeout=30)
+        self.assertEqual((result.returncode, result.stdout), (0, 'True 0 0\n'), result.stderr)
+
+
 class BytecodeTests(unittest.TestCase):
     def test_the_helpers_write_no_bytecode_even_without_dash_b(self):
         with tempfile.TemporaryDirectory(prefix='scout-prep-pyc-') as temp:
             root = Path(temp)
             plugin = root / 'scripts'
             plugin.mkdir()
-            for name in ('scout_target.py', 'scout_prep.py', 'scout_report_repair.py', 'scout_report_xml.py'):
+            for name in ('scout_target.py', 'scout_prep.py', 'scout_report_repair.py', 'scout_report_xml.py',
+                         'scout_portable.py'):
                 shutil.copyfile(str(SCRIPTS / name), str(plugin / name))
             env = {k: v for k, v in os.environ.items() if k not in ('PYTHONDONTWRITEBYTECODE', 'PYTHONPYCACHEPREFIX')}
             env.update(HOME=str(root), PYTHONPYCACHEPREFIX=str(root / 'cache'))

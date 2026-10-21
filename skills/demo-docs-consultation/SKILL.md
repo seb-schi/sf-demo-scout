@@ -43,11 +43,11 @@ Citations land in:
 
 ## Degraded Mode
 
-If `salesforce_docs_search` fails or times out:
+If `salesforce_docs_search` fails, times out or isn't exposed:
 - Do NOT block. Docs MCP is optional; Scout degrades gracefully.
-- Record the attempt in citations with `verdict: "docs unavailable"`.
-- Flag the uncertainty in the spec as `[UNVERIFIED — docs MCP unavailable, SE confirm]`.
-- If Docs is *persistently* unavailable (not a one-off timeout — e.g. the server shows "needs authentication" or publishes no tools), it likely needs re-wiring: tell the SE to run `/scout-setup`, which registers it at user scope (bare HTTP, no auth) and self-heals any stale tool-name allowlist entry.
+- When the session has a web fetch tool, fetch the page from Salesforce's own documentation (`help.salesforce.com`, `developer.salesforce.com`) instead. It counts as a Docs citation only when the fetched body itself answers the question: record its URL and your verdict, never a search snippet.
+- Otherwise record the attempt in citations with `verdict: "docs unavailable"`, and flag the uncertainty in the spec as `[UNVERIFIED — docs MCP unavailable, SE confirm]`. A fetched official page that answers the question needs neither.
+- If Docs is *persistently* unavailable (not a one-off timeout — e.g. the server shows "needs authentication" or publishes no tools), it likely needs re-wiring: tell the SE to run `/scout-setup`, which offers to register the public Agentforce Labs Docs MCP at user scope (bare HTTP, no auth) on their yes. Until a docs source is available, record the affected items as ungrounded.
 
 ## Budget Guidance
 

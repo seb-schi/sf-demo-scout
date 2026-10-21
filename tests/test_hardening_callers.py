@@ -16,6 +16,7 @@ class HardeningCallerTests(unittest.TestCase):
     def read(self, path):
         return (ROOT / path).read_text(encoding="utf-8")
 
+    @unittest.skipIf(os.name == "nt", "runs the shipped bash fence with /bin/bash")
     def test_shipped_workspace_command_preserves_interrupted_source(self):
         contract = self.read("prompts/operation-safety.md")
         command = re.search(r"```bash\n(.*?)\n```", contract, re.S).group(1)
@@ -60,7 +61,7 @@ class HardeningCallerTests(unittest.TestCase):
             self.assertIn("explicit permission or policy rejection", materialized)
             self.assertIn("directory", materialized)
             self.assertNotIn('directory` = `$HOME/claude-projects/sf-demo-scout`', materialized)
-        for caller in ("commands/scout.md", "prompts/sparring/audit-orchestration.md",
+        for caller in ("prompts/scout/router-build.md", "prompts/sparring/audit-orchestration.md",
                        "prompts/building/direct-repair.md"):
             self.assertIn("prompts/operation-safety.md", self.read(caller))
 

@@ -102,5 +102,42 @@ class PublicHygieneTests(unittest.TestCase):
         self.assertEqual([f for f in found if not f.startswith('leaks.txt:')], [])
 
 
+
+# A Slack workspace's own address (`<workspace>.slack.com`, or `.enterprise.slack.com`) points at one company's Slack,
+# which public Scout never does; Slack's public service hosts are fine. Names of internal services stay in the
+# maintainers' private release check, so this public file names none.
+SLACK_WORKSPACE = re.compile(r'\bhttps?://(?!(?:mcp|app|api|hooks|files|status|www)\.slack\.com\b)'
+                             r'[a-z0-9-]+(?:\.enterprise)?\.slack\.com\b', re.IGNORECASE)
+
+
+def workspace_links(files):
+    found = []
+    for path, name in files:
+        try:
+            text = path.read_text(encoding='utf-8')
+        except (UnicodeDecodeError, OSError):
+            continue
+        for number, line in enumerate(text.splitlines(), 1):
+            found += ['%s:%d: %s' % (name, number, m.group(0)) for m in SLACK_WORKSPACE.finditer(line)]
+    return found
+
+
+class SlackWorkspaceTests(unittest.TestCase):
+    def test_tracked_tree_links_no_slack_workspace(self):
+        self.assertEqual(workspace_links(tracked_files()), [])
+
+    def test_a_workspace_link_fires_and_slacks_service_hosts_do_not(self):
+        leaks = ['https://acme' + '.slack.com/archives/C1', 'see https://acme.enterprise' + '.slack.com/docs/x']
+        allowed = ['https://mcp' + '.slack.com/mcp', 'https://app' + '.slack.com/client', 'https://api' + '.slack.com/apps']
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'leaks.txt').write_text('\n'.join(leaks))
+            (root / 'allowed.txt').write_text('\n'.join(allowed))
+            subprocess.run(['git', 'init', '-q'], cwd=root, check=True)
+            subprocess.run(['git', 'add', '.'], cwd=root, check=True)
+            found = workspace_links(tracked_files(root))
+        self.assertEqual({f.split(':')[0] + ':' + f.split(':')[1] for f in found}, {'leaks.txt:1', 'leaks.txt:2'}, found)
+
+
 if __name__ == '__main__':
     unittest.main()

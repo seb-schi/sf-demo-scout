@@ -1,0 +1,27 @@
+{
+  "description": "SF Demo Scout session start: standing rules, setup and official-plugin notices, and the active org; teammates' updates at each prompt in team mode. Each command sources run-hook.cmd, which finds Python and runs the named hook; `set --` names it too, for shells whose `.` passes no arguments.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "set -- session_startup.py; . \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" session_startup.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "set -- team_updates.py; . \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" team_updates.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

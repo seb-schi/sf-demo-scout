@@ -411,6 +411,8 @@ def promotion_rows(soql, data):
 def query(args):
     soql, data = flag(args, "--query"), state()
     options = data["options"]
+    if any(part in soql for part in options.get("silent_queries") or []):  # a success that leaves the records out
+        ok({"done": True, "totalSize": 0})
     if "--use-tooling-api" in args:
         if "FROM TestSuiteMembership" not in soql:
             error("not stubbed (tooling): " + soql, name="Unstubbed")
@@ -439,7 +441,7 @@ def query(args):
     elif "FROM ApexTestResult" in soql:
         run = (data.get("test_runs") or {}).get(where(soql, "AsyncApexJobId"))
         here = run and run["org"] == orgs_id(flag(args, "--target-org"))
-        rows = list(run["results"]) if here else []
+        rows = list(run["results"]) if here and not options.get("tests_no_results") else []
     elif "FROM DevopsTestSuiteStage" in soql:
         rows = [{"TestSuite": {"Name": name}} for name in data.get("suites", [])]
     elif "FROM WorkItem" in soql:
@@ -472,6 +474,13 @@ def mp(args):
         org = orgs[flag(args, "--target-org")]["id"][:15]
         registry.setdefault(person, {})[org] = {"role": "guard", "lifecycleCaptain": "--lifecycle-captain" in args}
         save(MP, registry)
+        if os.environ.get("SF_DATA_DIR"):  # sf-mp's own record of what it guards on this machine, in its real shape
+            bound = Path(os.environ["SF_DATA_DIR"]) / "sf-mp" / "bound-orgs.json"
+            record = load(bound, {"orgs": {}})
+            record["orgs"][org] = {"role": "guard", "checkout": str(Path.cwd()), "boundAt": stamp(),
+                                   **({"lifecycleCaptain": True} if "--lifecycle-captain" in args else {})}
+            bound.parent.mkdir(parents=True, exist_ok=True)
+            save(bound, record)
         ok({"role": "guard", "commonOrgId": org, "lifecycleCaptain": "--lifecycle-captain" in args, "warnings": []})
     target = flag(args, "--target-org")
     if not (registry.get(person) or {}).get(orgs[target]["id"][:15], {}).get("lifecycleCaptain"):
@@ -482,6 +491,8 @@ def mp(args):
     calls.append({"tests": tests, "no_tests": "--no-tests" in args, "files": sorted(
         p.relative_to(Path.cwd()).as_posix() for p in Path.cwd().rglob("*") if p.is_file())})
     save(ROOT / "validations.json", calls)
+    if options.get("validate_silent"):  # the process ends without an answer
+        sys.exit(0)
     if options.get("validate_fails"):
         print(json.dumps({"status": 1, "result": {"validated": False, "testsRun": 1, "failures": ["InvoiceTest.run: injected"]}}))
         sys.exit(1)
@@ -542,8 +553,23 @@ def main():
         if target not in orgs:
             error(f"No authorization information found for {target}.", name="NoOrgFound")
         ok(dict(orgs[target], id=orgs_id(target), connectedStatus="Connected"))
-    if args[:1] == ["plugins"] and "install" not in args:
-        print(json.dumps([{"name": "sf-mp", "version": os.environ.get("STUB_GUARD", "0"), "type": "user"}]))
+    person = os.environ.get("SCOUT_TEAMS_FILE", "default")  # each person's machine has its own sf CLI and plugins
+    if args[:2] == ["plugins", "install"]:
+        installed = load(ROOT / "plugins.json", {})
+        installed[person] = json.loads((Path(__file__).resolve().parents[2] / "packages" / "sf-mp" / "package.json")
+                                       .read_text())["version"] if Path(args[2][5:]).exists() else "?"
+        save(ROOT / "plugins.json", installed)
+        print("installed")
+        sys.exit(0)
+    if args[:1] == ["plugins"] and os.environ.get("STUB_PLUGINS") == "fail":  # the CLI couldn't list its plugins
+        print("Error: the plugin list couldn't be read", file=sys.stderr)
+        sys.exit(1)
+    if args[:1] == ["plugins"] and os.environ.get("STUB_PLUGINS") == "garbage":  # an answer that isn't a list
+        print("{\"status\": 1}")
+        sys.exit(0)
+    if args[:1] == ["plugins"]:
+        version = load(ROOT / "plugins.json", {}).get(person) or os.environ.get("STUB_GUARD")
+        print(json.dumps([{"name": "sf-mp", "version": version, "type": "user"}] if version else []))
         sys.exit(0)
     if args[:2] in (["mp", "init"], ["mp", "validate"]):
         mp(args)

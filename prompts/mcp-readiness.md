@@ -3,7 +3,7 @@
 Use the active host and plugin root from `prompts/host-runtime.md`. This check is read-only: it never registers, removes, authenticates or repairs a server.
 
 1. **Use the exposed tools.** Discover the tools in the current session, approved connectors included, match the operations this task needs and inspect their input schemas. A CLI listing can't see every host-managed connector, so never reject a usable session tool because a CLI is missing or omits it. Historical `mcp__...` spellings in Scout prompts name intended operations; use the discovered names and schemas. A worker discovers its own tools: the caller's discovery doesn't guarantee what the worker sees.
-2. **Diagnose registration only when needed,** with the shipped helper, run from the active task's project folder. Substitute the host and one of `salesforce-docs`, `slack` or `google`:
+2. **Diagnose registration only when needed,** with the shipped helper, run from the active task's project folder. Substitute the host and the provider, `salesforce-docs`:
 
    ```bash
    python3 "/absolute/path/of/active/sf-demo-scout/scripts/setup-mcp-status.py" --host "[SCOUT_HOST]" "[PROVIDER]"

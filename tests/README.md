@@ -50,8 +50,8 @@ npm; and invalid selectors. No fixture runs Homebrew, npm, npx, a registry
 request, or a real host runtime.
 
 Prerequisites are Python 3.9+, Git, `/bin/bash`, standard POSIX/macOS shell
-utilities, and a real `/bin/zsh`. The shell-repair tests execute `zsh -f -n`
-against both original and staged temporary files. Missing Git or zsh
+utilities, and a real `/bin/zsh`. The setup-fence tests parse every shipped
+bash fence with `zsh -f -n`, because the model's shell may be zsh. Missing Git or zsh
 fails clearly; no prerequisite is reported as a skipped pass.
 
 Install Python dependencies into a development virtual environment using
@@ -139,7 +139,7 @@ assertion:
 
 | Historical group | Maintained location | Assertions | Coverage |
 |---|---|---:|---|
-| B2 shell repair | `tests/test_setup.py::ZshrcScriptTests` | 65 | Missing-file creation; existing pair, unrelated text, backup and idempotency; lone, padded, reversed, duplicate and nested markers; ordinary marker words; multiline result rejection; original syntax and validator failures; successful/rejected/dangling symlinks; injected staging and final-replace failures; mode, exact backup and staging cleanup. |
+| B2 shell repair (retired in 2.4) | none: setup no longer edits `~/.zshrc`, and these tests went with that step | 65 | Historical: missing-file creation; existing pair, unrelated text, backup and idempotency; lone, padded, reversed, duplicate and nested markers; ordinary marker words; multiline result rejection; original syntax and validator failures; successful/rejected/dangling symlinks; injected staging and final-replace failures; mode, exact backup and staging cleanup. |
 | B3 CLI reporting | `tests/test_setup.py::CliRefreshScriptTests` and `tests/test_packaging.py::test_done_summary_keeps_three_truthful_failure_assertions` | 27 | Twelve outcomes for each of `sf` and `claude`, including policy-held, installer/probe failures, malformed or embedded version text, no-op and mismatch; three truthful done-summary assertions. |
 | B4 slug/hook | `tests/test_slug.py` | 27 | Nine literal transliterations, empty/glob inputs, six literal truncation boundaries, and ten real startup-hook customer-folder assertions using F6's cache/settings/config/workspace seams and complete synthetic CLI envelopes. |
 
@@ -156,9 +156,10 @@ Batch 7 added 14 vendoring methods, Batch 8a added 12 setup ownership/status
 methods, and Batch 8b adds 9 bootstrap methods, for 186 total while preserving
 all 177 pre-Batch-8b methods. Batch 9 adds 30 methods (20 workspace, 2 CLI
 probe, 5 preservation, and 3 completion methods), for 216 total while retaining
-all 186 baseline methods. The 119
+all 186 baseline methods. The 54 B3 and B4
 historical assertions above remain executed inside the maintained methods and
-subcases, including all 24 CLI outcome meanings.
+subcases, including all 24 CLI outcome meanings; B2's 65 retired with the
+`.zshrc` step in 2.4.
 
 Batch 9 runs the workspace helper against explicit temporary paths and a local
 `sf` stub. It covers failed/malformed scaffold results, missing artifacts,
@@ -181,6 +182,27 @@ Filesystem fixtures cover no-op identity, exact backups, modes, symlink and
 backup-collision refusal, copy/stage/replace failures, and distinct reporting
 after a completed replacement fails verification. The suite does not modify
 real user settings or exercise live client loading; launchctl behavior is unchanged.
+In 2.4 the settings cleanup these methods drove (model pins, AI-tool hooks, retired
+permission rules) was retired, and its tests with it. `tests/test_settings_parsers.py`
+keeps the parser cases (strict JSON, JSONC, linked files) for the marketplace
+auto-update step and the read-only model report, which still use those parsers.
+
+## 2.4: checks for the public release
+
+- `tests/test_public_hygiene.py::SlackWorkspaceTests` fails when anything shipped
+  links one company's Slack workspace; Slack's public service hosts are fine. Names of
+  internal services are checked by the maintainers' private release check, so no public
+  file lists them.
+- `tests/test_prompt_references.py` checks that every plugin path a prompt, command,
+  skill or hook names exists, so a deleted file leaves no dangling pointer. It doesn't
+  see prose references to step letters or procedures.
+- `tests/test_uninstall.py` runs `scripts/scout_uninstall.py` against a temporary home:
+  the plan before any removal, the workspace only on request and only when it's
+  recognisably Scout's, links, absent folders and folders outside the home.
+- `tests/test_setup_official_plugins.py` and `tests/test_shell_callers.py` check that
+  setup fills in a missing marketplace `autoUpdate` and never overrides one the SE set.
+- `tests/test_packaging.py` checks the per-host manifests: one version, Claude's hooks
+  off the default path, and no hooks or commands for Codex.
 
 Batch 11 adds 14 Flow/completion and 5 audit-route methods for 259 total, preserving
 all 240 baseline methods. It exercises Flow validation through the existing read-only completion

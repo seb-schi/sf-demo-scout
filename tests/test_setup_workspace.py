@@ -10,9 +10,37 @@ import sys
 import tempfile
 import unittest
 
+import stand_ins
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "setup-workspace.py"
+# Stands in for `sf project generate`: it scaffolds the way each test asks, then prints SF_OUTPUT.
+SF_STUB = r"""import os
+from pathlib import Path
+import sys
+
+arguments = sys.argv[1:]
+output = Path(arguments[arguments.index("--output-dir") + 1] if "--output-dir" in arguments else "")
+project = output / "sf-demo-scout"
+if os.environ["MAKE_PROJECT"] == "1":
+    project.mkdir(parents=True, exist_ok=True)
+    (project / "sfdx-project.json").write_bytes(
+        b'{"packageDirectories":[{"path":"force-app","default":true}],"sourceApiVersion":"65.0"}\n')
+if os.environ["MAKE_FORCE_APP"] == "1":
+    if os.environ["SYMLINK_FORCE_APP"] == "1":
+        (output / "generated-force-app" / "main" / "default").mkdir(parents=True, exist_ok=True)
+        os.symlink(output / "generated-force-app", project / "force-app", target_is_directory=True)
+    else:
+        default = project / "force-app" / "main" / "default"
+        default.mkdir(parents=True, exist_ok=True)
+        if os.environ["BROKEN_FORCE_APP"] == "1":
+            os.symlink("missing-target", default / "broken")
+        else:
+            (default / "generated.txt").write_bytes(b"generated\n")
+print(os.environ["SF_OUTPUT"])
+sys.exit(int(os.environ["SF_EXIT_CODE"]))
+"""
 
 
 class SetupWorkspaceTests(unittest.TestCase):
@@ -40,42 +68,10 @@ class SetupWorkspaceTests(unittest.TestCase):
         broken_force_app: bool = False,
         symlink_force_app: bool = False,
     ) -> None:
-        sf = self.bin_dir / "sf"
-        sf.write_text(
-            """#!/bin/bash
-set -u
-output_dir=""
-while [ "$#" -gt 0 ]; do
-  if [ "$1" = "--output-dir" ]; then
-    shift
-    output_dir="$1"
-  fi
-  shift
-done
-if [ "${MAKE_PROJECT}" = 1 ]; then
-  mkdir -p "$output_dir/sf-demo-scout"
-  printf '{"packageDirectories":[{"path":"force-app","default":true}],"sourceApiVersion":"65.0"}\n' > "$output_dir/sf-demo-scout/sfdx-project.json"
-fi
-if [ "${MAKE_FORCE_APP}" = 1 ]; then
-  if [ "${SYMLINK_FORCE_APP}" = 1 ]; then
-    mkdir -p "$output_dir/generated-force-app/main/default"
-    ln -s "$output_dir/generated-force-app" "$output_dir/sf-demo-scout/force-app"
-  else
-    mkdir -p "$output_dir/sf-demo-scout/force-app/main/default"
-    if [ "${BROKEN_FORCE_APP}" = 1 ]; then
-      ln -s missing-target "$output_dir/sf-demo-scout/force-app/main/default/broken"
-    else
-      printf 'generated\n' > "$output_dir/sf-demo-scout/force-app/main/default/generated.txt"
-    fi
-  fi
-fi
-printf '%s\n' "${SF_OUTPUT}"
-exit "${SF_EXIT_CODE}"
-"""
-        )
-        sf.chmod(0o700)
+        stand_ins.require_node()  # setup reaches the CLI through Node on Windows
+        stand_ins.salesforce_cli(self.bin_dir, SF_STUB)
         self.sf_env = {
-            "PATH": f"{self.bin_dir}:/usr/bin:/bin",
+            **stand_ins.cli_environment(self.bin_dir),
             "SF_EXIT_CODE": str(exit_code),
             "SF_OUTPUT": output,
             "MAKE_PROJECT": "1" if make_project else "0",
@@ -140,6 +136,46 @@ exit "${SF_EXIT_CODE}"
             check=False,
             timeout=10,
         )
+
+    def run_default(self, command: str, *args: str) -> subprocess.CompletedProcess[str]:
+        """A command that takes its paths from the SCOUT_WORKSPACE and SCOUT_CONFIG_FILE seams."""
+        environment = dict(os.environ, SCOUT_WORKSPACE=str(self.workspace), SCOUT_CONFIG_FILE=str(self.config),
+                           PYTHONDONTWRITEBYTECODE="1")
+        return subprocess.run([sys.executable, "-B", str(SCRIPT), command, *args], text=True, capture_output=True,
+                              check=False, timeout=10, env=environment)
+
+    def test_lessons_writes_the_index_once_and_never_replaces_it(self) -> None:
+        first = self.run_default("lessons")
+        self.assertEqual((first.returncode, first.stdout.strip()), (0, "LESSONS_WRITTEN"), first.stderr)
+        index = self.workspace / "orgs" / "lessons" / "INDEX.md"
+        self.assertTrue(index.read_text().startswith("# Lessons Index"))
+        index.write_text("# Lessons Index\n\n- my own line\n")
+        second = self.run_default("lessons")
+        self.assertEqual(second.stdout.strip(), "LESSONS_PRESENT")
+        self.assertIn("my own line", index.read_text())
+
+    def test_a_non_ascii_workspace_path_prints_as_utf8_whatever_the_code_page(self) -> None:
+        # Windows can hand a captured stdout the ANSI code page; the gate still prints its path, as UTF-8 and LF.
+        self.workspace = self.base / "Łódź 東京" / "sf-demo-scout"
+        self.install_sf_stub()
+        self.assertEqual(self.run_setup().returncode, 0)
+        env = {key: value for key, value in os.environ.items() if key not in ("PYTHONUTF8", "PYTHONPATH")}
+        env.update(PYTHONIOENCODING="cp1252", SCOUT_WORKSPACE=str(self.workspace), SCOUT_CONFIG_FILE=str(self.config),
+                   PYTHONDONTWRITEBYTECODE="1")
+        gate = subprocess.run([sys.executable, "-B", str(SCRIPT), "gate", "--host", "claude"], env=env,
+                              capture_output=True, check=False, timeout=30)
+        self.assertEqual(gate.returncode, 0, gate.stderr.decode("utf-8", "replace"))
+        output = gate.stdout.decode("utf-8")
+        self.assertIn("WORKSPACE_READY\nSTATE=OK WORKSPACE=", output)
+        self.assertIn("Łódź 東京", output)
+        self.assertNotIn("\r", output)
+
+    def test_state_creates_only_the_folder_and_reports_fresh(self) -> None:
+        result = self.run_default("state", "--host", "codex")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.strip().endswith("STATE=FRESH"))
+        self.assertEqual(list(self.workspace.iterdir()), [])  # the fresh path does the rest
+        self.assertFalse(self.config.exists())
 
     def test_codex_setup_and_verify_do_not_require_claude_settings(self) -> None:
         self.install_sf_stub()
@@ -301,6 +337,7 @@ exit "${SF_EXIT_CODE}"
         self.assertFalse((self.workspace / "sfdx-project.json").exists())
         self.assertFalse(self.config.exists())
 
+    @stand_ins.needs_symlinks
     def test_dangling_force_app_symlink_is_preserved(self) -> None:
         self.workspace.mkdir()
         force_app = self.workspace / "force-app"
@@ -313,11 +350,12 @@ exit "${SF_EXIT_CODE}"
         self.assertIn("FORCE_APP_INVALID", result.stdout)
         self.assertTrue(force_app.is_symlink())
         self.assertEqual(
-            os.readlink(force_app), str(self.workspace / "missing-user-target")
+            stand_ins.link_target(force_app), str(self.workspace / "missing-user-target")
         )
         self.assertFalse((self.workspace / "sfdx-project.json").exists())
         self.assertFalse(self.config.exists())
 
+    @stand_ins.needs_symlinks
     def test_live_force_app_symlink_blocks_setup_without_clobber(self) -> None:
         self.workspace.mkdir()
         outside = self.base / "outside-force-app"
@@ -335,6 +373,7 @@ exit "${SF_EXIT_CODE}"
         self.assertFalse((self.workspace / "sfdx-project.json").exists())
         self.assertFalse(self.config.exists())
 
+    @stand_ins.needs_symlinks
     def test_verify_rejects_live_force_app_symlink(self) -> None:
         self.install_sf_stub()
         setup_result = self.run_setup()
@@ -353,6 +392,7 @@ exit "${SF_EXIT_CODE}"
         self.assertTrue(force_app.is_symlink())
         self.assertTrue((outside / "main/default/generated.txt").is_file())
 
+    @stand_ins.needs_symlinks
     def test_nested_scaffold_symlink_is_unverified_and_staging_is_cleaned(self) -> None:
         self.install_sf_stub(broken_force_app=True)
 
@@ -365,6 +405,7 @@ exit "${SF_EXIT_CODE}"
         self.assertFalse(self.config.exists())
         self.assertEqual(list(self.base.glob(".scout-sfdx-*")), [])
 
+    @stand_ins.needs_symlinks
     def test_scaffold_force_app_symlink_is_unverified(self) -> None:
         self.install_sf_stub(symlink_force_app=True)
 
@@ -453,6 +494,7 @@ shutil.copytree = fail_owned_force_app_copy
         self.assertNotIn("WORKSPACE_READY", result.stdout)
         self.assertTrue(self.config.is_dir())
 
+    @stand_ins.needs_symlinks
     def test_dangling_config_symlink_is_preserved_without_writing_target(self) -> None:
         self.workspace.mkdir()
         (self.workspace / "force-app").mkdir()
@@ -474,7 +516,7 @@ shutil.copytree = fail_owned_force_app_copy
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("INVALID_ARGUMENT", result.stdout)
         self.assertTrue(config_link.is_symlink())
-        self.assertEqual(os.readlink(config_link), str(external_config))
+        self.assertEqual(stand_ins.link_target(config_link), str(external_config))
         self.assertFalse(external_config.exists())
 
     def test_verify_fails_closed_for_bad_workspace_and_missing_artifacts(self) -> None:

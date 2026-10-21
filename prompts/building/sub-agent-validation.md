@@ -113,11 +113,7 @@ Neither one can change the frozen expected-work ledger.
    that input truly does not exist):
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build-completion.py" \
-     --spec "[actual approved spec path]" \
-     --ledger "[frozen phase ledger JSON path]" \
-     --worker-result "[parsed worker JSON path]" \
-     --evidence "[orchestrator evidence JSON path]"
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build-completion.py" --spec "[actual approved spec path]" --ledger "[frozen phase ledger JSON path]" --worker-result "[parsed worker JSON path]" --evidence "[orchestrator evidence JSON path]"
    ```
 
    The helper is stdlib/read-only: it makes no Salesforce calls and no deployment

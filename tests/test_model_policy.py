@@ -6,13 +6,14 @@ import json
 import os
 import re
 from pathlib import Path
-import runpy
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
 from unittest.mock import patch
+
+import stand_ins
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,11 +44,13 @@ class PolicyTests(unittest.TestCase):
         self.home.mkdir()
         self.bin = self.base / 'bin'
         self.bin.mkdir()
-        (self.bin / 'python3').symlink_to(sys.executable)
+        if not stand_ins.WINDOWS:  # for the bash fences; the tests that run them don't run on Windows
+            (self.bin / 'python3').symlink_to(sys.executable)
         self.script('launchctl', 'exit 0\n')
-        self.environment = {'HOME': str(self.home), 'PATH': f'{self.bin}:/usr/bin:/bin',
-                            'SCOUT_HOST': 'claude', 'CLAUDE_CODE_USE_BEDROCK': '1',
-                            'PYTHONDONTWRITEBYTECODE': '1', 'CLAUDE_CONFIG_DIR': str(self.home / '.claude')}
+        self.environment = stand_ins.keep({**stand_ins.home(self.home),
+                                           'PATH': os.pathsep.join((str(self.bin), '/usr/bin', '/bin')),
+                                           'SCOUT_HOST': 'claude', 'CLAUDE_CODE_USE_BEDROCK': '1',
+                                           'PYTHONDONTWRITEBYTECODE': '1', 'CLAUDE_CONFIG_DIR': str(self.home / '.claude')})
         self.addCleanup(patch.stopall)
         patch.dict(os.environ, self.environment, clear=True).start()
 
@@ -56,6 +59,19 @@ class PolicyTests(unittest.TestCase):
         path.write_text('#!/bin/bash\n' + body)
         path.chmod(0o700)
         return path
+
+    def client(self, name, output='', code=0, sleep=0, log=None, note='call'):
+        """A stand-in for a Claude Code binary: it adds `note` to `log`, waits `sleep` seconds, prints `output` and
+        exits with `code`, on any platform."""
+        lines = ['import sys']
+        if log is not None:
+            lines.append('with open(%r, "a") as calls:\n    calls.write(%r)' % (str(log), note + '\n'))
+        if sleep:
+            lines += ['import time', 'time.sleep(%r)' % sleep]
+        if output:
+            lines.append('print(%r)' % output)
+        lines.append('sys.exit(%d)' % code)
+        return stand_ins.tool(self.bin, name, '\n'.join(lines) + '\n')
 
     def collect(self, home):
         return REPORT.collect(home, home / 'project', home / 'managed.json', home / 'vscode.json', home / '.zshrc')
@@ -72,86 +88,81 @@ class PolicyTests(unittest.TestCase):
                 self.assertEqual(REPORT.classify(value)[0], expected)
         self.assertEqual(REPORT.classify('sonnet', 'foundry', pinned=True)[0], 'unknown')
 
-    def test_surface_value_matrix_fresh_and_refresh_preserve_bytes(self):
+    def test_surface_value_matrix_is_reported_read_only(self):
+        # Setup edits none of these sources since 2.4; the report reads them and leaves every byte as it was.
         surfaces = ('user', 'local', 'vscode', 'launchctl', 'zsh-inside', 'zsh-outside', 'model', 'managed',
                     'session', 'project', 'project-local')
+        legacy_block = ('# BEGIN SF-DEMO-SCOUT\n# Managed by Scout plugin — do not edit. Refreshed on first-run setup.\n'
+                        '# END SF-DEMO-SCOUT\n')  # what a pre-2.4 Scout left in ~/.zshrc
         count = 0
-        cleanup = runpy.run_path(str(ROOT / 'scripts/setup-settings.py'))['run_json_pins']
         for surface in surfaces:
             for classification, value in VALUES.items():
-                for mode in ('fresh', 'refresh'):
-                    with self.subTest(surface=surface, classification=classification, mode=mode):
-                        case = self.base / f'{surface}-{classification}-{mode}'
-                        case.mkdir()
-                        if surface == 'session' and classification == '5.5+':
-                            value = 'us.anthropic.claude-sonnet-5-5'  # F7 replay.
-                        paths = {'user': case / '.claude/settings.json', 'local': case / '.claude/settings.local.json',
-                                 'project': case / 'project/.claude/settings.json',
-                                 'project-local': case / 'project/.claude/settings.local.json',
-                                 'model': case / '.claude/settings.json', 'managed': case / 'managed.json',
-                                 'vscode': case / 'vscode.json', 'zsh-inside': case / '.zshrc', 'zsh-outside': case / '.zshrc'}
-                        key = 'model' if surface == 'model' else PIN
-                        env = {} if value is None else {PIN: value}
-                        path = paths.get(surface)
-                        os.environ.pop(PIN, None)
-                        self.script('launchctl', 'exit 0\n')
-                        if surface == 'session':
-                            os.environ.update(env)
-                        elif surface == 'launchctl':
-                            self.script('launchctl', f'if [ "$1 $2" = "getenv {PIN}" ]; then printf "%s\\n" {shlex_quote(value or "")}; fi\n')
-                            path = self.bin / 'launchctl'
-                        else:
-                            path.parent.mkdir(parents=True, exist_ok=True)
-                            if surface.startswith('zsh'):
-                                assignment = '' if value is None else f'export {PIN}="{value}"\n'
-                                env_for_shell = dict(os.environ, SCOUT_ZSHRC_OVERRIDE=str(path))
-                                subprocess.run(['/bin/bash', str(ROOT / 'scripts/setup-zshrc.sh')], env=env_for_shell, capture_output=True, check=True)
-                                block = path.read_text()
-                                body = block.replace('# BEGIN SF-DEMO-SCOUT\n', '# BEGIN SF-DEMO-SCOUT\n'+assignment) if surface == 'zsh-inside' else assignment + block
-                            elif surface == 'vscode':
-                                body = json.dumps({'claudeCode.environmentVariables': [{'name': k, 'value': v} for k, v in env.items()]})
-                            else:
-                                body = json.dumps(({} if value is None else {'model': value}) if surface == 'model' else {'env': env})
-                            path.write_text(body)
-                        before = path.read_bytes() if path else None
-                        if surface in {'user', 'local', 'model'}:
-                            cleanup(path)  # Both setup routes invoke the same cleanup operation.
-                        if surface == 'vscode':
-                            runpy.run_path(str(ROOT / 'scripts/setup-settings.py'))['run_vscode'](path)
+                with self.subTest(surface=surface, classification=classification):
+                    case = self.base / f'{surface}-{classification}'
+                    case.mkdir()
+                    if surface == 'session' and classification == '5.5+':
+                        value = 'us.anthropic.claude-sonnet-5-5'  # F7 replay.
+                    paths = {'user': case / '.claude/settings.json', 'local': case / '.claude/settings.local.json',
+                             'project': case / 'project/.claude/settings.json',
+                             'project-local': case / 'project/.claude/settings.local.json',
+                             'model': case / '.claude/settings.json', 'managed': case / 'managed.json',
+                             'vscode': case / 'vscode.json', 'zsh-inside': case / '.zshrc', 'zsh-outside': case / '.zshrc'}
+                    key = 'model' if surface == 'model' else PIN
+                    env = {} if value is None else {PIN: value}
+                    path = paths.get(surface)
+                    os.environ.pop(PIN, None)
+                    self.script('launchctl', 'exit 0\n')
+                    if surface == 'session':
+                        os.environ.update(env)
+                    elif surface == 'launchctl':
+                        if sys.platform != 'darwin':
+                            self.skipTest('the report reads launchctl only on macOS')
+                        self.script('launchctl', f'if [ "$1 $2" = "getenv {PIN}" ]; then printf "%s\\n" {shlex_quote(value or "")}; fi\n')
+                        path = self.bin / 'launchctl'
+                    else:
+                        path.parent.mkdir(parents=True, exist_ok=True)
                         if surface.startswith('zsh'):
-                            subprocess.run(['/bin/bash', str(ROOT / 'scripts/setup-zshrc.sh')], env=env_for_shell, capture_output=True, check=True)
-                        rows, provider, failed = self.collect(case)
-                        # A real Claude process also contains settings env.
-                        if key != 'model' and value is not None:
-                            with patch.dict(os.environ, {key: value}):
-                                injected, injected_provider, injected_failed = self.collect(case)
-                            self.assertEqual(injected, rows)
-                            self.assertEqual((injected_provider, injected_failed), (provider, failed))
-                        matching = [r for r in rows if r['key'] == key]
-                        if value is not None:
-                            self.assertEqual(REPORT.classify(matching[0]['value'], provider)[0], classification)
+                            assignment = '' if value is None else f'export {PIN}="{value}"\n'
+                            block = legacy_block
+                            body = block.replace('# BEGIN SF-DEMO-SCOUT\n', '# BEGIN SF-DEMO-SCOUT\n'+assignment) if surface == 'zsh-inside' else assignment + block
+                        elif surface == 'vscode':
+                            body = json.dumps({'claudeCode.environmentVariables': [{'name': k, 'value': v} for k, v in env.items()]})
                         else:
-                            self.assertEqual(matching, [])
-                        output = '\n'.join(REPORT.report(rows, provider, failed))
-                        self.assertEqual(path.read_bytes() if path else None, before)
-                        self.assertNotIn(ARN, output)
-                        advisory = value is None or surface not in {'user', 'managed', 'launchctl'}
-                        self.assertEqual('Model routing advisory:' in output, advisory)
-                        if advisory and value is not None and key == PIN:
-                            self.assertIn('A Sonnet pin was read at '+matching[0]['surface'], output)
-                            self.assertIn('sessions started without it can still resolve sonnet to 4.5', output)
-                            self.assertIn('/setup-bedrock', output)
-                        if value is not None and classification != 'alias':
-                            self.assertNotIn(value, output)
-                        if classification in {'pre-5.5', 'alias'}:
-                            self.assertIn(key, output)
-                            self.assertIn('Ask whoever manages', output) if surface == 'managed' else self.assertIn('/setup-bedrock', output)
-                            if surface in {'zsh-inside', 'zsh-outside', 'launchctl', 'vscode', 'session'}:
-                                self.assertIn('source first', output)
-                        else:
-                            self.assertNotIn('Model routing:', output)
-                        count += 1
-        self.assertEqual(count, 132)
+                            body = json.dumps(({} if value is None else {'model': value}) if surface == 'model' else {'env': env})
+                        path.write_text(body)
+                    before = path.read_bytes() if path else None
+                    rows, provider, failed = self.collect(case)
+                    # A real Claude process also contains settings env.
+                    if key != 'model' and value is not None:
+                        with patch.dict(os.environ, {key: value}):
+                            injected, injected_provider, injected_failed = self.collect(case)
+                        self.assertEqual(injected, rows)
+                        self.assertEqual((injected_provider, injected_failed), (provider, failed))
+                    matching = [r for r in rows if r['key'] == key]
+                    if value is not None:
+                        self.assertEqual(REPORT.classify(matching[0]['value'], provider)[0], classification)
+                    else:
+                        self.assertEqual(matching, [])
+                    output = '\n'.join(REPORT.report(rows, provider, failed))
+                    self.assertEqual(path.read_bytes() if path else None, before)
+                    self.assertNotIn(ARN, output)
+                    advisory = value is None or surface not in {'user', 'managed', 'launchctl'}
+                    self.assertEqual('Model routing advisory:' in output, advisory)
+                    if advisory and value is not None and key == PIN:
+                        self.assertIn('A Sonnet pin was read at '+matching[0]['surface'], output)
+                        self.assertIn('sessions started without it can still resolve sonnet to 4.5', output)
+                        self.assertIn('/setup-bedrock', output)
+                    if value is not None and classification != 'alias':
+                        self.assertNotIn(value, output)
+                    if classification in {'pre-5.5', 'alias'}:
+                        self.assertIn(key, output)
+                        self.assertIn('Ask whoever manages', output) if surface == 'managed' else self.assertIn('/setup-bedrock', output)
+                        if surface in {'zsh-inside', 'zsh-outside', 'launchctl', 'vscode', 'session'}:
+                            self.assertIn('source first', output)
+                    else:
+                        self.assertNotIn('Model routing:', output)
+                    count += 1
+        self.assertEqual(count, 66 if sys.platform == 'darwin' else 60)  # launchctl's six on macOS only
 
     def test_sonnet_advisory_multiple_sources_and_host_wide_pin(self):
         value = 'us.anthropic.claude-sonnet-5-5'
@@ -244,8 +255,8 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual((completed.returncode, completed.stdout, completed.stderr), (0, '', ''))
 
     def test_running_client_source_floor_and_timeout(self):
-        self.script('claude', 'echo "2.1.300 (Claude Code)"\n')
-        running = self.script('running', 'echo "2.1.292 (Claude Code)"\n')
+        self.client('claude', '2.1.300 (Claude Code)')
+        running = self.client('running', '2.1.292 (Claude Code)')
         os.environ.update(CLAUDE_CODE_ENTRYPOINT='claude-desktop', CLAUDE_CODE_EXECPATH=str(running))
         observation = CLIENT.observe()
         self.assertEqual(observation['version'], '2.1.292')
@@ -258,12 +269,15 @@ class PolicyTests(unittest.TestCase):
         os.environ['CLAUDE_CODE_ENTRYPOINT'] = 'cli'
         self.assertEqual(CLIENT.observe()['version'], '2.1.300')
         os.environ['CLAUDE_CODE_EXECPATH'] = str(running)
-        for body in ('echo "error near 2.1.279"', 'echo "2.1.279"; exit 2', 'sleep 4; echo 2.1.279'):
-            self.script('running', body+'\n')
+        limit = 5 if stand_ins.WINDOWS else 2  # the probe's own limit: a cold start takes longer on Windows
+        for answer in ({'output': 'error near 2.1.279'}, {'output': '2.1.279', 'code': 2},
+                       {'output': '2.1.279', 'sleep': limit + 2}):
+            running = self.client('running', **answer)
             start = time.monotonic()
             self.assertNotIn('version', CLIENT.observe())
-            self.assertLess(time.monotonic()-start, 2.8)
+            self.assertLess(time.monotonic()-start, limit + 0.8)
 
+    @unittest.skipIf(stand_ins.WINDOWS, 'runs the refresh fence with /bin/bash')
     def test_refresh_reports_each_floor_version_and_never_updates_the_client(self):
         refresh = (ROOT / 'prompts/setup/refresh.md').read_text()
         block = next(b for b in re.findall(r'```bash\n(.*?)```', refresh, re.S) if 'client-version.py' in b)
@@ -279,6 +293,7 @@ class PolicyTests(unittest.TestCase):
                 self.assertEqual('Scout needs Claude Code' in result.stdout, version != '2.1.293')
         self.assertFalse((self.home / 'npm-called').exists())  # Claude Code updates itself; setup never does
 
+    @unittest.skipUnless(Path('/bin/bash').exists(), "the startup fixture's sf and claude stubs are bash scripts")
     def test_startup_floor_global_json_roundtrip_and_fail_open(self):
         case = self.base / 'startup'; case.mkdir()
         fixture = STARTUP.StartupFixture(case)
@@ -310,6 +325,56 @@ class PolicyTests(unittest.TestCase):
             f'os.execv(sys.executable, [sys.executable, "-B", {str(ROOT / "scripts/startup-evidence.py")!r}, *sys.argv[1:]])\n')
         self.assertEqual(fixture.run(helper=failing_json).stdout, plain)
         self.assertEqual(fixture.run(cwd=outside, helper=failing_json).stdout, '')
+
+
+class WindowsLocationTests(unittest.TestCase):
+    """The report on Windows: its sources read without the POSIX-only open flag, and from Windows' own locations."""
+
+    def test_a_source_is_read_without_o_nonblock_and_byte_for_byte(self):
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / 'settings.json'
+            path.write_bytes(b'{"env": {}}\r\n')
+            flag = getattr(os, 'O_NONBLOCK', None)
+            if flag is not None:
+                del os.O_NONBLOCK  # as on Windows
+            try:
+                self.assertEqual(REPORT.read_text(path), '{"env": {}}\r\n')
+            finally:
+                if flag is not None:
+                    os.O_NONBLOCK = flag
+
+    def test_a_non_ascii_source_path_prints_as_utf8_whatever_the_code_page(self):
+        # Windows can hand a captured stdout the ANSI code page; the report still names the source, as UTF-8 and LF.
+        with tempfile.TemporaryDirectory(prefix='scout-report-') as raw:
+            base = Path(raw) / 'Łódź 東京'
+            settings = base / 'project' / '.claude' / 'settings.json'
+            settings.parent.mkdir(parents=True)
+            settings.write_text(json.dumps({'env': {PIN: 'us.anthropic.claude-sonnet-5-5'}}), encoding='utf-8')
+            env = stand_ins.keep({'PATH': os.environ.get('PATH', ''), **stand_ins.home(base), 'SCOUT_HOST': 'claude',
+                                  'CLAUDE_CODE_USE_BEDROCK': '1', 'PYTHONIOENCODING': 'cp1252',
+                                  'PYTHONDONTWRITEBYTECODE': '1'})
+            result = subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/setup-model-report.py'),
+                                     '--project', str(base / 'project'), '--managed', str(base / 'managed.json'),
+                                     '--vscode', str(base / 'vscode.json'), '--zshrc', str(base / '.zshrc')],
+                                    env=env, capture_output=True, check=False, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr.decode('utf-8', 'replace'))
+            output = result.stdout.decode('utf-8')
+            self.assertIn('A Sonnet pin was read at ' + str(settings), output)
+            self.assertNotIn('\r', output)
+
+    def test_each_platform_reads_its_own_managed_and_vscode_settings(self):
+        home = Path(tempfile.gettempdir()) / 'scout-home'
+        self.assertEqual(REPORT.default_managed('win32'), Path('C:\\Program Files\\ClaudeCode\\managed-settings.json'))
+        self.assertEqual(REPORT.default_managed('darwin'), Path('/Library/Application Support/ClaudeCode/managed-settings.json'))
+        self.assertEqual(REPORT.default_managed('linux'), Path('/etc/claude-code/managed-settings.json'))
+        with patch.dict(os.environ, {'APPDATA': str(home / 'Roaming')}):
+            self.assertEqual(REPORT.default_vscode(home, 'win32'), home / 'Roaming' / 'Code' / 'User' / 'settings.json')
+        with patch.dict(os.environ):
+            os.environ.pop('APPDATA', None)
+            self.assertEqual(REPORT.default_vscode(home, 'win32'),
+                             home / 'AppData' / 'Roaming' / 'Code' / 'User' / 'settings.json')
+        self.assertEqual(REPORT.default_vscode(home, 'darwin'), home / 'Library/Application Support/Code/User/settings.json')
+        self.assertEqual(REPORT.default_vscode(home, 'linux'), home / '.config/Code/User/settings.json')
 
 
 def shlex_quote(value):
