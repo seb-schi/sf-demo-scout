@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Create and verify Scout's mandatory workspace state without clobbering files."""
+"""Create and verify Scout's mandatory workspace state without clobbering files.
+
+`gate` is /scout's read-only first step and `state` is setup's: each prints its outcome tokens, and runs the same in
+every shell, PowerShell and cmd.exe included. `--workspace` and `--config` default to `$SCOUT_WORKSPACE` and
+`$SCOUT_CONFIG_FILE`, else `~/claude-projects/sf-demo-scout` and `~/.config/sf-demo-scout/config.json`."""
 
 from __future__ import annotations
 
@@ -13,6 +17,10 @@ import subprocess
 import sys
 import tempfile
 from typing import NoReturn
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import scout_portable  # noqa: E402  (ships beside this helper)
 
 
 LESSONS_INDEX = """# Lessons Index
@@ -128,7 +136,7 @@ def atomic_write(path: Path, content: bytes, token: str) -> None:
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        scout_portable.replace(temporary, path)  # closed first; on Windows a brief scanner hold is ridden out
         temporary = None
     except OSError as error:
         fail(token, f"{path}: {error}")
@@ -150,20 +158,24 @@ def run_sf_scaffold(workspace: Path) -> tuple[Path, tempfile.TemporaryDirectory[
         )
     except OSError as error:
         fail("SFDX_GENERATE_FAILED", f"cannot create staging directory: {error}")
+    try:  # on Windows, through the CLI's Node entry, so cmd.exe never re-parses the staging path
+        command = scout_portable.sf_command(sf_executable, [
+            "project",
+            "generate",
+            "--name",
+            "sf-demo-scout",
+            "--template",
+            "empty",
+            "--output-dir",
+            staging.name,
+            "--json",
+        ])
+    except ValueError as error:
+        staging.cleanup()
+        fail("SFDX_GENERATE_FAILED", str(error))
     try:
         result = subprocess.run(
-            [
-                sf_executable,
-                "project",
-                "generate",
-                "--name",
-                "sf-demo-scout",
-                "--template",
-                "empty",
-                "--output-dir",
-                staging.name,
-                "--json",
-            ],
+            command,
             cwd=staging.name,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
@@ -235,7 +247,7 @@ def install_force_app(staged_project: Path, workspace: Path) -> None:
                         f"existing path must be a real directory: {force_app}",
                     )
             else:
-                os.replace(copy_stage, force_app)
+                scout_portable.replace(copy_stage, force_app)
     except SetupFailure:
         raise
     except OSError as error:
@@ -362,35 +374,68 @@ def setup(workspace: Path, config: Path, template: Path, plugin_version: str,
     print("WORKSPACE_READY")
 
 
+def default_workspace() -> str:
+    return os.environ.get("SCOUT_WORKSPACE") or str(Path.home() / "claude-projects" / "sf-demo-scout")
+
+
+def default_config() -> str:
+    return os.environ.get("SCOUT_CONFIG_FILE") or str(Path.home() / ".config" / "sf-demo-scout" / "config.json")
+
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     subparsers = parser.add_subparsers(dest="command", required=True)
     setup_parser = subparsers.add_parser("setup")
-    setup_parser.add_argument("--workspace", required=True)
-    setup_parser.add_argument("--config", required=True)
     setup_parser.add_argument("--template", required=True)
     setup_parser.add_argument("--plugin-version", required=True)
-    verify_parser = subparsers.add_parser("verify")
-    verify_parser.add_argument("--workspace", required=True)
-    verify_parser.add_argument("--config", required=True)
-    for child in (setup_parser, verify_parser):
-        child.add_argument("--host", choices=("claude", "codex"), default="claude")
+    children = [setup_parser] + [subparsers.add_parser(name) for name in ("verify", "gate", "state", "lessons")]
+    for child in children:
+        child.add_argument("--workspace", default=None, help="default: $SCOUT_WORKSPACE or ~/claude-projects/sf-demo-scout")
+        if child.prog.split()[-1] != "lessons":
+            child.add_argument("--config", default=None, help="default: $SCOUT_CONFIG_FILE or ~/.config/sf-demo-scout/config.json")
+            child.add_argument("--host", choices=("claude", "codex", "cursor"), default="claude")
     return parser.parse_args()
 
 
 def main() -> int:
-    arguments = parse_args()
     try:
-        workspace = explicit_path(arguments.workspace, "workspace")
-        config = explicit_path(arguments.config, "config")
-        if arguments.command == "setup":
+        sys.stdout.reconfigure(encoding="utf-8", newline="\n")  # tokens and paths, the same on every platform
+    except (AttributeError, ValueError):
+        pass
+    arguments = parse_args()
+    command = arguments.command
+    try:
+        workspace = explicit_path(arguments.workspace or default_workspace(), "workspace")
+        config = explicit_path(getattr(arguments, "config", None) or default_config(), "config")
+        if command == "setup":
             template = explicit_path(arguments.template, "template")
             setup(workspace, config, template, arguments.plugin_version, arguments.host)
+        elif command == "lessons":
+            ensure_lessons(workspace)
+        elif command == "state":
+            try:
+                workspace.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                print("SETUP_ABORTED (workspace unavailable)")
+                return 1
+            try:
+                verify(workspace, config, arguments.host)
+            except SetupFailure as error:
+                print(f"{error.token}: {error.detail}")
+                print("STATE=FRESH")  # a partial install too: the fresh path repairs what's missing
+                return 0
+            print("WORKSPACE_READY")
+            print("STATE=REFRESH")
         else:
             verify(workspace, config, arguments.host)
             print("WORKSPACE_READY")
+            if command == "gate":
+                print(f"STATE=OK WORKSPACE={workspace}")
     except SetupFailure as error:
         print(f"{error.token}: {error.detail}")
+        if command == "gate":
+            print("STATE=CHECK_FAILED")
+            print("Scout workspace verifier failed; its diagnostic output is above.", file=sys.stderr)
         return 1
     return 0
 

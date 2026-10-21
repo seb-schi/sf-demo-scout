@@ -6,21 +6,18 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
 import re
-import shlex
 import shutil
 import subprocess
 from urllib.parse import urlsplit
 
 
 ALIASES = {
-    "slack": {"slack"},
-    "google": {"google-workspace", "google_workspace"},
     "salesforce-docs": {"salesforce-docs", "salesforce_docs"},
 }
 
 ENDPOINTS = {
-    "slack": ("mcp.slack.com", "/mcp"),
     "salesforce-docs": (
         "salesforce-docs-76258744c9d7.herokuapp.com",
         "/api/mcp",
@@ -28,16 +25,18 @@ ENDPOINTS = {
 }
 
 
+HOSTS = ("claude", "codex", "cursor")
+
+
 def active_host(explicit: str | None = None) -> str:
     """Use host context, never the presence of a CLI on PATH."""
     selected = explicit if explicit is not None else os.environ.get("SCOUT_HOST")
     if selected is not None:
-        return selected if selected in {"claude", "codex"} else "unknown"
-    codex = bool(os.environ.get("CODEX_THREAD_ID"))
-    claude = os.environ.get("CLAUDECODE") == "1"
-    if codex == claude:
-        return "unknown"
-    return "codex" if codex else "claude"
+        return selected if selected in HOSTS else "unknown"
+    signals = {"codex": bool(os.environ.get("CODEX_THREAD_ID")), "claude": os.environ.get("CLAUDECODE") == "1",
+               "cursor": bool(os.environ.get("CURSOR_AGENT"))}
+    found = [host for host, present in signals.items() if present]
+    return found[0] if len(found) == 1 else "unknown"
 
 
 def matches_name(name: str, provider: str) -> bool:
@@ -75,18 +74,6 @@ def matches_provider(line: str, provider: str) -> bool:
     entry_name, details = stripped.split(": ", 1)
     if matches_name(entry_name, provider):
         return True
-    if provider == "google":
-        command = details.rsplit(" - ", 1)[0]
-        try:
-            tokens = shlex.split(command)
-        except ValueError:
-            return False
-        if not tokens or tokens[0].rsplit("/", 1)[-1] != "mcp-adaptor":
-            return False
-        return any(
-            tokens[index:index + 3] == ["serve", "--server", "google_workspace"]
-            for index in range(len(tokens) - 2)
-        )
     endpoint = details.split(None, 1)[0].rstrip(".\"',")
     return matches_endpoint(endpoint, provider)
 
@@ -148,14 +135,6 @@ def codex_matches(row: dict, provider: str) -> bool:
     url = transport.get("url")
     if isinstance(url, str) and matches_endpoint(url, provider):
         return True
-    command, args = transport.get("command"), transport.get("args")
-    if not isinstance(command, str) or not isinstance(args, list):
-        return False
-    if provider == "google" and command.rsplit("/", 1)[-1] == "mcp-adaptor":
-        return any(
-            args[i:i + 3] == ["serve", "--server", "google_workspace"]
-            for i in range(len(args) - 2)
-        )
     return False
 
 
@@ -205,36 +184,66 @@ def codex_status(raw: str, status: dict[str, str]) -> dict[str, str]:
     return {**status, "reason": "malformed_listing"}
 
 
+def cursor_status(status: dict[str, str], project: Path | None = None) -> dict[str, str]:
+    """Cursor has no listing command: read its user and project `mcp.json` files. Registration only; Cursor itself
+    reports the connection."""
+    files = [Path.home() / ".cursor" / "mcp.json", (project or Path.cwd()) / ".cursor" / "mcp.json"]
+    rows = []
+    for path in dict.fromkeys(p.resolve() for p in files):  # a session started in the home folder reads it once
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, UnicodeError):
+            return {**status, "reason": "malformed_listing"}
+        servers = data.get("mcpServers", {}) if isinstance(data, dict) else None
+        if not isinstance(servers, dict):
+            return {**status, "reason": "malformed_listing"}
+        rows += [(name, entry) for name, entry in servers.items() if isinstance(entry, dict)]
+    matches = [name for name, entry in rows if matches_name(name, status["provider"])
+               or (isinstance(entry.get("url"), str) and matches_endpoint(entry["url"], status["provider"]))]
+    if not matches:
+        return {**status, "registration": "not_observed", "reason": "not_observed"}
+    if len(matches) > 1:
+        return {**status, "registration": "ambiguous", "reason": "multiple_matches"}
+    return {**status, "registration": "registered", "reason": "listed"}
+
+
 def report(provider: str, host: str | None = None) -> dict[str, str]:
     host = active_host(host)
     status = unknown_status(provider, host, "unknown_host")
     if host == "unknown":
         return status
+    if host == "cursor":
+        return cursor_status(status)
     executable = shutil.which(host)
     if not executable:
         return {**status, "reason": "missing_cli"}
     command = [executable, "mcp", "list"]
     if host == "codex":
         command.append("--json")
-    try:
+    try:  # bytes: on Windows a decoding error inside subprocess's reader thread would lose the whole output
         result = subprocess.run(
             command,
-            text=True,
             capture_output=True,
             timeout=10,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError, UnicodeError):
+    except (OSError, subprocess.SubprocessError):
         return {**status, "reason": "probe_failed"}
     if result.returncode != 0:
         return {**status, "reason": "probe_failed"}
-    return (codex_status if host == "codex" else claude_status)(result.stdout, status)
+    try:
+        output = result.stdout.decode("utf-8")
+    except UnicodeDecodeError:  # unreadable output says nothing about the registration: unknown, never "absent"
+        return {**status, "reason": "probe_failed"}
+    return (codex_status if host == "codex" else claude_status)(output, status)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("provider", nargs="?", choices=tuple(ALIASES))
-    parser.add_argument("--host", choices=("claude", "codex", "unknown"))
+    parser.add_argument("--host", choices=(*HOSTS, "unknown"))
     parser.add_argument("--detect-host", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()

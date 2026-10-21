@@ -9,6 +9,9 @@ from pathlib import Path
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import scout_portable  # noqa: E402  (ships beside this helper)
+
 
 CLIS = {
     "sf": ("@salesforce/cli", "sf"),
@@ -24,9 +27,9 @@ def npm_ownership(selector: str, npm_arg: str, active_arg: str) -> str:
     try:
         probe = subprocess.run(
             [str(npm), "root", "-g"],
-            text=True,
+            encoding="utf-8",
             capture_output=True,
-            timeout=2,
+            timeout=10 if scout_portable.windows() else 2,  # npm.cmd starts slowly on Windows
             check=False,
         )
         roots = [line.strip() for line in probe.stdout.splitlines() if line.strip()]
@@ -36,7 +39,7 @@ def npm_ownership(selector: str, npm_arg: str, active_arg: str) -> str:
         if not root.is_absolute():
             return "unavailable"
         package_dir = root.joinpath(*package_name.split("/"))
-        metadata = json.loads((package_dir / "package.json").read_text())
+        metadata = json.loads((package_dir / "package.json").read_text(encoding="utf-8"))
         if not isinstance(metadata, dict):
             return "unavailable"
         if metadata.get("name") != package_name:
@@ -59,6 +62,12 @@ def npm_ownership(selector: str, npm_arg: str, active_arg: str) -> str:
             return "unavailable"
         if not expected.is_file() or not os.access(expected, os.X_OK):
             return "unavailable"
+        if scout_portable.windows():
+            # npm writes a .cmd shim there, not a symlink: the CLI is npm's when that shim starts this very script.
+            entry = scout_portable.sf_argv(str(active))
+            if len(entry) != 2:
+                return "unavailable"
+            return "owned" if Path(entry[1]).resolve(strict=True) == expected else "different"
         return "owned" if Path(active).resolve(strict=True) == expected else "different"
     except (
         json.JSONDecodeError,

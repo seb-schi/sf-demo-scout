@@ -64,9 +64,7 @@ paths, and `AGENT_PREFLIGHT_PATH` to the exact selected relative member. Repeat
 `--path` when both families are selected:
 
 ```bash
-python3 "$ASSET_HELPER" preserve --source-root "$SOURCE_ROOT" \
-  --rollback-dir "$ROLLBACK_DIR" --kind component-preedit \
-  --path "$AGENT_PREFLIGHT_PATH"
+python3 "$ASSET_HELPER" preserve --source-root "$SOURCE_ROOT" --rollback-dir "$ROLLBACK_DIR" --kind component-preedit --path "$AGENT_PREFLIGHT_PATH"
 ```
 
 Require success and verify the returned artifact. Retain it as

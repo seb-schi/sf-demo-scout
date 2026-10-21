@@ -4,6 +4,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import scout_history as history
+import stand_ins
 
 ORG = '00D000000000001EAA'
 USER = 'demo@example.test'
@@ -81,6 +83,8 @@ class ScoutHistoryTests(unittest.TestCase):
         from scout_report_repair import Repair, checkpoint_marker, json_read
         from test_report_repair import FakeSalesforce, MEMBER, DELTA
         if suffix:
+            if os.name == 'nt' and set(suffix) & set('<>:"|?*'):  # checked before anything below changes
+                self.skipTest("puts %r in a folder name, which Windows doesn't allow" % suffix)
             self.root = self.root / suffix
             self.folder = self.root / 'orgs' / 'example'
             self.folder.mkdir(parents=True)
@@ -241,6 +245,27 @@ class ScoutHistoryTests(unittest.TestCase):
         self.run_cli('resolve')
         self.assertIn(extra, self.log.read_text())
         self.assert_rule('checkpoint')
+
+    def test_resolution_closes_its_temporary_file_before_moving_it(self):
+        # Windows moves or deletes no file that is still open: the new log is closed, then moved over the old one by
+        # the portable replace, which rides out a scanner's brief hold, and nothing is left behind.
+        self.save(checkpoint())
+        opened, moves = [], []
+        real_temporary, real_replace = history.tempfile.NamedTemporaryFile, history.scout_portable.replace
+        def temporary(*args, **kwargs):
+            opened.append(real_temporary(*args, **kwargs))
+            return opened[-1]
+        def replace(source, destination, **kwargs):
+            moves.append((Path(source), Path(destination), [handle.closed for handle in opened]))
+            return real_replace(source, destination, **kwargs)
+        with patch.object(history.tempfile, 'NamedTemporaryFile', side_effect=temporary), \
+                patch.object(history.scout_portable, 'replace', side_effect=replace):
+            self.assertEqual(self.run_cli('resolve')[0], 0)
+        (source, destination, closed), = moves
+        self.assertEqual((destination, closed), (self.log, [True]))
+        self.assertFalse(source.exists())
+        self.assertIn('### applied — component repair · attempt A1', self.log.read_text())
+        self.assertEqual(sorted(p.name for p in self.log.parent.iterdir() if p.name.startswith('tmp')), [])
 
     def test_r10_attack_paragraph_and_checkpoint_boundaries(self):
         for boundary in ('\n', '#### Notes\n', '```text\n', '- A separate note\n'):
@@ -1146,6 +1171,8 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assertEqual(self.run_cli()[0], 4)
         self.data['items'][0]['seed_asset'] = ''
         self.save()
+        if not stand_ins.symlinks():  # Windows allows links only with Developer Mode or as an administrator
+            return
         elsewhere = self.root / 'elsewhere.md'
         elsewhere.write_text(self.log.read_text())
         self.log.unlink()
@@ -1280,9 +1307,10 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 2)
         code, _ = self.run_cli('check', '--task', str(self.root / 'missing.md'))
         self.assertEqual(code, 4)
-        completed = subprocess.run(['/usr/bin/python3', '-S', str(Path(history.__file__)), 'check', '--task', str(self.task)],
-                                   text=True, capture_output=True, check=False)
-        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        if Path('/usr/bin/python3').exists():  # the system Python, where there is one at that path
+            completed = subprocess.run(['/usr/bin/python3', '-S', str(Path(history.__file__)), 'check', '--task',
+                                        str(self.task)], text=True, capture_output=True, check=False)
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         with patch.object(Path, 'read_bytes', side_effect=PermissionError):
             self.assertEqual(self.run_cli()[0], 4)
 
@@ -1407,6 +1435,7 @@ class ScoutHistoryTests(unittest.TestCase):
         self.run_cli('resolve')
         self.assertEqual(self.run_cli()[0], 0)
 
+    @stand_ins.needs_symlinks
     def test_r4_f11_workspace_symlink_accepted_but_child_links_refused(self):
         alias = self.root / 'alias'
         alias.symlink_to(self.root, target_is_directory=True)
@@ -1455,13 +1484,16 @@ class ScoutHistoryTests(unittest.TestCase):
         sibling.mkdir()
         (sibling / 'changes-identity.md').write_text('Org: other@example.test\n')
         (sibling / 'changes-bad.md').write_bytes(b'Other\n\xff')
-        (sibling / 'changes-link.md').symlink_to(self.log)
+        links = stand_ins.symlinks()  # Windows allows links only with Developer Mode or as an administrator
+        if links:
+            (sibling / 'changes-link.md').symlink_to(self.log)
         errors = io.StringIO()
         with contextlib.redirect_stderr(errors):
             rows = self.pending_rows()
         self.assertEqual([r['state'] for r in rows if r['file'] == str(self.log)], ['unclear'])
         self.assertIn('changes-bad.md', errors.getvalue())
-        self.assertIn('changes-link.md', errors.getvalue())
+        if links:
+            self.assertIn('changes-link.md', errors.getvalue())
         (self.folder / 'changes-bad.md').write_bytes(b'Example\n\xff')
         self.task.write_text('```scout-items\n{"history":{"decisions":"proposed"},}\n```\n')
         rows = self.pending_rows()
@@ -1514,7 +1546,7 @@ class ScoutHistoryTests(unittest.TestCase):
         self.data['history']['architecture'] = 'created'
         self.save(checkpoint())
         arch = self.architecture()
-        for p in (self.log, arch): p.write_bytes(p.read_bytes().replace(b'\n', b'\r\n'))
+        for p in (self.log, arch): p.write_bytes(p.read_bytes().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n'))  # CRLF once, however written
         self.run_cli('resolve')
         raw = self.log.read_bytes()
         self.assertEqual(raw.count(b'\n'), raw.count(b'\r\n'))
@@ -1707,6 +1739,7 @@ class ScoutHistoryTests(unittest.TestCase):
                 self.assertEqual(self.pending_rows()[0]['state'], 'resolved')
                 self.assert_rule('checkpoint')
 
+    @stand_ins.needs_symlinks
     def test_r5_f10_seed_and_task_share_workspace_alias(self):
         alias = self.root / 'alias'
         alias.symlink_to(self.root, target_is_directory=True)
@@ -1722,6 +1755,7 @@ class ScoutHistoryTests(unittest.TestCase):
         seed.symlink_to(target)
         self.assertEqual(self.run_cli('check', '--task', str(alias / 'orgs' / self.folder.name / self.task.name))[0], 4)
 
+    @stand_ins.needs_symlinks
     def test_r5_f11_task_symlink_loop_is_unreadable(self):
         loop = self.folder / 'task-loop.md'
         loop.symlink_to(loop.name)
@@ -1740,6 +1774,7 @@ class ScoutHistoryTests(unittest.TestCase):
                 self.save()
                 self.assert_rule('disposition')
 
+    @stand_ins.needs_symlinks
     def test_r5_f13_task_file_symlink_never_rewrites_target_log(self):
         self.save(checkpoint())
         sibling = self.folder.parent / 'other'
@@ -1775,6 +1810,7 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assertEqual(row['path'], str(self.folder))
         self.assertTrue(row['reason'])
 
+    @stand_ins.needs_symlinks
     def test_r5_f15_symlink_folder_is_incomplete_without_following(self):
         self.save(checkpoint(outcome=None))
         moved = self.root / 'moved'
@@ -2013,6 +2049,8 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assertEqual(self.run_cli('resolve')[0], 0)
         self.assertIn('### applied', self.log.read_text())
 
+    @unittest.skipUnless(Path('/usr/bin/python3').exists(), 'runs the system Python at /usr/bin/python3')
+    @stand_ins.needs_symlinks
     def test_r6_f12_parent_loop_exercises_runtimeerror_mapping_on_python39(self):
         loop = self.root / 'loop'
         loop.symlink_to(loop.name)
@@ -2043,6 +2081,7 @@ class ScoutHistoryTests(unittest.TestCase):
                       checkpoint('A2','blocked','blocked').replace('outcome: pending','outcome: blocked'))
             self.assert_rule('checkpoint')
 
+    @stand_ins.needs_symlinks
     def test_r6_f15_reject_orgs_alias_nested_task_and_folder_alias(self):
         workspace = self.root / 'other-workspace'
         workspace.mkdir()

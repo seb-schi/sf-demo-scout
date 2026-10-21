@@ -16,8 +16,8 @@ facts behind this runbook:
 - The Agentforce **Builder UI** (New Draft → wire → Commit → Activate) is the ONLY
   verified path to a live agent on a 404 instance. A committed agent DOES round-trip
   to editable `AiAuthoringBundle` source — so this is recoverable, not a dead end.
-- The instance-level fix is a **Salesforce Support case citing the org instance ID**
-  (cross-post evidence to #agentforce-dx). Until then, use this UI path.
+- The instance-level fix is a **Salesforce Support case citing the org instance ID**,
+  with the captured evidence. Until then, use this UI path.
 
 **This is not one-click.** The preserved `.agent` is a *blueprint*; commit compiles
 routing (topics) but validates every action's I/O against the live Flow/Apex backend
@@ -64,7 +64,7 @@ Two recurring mismatch classes:
 
 1. **Open the agent in Agentforce Builder.**
    `sf org open -o <ORG_ALIAS> --path "/lightning/setup/EinsteinCopilot/home"` then
-   open the agent.
+   open the agent. In Git Bash on Windows, put `MSYS_NO_PATHCONV=1` in front of it.
 2. **A committed version is READ-ONLY — by design, not a bug.** Salesforce docs
    (*Commit an Agent Version*): once committed you can no longer change that version;
    create a new draft. If Canvas AND Script both show read-only, the version is
@@ -133,5 +133,5 @@ Session**, never on the preview reply text:
 ## Escalation
 
 This is a backend per-instance gap no client change fixes. File a Salesforce Support
-case citing the org **instance ID**, and cross-post the captured endpoint/status
-evidence to #agentforce-dx (strengthens the existing "not org-wide, not auth" thread).
+case citing the org **instance ID**, and attach the captured endpoint/status
+evidence (it shows the gap is per-instance, not org-wide, and not authentication).

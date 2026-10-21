@@ -1,0 +1,65 @@
+name: tests
+
+on:
+  push:
+    branches: [main, "ci/**"]  # ci/<name>: a candidate's run before release, without a pull request
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-suite:
+    name: offline suite (${{ matrix.os }}, Python ${{ matrix.python }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest, windows-11-arm]
+        python: ["3.12"]
+        include:
+          - os: ubuntu-latest
+            python: "3.9"  # Scout's floor
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Run the offline suite
+        run: python -B -m unittest discover -s tests -v
+
+  official-workflow-probe:
+    # What Salesforce's official skills need on native Windows: Git Bash (not WSL's bash), jq, and a Python the
+    # official gate can call. Read-only: it clones the public sf-skills repository and classifies a fixture org.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Report the tools the official skills call (diagnostic only)
+        shell: bash
+        run: |
+          command -v bash && bash --version | head -1
+          command -v python3 || echo "python3: not on PATH"
+          command -v jq && jq --version || echo "jq: not on PATH"
+      - name: The official gate classifies a Developer Edition host as a trial
+        shell: bash
+        run: |
+          git clone --depth 1 -c core.longpaths=true https://github.com/forcedotcom/sf-skills.git sf-skills
+          gate=sf-skills/plugins/builder/salesforce-development/scripts/sf-deploy-gate
+          bucket=$(printf '%s' '{"result":{"instanceUrl":"https://acme.develop.my.salesforce.com"}}' | bash "$gate" classify)
+          echo "bucket: $bucket"
+          test "$bucket" = trial
+
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint the workflows
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color

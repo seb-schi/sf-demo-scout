@@ -1,6 +1,6 @@
 # Data Shape Validation — Stage 5b
 
-Read by `/scout` before seeding data, for the sections `commands/scout.md` names, and when a scenario has Apex, Flows or Agentforce actions (objects queried or written to programmatically). Runs inline — no sub-agent needed.
+Read by `/scout` before seeding data, for the sections `prompts/scout/router-build.md` names, and when a scenario has Apex, Flows or Agentforce actions (objects queried or written to programmatically). Runs inline — no sub-agent needed.
 
 ## Scope
 

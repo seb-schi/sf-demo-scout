@@ -50,9 +50,9 @@ the slug.
 explicit map for non-decomposing characters like `ß`→`ss`, `ø`→`o`) is the
 canonical **executable** implementation of the transform above, including the
 40-character and overlong-first-segment boundary rules. It is pinned to the
-worked examples by fixtures, and `hooks/session-startup.sh` calls it to match
-customer folders by the alias slug.
+worked examples by fixtures, and `/scout` calls it to match customer folders
+by the alias slug (`skills/scout/SKILL.md`).
 
 The prompt-based folder **writer** (`customer-normalization.md`) still applies
 this documented rule directly and doesn't call the helper yet, so this text stays
-the shared contract; the helper is what the startup hook runs.
+the shared contract; the helper is what `/scout` runs.

@@ -37,6 +37,7 @@ import unicodedata
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
+    import scout_portable
     import scout_target
     from scout_report_repair import LIMIT, decode
 except ImportError:
@@ -46,6 +47,10 @@ except ImportError:
 TIMEOUT = 120
 RECORDS = 2000
 SCRATCH_BASE = '/tmp'
+# Flags Windows lacks are 0 there, where an explicit link check stands in; O_BINARY keeps its bytes exact.
+NOFOLLOW = getattr(os, 'O_NOFOLLOW', 0)
+NONBLOCK = getattr(os, 'O_NONBLOCK', 0)
+BINARY = getattr(os, 'O_BINARY', 0)
 NAME = 'demo-path.md'
 MARKER = '<!-- scout:demo-path -->'
 SET = re.compile(r'^<!-- scout:set sha256=([0-9a-f]{64}) -->$')
@@ -284,6 +289,13 @@ def current_time():
     return datetime.datetime.now().astimezone()
 
 
+def local_zone():
+    """The zone date-only validity reads in: None, so astimezone() asks the operating system, which applies its own
+    rules for the instant, daylight saving included. That holds on Windows too, where Python has no IANA database:
+    no zoneinfo or tzdata is needed. Tests pin a zone through this one function."""
+    return None
+
+
 def parse_time(value):
     """An ISO time with a timezone (Z, ±HH:MM or ±HHMM), read alike on every Python; otherwise None."""
     match = TIME.fullmatch(value) if isinstance(value, str) else None
@@ -321,7 +333,13 @@ def now(clock=None):
 
 
 def scratch_dir():
-    """Scratch lives under a vetted base (the system's root-owned, sticky /tmp), whatever TMPDIR says."""
+    """Scratch lives under a vetted base (the system's root-owned, sticky /tmp), whatever TMPDIR says. Windows has no
+    such folder: there it is a new private folder in the user's own temp folder, which other users can't open."""
+    if scout_portable.windows():
+        try:
+            return Path(scout_portable.private_tempdir('scout-prep-', os.environ.get('TMP') or os.environ.get('TEMP')))
+        except OSError as error:
+            raise Refused('no vetted scratch base') from error
     base = os.path.realpath(SCRATCH_BASE)
     try:
         info = os.stat(base)
@@ -361,10 +379,14 @@ def run_cli(args, scratch=None):
     executable = shutil.which('sf')
     if not executable:
         raise Refused('Salesforce CLI unavailable')
+    try:  # on Windows, through the CLI's Node entry, so cmd.exe never re-parses a query
+        command = scout_portable.sf_command(executable, [*args, '--json'])
+    except ValueError as error:
+        raise Refused(str(error)) from error
     own = scratch is None
     scratch = scratch or scratch_dir()
     try:
-        result = subprocess.run([executable, *args, '--json'], cwd=str(scratch), stdin=subprocess.DEVNULL,
+        result = subprocess.run(command, cwd=str(scratch), stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=TIMEOUT)
     except (OSError, subprocess.SubprocessError) as error:
         raise Refused('CLI unavailable or timed out') from error
@@ -428,7 +450,7 @@ def run_check(kind, selector, username, org, query=None, sobject=None, metadata=
         target.mkdir()
         run_cli(['project', 'retrieve', 'start', '--metadata', metadata, '--target-metadata-dir', str(target),
                  '--unzip', '--target-org', username], scratch)
-        files = sorted(str(p.relative_to(target)) for p in target.rglob('*') if p.is_file())
+        files = sorted(p.relative_to(target).as_posix() for p in target.rglob('*') if p.is_file())  # '/' everywhere
         observed = {'directory': str(target), 'files': files[:RECORDS], 'complete': len(files) <= RECORDS}
     return {'kind': kind, 'observed': observed, 'at': now(clock).isoformat(timespec='seconds')}
 
@@ -612,7 +634,7 @@ def classify(data, demo_time=None):
     later demo can't revive an expired date and a daylight-saving change can't shift the day."""
     moment = current_time()
     demo = max(moment, demo_time) if isinstance(demo_time, datetime.datetime) and demo_time.tzinfo else moment
-    demo = demo.astimezone()  # This machine's zone rules at the demo's instant, not today's offset
+    demo = demo.astimezone(local_zone())  # This machine's zone rules at the demo's instant, not today's offset
     obligations = data.get('obligations') if isinstance(data.get('obligations'), list) else []
     entries = [o for o in obligations if isinstance(o, dict)]
     keyed = {o['key']: o for o in entries if isinstance(o.get('key'), str)}
@@ -971,8 +993,11 @@ def checked_folder(folder):
 
 
 def read_nofollow(path):
-    """Read a regular file without following a symlink or blocking on a FIFO swapped in."""
-    with open(os.open(str(path), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
+    """Read a regular file without following a symlink or blocking on a FIFO swapped in. Windows has no O_NOFOLLOW,
+    so there the link check comes first."""
+    if scout_portable.windows() and not plain(os.lstat(str(path)), stat.S_ISREG):
+        raise Refused('demo-path.md is not a regular file: leaving it untouched')
+    with open(os.open(str(path), os.O_RDONLY | NOFOLLOW | NONBLOCK | BINARY), 'rb') as stream:
         if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
             raise Refused('demo-path.md is not a regular file: leaving it untouched')
         return stream.read()
@@ -1012,7 +1037,7 @@ def meta_path(candidate):
 def create(path, text):
     """Exclusive create, never through a symlink."""
     try:
-        descriptor = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        descriptor = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL | NOFOLLOW | BINARY, 0o600)
     except FileExistsError as error:
         raise Refused('--out must name a new file; %s exists' % path) from error
     with open(descriptor, 'w', encoding='utf-8', newline='') as stream:
@@ -1077,12 +1102,51 @@ def gate(candidate, data, org, username, demo_time):
     return problems
 
 
-DIRECTORY = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+DIRECTORY = os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) | NOFOLLOW
+
+
+def plain(info, kind):
+    """The file is a `kind` itself: not a symlink, nor on Windows a junction or another name-surrogate link. A cloud
+    file or folder, such as OneDrive's, is a reparse point too, and plain."""
+    return bool(kind(info.st_mode) and not scout_portable.is_link(info))
+
+
+DIR_FD = {os.open, os.stat, os.unlink, os.mkdir, os.link, os.rename} <= os.supports_dir_fd  # read once, at import
+
+
+def descriptors():
+    """Directory descriptors (`dir_fd`), where the platform has them. Windows has none, so there each folder is held
+    by its path and checked again by identity before a move counts."""
+    return DIR_FD and not scout_portable.windows()
+
+
+class PathFolder:
+    """A folder held by its path, with the identity it had when checked."""
+
+    def __init__(self, path, info):
+        self.path, self.identity = path, (info.st_dev, info.st_ino)
+
+    def join(self, name):
+        return os.path.join(self.path, name)
 
 
 def open_directory(name, parent=None, create=False):
     """A directory opened without following a symlink, created first if asked. Every later step goes
     through the descriptor, so swapping a path component after this check can't redirect a move."""
+    if not descriptors():
+        path = name if parent is None else parent.join(name)
+        if create:
+            try:
+                os.mkdir(path, 0o700)
+            except FileExistsError:
+                pass
+        try:
+            info = os.lstat(path)
+        except OSError as error:
+            raise Refused('%s is not a plain directory: nothing was replaced' % name) from error
+        if not plain(info, stat.S_ISDIR):
+            raise Refused('%s is not a plain directory: nothing was replaced' % name)
+        return PathFolder(path, info)
     if create:
         try:
             os.mkdir(name, 0o700, dir_fd=parent)
@@ -1094,16 +1158,30 @@ def open_directory(name, parent=None, create=False):
         raise Refused('%s is not a plain directory: nothing was replaced' % name) from error
 
 
+def close_directory(directory):
+    if not isinstance(directory, PathFolder):
+        os.close(directory)
+
+
 def read_at(directory, name):
     """A regular file's bytes, relative to a directory descriptor and never through a symlink; None when absent."""
-    try:
-        descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
-    except FileNotFoundError:
-        return None
-    except OSError as error:
-        if error.errno == errno.ELOOP:
-            raise Refused('%s is not a regular file: leaving it untouched' % name) from error
-        raise
+    if isinstance(directory, PathFolder):
+        try:
+            info = os.lstat(directory.join(name))
+        except FileNotFoundError:
+            return None
+        if not plain(info, stat.S_ISREG):
+            raise Refused('%s is not a regular file: leaving it untouched' % name)
+        descriptor = os.open(directory.join(name), os.O_RDONLY | NOFOLLOW | NONBLOCK | BINARY)
+    else:
+        try:
+            descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        except FileNotFoundError:
+            return None
+        except OSError as error:
+            if error.errno == errno.ELOOP:
+                raise Refused('%s is not a regular file: leaving it untouched' % name) from error
+            raise
     with open(descriptor, 'rb') as stream:
         if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
             raise Refused('%s is not a regular file: leaving it untouched' % name)
@@ -1112,7 +1190,10 @@ def read_at(directory, name):
 
 def exists_at(directory, name):
     try:
-        os.stat(name, dir_fd=directory, follow_symlinks=False)
+        if isinstance(directory, PathFolder):
+            os.lstat(directory.join(name))
+        else:
+            os.stat(name, dir_fd=directory, follow_symlinks=False)
     except FileNotFoundError:
         return False
     return True
@@ -1120,13 +1201,37 @@ def exists_at(directory, name):
 
 def discard_at(directory, name):
     try:
-        os.unlink(name, dir_fd=directory)
+        if isinstance(directory, PathFolder):
+            os.unlink(directory.join(name))
+        else:
+            os.unlink(name, dir_fd=directory)
     except OSError:
         pass
 
 
+def link_at(source_directory, source, directory, name):
+    """A hard link, never through a symlink; it fails when `name` exists, so nothing is ever clobbered."""
+    if isinstance(source_directory, PathFolder):
+        os.link(source_directory.join(source), directory.join(name))
+    else:
+        os.link(source, name, src_dir_fd=source_directory, dst_dir_fd=directory, follow_symlinks=False)
+
+
+def rename_at(source_directory, source, directory, name):
+    if isinstance(source_directory, PathFolder):
+        os.rename(source_directory.join(source), directory.join(name))
+    else:
+        os.rename(source, name, src_dir_fd=source_directory, dst_dir_fd=directory)
+
+
 def same_directory(parent, name, descriptor):
     """Is `name` in `parent` still the very directory `descriptor` holds, not swapped, moved or replaced?"""
+    if isinstance(parent, PathFolder):
+        try:
+            info = os.lstat(parent.join(name))
+        except OSError:
+            return False
+        return plain(info, stat.S_ISDIR) and (info.st_dev, info.st_ino) == descriptor.identity
     try:
         info = os.stat(name, dir_fd=parent, follow_symlinks=False)
     except OSError:
@@ -1135,12 +1240,19 @@ def same_directory(parent, name, descriptor):
     return stat.S_ISDIR(info.st_mode) and (info.st_dev, info.st_ino) == (held.st_dev, held.st_ino)
 
 
+def create_at(directory, name):
+    """A new file, created exclusively, never through a symlink."""
+    if isinstance(directory, PathFolder):
+        return os.open(directory.join(name), os.O_WRONLY | os.O_CREAT | os.O_EXCL | NOFOLLOW | BINARY, 0o600)
+    return os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
+
+
 def stage(home, candidate):
     """The staged copy is a new file in the destination's own folder, by descriptor, so linking it in is atomic."""
     for _ in range(100):
         name = '%s.tmp-%s' % (NAME, secrets.token_hex(6))
         try:
-            descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=home)
+            descriptor = create_at(home, name)
         except FileExistsError:
             continue
         try:
@@ -1158,7 +1270,7 @@ def stage(home, candidate):
 def restore(prep, backup, home, shown, destination):
     """Put the moved file back without clobbering a newer save; if one exists, keep both and name them."""
     try:
-        os.link(backup, NAME, src_dir_fd=prep, dst_dir_fd=home, follow_symlinks=False)
+        link_at(prep, backup, home, NAME)
     except OSError as error:
         if exists_at(home, NAME):
             raise Refused('kept both files: the newest demo-path.md at %s, and the one moved aside at %s'
@@ -1198,10 +1310,10 @@ def publish(folder, candidate_path, data, org, username, demo_time):
         staged = stage(home, candidate)
         probe = staged + '.link'
         try:
-            os.link(staged, probe, src_dir_fd=home, dst_dir_fd=home, follow_symlinks=False)  # Without hard links nothing moves
+            link_at(home, staged, home, probe)  # Without hard links nothing moves
             if current is None:
                 try:
-                    os.link(staged, NAME, src_dir_fd=home, dst_dir_fd=home, follow_symlinks=False)
+                    link_at(home, staged, home, NAME)
                 except FileExistsError as error:
                     raise Refused('a demo-path.md appeared during prep; kept it, and the candidate at %s' % candidate_path) from error
                 return {'published': str(destination), 'backup': None}
@@ -1210,7 +1322,7 @@ def publish(folder, candidate_path, data, org, username, demo_time):
             if exists_at(prep, backup):
                 raise Refused('backup name taken; nothing was replaced, so publish again')
             try:
-                os.rename(NAME, backup, src_dir_fd=home, dst_dir_fd=prep)  # Whatever was saved last moves, whole
+                rename_at(home, NAME, prep, backup)  # Whatever was saved last moves, whole
             except OSError as error:
                 raise Refused('could not move demo-path.md aside (%s); nothing was replaced' % type(error).__name__) from error
             try:
@@ -1218,7 +1330,7 @@ def publish(folder, candidate_path, data, org, username, demo_time):
                     raise Refused('.scout-work/prep changed during publication')
                 if digest(read_at(prep, backup) or b'') != base:
                     raise Refused('demo-path.md was saved during publication')
-                os.link(staged, NAME, src_dir_fd=home, dst_dir_fd=home, follow_symlinks=False)  # No clobber
+                link_at(home, staged, home, NAME)  # No clobber
             except FileExistsError as error:
                 raise Refused('a new demo-path.md was saved during publication; kept it at %s, and the previous one at %s'
                               % (destination, shown)) from error
@@ -1232,7 +1344,7 @@ def publish(folder, candidate_path, data, org, username, demo_time):
             discard_at(home, staged)
     finally:
         for descriptor in reversed(held):
-            os.close(descriptor)
+            close_directory(descriptor)
 
 
 def main(argv=None):

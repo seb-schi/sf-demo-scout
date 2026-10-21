@@ -8,6 +8,8 @@ import tempfile
 import unittest
 import unittest.mock
 
+import stand_ins
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'scripts/setup-official-plugins.py'
 SETTINGS = ROOT / 'scripts/setup-settings.py'
@@ -120,9 +122,7 @@ class SetupFixture(unittest.TestCase):
         self.root = Path(temp.name).resolve()
         self.bin = self.root / 'bin'
         self.bin.mkdir()
-        binary = self.bin / 'claude'
-        binary.write_text('#!' + sys.executable + '\n' + FAKE_CLAUDE)
-        binary.chmod(0o700)
+        self.claude = stand_ins.tool(self.bin, 'claude', FAKE_CLAUDE)
         self.config = self.root / 'claude-config'
         self.config.mkdir()
         self.state, self.calls = self.root / 'state.json', self.root / 'calls.jsonl'
@@ -132,12 +132,13 @@ class SetupFixture(unittest.TestCase):
     def configure(self, **state):
         self.state.write_text(json.dumps(state))
         env = dict(os.environ, CLAUDE_CONFIG_DIR=str(self.config), OP_STATE=str(self.state), OP_CALLS=str(self.root / 'ignored.jsonl'))
-        subprocess.run([str(self.bin / 'claude'), 'plugin', 'enable', '--none--'], env=env, capture_output=True)  # writes the records
+        subprocess.run([str(self.claude), 'plugin', 'enable', '--none--'], env=env, capture_output=True)  # writes the records
 
     def run_setup(self, *extra, host='claude', path=None, env=None):
-        env = dict(HOME=str(self.root), PATH=path if path is not None else str(self.bin) + ':/usr/bin:/bin',
-                   CLAUDE_CONFIG_DIR=str(self.config), OP_STATE=str(self.state), OP_CALLS=str(self.calls),
-                   PYTHONDONTWRITEBYTECODE='1', **(env or {}))
+        env = stand_ins.keep(dict(stand_ins.home(self.root),
+                                  PATH=path if path is not None else os.pathsep.join((str(self.bin), '/usr/bin', '/bin')),
+                                  CLAUDE_CONFIG_DIR=str(self.config), OP_STATE=str(self.state), OP_CALLS=str(self.calls),
+                                  PYTHONDONTWRITEBYTECODE='1', **(env or {})))
         result = subprocess.run([sys.executable, '-B', str(SCRIPT), '--host', host, *extra], env=env,
                                 capture_output=True, text=True, timeout=120)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -353,11 +354,9 @@ class OfficialPluginSetupTests(SetupFixture):
         """A second fake that answers `--version` and logs its calls apart, so a test can tell which binary ran."""
         app = self.root / 'Claude.app'
         app.mkdir(exist_ok=True)
-        binary = app / 'claude'
-        binary.write_text('#!' + sys.executable + '\nimport os, sys\nif sys.argv[1:] == ["--version"]:\n'
-                          '    sys.stdout.buffer.write(%r); sys.exit(0)\n'
-                          'os.environ["OP_CALLS"] += ".running"\n' % version_output + FAKE_CLAUDE)
-        binary.chmod(0o700)
+        binary = stand_ins.tool(app, 'claude', 'import os, sys\nif sys.argv[1:] == ["--version"]:\n'
+                                '    sys.stdout.buffer.write(%r); sys.exit(0)\n'
+                                'os.environ["OP_CALLS"] += ".running"\n' % version_output + FAKE_CLAUDE)
         return str(binary)
 
     def calls_by_running_client(self):
@@ -522,6 +521,7 @@ class TakeoverTests(PinnedFixture):
         self.assertEqual(json.loads((workspace / '.claude/settings.json').read_text())['enabledPlugins'],
                          {'salesforce-development@claude-plugins-official': True})  # Scout never edits it
 
+    @stand_ins.needs_symlinks
     def test_personal_copies_are_reported_never_moved(self):
         self.configure(catalog=['platform-apex-generate', 'consumer-goods-dashboard'])
         skills = self.root / '.claude/skills'
@@ -827,6 +827,22 @@ class SettingsHelperTests(unittest.TestCase):
     def run_helper(self, *args):
         result = subprocess.run([sys.executable, '-B', str(SETTINGS), *args], capture_output=True, text=True, timeout=60)
         return result.stdout.strip()
+
+    def test_an_explicit_auto_update_choice_is_left_alone(self):
+        # Setup fills in a missing autoUpdate only; an explicit false (or any other value the user set) stays as it is.
+        with tempfile.TemporaryDirectory() as temp:
+            temp = Path(temp).resolve()
+            for chosen in (False, 'false', 0):
+                path = temp / 'settings.json'
+                before = json.dumps({'extraKnownMarketplaces': {'salesforce': {'source': {}, 'autoUpdate': chosen}}})
+                path.write_text(before)
+                self.assertEqual(self.run_helper('marketplace-autoupdate', '--settings', str(path)),
+                                 'AUTOUPDATE_LEFT_AS_CHOSEN[settings.json]')
+                self.assertEqual(path.read_text(), before)
+            path.write_text(json.dumps({'extraKnownMarketplaces': {'salesforce': {'source': {}}}}))
+            self.assertEqual(self.run_helper('marketplace-autoupdate', '--settings', str(path)),
+                             'AUTOUPDATE_SET[settings.json]')
+            self.assertIs(json.loads(path.read_text())['extraKnownMarketplaces']['salesforce']['autoUpdate'], True)
 
     def test_only_allowlisted_workspace_env_keys(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -1,0 +1,3 @@
+# Codex: /scout runs only when the user invokes it, as on Claude Code and Cursor (disable-model-invocation).
+policy:
+  allow_implicit_invocation: false

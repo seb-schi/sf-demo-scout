@@ -140,7 +140,7 @@ class OverridesContractTests(unittest.TestCase):
         self.assertIn("write the change log with the edit tools", hooks)
         self.assertIn("Before every deploy, Salesforce's plugin double-checks your default org", hooks)
         self.assertIn("Can I make [bound org] your default [for your project folder [folder] / on this computer]?", hooks)
-        self.assertIn('the one exception to `commands/scout.md`\'s "Keep defaults … unchanged", and it needs an explicit yes', hooks)
+        self.assertIn('the one exception to `skills/scout/SKILL.md`\'s "Keep defaults … unchanged", and it needs an explicit yes', hooks)
         self.assertIn("run `sf config set target-org [bound username]` in the issue's `folder`", hooks)
         self.assertIn("with `--global` instead when the scope is `global`", hooks)
         self.assertIn("`SF_TARGET_ORG`, `SFDX_TARGET_ORG` or `SFDX_DEFAULTUSERNAME`", hooks)
@@ -233,11 +233,12 @@ class OverridesContractTests(unittest.TestCase):
         self.assertIn("`- via: <the qualified skill, Scout helper or command that made the change>`", log)
         self.assertIn("with the edit tools", log)
 
-    def test_codex_reads_only_an_explicit_checkout(self):
+    def test_each_host_reads_its_own_installation_or_a_clone_in_place(self):
         hosts = section(self.reference, "Hosts")
-        self.assertIn("BLOCKED by name", hosts)
-        self.assertIn("`SCOUT_OFFICIAL_SKILLS_ROOT`", hosts)
-        self.assertIn("never copying them", hosts)
+        for phrase in ("BLOCKED by name", "`SCOUT_OFFICIAL_SKILLS_ROOT`", "never copying them",
+                       "never count on the official gates there", "`check --write` is the floor",
+                       "sf project deploy start --target-org [BOUND_USERNAME]` under Scout's own checks"):
+            self.assertIn(phrase, hosts)
 
 
 class HandoffClosureTests(unittest.TestCase):
@@ -318,6 +319,8 @@ class RouteNameTests(unittest.TestCase):
                 self.assertIsNone(bare.search(line), f"{path.relative_to(ROOT)}:{number}: {line.strip()[:120]}")
 
 
+@unittest.skipIf(os.name == "nt", "runs the official deploy gate, a bash script, through /bin/bash with a POSIX "
+                                   "shell stand-in for the sf CLI")
 class ProductionGateTests(unittest.TestCase):
     """X15: the official prod-check gate, run from the pinned checkout with a stubbed `sf` that classifies the org as
     production. It shows that Scout's marker is command-local and that destructive deploys stay blocked."""
@@ -354,6 +357,7 @@ class ProductionGateTests(unittest.TestCase):
         self.assertEqual(self.decide(destructive), "deny")
 
 
+@unittest.skipIf(os.name == "nt", "stands in for npx with a POSIX shell script")
 class LwcHookScopeTests(unittest.TestCase):
     """X9: the install line's disclosure is true: the LWC plugin's Write/Edit hook validates an HTML file in a folder
     that's no Salesforce project, and probes its linter through npx (stubbed here)."""
@@ -401,7 +405,7 @@ class MarketplaceMapTests(unittest.TestCase):
 
 class CallerTests(unittest.TestCase):
     def test_scout_and_direct_repair_run_readiness_before_writing(self):
-        command = read("commands/scout.md")
+        command = read("skills/scout/SKILL.md") + read("prompts/scout/router-build.md")
         pointer = command.index('First follow `${CLAUDE_PLUGIN_ROOT}/prompts/building/official-skill-overrides.md` §"Readiness", '
                                 'before inspection, delegation, proposals or writes.')
         for later in ('skills/demo-org-audit/SKILL.md` for scoped inspection', 'Delegate read-only research/inspection'):

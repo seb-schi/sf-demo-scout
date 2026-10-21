@@ -65,5 +65,23 @@ class SlugTests(unittest.TestCase):
                 )
 
 
+class DeveloperNameTests(unittest.TestCase):
+    """The Custom Metadata DeveloperName rule phase 1 runs, the same as the official skill's sanitize script."""
+
+    def test_labels_become_valid_developer_names(self):
+        import subprocess, sys
+        script = Path(__file__).resolve().parents[1] / "scripts" / "slugify.py"
+        for label, expected in (("United States", "United_States"), ("United-States", "United_States"),
+                                ("9 Lives", "X9_Lives"), ("  __x__  ", "x"), ("A" * 45 + "_b", "A" * 40),
+                                ("Hello, World! 2026", "Hello_World_2026")):
+            with self.subTest(label=label):
+                result = subprocess.run([sys.executable, "-B", str(script), "--developer-name", label],
+                                        capture_output=True, text=True, timeout=30)
+                self.assertEqual((result.returncode, result.stdout.strip()), (0, expected))
+        result = subprocess.run([sys.executable, "-B", str(script), "--developer-name", "---"], capture_output=True,
+                                text=True, timeout=30)
+        self.assertEqual((result.returncode, result.stdout), (1, ""))
+
+
 if __name__ == "__main__":
     unittest.main()

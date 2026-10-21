@@ -4,7 +4,8 @@ import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-COMMAND = ROOT / 'commands/scout.md'
+COMMAND = ROOT / 'skills/scout/SKILL.md'
+ROUTER_BUILD = ROOT / 'prompts/scout/router-build.md'
 
 
 class ScoutRouteTests(unittest.TestCase):
@@ -16,7 +17,7 @@ class ScoutRouteTests(unittest.TestCase):
         self.phrases(self.history, 'Write business values containing the word pending in backticks')
 
     def setUp(self):
-        self.command = COMMAND.read_text()
+        self.command = COMMAND.read_text() + ROUTER_BUILD.read_text()
         self.discovery = (ROOT / 'prompts/scout/discovery.md').read_text()
         self.history = (ROOT / 'prompts/scout/history.md').read_text()
 
@@ -57,21 +58,14 @@ class ScoutRouteTests(unittest.TestCase):
             self.assertIn(phrase, connect)
         self.assertNotIn('device-code', connect)  # the installed Salesforce CLI has no device login
 
-    def test_the_handover_offers_the_demo_flow_as_a_slack_canvas(self):
-        # The classic building step 6c offered this; /scout asks once after the handover, in the SE's own Slack.
-        history = (ROOT / 'prompts/scout/history.md').read_text()
-        self.assertIn('and the offer in `${CLAUDE_PLUGIN_ROOT}/prompts/scout/demo-canvas.md`', history)
-        canvas = (ROOT / 'prompts/scout/demo-canvas.md').read_text()
-        for phrase in ('when the task has a Demo Story and this session exposes a Slack tool',
-                       'a CLI listing alone doesn\'t establish the tool', 'Otherwise skip this silently',
-                       'creates a standalone canvas without posting it to a channel', '**Ask once,** with the history question',
-                       '"Shall I put the demo flow on a Slack canvas for you? It\'s your own canvas, not posted to any channel; you decide whether to share it."',
-                       '**On a yes, create one canvas**', '`Demo flow — [Customer] — [YYYY-MM-DD]`',
-                       'persona and login, click path, record and proof moment', '"Before you present"',
-                       'Never include passwords, tokens or org IDs', 'Never post the canvas to a channel or share it',
-                       'Record the link in the task record', "and don't retry"):
-            self.assertIn(phrase, canvas)
-        self.assertNotIn('nobody sees it', canvas.lower())  # the tool doesn't establish who can see a canvas
+    def test_the_handover_offers_no_slack_canvas(self):
+        # Retired in 2.4 with Scout's Slack setup; the demo map stays in the SE's workspace.
+        self.assertFalse((ROOT / 'prompts/scout/demo-canvas.md').exists())
+        for relative in ('prompts/scout/history.md', 'prompts/building/handover-brief.md'):
+            with self.subTest(relative=relative):
+                text = (ROOT / relative).read_text()
+                self.assertNotIn('demo-canvas.md', text)
+                self.assertNotIn('Slack canvas', text)
 
     def test_scout_persists_while_each_attempt_makes_progress(self):
         rules = (ROOT / 'AGENTS.md').read_text()
@@ -97,21 +91,26 @@ class ScoutRouteTests(unittest.TestCase):
         self.assertIn('keep\n        repairing while each one fixes a different failure, within the deploy attempt', phase2)  # FlowTest repairs
         self.assertNotIn('3-attempt', (ROOT / 'prompts/building/phase1.md').read_text())
 
-    def test_discovery_asks_once_before_pulling_in_slack_and_google(self):
-        self.phrases(self.discovery, 'ask once, as you begin discovery, whether the SE would like you to pull in what Slack and Google have on them',
-                     'search them read-only', 'attributed leads', '§"Epistemic Framing"', 'On a no, or when neither is connected, carry on without')
+    def test_discovery_never_searches_connected_tools_on_its_own(self):
+        # 2.4 is public: Scout uses an SE's connectors only when asked, and treats what comes back as leads.
+        self.phrases(self.discovery, "Don't search connected tools such as Slack or Google Drive on your own",
+                     'When the SE asks you to look something up there, do it read-only',
+                     'an attributed lead, not a fact', 'say where it came from and how current it is',
+                     'confirm anything that shapes the build with the SE or the org')
+        self.assertNotIn('ask once, as you begin discovery', self.discovery)
 
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
-        caps = {'scout.md': 2310, 'history.md': 1015, 'discovery.md': 1100, 'build.md': 1350, 'prep.md': 900,  # W10 C9 and W9 C5;
+        caps = {'SKILL.md': 1060,  # 2.4: the entry skill; the router's build half moved to router-build.md
+                'router-build.md': 1520,  # 2.4: the router's later sections, read before inspection
+                'history.md': 1015, 'discovery.md': 1100, 'build.md': 1355, 'prep.md': 900,  # W10 C9 and W9 C5; 2.4: build.md +5 for naming the router's two files;
                 # W19: build.md +15 for the hosted Flow route's two pointers
                 'reconcile.md': 335,  # 2.0.1: the handover's form moved to history.md; reconcile.md is new (W13)
                 'hosted-flow.md': 860,  # W19: the hosted Flow route, loaded only for Flow items
                 'connect-org.md': 440,  # 2.1.1: the browser login, loaded only for an org that isn't connected
-                'demo-canvas.md': 260,  # 2.1.2: the demo flow as a Slack canvas, loaded after the handover
                 'industry-sources.md': 560,  # 2.2: read only when a task is industry-specific
-                'team.md': 1320,  # 2.3: read only in a team (session, integrate, or a bound org the team registry names); rc4 +50 for the managed-account and re-adoption lines; 2.3.1 +30 for the pointer to Lifecycle Center mode
-                'team-lifecycle.md': 1900}  # 2.3 rc7: read instead of team.md, only for a team on Lifecycle Center; rc8 +175 for the base, overwrite and recovery decisions; rc10 +40 for the full promotion; rc11 +110 for split commits, holding merges and the beta line; rc12 +149 for tests after the promotion; rc13 +111 for offering the dx-devops plugin; 2.3.2 +165 for waiting with progress lines, peek and the stop, the unanswered submit, and the Not verified comment
+                'team.md': 1335,  # 2.3: read only in a team (session, integrate, or a bound org the team registry names); rc4 +50 for the managed-account and re-adoption lines; 2.3.1 +30 for the pointer to Lifecycle Center mode; 2.4 +15 for the guard's explanation at join
+                'team-lifecycle.md': 2090}  # 2.3 rc7: read instead of team.md, only for a team on Lifecycle Center; rc8 +175 for the base, overwrite and recovery decisions; rc10 +40 for the full promotion; rc11 +110 for split commits, holding merges and the beta line; rc12 +149 for tests after the promotion; rc13 +111 for offering the dx-devops plugin; 2.3.2 +165 for waiting with progress lines, peek and the stop, the unanswered submit, and the Not verified comment; 2.4 +50 for the guard's choice at join, the rules' pull request on a protected main, .gitattributes, the read-back's warnings and status's guard_off; 2.4 +60 for reviewers' edits kept, the fast-forward, the CRLF report and unguard; 2.4 +80 for the orgs a team step binds and the host's route for dx-devops
         for path in [COMMAND, *optional]:
             self.assertLessEqual(len(path.read_text().split()), caps[path.name], path.name)
         text = '\n'.join(p.read_text() for p in [COMMAND, *optional])
@@ -297,7 +296,7 @@ class ScoutRouteTests(unittest.TestCase):
             self.assertIn(bullet, (ROOT / 'AGENTS.md').read_text())
         self.assertIn('Get explicit SE confirmation before any of these actions:\n' + '\n'.join(bullets), self.command)
         self.assertIn('An explicit SE request naming the item and action counts', self.command)
-        self.assertIn('three qualified confirmation bullets above', self.command)
+        self.assertIn('three qualified confirmation bullets in `skills/scout/SKILL.md`', self.command)
 
     def test_dispositions_are_defined_and_repair_uncertainty_is_retained(self):
         meanings = {'applied': 'post-write read-back meets the criterion',
@@ -409,7 +408,7 @@ class BuildRouteTests(unittest.TestCase):
     """W10: the complex-plan route (prompts/scout/build.md), pinned by key phrases (A8)."""
 
     def setUp(self):
-        self.command = COMMAND.read_text()
+        self.command = COMMAND.read_text() + ROUTER_BUILD.read_text()
         self.build = (ROOT / 'prompts/scout/build.md').read_text()
 
     def phrases(self, text, *phrases):
@@ -419,7 +418,7 @@ class BuildRouteTests(unittest.TestCase):
     def test_command_points_to_build_and_keeps_writes_serial(self):
         self.phrases(self.command, 'With three or more items or any gated or Docs-gated item, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/build.md` before proposing or writing',
                      'authoring may run in parallel, org writes stay serial')
-        self.phrases(self.build, '`commands/scout.md` routes complex plans here and still governs targeting, confirmation, dispositions and history',
+        self.phrases(self.build, 'The router (`skills/scout/SKILL.md` and `prompts/scout/router-build.md`) routes complex plans here and still governs targeting, confirmation, dispositions and history',
                      'Only the orchestrator writes to the org, the task record and the log',
                      'Dispatch at most four authoring workers at once', 'never write to the org, run pilots or runtime tests',
                      '"authored; live validation pending"', 'Pilots and runtime tests run here')
@@ -434,10 +433,10 @@ class BuildRouteTests(unittest.TestCase):
 
     def test_rb2_every_retry_is_bound(self):
         self.phrases(self.command, 'Before every write (retries too)', 'Never automatically retry a write')
-        self.phrases(self.build, 'Run `check`, also before any retry')
+        self.phrases(self.build, 'Run `check --write`, also before any retry')
 
     def test_rb3_retry_records_the_error_rule(self):
-        self.phrases(self.build, 'Never retry automatically: a retry is a new attempt after the error rule in `${CLAUDE_PLUGIN_ROOT}/commands/scout.md`',
+        self.phrases(self.build, 'Never retry automatically: a retry is a new attempt after the error rule in `${CLAUDE_PLUGIN_ROOT}/prompts/scout/router-build.md`',
                      'recording the covering lesson or the Docs search of the verbatim error as a grounding entry',
                      '"attempt":"<retry-ID>"', '"source":"lesson|docs"', '"ref":"<lesson-ID|Docs-URL>"')
 

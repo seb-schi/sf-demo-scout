@@ -12,9 +12,24 @@ import tempfile
 import unittest
 from unittest import mock
 
+import stand_ins
+
 
 ROOT = Path(__file__).resolve().parents[1]
 STATUS_SCRIPT = ROOT / "scripts" / "setup-mcp-status.py"
+# Stands in for the host's CLI: `mcp list` answers with MCP_LIST_OUTPUT, or with bytes that aren't UTF-8.
+HOST_CLI = r"""import os, sys
+if sys.argv[1:] != %r:
+    sys.stderr.write("unexpected arguments\n")
+    sys.exit(97)
+if os.environ.get("MCP_LIST_DELAY"):
+    import time
+    time.sleep(float(os.environ["MCP_LIST_DELAY"]))
+sys.stdout.buffer.write(b"\xff\n" if os.environ.get("MCP_LIST_INVALID_UTF8") == "1"
+                        else os.environ["MCP_LIST_OUTPUT"].encode("utf-8"))
+sys.stdout.flush()
+sys.exit(int(os.environ["MCP_LIST_RC"]))
+"""
 
 
 class McpStatusTests(unittest.TestCase):
@@ -35,22 +50,14 @@ class McpStatusTests(unittest.TestCase):
     ) -> subprocess.CompletedProcess[str]:
         bin_dir = self.base / f"bin-{provider}-{len(list(self.base.iterdir()))}"
         bin_dir.mkdir()
-        claude = bin_dir / host
-        expected_args = "mcp list --json" if host == "codex" else "mcp list"
-        claude.write_text(
-            "#!/bin/bash\n"
-            f"if [ \"$*\" != \"{expected_args}\" ]; then echo 'unexpected arguments' >&2; exit 97; fi\n"
-            "[ -n \"$MCP_LIST_DELAY\" ] && sleep \"$MCP_LIST_DELAY\"\n"
-            "if [ \"$MCP_LIST_INVALID_UTF8\" = 1 ]; then printf '\\377\\n'; "
-            "else printf '%s' \"$MCP_LIST_OUTPUT\"; fi\n"
-            "exit \"$MCP_LIST_RC\"\n"
-        )
-        claude.chmod(0o700)
-        (bin_dir / "python3").symlink_to(sys.executable)
+        expected_args = ["mcp", "list", "--json"] if host == "codex" else ["mcp", "list"]
+        stand_ins.tool(bin_dir, host, HOST_CLI % (expected_args,))
+        if not stand_ins.WINDOWS:  # the helper's shebang finds python3 on the PATH; Windows runs no shebang
+            (bin_dir / "python3").symlink_to(sys.executable)
         env = dict(os.environ)
         env.pop("PYTHONPATH", None)
         env.update(
-            PATH=f"{bin_dir}:/usr/bin:/bin",
+            PATH=os.pathsep.join((str(bin_dir), "/usr/bin", "/bin")),
             MCP_LIST_OUTPUT=output,
             MCP_LIST_RC=str(returncode),
             MCP_LIST_DELAY=delay,
@@ -58,7 +65,7 @@ class McpStatusTests(unittest.TestCase):
             PYTHONDONTWRITEBYTECODE="1",
         )
         return subprocess.run(
-            [str(STATUS_SCRIPT), "--host", host, provider],
+            [*([sys.executable] if stand_ins.WINDOWS else []), str(STATUS_SCRIPT), "--host", host, provider],
             env=env,
             text=True,
             capture_output=True,
@@ -67,13 +74,13 @@ class McpStatusTests(unittest.TestCase):
 
     def test_list_failure_and_no_match_never_report_absent(self) -> None:
         cases = (
-            ("slack", "https://private.example/token=secret", 9, "registration=unknown"),
-            ("google", "unrelated: command --password hunter2 - Connected\n", 0, "registration=not_observed"),
-            ("salesforce-docs", "Checking MCP server health...\n", 0, "registration=unknown"),
+            ("https://private.example/token=secret", 9, "registration=unknown"),
+            ("unrelated: command --password hunter2 - Connected\n", 0, "registration=not_observed"),
+            ("Checking MCP server health...\n", 0, "registration=unknown"),
         )
-        for provider, output, rc, expected in cases:
-            with self.subTest(provider=provider):
-                result = self.run_status(provider, output, returncode=rc)
+        for output, rc, expected in cases:
+            with self.subTest(expected=expected, rc=rc):
+                result = self.run_status("salesforce-docs", output, returncode=rc)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn(expected, result.stdout)
                 self.assertNotIn("absent", result.stdout.lower())
@@ -82,13 +89,13 @@ class McpStatusTests(unittest.TestCase):
 
     def test_aliases_and_known_signatures_are_registered(self) -> None:
         cases = (
-            ("slack", "plugin:company:slack: https://mcp.slack.com/mcp (HTTP) - ✔ Connected\n", "transport=connected"),
-            ("google", "google_workspace: /opt/mcp-adaptor serve --server google_workspace - ! Needs authentication\n", "transport=authentication_required"),
-            ("salesforce-docs", "plugin_sf-demo-scout_salesforce_docs: custom-launcher - ✘ Failed to connect\n", "transport=failed"),
+            ("plugin:company:salesforce-docs: https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp (HTTP) - ✔ Connected\n", "transport=connected"),
+            ("custom: https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp - ! Needs authentication\n", "transport=authentication_required"),
+            ("plugin_sf-demo-scout_salesforce_docs: /opt/custom-launcher - ✘ Failed to connect\n", "transport=failed"),
         )
-        for provider, output, transport in cases:
-            with self.subTest(provider=provider):
-                result = self.run_status(provider, output)
+        for output, transport in cases:
+            with self.subTest(transport=transport):
+                result = self.run_status("salesforce-docs", output)
                 self.assertIn("registration=registered", result.stdout)
                 self.assertIn(transport, result.stdout)
                 self.assertNotIn("http", result.stdout.lower())
@@ -96,37 +103,38 @@ class McpStatusTests(unittest.TestCase):
 
     def test_disabled_pending_and_unknown_transport_stay_distinct(self) -> None:
         cases = (
-            ("slack", "slack: https://example.invalid - ⊘ Disabled for this project (re-enable via /mcp)\n", "disabled"),
-            ("google", "google-workspace: command - ⏸ Pending approval (run claude to approve)\n", "pending"),
-            ("salesforce-docs", "salesforce_docs: surprising future state\n", "unknown"),
+            ("salesforce-docs: https://example.invalid - ⊘ Disabled for this project (re-enable via /mcp)\n", "disabled"),
+            ("salesforce_docs: command - ⏸ Pending approval (run claude to approve)\n", "pending"),
+            ("salesforce_docs: surprising future state\n", "unknown"),
         )
-        for provider, output, state in cases:
-            with self.subTest(provider=provider):
-                result = self.run_status(provider, output)
+        for output, state in cases:
+            with self.subTest(state=state):
+                result = self.run_status("salesforce-docs", output)
                 self.assertIn("registration=registered", result.stdout)
                 self.assertIn(f"transport={state}", result.stdout)
 
     def test_multiple_matches_report_ambiguity_without_echoing_entries(self) -> None:
         output = (
-            "slack: https://mcp.slack.com/mcp - ✓ Connected\n"
-            "plugin:team:slack: command --secret value - Disabled\n"
+            "salesforce-docs: https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp - ✓ Connected\n"
+            "plugin:team:salesforce-docs: command --secret value - Disabled\n"
         )
-        result = self.run_status("slack", output)
+        result = self.run_status("salesforce-docs", output)
         self.assertIn("registration=ambiguous", result.stdout)
         self.assertIn("transport=unknown", result.stdout)
         self.assertNotIn("secret", result.stdout)
 
     def test_signature_spoofs_and_argument_words_do_not_match(self) -> None:
         cases = (
-            ("slack", "slack-unrelated: https://mcp.slack.com.evil/mcp - Connected\n"),
-            ("google", "other: /opt/mcp-adaptor serve --server another --connected - Disconnected\n"),
-            ("google", "other: /opt/mcp-adaptor serve --server Google_Workspace - Connected\n"),
-            ("salesforce-docs", "Warning: could not read https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp - Connected\n"),
-            ("salesforce-docs", "other: https://salesforce-docs-76258744c9d7.herokuapp.com/API/MCP - Connected\n"),
+            "salesforce-docs-unrelated: https://salesforce-docs-76258744c9d7.herokuapp.com.evil/api/mcp - Connected\n",
+            "other: /opt/launcher serve --server salesforce-docs --connected - Connected\n",
+            "other: http://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp - Connected\n",
+            "other: https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp?token=x - Connected\n",
+            "Warning: could not read https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp - Connected\n",
+            "other: https://salesforce-docs-76258744c9d7.herokuapp.com/API/MCP - Connected\n",
         )
-        for provider, output in cases:
-            with self.subTest(provider=provider):
-                result = self.run_status(provider, output)
+        for output in cases:
+            with self.subTest(output=output):
+                result = self.run_status("salesforce-docs", output)
                 self.assertIn("registration=not_observed", result.stdout)
                 self.assertIn("transport=unknown", result.stdout)
 
@@ -142,11 +150,11 @@ class McpStatusTests(unittest.TestCase):
                  "run",
                  side_effect=subprocess.TimeoutExpired(["claude", "mcp", "list"], 10),
              ):
-            result = module.report("slack", "claude")
+            result = module.report("salesforce-docs", "claude")
             self.assertEqual(result["registration"], "unknown")
             self.assertEqual(result["transport"], "unknown")
 
-        result = self.run_status("slack", "", invalid_utf8=True)
+        result = self.run_status("salesforce-docs", "", invalid_utf8=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("registration=unknown transport=unknown", result.stdout)
 
@@ -164,12 +172,15 @@ class McpStatusTests(unittest.TestCase):
             ({"CLAUDECODE": "1"}, "claude"),
             ({"CODEX_THREAD_ID": "task", "CLAUDECODE": "1"}, "unknown"),
             ({"SCOUT_HOST": "other", "CLAUDECODE": "1"}, "unknown"),
+            ({"CURSOR_AGENT": "1"}, "cursor"),
+            ({"CURSOR_AGENT": "1", "CLAUDECODE": "1"}, "unknown"),
+            ({"SCOUT_HOST": "cursor"}, "cursor"),
         ):
             with self.subTest(env=env), mock.patch.dict(os.environ, env, clear=True), \
                  mock.patch.object(module.shutil, "which") as which:
                 self.assertEqual(module.active_host(), expected)
                 if expected == "unknown":
-                    self.assertEqual(module.report("slack")["reason"], "unknown_host")
+                    self.assertEqual(module.report("salesforce-docs")["reason"], "unknown_host")
                 which.assert_not_called()
                 self.assertEqual(module.active_host("codex"), "codex")
 
@@ -177,7 +188,7 @@ class McpStatusTests(unittest.TestCase):
         module = self.load_module()
         with mock.patch.object(module.shutil, "which", side_effect=lambda name: "/claude" if name == "claude" else None) as which, \
              mock.patch.object(module.subprocess, "run") as run:
-            self.assertEqual(module.report("slack", "codex")["reason"], "missing_cli")
+            self.assertEqual(module.report("salesforce-docs", "codex")["reason"], "missing_cli")
             which.assert_called_once_with("codex")
             run.assert_not_called()
 
@@ -198,12 +209,12 @@ class McpStatusTests(unittest.TestCase):
             self.assertNotIn(secret, result.stdout + result.stderr)
 
     def test_codex_enabled_does_not_prove_startup_auth_or_tools(self) -> None:
-        for name, reason in (("slack", "enabled"), ("Slack Work", "invalid_server_name")):
+        for name, reason in (("salesforce-docs", "enabled"), ("Salesforce Docs", "invalid_server_name")):
             with self.subTest(name=name):
                 payload = [{"name": name, "enabled": True, "disabled_reason": None,
-                            "transport": {"url": "https://mcp.slack.com/mcp"},
-                            "auth_status": "bearer_token", "tools": ["slack_search_channels"]}]
-                result = self.run_status("slack", json.dumps(payload), host="codex")
+                            "transport": {"url": "https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp"},
+                            "auth_status": "bearer_token", "tools": ["salesforce_docs_search"]}]
+                result = self.run_status("salesforce-docs", json.dumps(payload), host="codex")
                 self.assertIn("registration=registered transport=unknown", result.stdout)
                 self.assertIn(f"policy=permitted reason={reason} tools=unknown", result.stdout)
                 self.assertNotIn("connected", result.stdout)
@@ -214,65 +225,98 @@ class McpStatusTests(unittest.TestCase):
             ([], "registration=not_observed"),
             ({"servers": []}, "reason=malformed_listing"),
             ([42], "reason=malformed_listing"),
-            ([{"name": "slack", "enabled": "false"}], "reason=malformed_listing"),
-            ([{"name": "slack", "enabled": False}], "reason=disabled_unknown"),
-            ([{"name": "slack", "enabled": False, "disabled_reason": "config"}], "reason=user_disabled"),
-            ([{"name": "slack", "enabled": False, "disabled_reason": "UNKNOWN_SECRET"}], "reason=disabled_unknown"),
-            ([{"name": "slack"}, {"name": "plugin:team:slack"}], "registration=ambiguous"),
+            ([{"name": "salesforce-docs", "enabled": "false"}], "reason=malformed_listing"),
+            ([{"name": "salesforce-docs", "enabled": False}], "reason=disabled_unknown"),
+            ([{"name": "salesforce-docs", "enabled": False, "disabled_reason": "config"}], "reason=user_disabled"),
+            ([{"name": "salesforce-docs", "enabled": False, "disabled_reason": "UNKNOWN_SECRET"}], "reason=disabled_unknown"),
+            ([{"name": "salesforce-docs"}, {"name": "plugin:team:salesforce_docs"}], "registration=ambiguous"),
         ):
-            with self.subTest(expected=expected):
-                result = self.run_status("slack", json.dumps(payload), host="codex")
+            with self.subTest(expected=expected, payload=payload):
+                result = self.run_status("salesforce-docs", json.dumps(payload), host="codex")
                 self.assertIn(expected, result.stdout)
                 self.assertNotIn("UNKNOWN_SECRET", result.stdout)
-        result = self.run_status("slack", "{not json", host="codex")
+        result = self.run_status("salesforce-docs", "{not json", host="codex")
         self.assertIn("reason=malformed_listing", result.stdout)
 
     def test_codex_signatures_and_spoofs(self) -> None:
         cases = (
-            ("slack", {"url": "https://mcp.slack.com/mcp"}, "registered"),
-            ("slack", {"url": "https://mcp.slack.com.evil/mcp"}, "not_observed"),
-            ("google", {"command": "/opt/mcp-adaptor", "args": ["serve", "--server", "google_workspace"]}, "registered"),
-            ("google", {"command": "/opt/mcp-adaptor", "args": ["serve", "--server", "other"]}, "not_observed"),
+            ({"url": "https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp"}, "registered"),
+            ({"url": "https://salesforce-docs-76258744c9d7.herokuapp.com.evil/api/mcp"}, "not_observed"),
+            ({"url": "https://salesforce-docs-76258744c9d7.herokuapp.com:8443/api/mcp"}, "not_observed"),
+            ({"command": "/opt/launcher", "args": ["serve", "--server", "salesforce-docs"]}, "not_observed"),
         )
-        for provider, transport, expected in cases:
-            with self.subTest(provider=provider, transport=transport):
+        for transport, expected in cases:
+            with self.subTest(transport=transport):
                 payload = [{"name": "custom", "enabled": True, "transport": transport}]
-                result = self.run_status(provider, json.dumps(payload), host="codex")
+                result = self.run_status("salesforce-docs", json.dumps(payload), host="codex")
                 self.assertIn(f"registration={expected}", result.stdout)
 
     def test_only_selected_host_runs_in_current_working_directory(self) -> None:
         module = self.load_module()
         def run(command, **kwargs):
             if command[0] == "/stub/claude":
-                return subprocess.CompletedProcess(command, 0, "slack: command - Connected", "")
+                return subprocess.CompletedProcess(command, 0, b"salesforce-docs: command - Connected", b"")
             self.assertEqual(command, ["/stub/codex", "mcp", "list", "--json"])
             self.assertNotIn("cwd", kwargs)  # inherit the caller's project policy
             return subprocess.CompletedProcess(command, 0, json.dumps([
-                {"name": "slack", "enabled": False, "disabled_reason": "requirements (Baseline)"}
-            ]), "STDERR_SECRET")
+                {"name": "salesforce-docs", "enabled": False, "disabled_reason": "requirements (Baseline)"}
+            ]).encode(), b"STDERR_SECRET")
         with mock.patch.object(module.shutil, "which", side_effect=lambda name: f"/stub/{name}"), \
              mock.patch.object(module.subprocess, "run", side_effect=run):
-            self.assertEqual(module.report("slack", "claude")["transport"], "connected")
-            self.assertEqual(module.report("slack", "codex")["policy"], "blocked")
+            self.assertEqual(module.report("salesforce-docs", "claude")["transport"], "connected")
+            self.assertEqual(module.report("salesforce-docs", "codex")["policy"], "blocked")
 
-    def test_retired_dx_provider_is_no_longer_probed(self) -> None:
-        self.assertNotIn("salesforce-dx", self.load_module().ALIASES)
-        result = self.run_status("salesforce-dx", "[]")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("invalid choice", result.stderr)
+    def test_the_listing_is_read_as_bytes_and_decoded_here(self) -> None:
+        # On Windows, subprocess decodes text in a reader thread, and one bad byte there loses the whole output; the
+        # helper takes bytes and decides itself: readable output is parsed, unreadable output is unknown.
+        module = self.load_module()
+        for raw, registration in ((b"salesforce-docs: command - \xe2\x9c\x93 Connected\r\n", "registered"),
+                                  (b"\xff\n", "unknown")):
+            with self.subTest(raw=raw), mock.patch.object(module.shutil, "which", return_value="/stub/claude"), \
+                    mock.patch.object(module.subprocess, "run",
+                                      return_value=subprocess.CompletedProcess([], 0, raw, b"")) as run:
+                self.assertEqual(module.report("salesforce-docs", "claude")["registration"], registration)
+                self.assertNotIn("text", run.call_args.kwargs)
 
-    def test_maintainer_uninstall_cannot_target_claude_implicitly(self) -> None:
-        for args in ([], ["--host", "codex"], ["--host", "unknown"]):
-            with self.subTest(args=args):
-                result = subprocess.run(
-                    ["/bin/bash", str(ROOT / "scripts/scout-uninstall.sh"), *args],
-                    # A guard regression cannot invoke rm/python against HOME.
-                    env={**os.environ, "PATH": str(self.base / "no-tools")},
-                    text=True, capture_output=True, check=False,
-                )
-                self.assertNotEqual(result.returncode, 0)
-                self.assertTrue(result.stdout.startswith("UNINSTALL_SKIPPED:"))
-                self.assertNotIn("Removing", result.stdout)
+    def test_cursor_registration_comes_from_its_mcp_files_without_a_cli(self) -> None:
+        module = self.load_module()
+        home, project = self.base / "home", self.base / "project"
+        (home / ".cursor").mkdir(parents=True)
+        (project / ".cursor").mkdir(parents=True)
+        docs = "https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp"
+        cases = (
+            ({}, {}, "registration=not_observed"),
+            ({"mcpServers": {"salesforce-docs": {"url": docs}}}, {}, "registration=registered"),
+            ({"mcpServers": {"docs": {"url": docs}}}, {}, "registration=registered"),
+            ({"mcpServers": {"salesforce-docs": {"url": docs}}}, {"mcpServers": {"salesforce_docs": {"url": docs}}},
+             "registration=ambiguous"),
+            ({"mcpServers": []}, {}, "reason=malformed_listing"),
+        )
+        for user, local, expected in cases:
+            with self.subTest(expected=expected, user=user, local=local):
+                (home / ".cursor" / "mcp.json").write_text(json.dumps(user))
+                (project / ".cursor" / "mcp.json").write_text(json.dumps(local))
+                with mock.patch.object(module.Path, "home", return_value=home), \
+                     mock.patch.object(module.shutil, "which") as which, mock.patch.object(module.subprocess, "run") as run:
+                    status = module.cursor_status(module.unknown_status("salesforce-docs", "cursor", "unknown_host"), project)
+                    line = " ".join(f"{k}={v}" for k, v in status.items())
+                    self.assertIn(expected, line)
+                    self.assertIn("transport=unknown", line)  # Cursor reports the connection itself
+                    which.assert_not_called(); run.assert_not_called()
+        (home / ".cursor" / "mcp.json").write_text(json.dumps({"mcpServers": {"salesforce-docs": {"url": docs}}}))
+        with mock.patch.object(module.Path, "home", return_value=home):  # started in the home folder: one file, read once
+            status = module.cursor_status(module.unknown_status("salesforce-docs", "cursor", "unknown_host"), home)
+        self.assertEqual(status["registration"], "registered")
+
+    def test_retired_providers_are_no_longer_probed(self) -> None:
+        # 2.4 ships no Slack or Google setup, and the DX server left in 2.1.5.
+        aliases = self.load_module().ALIASES
+        self.assertEqual(set(aliases), {"salesforce-docs"})
+        for provider in ("salesforce-dx", "slack", "google"):
+            with self.subTest(provider=provider):
+                result = self.run_status(provider, "[]")
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("invalid choice", result.stderr)
 
 
 if __name__ == "__main__":

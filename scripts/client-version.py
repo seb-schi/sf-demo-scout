@@ -7,6 +7,9 @@ import stat
 import sys
 import re
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import scout_portable  # noqa: E402  (ships beside this helper)
+
 FLOOR = (2, 1, 293)
 VERSION = re.compile(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?: \(Claude Code\))?")
 
@@ -36,7 +39,12 @@ def cache_path() -> str:
 
 def read_cache(path: str) -> list:
     try:
-        descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+        if scout_portable.windows():  # no O_NOFOLLOW there, so the link check comes first
+            info = os.lstat(path)
+            if scout_portable.is_link(info):  # a symlink or junction; a OneDrive file is none
+                return []
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0) | getattr(os, 'O_NOFOLLOW', 0)
+                             | getattr(os, 'O_BINARY', 0))
         with os.fdopen(descriptor, 'rb') as stream:
             info = os.fstat(stream.fileno())
             if not stat.S_ISREG(info.st_mode) or info.st_size > 16384:
@@ -66,7 +74,10 @@ def write_cache(path: str, records: list, key: list, version: str) -> None:
         parent = os.path.dirname(path)
         os.makedirs(parent, mode=0o700, exist_ok=True)
         info = os.lstat(parent)
-        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or os.path.islink(path):
+        owner = getattr(os, 'getuid', None)  # Windows has no user IDs to compare
+        if (not stat.S_ISDIR(info.st_mode) or scout_portable.is_link(info)
+                or (owner is not None and info.st_uid != owner())
+                or os.path.islink(path)):
             return
         records = [r for r in records if r['key'][0] != key[0]][-15:]
         records.append({'key': key, 'version': version})
@@ -79,7 +90,7 @@ def write_cache(path: str, records: list, key: list, version: str) -> None:
         descriptor, temporary = tempfile.mkstemp(prefix='.scout-client-', dir=parent)
         with os.fdopen(descriptor, 'wb') as stream:
             stream.write(content)
-        os.replace(temporary, path)
+        scout_portable.replace(temporary, path)
     except (OSError, ValueError, TypeError, KeyError):
         pass  # A cache is optional; never discard a successful probe for it.
     finally:
@@ -116,16 +127,20 @@ def observe() -> dict[str, str]:
         pass
     import signal
     import subprocess
+    limit = 5 if scout_portable.windows() else 2  # a cold start takes longer on Windows
     try:
         with subprocess.Popen([executable, '--version'], stdin=subprocess.DEVNULL,
                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                              start_new_session=True) as process:
+                              **scout_portable.process_group_options()) as process:
             try:
-                output, _ = process.communicate(timeout=2)
+                output, _ = process.communicate(timeout=limit)
             except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
+                if scout_portable.windows():
+                    scout_portable.kill_tree(process)  # taskkill /T /F: Windows has no process groups to signal
+                else:
+                    os.killpg(process.pid, signal.SIGKILL)
                 process.communicate()
-                return {'reason': 'running client version probe exceeded 2 seconds'}
+                return {'reason': f'running client version probe exceeded {limit} seconds'}
         match = VERSION.fullmatch(output.decode('utf-8').strip())
         if process.returncode or not match:
             return {'reason': 'running client returned no supported version'}

@@ -20,7 +20,6 @@ from __future__ import annotations
 import argparse
 import base64
 import contextlib
-import fcntl
 import fnmatch
 import hashlib
 import html
@@ -28,11 +27,15 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import time
 from datetime import timedelta
 from pathlib import Path
+
+if os.name != "nt":  # Windows has no fcntl; team mode comes there later, and main() refuses before any step
+    import fcntl
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -42,6 +45,7 @@ Stop, refused, failed, decide = team.Stop, team.refused, team.failed, team.decid
 git, out, sf, gh, now = team.git, team.out, team.sf, team.gh, team.now
 
 MODE = "lifecycle"
+ON_WINDOWS = "building one demo org together runs on macOS for now; on Windows it comes in a later release"
 ROOT = Path(__file__).resolve().parents[1]
 EFFECTS = ROOT / "packages" / "sf-mp" / "scripts" / "effects.mjs"
 LC_PROMPT = ROOT / "prompts" / "scout" / "team-lifecycle.md"
@@ -61,6 +65,7 @@ PAGES, PER_PAGE = 5, 100                         # GitHub comments per refresh; 
 CLEAN = {"same", "new", "new-to-main"}           # a sandbox copy that can't be older than main's
 EMPTY_SET = re.compile(r"resolved component set was empty|No components to deploy", re.I)  # a measured platform fault
 FULL_CEILING = 300                               # a full promotion checks every component on main against the org
+MERGED_LIMIT = 200                               # merged pull requests read at once; older ones are looked up by name
 TEST_WAIT = 20                                   # minutes the owed tests' run may take before Scout says it's still going
 KEPT_OUT = [p for p in team.FORCEIGNORE.splitlines() if p]  # what the .forceignore Scout writes keeps out of a deploy
 RULES_START, RULES_END = "<!-- scout:team-rules -->", "<!-- /scout:team-rules -->"
@@ -84,8 +89,21 @@ Agentforce Vibes, Claude Code, Scout).
    the commit: the captain's promotion syncs it.
 5. **Name every org with `--target-org`.** Never change the CLI's default org, aliases or logins.
 6. **Never commit your AI tool's own files** (`.agents/`, `.claude/`, `.cursor/`): they're in `.gitignore`.
+7. **When an official deploy skill fails,** deploy to your own sandbox with
+   `sf project deploy start --target-org <your sandbox>`, never to the common org.
+8. **A new custom object ships with its tab** and a permission set that makes the tab visible; without them it stays
+   out of the App Launcher.
+9. **Tests that insert records of a new record type** create their own user and grant the record type through a
+   permission set, outside `System.runAs`; they insert those records as that user, inside it. From API 67.0, a
+   test that inserts them on the deploying admin's own access fails with `INVALID_CROSS_REFERENCE_KEY`, "this ID
+   value isn't valid for the user": grant the record type first, to the test's user or to the admin.
 """
 GITIGNORE_LINES = [".agents/", ".claude/", ".cursor/", ".sf/", ".sfdx/", ".scout/"]
+ATTRIBUTES_LINE = "* text=auto eol=lf"  # Git stores LF, so a Windows checkout's line endings never widen a delivery
+RULES_BRANCH = "scout/team-rules"       # where the rules wait for review when main is protected
+MEMBERS_BRANCH = "scout/members"        # one record per member who joined with Scout: who, and whether their guard is on
+LC_GUARD = (team.GUARD_WHAT + " It's optional here: Lifecycle Center mode works without it, the captain's checks stay "
+            "the same, and the captain's status shows whose guard is off.")
 
 
 # ---- IDs: the platform answers both lengths, and promotion complete crashes on the long one ----
@@ -157,7 +175,11 @@ def query(soql, org, cwd, timeout=120, tooling=False):
                     cwd, timeout=timeout)
     if code or not isinstance(body, dict):
         raise failed(f"a query on {org} failed: {message_of(body)[:300]}")
-    return body.get("records") or []
+    records = body.get("records")
+    if not isinstance(records, list):  # an answer without its records is a missing input, never "none"
+        raise failed(f"a query on {org} answered without its records, so Scout can't tell what's there "
+                     f"({soql[:120]})")
+    return records
 
 
 # ---- the team record and its work items ----
@@ -188,9 +210,17 @@ def gh_json(args, cwd=None):
         raise failed(f"gh {' '.join(args[:2])} returned unreadable output")
 
 
+def gh_list(args, cwd=None):
+    """A GitHub list call's answer, which must be a list: an empty or other answer is a missing input, never "none"."""
+    found = gh_json(args, cwd)
+    if not isinstance(found, list):
+        raise failed(f"gh {' '.join(args[:2])} answered without a list, so Scout can't tell what's there")
+    return found
+
+
 def pull_requests(entry, branch, state="all"):
-    return gh_json(["pr", "list", "--repo", entry["repo"], "--head", branch, "--state", state, "--json",
-                    "number,state,headRefOid,mergeCommit,mergeable,baseRefName,url,title"]) or []
+    return gh_list(["pr", "list", "--repo", entry["repo"], "--head", branch, "--state", state, "--json",
+                    "number,state,headRefOid,mergeCommit,mergeable,baseRefName,url,title"])
 
 
 def work_item(entry, name, cwd):
@@ -489,7 +519,14 @@ def effect_problems(candidate, components, org):
     result = team.run([team.tool("node"), str(EFFECTS)], input=json.dumps(items), timeout=120)
     if result.returncode:
         raise failed("the effect checks didn't run", detail=(result.stderr or "")[-300:])
-    return json.loads(result.stdout or "{}")
+    try:
+        report = json.loads(result.stdout)
+    except ValueError:
+        report = None
+    if not isinstance(report, dict):  # an empty or unreadable answer is never "no problems"
+        raise failed("the effect checks gave no answer Scout can read, so they didn't count",
+                     detail=((result.stdout or "") + (result.stderr or ""))[-300:])
+    return {component: problems for component, problems in report.items() if problems}
 
 
 def trial_merge(repo, base, head):
@@ -514,6 +551,8 @@ def suite_classes(entry, repo, tree, cwd):
                  "AND DevopsPipelineStageTrigger.TriggerType = 'Pre-Promote'", entry["hub"], cwd)
     names = sorted({(r.get("TestSuite") or {}).get("Name") for r in rows} - {None})
     classes, missing = set(), []
+    if any(not (r.get("TestSuite") or {}).get("Name") for r in rows):  # a suite Scout can't name can't stand for none
+        missing.append("a stage suite the hub returned without its name")
     for name in names:
         found = set()
         if name != "Default Suite":
@@ -588,8 +627,9 @@ def pipeline_shape(hub, pipeline_id, cwd):
     if not body.get("isActive"):
         raise refused("the pipeline isn't active yet; activate it first (dx-devops-pipeline-manage)")
     stage = stages[0]
-    if (stage.get("branchName") or "main") != "main":
-        raise refused(f"the stage's branch is {stage.get('branchName')}; Scout's Lifecycle Center mode supports a stage on main")
+    if stage.get("branchName") != "main":  # a branch the answer doesn't name is never taken for main
+        raise refused(f"the stage's branch is {stage.get('branchName') or 'not named in the answer'}; Scout's Lifecycle "
+                      "Center mode supports a stage on main")
     environment = (stage.get("environment") or {}).get("id")
     rows = query(f"SELECT OrgIdentifier FROM DevopsEnvironment WHERE Id = {quoted(id18(environment))}", hub, cwd) if environment else []
     return {"pipeline_id": id15(body["id"]), "project_id": id15(projects[0]["id"]), "stage_id": id15(stage["id"]),
@@ -655,8 +695,12 @@ def undeployed(entry, cwd, exclude=None):
     names = {r["Name"] for r in rows} - {exclude}
     if not names:
         return []
-    merged = gh_json(["pr", "list", "--repo", entry["repo"], "--state", "merged", "--base", entry["stage_branch"],
-                      "--limit", "200", "--json", "number,headRefName,mergeCommit"]) or []
+    merged = gh_list(["pr", "list", "--repo", entry["repo"], "--state", "merged", "--base", entry["stage_branch"],
+                      "--limit", str(MERGED_LIMIT), "--json", "number,headRefName,mergeCommit"])
+    if len(merged) >= MERGED_LIMIT:  # the newest merges may not reach back to an older one: look the rest up by branch
+        seen = {p.get("headRefName") for p in merged}
+        merged += [dict(p, headRefName=name) for name in sorted(names - seen)
+                   for p in pull_requests(entry, name, "merged") if p.get("baseRefName") == entry["stage_branch"]]
     return [{"name": p["headRefName"], "pr": p["number"], "merge": (p.get("mergeCommit") or {}).get("oid")}
             for p in merged if p.get("headRefName") in names]
 
@@ -750,11 +794,12 @@ def clone(repo_name, checkout):
     return checkout
 
 
-def team_rules(repo, base):
-    """{path: text} for main: Scout's block in AGENTS.md, which every builder's agent reads, and the .gitignore lines.
-    A team's own AGENTS.md keeps its text; Scout's block is added to it, or brought up to date."""
-    shown = git(repo, "show", f"{base}:AGENTS.md", check=False)
-    agents = shown.stdout if shown.returncode == 0 else ""
+def rules_files(agents, ignore, attributes):
+    """{path: text} of what main still needs, from its AGENTS.md, .gitignore and .gitattributes (empty when absent):
+    Scout's block in AGENTS.md, which every builder's agent reads, added or brought up to date with the team's own
+    text kept; the .gitignore lines; and LF line endings, as the first line of .gitattributes, so the team's own
+    lines can still override it. Text from a Windows checkout (CRLF) reads the same, so it never rewrites in a loop."""
+    agents, ignore, attributes = (str(text or "").replace("\r\n", "\n") for text in (agents, ignore, attributes))
     block = f"{RULES_START}\n{AGENTS_MD}{RULES_END}\n"
     if RULES_START in agents and RULES_END in agents.split(RULES_START, 1)[1]:
         before, rest = agents.split(RULES_START, 1)
@@ -762,13 +807,207 @@ def team_rules(repo, base):
         wanted = before + block + ("\n" + after if after else "")
     else:
         wanted = (agents.rstrip("\n") + "\n\n" if agents.strip() else "") + block
-    shown = git(repo, "show", f"{base}:.gitignore", check=False)
-    ignore = shown.stdout if shown.returncode == 0 else ""
-    missing = [line for line in GITIGNORE_LINES if line not in ignore.splitlines()]
     files = {"AGENTS.md": wanted} if wanted != agents else {}
+    missing = [line for line in GITIGNORE_LINES if line not in ignore.splitlines()]
     if missing:
         files[".gitignore"] = (ignore.rstrip("\n") + "\n" if ignore.strip() else "") + "\n".join(missing) + "\n"
+    if ATTRIBUTES_LINE not in [" ".join(line.split()) for line in attributes.splitlines()]:
+        files[".gitattributes"] = ATTRIBUTES_LINE + "\n" + attributes
     return files
+
+
+def team_rules(repo, base):
+    """{path: text} for main: the team's rules (rules_files) against main's own files at base."""
+    def shown(path):
+        result = git(repo, "show", f"{base}:{path}", check=False)
+        return result.stdout if result.returncode == 0 else ""
+    return rules_files(shown("AGENTS.md"), shown(".gitignore"), shown(".gitattributes"))
+
+
+def propose_rules(repo, repo_name, commit, base, files, crlf=None):
+    """main refused the rules (it's protected: a pull request or reviews required, or a ruleset), so they wait on one
+    of Scout's own branches, as one commit on main, with a pull request when gh is there. Raises the stop: the team
+    merges the pull request, then the captain runs start again. An outstanding proposal is never replaced: Scout reuses
+    it as it is, and when it differs from what Scout would write now (a reviewer's edit, or an earlier start's), says
+    so and keeps it. A merged one stays as it is too, so a new proposal goes out under a branch name not used yet."""
+    fetch(repo)
+    branches = rules_branches(repo)
+    live = None
+    for branch in reversed(branches):  # the newest proposal first
+        state, tip, pr = proposal_state(repo, repo_name, branch, base)
+        if state == "outstanding":
+            live = (branch, tip, pr)
+            break
+    if live:
+        branch, tip, pr = live
+        ours = all(git(repo, "show", f"{tip}:{path}", check=False).stdout == text for path, text in files.items())
+    else:
+        branch, ours = next_rules_branch(branches), True
+        push = git(repo, "push", "--porcelain", "origin", f"{commit}:refs/heads/{branch}", check=False, timeout=120)
+        if push.returncode:
+            raise failed(f"main refused the team's rules, and so did the branch {branch}; ask the repository's admin to "
+                         "let the captain push either one", detail=(push.stdout + push.stderr)[-300:], files=sorted(files))
+        pr = None
+    problem = None
+    if not pr and ours:
+        pr, problem = rules_pull_request(repo_name, branch)
+    compare = f"https://github.com/{repo_name}/compare/main...{branch}?expand=1"
+    found = {"branch": branch, "compare": compare, "files": sorted(files), "pull_request": pr,
+             **({"active_branches": BRANCHES_WAIT} if ".gitattributes" in files else {}),
+             **({"earlier": [b for b in branches if b != branch]} if len(branches) > (1 if live else 0) else {}),
+             **({"crlf": crlf} if crlf else {})}
+    if not ours:
+        where = f"pull request #{pr.get('number')} ({pr.get('url')})" if pr else f"the branch {branch} ({compare})"
+        raise decide(f"main is protected, and {where} holds a proposal for the team's rules that differs from what Scout "
+                     "would write now (a reviewer's edit, or an earlier start's), so Scout keeps it as it is. Review and "
+                     "merge it (or close it and delete the branch), then run start again", needs="rules-review",
+                     kept=True, **found)
+    if pr:
+        raise decide(f"main is protected, so the team's rules ({', '.join(sorted(files))}) wait in pull request "
+                     f"#{pr.get('number')} ({pr.get('url')}), on the branch {branch}: merge the pull request, then run "
+                     "start again", needs="rules-review", **found)
+    raise decide(f"main is protected, so the team's rules ({', '.join(sorted(files))}) wait on the branch {branch}, and "
+                 f"gh couldn't open the pull request here ({problem}). Open it at {compare}: merge the pull request, "
+                 "then run start again", needs="rules-review", gh=problem, **found)
+
+
+RULE_PATHS = ("AGENTS.md", ".gitignore", ".gitattributes")
+
+
+def rules_branches(repo):
+    """Scout's rule-proposal branches on origin, in the order they were made: scout/team-rules, then -2, -3, …"""
+    found = []
+    for name in out(repo, "for-each-ref", "--format=%(refname:lstrip=3)", "refs/remotes/origin/scout/",
+                    check=False).splitlines():
+        match = re.fullmatch(re.escape(RULES_BRANCH) + r"(?:-(\d+))?", name)
+        if match:
+            found.append((int(match[1] or 1), name))
+    return [name for _, name in sorted(found)]
+
+
+def next_rules_branch(branches):
+    """A rules branch name not used yet: scout/team-rules first, then the next number after the last one."""
+    if not branches:
+        return RULES_BRANCH
+    last = re.fullmatch(re.escape(RULES_BRANCH) + r"(?:-(\d+))?", branches[-1])
+    return f"{RULES_BRANCH}-{int(last[1] or 1) + 1}"
+
+
+def proposal_state(repo, repo_name, branch, base):
+    """("outstanding" | "spent", tip, its open pull request or None). An open pull request means outstanding. Spent:
+    its commit is in main, main holds its rules files (a squash merge keeps no ancestry), or GitHub shows a pull request
+    merged from this very commit; one merged from an earlier branch of the same name proves nothing about this one.
+    Anything else is outstanding, so a proposal nobody merged is never taken for spent."""
+    tip = out(repo, "rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{branch}^{{commit}}", check=False)
+    prs = branch_prs(repo_name, branch)
+    open_pr = next((p for p in prs or [] if str(p.get("state")).upper() == "OPEN"), None)
+    if open_pr:
+        return "outstanding", tip, {"number": open_pr.get("number"), "url": open_pr.get("url")}
+    merged_here = any(str(p.get("state")).upper() == "MERGED" and p.get("headRefOid") == tip for p in prs or [])
+    if team.is_ancestor(repo, tip, base) or merged_here or all(
+            git(repo, "show", f"{tip}:{path}", check=False).stdout == git(repo, "show", f"{base}:{path}", check=False).stdout
+            for path in RULE_PATHS):
+        return "spent", tip, None
+    return "outstanding", tip, None
+
+
+def branch_prs(repo_name, branch):
+    """The branch's pull requests as GitHub shows them ([{number, url, state, headRefOid}]), or None when gh can't
+    say. A deleted branch's name can come back, so each one's head commit says which branch it was."""
+    try:
+        code, stdout, _ = gh(["pr", "list", "--repo", repo_name, "--head", branch, "--state", "all", "--json",
+                              "number,url,state,headRefOid"])
+        found = json.loads(stdout) if code == 0 else None
+    except (Stop, ValueError):
+        return None
+    return found if isinstance(found, list) else None
+
+
+def rules_pull_request(repo_name, branch):
+    """The rules branch's open pull request, else a new one: ({number, url}, None), or (None, why gh couldn't)."""
+    try:
+        code, stdout, stderr = gh(["pr", "list", "--repo", repo_name, "--head", branch, "--state", "open",
+                                   "--json", "number,url"])
+        if code:
+            return None, (stderr or stdout or "no answer")[-200:]
+        found = json.loads(stdout)
+        if not isinstance(found, list):  # an empty or odd answer never counts as "no pull request yet"
+            return None, "gh's answer was unreadable"
+        if found:
+            return {"number": found[0].get("number"), "url": found[0].get("url")}, None
+        code, stdout, stderr = gh(["pr", "create", "--repo", repo_name, "--base", "main", "--head", branch,
+                                   "--title", "Scout's team rules for every builder and agent", "--body",
+                                   "Scout's team start adds the team's rules to `main`: Scout's block in `AGENTS.md`, "
+                                   "the `.gitignore` lines and LF line endings in `.gitattributes`. `main` is protected, "
+                                   "so they come as this pull request. Merge it, then the captain runs Scout's team "
+                                   "start again."])
+        if code:
+            return None, (stderr or stdout or "no answer")[-200:]
+        url = (stdout.strip().splitlines() or [""])[-1]
+        number = re.search(r"/pull/(\d+)", url)
+        return {"number": int(number[1]) if number else None, "url": url}, None
+    except Stop as stop:  # gh isn't installed here, or it hung
+        return None, str(stop.data.get("reason"))[:200]
+    except (ValueError, AttributeError, IndexError, KeyError, TypeError):
+        return None, "gh's answer was unreadable"
+
+
+def lf_rule_at(repo, ref):
+    """Whether .gitattributes at ref carries Scout's LF rule."""
+    shown = git(repo, "show", f"{ref}:.gitattributes", check=False)
+    return shown.returncode == 0 and ATTRIBUTES_LINE in [" ".join(line.split()) for line in shown.stdout.splitlines()]
+
+
+def sync_main(repo, base):
+    """The captain's checkout on main at origin's main, by fast-forward only, and the commit it was at before.
+    Uncommitted work, or commits on the local main that origin's main doesn't have, stop the start and stay as they
+    are: it never resets."""
+    dirty = out(repo, "status", "--porcelain", "--untracked-files=all")
+    if dirty:
+        raise refused("the team checkout has uncommitted changes, so start leaves it as it is: " +
+                      "; ".join(dirty.splitlines()[:5]) + ". Commit or move them, then run start again", checkout=str(repo))
+    if out(repo, "rev-parse", "--abbrev-ref", "HEAD") != "main":
+        git(repo, "checkout", "--quiet", "main")
+    local = out(repo, "rev-parse", "main")
+    if local != base and not team.is_ancestor(repo, local, base):
+        ahead = out(repo, "log", "--format=%h %s", f"{base}..{local}").splitlines()
+        raise refused("the team checkout's main has commits origin's main doesn't (" + "; ".join(ahead[:5]) + "), so start "
+                      "leaves them as they are: bring them in through a work item, or move them to a branch, then run "
+                      "start again", checkout=str(repo), ahead=ahead[:20])
+    if local != base:
+        git(repo, "merge", "--quiet", "--ff-only", base)
+    return local
+
+
+CRLF_NEXT = ("These files are stored with CRLF line endings, which Git keeps until they're renormalized, so an editor's "
+             "LF save would later show as a change and widen a delivery. Normalize them in a work item of their own: "
+             "start it for every component in `components`, run `git add --renormalize .` on its branch, commit only "
+             "that, push and open its review, and the captain delivers it like any other, never inside the rules' pull "
+             "request. If that's more than one work item should carry, split them: each names its own components and "
+             "renormalizes only their files (`git add --renormalize -- <its files>`). Once they're delivered, open "
+             "work items' branches merge main again, as for the rules.")
+# Whenever start brings in the LF rule, whatever main's line endings: branches cut earlier don't have it yet.
+BRANCHES_STEP = ("builders whose work items were opened before then bring the rules onto their branches: they fetch "
+                 "origin and merge main into their branch (`git fetch origin`, then `git merge origin/main`) before their "
+                 "next commit, deploy the branch's copy into their sandbox, and update the work item's Checked line, as "
+                 "AGENTS.md says.")
+BRANCHES_WAIT = "Once the rules' pull request is merged, and not before, " + BRANCHES_STEP  # main doesn't have them yet
+BRANCHES_NOW = "The rules are on main now: " + BRANCHES_STEP
+
+
+def crlf_report(repo):
+    """Files main already stores with CRLF line endings (the checkout's index, at main), with the documented way to
+    normalize them; None when there are none. Reported, never changed by start."""
+    files = []
+    for line in out(repo, "ls-files", "--eol", check=False).splitlines():
+        info, _, path = line.partition("\t")
+        if path and info.split()[:1] and info.split()[0] in ("i/crlf", "i/mixed"):
+            files.append(path)
+    if not files:
+        return None
+    # The whole lists define the step, so they're never cut; only the preview is.
+    return {"count": len(files), "files": files, "components": sorted({team.component_of(p) for p in files} - {None}),
+            "other_files": [p for p in files if not team.component_of(p)], "preview": files[:10], "next": CRLF_NEXT}
 
 
 def guard_here(repo, common, yes, captain):
@@ -781,8 +1020,205 @@ def guard_here(repo, common, yes, captain):
     return dict(installed, guards=(body or {}).get("commonOrgId"), captain=bool((body or {}).get("lifecycleCaptain")))
 
 
+GUARD_NOTES = {
+    "off": "Scout's guard isn't on this machine for this team, by the SE's choice: nothing here stops this machine's sf "
+           "CLI from deploying to the common org, so build only in your own sandbox. The captain's status shows your "
+           "guard is off",
+    "on": "the SE chose no guard, but a guard from an earlier join still guards the common org on this machine, and "
+          "Scout leaves it as it is: the team's record says so, and the captain's status shows it on. Taking it off "
+          "is a step of its own: scout_lc.py unguard --team lc-{team}",
+    "unknown": "the SE chose no guard, and Scout can't tell whether an earlier join's guard still guards the common "
+               "org on this machine ({why}), so the team's record says unknown",
+}
+
+
+def sf_mp_registry():
+    """sf-mp's own record of the orgs it guards on this machine, in the sf CLI's data folder."""
+    # The folder as oclif resolves the CLI's dataDir: scopedEnvVar("DATA_DIR"), whose keys are the binary's name and
+    # then its aliases, else the data home (@oclif/core, lib/config/config.js: dataDir, scopedEnvVarKeys, dir).
+    # @salesforce/cli's package.json names sfdx as its alias (oclif.binAliases), so SF_DATA_DIR, then SFDX_DATA_DIR.
+    data = os.environ.get("SF_DATA_DIR") or os.environ.get("SFDX_DATA_DIR")
+    if not data:
+        home = Path.home()
+        data = (Path(os.environ.get("LOCALAPPDATA") or home / "AppData" / "Local") / "sf" if os.name == "nt" else
+                Path(os.environ.get("XDG_DATA_HOME") or home / ".local" / "share") / "sf")
+    return Path(data) / "sf-mp" / "bound-orgs.json"
+
+
+def sf_mp_plugin():
+    """What this machine's sf CLI says about sf-mp: ("installed", version), ("absent", None), or ("unknown", why).
+    Only a successful, readable plugin list without sf-mp proves it's absent."""
+    try:
+        result = team.run([team.tool("sf"), "plugins", "--json"], cwd=os.getcwd(), timeout=120)
+    except Stop as stop:
+        return "unknown", str(stop.data.get("reason"))[:160]
+    if result.returncode:
+        return "unknown", "sf plugins failed: " + (result.stderr or result.stdout or "no answer").strip()[-160:]
+    try:
+        plugins = json.loads(result.stdout)
+    except ValueError:
+        return "unknown", "sf plugins answered unreadably"
+    if not isinstance(plugins, list):
+        return "unknown", "sf plugins answered without a list"
+    found = next((p for p in plugins if isinstance(p, dict) and p.get("name") == "sf-mp"), None)
+    return ("installed", found.get("version")) if found else ("absent", None)
+
+
+def guard_binding(org_id):
+    """Whether sf-mp guards this org on this machine now, as its own record says: ("on" | "off" | "unknown", why). A
+    plugin list that failed or can't be read proves nothing, so it's unknown, never off."""
+    plugin, why = sf_mp_plugin()
+    if plugin == "unknown":
+        return "unknown", why
+    if plugin == "absent":
+        return "off", "sf-mp isn't installed in this machine's sf CLI"
+    try:
+        data = json.loads(sf_mp_registry().read_text())
+    except FileNotFoundError:
+        return "off", None
+    except (OSError, ValueError) as error:
+        return "unknown", f"sf-mp's record of the orgs it guards is unreadable: {str(error)[:120]}"
+    orgs = data.get("orgs") if isinstance(data, dict) else None
+    if not isinstance(orgs, dict):
+        return "unknown", "sf-mp's record of the orgs it guards is unreadable"
+    return ("on" if org_id in orgs else "off"), None
+
+
+def release_guard(org_id):
+    """Removes this one org's guard binding from sf-mp's record, under sf-mp's own lock. Only a builder's guard
+    binding goes: a lane's, or a Lifecycle Center captain's, stays. True when one was removed."""
+    path = sf_mp_registry()
+    lock = Path(str(path) + ".lock")
+    for _ in range(50):
+        try:
+            handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            break
+        except FileExistsError:
+            time.sleep(0.1)
+    else:  # waiting can't help a lock whose owner is gone, so the answer says whose it is and how to clear it
+        try:
+            owner = json.loads(lock.read_text())
+        except (OSError, ValueError):
+            owner = None
+        held = (f"process {owner.get('pid')} on {owner.get('host')}, since {owner.get('at')}" if isinstance(owner, dict)
+                else "an owner its lock file doesn't name")
+        raise failed(f"sf-mp's record of the orgs it guards stays locked by {held} ({lock}); nothing changed. If that "
+                     "process is still running, let it finish; once it's gone (`ps -p <pid>` shows nothing on that "
+                     "machine), delete the lock file, then run unguard again", lock=str(lock), owner=owner)
+    try:
+        os.write(handle, json.dumps({"pid": os.getpid(), "host": socket.gethostname(), "at": now()}).encode())
+        os.close(handle)
+        data = json.loads(path.read_text())
+        found = data["orgs"].get(org_id)
+        if found is None:
+            return False
+        if found.get("role") != "guard" or found.get("lifecycleCaptain"):
+            raise refused("this machine's binding for the common org is a lane's or a captain's, so Scout leaves it")
+        del data["orgs"][org_id]
+        team.write_json_atomic(path, data, mode=0o644)
+        return True
+    except (OSError, ValueError, KeyError, AttributeError, TypeError) as error:
+        raise failed(f"Scout couldn't change sf-mp's record ({str(error)[:160]}); nothing changed")
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+def cmd_unguard(a):
+    """Takes Scout's guard off this machine for this team's common org: a step of its own, never part of a join, and
+    only on the SE's yes. Only that org's binding goes; sf-mp stays for other orgs, and a captain's machine, or another
+    team here that relies on the guard, keeps it."""
+    team_id, entry = pick(a.team)
+    org = entry["common_org_id"]
+    if entry.get("role") == "captain":
+        raise refused("the captain's machine keeps Scout's guard: the checks before every merge validate through it")
+    others = [e.get("name", t) for t, e in team.load_registry()["teams"].items() if t != team_id and
+              e.get("common_org_id") == org and (e.get("mode") != MODE or e.get("role") == "captain" or e.get("guard") != "off")]
+    if others:
+        raise refused("another team on this machine relies on this common org's guard (" + ", ".join(others) + "), so "
+                      "Scout leaves it", teams=others)
+    binding, why = guard_binding(org)
+    if binding == "unknown":
+        raise failed(f"Scout can't tell whether the guard is on here ({why}); nothing changed")
+    if binding == "on" and not a.yes:
+        raise decide("taking Scout's guard off this machine for the team's common org: from then on nothing here stops "
+                     "this machine's sf CLI from deploying to it, and the captain's status shows your guard off",
+                     needs="unguard-yes", org=org)
+    removed = release_guard(org) if binding == "on" else False
+    entry.update(guard="off", guard_choice="no")
+    team.save_team(team_id, entry)
+    problem = share_member(where(entry), entry.get("role"), "off", (entry.get("build_org") or {}).get("label"), "no")
+    return {"team": team_id, "guard": "off", "removed": removed,
+            "member_record": f"on {MEMBERS_BRANCH}" if not problem else {"problem": problem}}
+
+
+def members(repo):
+    """{id: record} from the members branch, as this checkout last fetched it. An unreadable record still shows."""
+    tip = out(repo, "rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{MEMBERS_BRANCH}^{{commit}}", check=False)
+    found = {}
+    for path, data in (team.tree_files(repo, tip) if tip else {}).items():
+        if not re.fullmatch(r"members/[a-z0-9-]+\.json", path):
+            continue
+        try:
+            item = json.loads(data.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            item = None
+        found[path[8:-5]] = item if isinstance(item, dict) else {"name": path[8:-5], "guard": "unknown", "problem": "unreadable"}
+    return found
+
+
+def share_member(repo, role, guard, build_label, choice=None):
+    """This member's record on the members branch, written with Git plumbing (the checkout is untouched) as a
+    compare-and-swap: a push someone else beat is tried again on their tip. None once it's there, else what went wrong."""
+    try:
+        ident = team.identity(repo)
+    except Stop as stop:
+        return str(stop.data.get("reason"))[:200]
+    member_id = team.slug(ident["email"], "member")
+    ref = "refs/heads/" + MEMBERS_BRANCH
+    for attempt in range(4):
+        try:
+            fetch(repo)
+            tip = out(repo, "rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{MEMBERS_BRANCH}^{{commit}}",
+                      check=False) or None
+            files = team.tree_files(repo, tip)
+            earlier = members(repo).get(member_id) or {}
+            files[f"members/{member_id}.json"] = team.render({
+                "schema": 1, "id": member_id, "name": ident["name"], "git_email": ident["email"], "role": role,
+                "guard": guard, "guard_choice": choice or earlier.get("guard_choice"), "build_org": build_label,
+                "scout": True, "joined_at": earlier.get("joined_at") or now(), "updated_at": now()})
+            commit = team.make_commit(repo, tip, files, f"{ident['name']}, {role}: the guard is {guard} on their machine", ident)
+            push = git(repo, "push", "--porcelain", "origin", f"{commit}:{ref}", check=False, timeout=60)
+        except Stop as stop:
+            return str(stop.data.get("reason"))[:200]
+        if push.returncode == 0:
+            git(repo, "update-ref", f"refs/remotes/origin/{MEMBERS_BRANCH}", commit)
+            return None
+        if not re.search(r"\[rejected\]|non-fast-forward|fetch first|stale info", push.stdout + push.stderr):
+            return (push.stderr or push.stdout).strip()[-200:] or "the push was refused"
+        time.sleep(0.3 * (attempt + 1))
+    return "the members branch kept changing; join again"
+
+
+def roster(entry):
+    """The captain's view of the members: each record on the members branch, and whose guard is off."""
+    repo, problem = where(entry), None
+    try:
+        fetch(repo)
+    except Stop as stop:  # the copy fetched last still shows, and the answer says it may be old
+        problem = str(stop.data.get("reason"))[:200]
+    shown = [{"name": m.get("name"), "role": m.get("role"), "guard": m.get("guard") or "unknown",
+              "choice": m.get("guard_choice"), "builds_in": m.get("build_org"), "joined_at": m.get("joined_at")}
+             for m in sorted(members(repo).values(), key=lambda m: str(m.get("joined_at") or ""))]
+    return {"members": shown, "guard_off": [m["name"] for m in shown if m["guard"] != "on"],
+            **({"members_note": f"GitHub didn't answer, so this is the copy fetched last: {problem}"} if problem else {})}
+
+
 def cmd_start(a, role="captain"):
     cwd = Path.cwd()
+    if a.yes_guard and a.no_guard:
+        raise refused("choose one: --yes-guard or --no-guard")
+    if role == "captain" and a.no_guard:
+        raise refused("the captain's machine needs Scout's guard: the checks before every merge validate through it")
     hub = team.org_info(a.hub)
     common = team.org_info(a.common_org)
     shape = pipeline_shape(a.hub, a.pipeline_id, cwd)
@@ -792,41 +1228,73 @@ def cmd_start(a, role="captain"):
                       "(dx-devops-pipeline-manage)")
     checkout = Path(a.checkout or team.workspace() / "teams" / team.slug(shape["repo"].split("/")[-1])).expanduser()
     build = team.org_info(a.build_org) if getattr(a, "build_org", None) else None
+    if build and build["org_id"] == common["org_id"]:  # whatever the guard choice: nothing here may build in the common org
+        raise refused(f"{build['label']} is the team's common org ({common['org_id']}); your build org must be your own "
+                      "sandbox, never the common org. Name your sandbox with --build-org", build_org=build["label"])
     plan = {"team": shape["name"], "repository": shape["repo"], "checkout": str(checkout), "hub": hub["label"],
             "common_org": common["label"], "role": role, "build_org": build["label"] if build else None}
     if not a.yes:
-        raise decide("one yes for the team set-up on this machine: clone the repository, install Scout's guard if "
-                     "it's missing, guard the common org here" + (", and add Scout's team rules (AGENTS.md, .gitignore "
-                     "lines) on main" if role == "captain" else ""), needs="start-yes", plan=plan)
+        if role == "captain":
+            raise decide("one yes for the team set-up on this machine: clone the repository, install Scout's guard if "
+                         "it's missing, guard the common org here, and add Scout's team rules (AGENTS.md, .gitignore "
+                         "and .gitattributes lines) on main", needs="start-yes", plan=plan)
+        raise decide("one yes for joining on this machine: clone the repository and register the team here; and the "
+                     f"SE's yes or no for Scout's guard. {LC_GUARD}", needs="start-yes", plan=plan, guard=LC_GUARD,
+                     choices=["join with the guard: --yes --yes-guard", "or join without it: --yes --no-guard"])
+    if role == "builder" and not (a.yes_guard or a.no_guard):
+        raise decide(LC_GUARD, needs="guard-choice", plan=plan, guard=LC_GUARD,
+                     choices=["with the guard: --yes-guard", "or without it: --no-guard"])
     repo = clone(shape["repo"], checkout)
     base = fetch(repo)
-    written = []
+    written, crlf, branches_next = [], None, None
     if role == "captain":
+        before = sync_main(repo, base)  # the checkout follows main forward, so it holds what main holds
+        if lf_rule_at(repo, base) and not lf_rule_at(repo, before):
+            branches_next = BRANCHES_NOW  # the rules' pull request was merged: the LF rule arrives with this start
+        crlf = crlf_report(repo)
         files = team_rules(repo, base)
         if files:
-            team.require_clean(repo)
-            git(repo, "checkout", "--quiet", "-B", "main", base)
+            git(repo, "checkout", "--quiet", "--detach")  # the rules commit is made off main, so main only moves forward
             for path, text in files.items():
-                (repo / path).write_text(text)
+                (repo / path).write_bytes(text.encode("utf-8"))
             git(repo, "add", "--", *files)
-            git(repo, "commit", "--quiet", "-m", "The team's rules for every builder and agent (AGENTS.md, .gitignore)")
-            push = git(repo, "push", "--quiet", "origin", "main", check=False, timeout=120)
+            git(repo, "commit", "--quiet", "-m", f"The team's rules for every builder and agent ({', '.join(sorted(files))})")
+            commit = out(repo, "rev-parse", "HEAD")
+            push = git(repo, "push", "--porcelain", "origin", f"{commit}:refs/heads/main", check=False, timeout=120)
+            git(repo, "checkout", "--quiet", "main")
             if push.returncode:
-                raise failed("pushing the team's rules to main failed", detail=(push.stderr or "")[-300:])
+                if "[remote rejected]" not in push.stdout + push.stderr:  # not a protected main: the network, say
+                    raise failed("pushing the team's rules to main failed", detail=(push.stderr or push.stdout)[-300:])
+                propose_rules(repo, shape["repo"], commit, base, files, crlf)  # stops: merge it, then start again
+            git(repo, "merge", "--quiet", "--ff-only", commit)
             written = sorted(files)
-    guard = guard_here(repo, common["target"], a.yes, captain=role == "captain")
+            branches_next = BRANCHES_NOW if ".gitattributes" in files else branches_next
+    guarded = role == "captain" or a.yes_guard
+    if guarded:
+        guard = dict(guard_here(repo, common["target"], True, captain=role == "captain"), choice="yes", binding="on")
+    else:  # the SE's no puts nothing on; what's bound already (an earlier join's guard, say) stays, and is said
+        binding, why = guard_binding(common["org_id"])
+        guard = {"guard": binding, "binding": binding, "choice": "no", "note": GUARD_NOTES[binding].format(
+            why=why, team=team.slug(shape["repo"]))}
     me = a.me or out(repo, "config", "user.name", check=False) or os.environ.get("USER", "me")
     team_id = f"lc-{team.slug(shape['repo'])}"
     entry = {"mode": MODE, "name": shape["name"], "slug": team.slug(shape["name"]), "checkout": str(repo),
              "repo": shape["repo"], "hub": hub["target"], "hub_org_id": hub["org_id"], "common_org": common,
              "common_org_id": common["org_id"], "project_id": shape["project_id"], "pipeline_id": shape["pipeline_id"],
              "stage_id": shape["stage_id"], "stage_branch": shape["stage_branch"], "role": role, "me": me,
-             "joined_at": now()}
+             "guard": guard["binding"], "guard_choice": guard["choice"], "joined_at": now()}
     if build:
         entry.update(build_org=build, build_org_id=build["org_id"])
     team.save_team(team_id, entry)
-    return {"team": team_id, "role": role, "checkout": str(repo), "written_on_main": written, "guard": guard,
-            "prompt": str(LC_PROMPT)}
+    result = {"team": team_id, "role": role, "checkout": str(repo), "written_on_main": written, "guard": guard,
+              "prompt": str(LC_PROMPT), **({"crlf": crlf} if crlf else {}),
+              **({"active_branches": branches_next} if branches_next else {})}
+    if role == "builder":
+        problem = share_member(repo, role, guard["binding"], build["label"] if build else None, guard["choice"])
+        result["member_record"] = f"on {MEMBERS_BRANCH}, where the captain's status reads it" if not problem else {
+            "problem": problem, "next": "the captain's status can't show this member yet: tell the captain whether "
+                                        "your guard is on, and join again once the push works"}
+    return result
 
 
 def cmd_join(a):
@@ -837,9 +1305,30 @@ def cmd_join(a):
 
 # ---- package start and check, and hand-over (Scout builders; the captain starts work items for others) ----
 
+def build_org_of(entry, cwd):
+    """This machine's build org for the team, checked before each piece of work with it: never the common org, as the
+    registration names it or as its selector resolves now (an alias can be rebound), and still the org it joined with.
+    None when this machine builds nowhere (a captain who starts work items for others)."""
+    build = entry.get("build_org")
+    if not build:
+        return None
+    common = entry.get("common_org_id")
+    if common in (entry.get("build_org_id"), build.get("org_id")):
+        raise refused("this machine's team registration names the common org as its build org, so Scout won't build or "
+                      "read a sandbox with it. Join again with your own sandbox (--build-org)")
+    now = team.org_info(build["target"], cwd)
+    if now["org_id"] == common:
+        raise refused(f"{build['target']} now names the team's common org, not your sandbox; reconnect your sandbox under "
+                      "that name, or join again with --build-org")
+    if now["org_id"] != build.get("org_id"):
+        raise refused(f"{build['target']} now names org {now['org_id']}, not the sandbox you joined with "
+                      f"({build.get('org_id')}); reconnect it, or join again with --build-org")
+    return build
+
+
 def base_check(entry, repo, base, components):
     """The builder's sandbox copy of each component against main's (see compare)."""
-    build = entry.get("build_org")
+    build = build_org_of(entry, Path.cwd())
     if not build:
         return {}
     org = team.org_files(build["target"], sorted(components), team.source_api(repo))
@@ -865,13 +1354,16 @@ def cmd_package(a):
         raise failed(f"Lifecycle Center didn't create the work item: {message_of(body)[:300]}")
     name = body["workItemName"]
     update_item(entry, name, cwd, status="In Progress")
-    overlaps = []
-    for pr in gh_json(["pr", "list", "--repo", entry["repo"], "--state", "open", "--json", "number,headRefName,files"]) or []:
-        touched = {team.component_of(f.get("path", "")) for f in pr.get("files") or []}
-        for component in sorted(touched & set(components)):
-            overlaps.append({"component": component, "pr": pr["number"], "branch": pr.get("headRefName")})
+    overlaps, unread = [], None
+    try:  # the work item exists now, so an unreadable list says so rather than failing the start
+        for pr in gh_list(["pr", "list", "--repo", entry["repo"], "--state", "open", "--json", "number,headRefName,files"]):
+            touched = {team.component_of(f.get("path", "")) for f in pr.get("files") or []}
+            for component in sorted(touched & set(components)):
+                overlaps.append({"component": component, "pr": pr["number"], "branch": pr.get("headRefName")})
+    except Stop as stop:
+        unread = str(stop.data.get("reason"))[:200]
     result = {"work_item": name, "branch": name, "components": components, "base": base[:12], "base_check": report,
-              "checked": base[:12] if clean else None, "overlaps": overlaps}
+              "checked": base[:12] if clean else None, "overlaps": overlaps if unread is None else {"unread": unread}}
     if report and not clean:
         result["next"] = (f"deploy main's copy of what differs into your sandbox, then run package check --wi {name} "
                           "before you edit")
@@ -886,7 +1378,7 @@ def package_check(entry, a):
     Only main counts: a sandbox that matches its own branch proves nothing about the branch's base. After a builder
     merged main into their branch, the captain confirms the base at delivery instead."""
     repo, cwd = where(entry), Path.cwd()
-    build = entry.get("build_org")
+    build = build_org_of(entry, cwd)
     if not build:
         raise refused("this machine has no build org in the team; the check compares your own sandbox with main")
     if not a.wi:
@@ -911,7 +1403,7 @@ def package_check(entry, a):
 def cmd_handover(a):
     team_id, entry = pick(a.team)
     repo, cwd = where(entry), Path.cwd()
-    build = entry.get("build_org")
+    build = build_org_of(entry, cwd)
     if not build:
         raise refused("this machine has no build org in the team; hand-over retrieves from your own sandbox")
     item = work_item(entry, a.wi, cwd)
@@ -969,16 +1461,40 @@ def cmd_deliver(a):
     repo, cwd = where(entry), Path.cwd()
     if entry.get("role") != "captain":
         raise refused("only the team's captain delivers")
-    check_stage(entry, cwd)
-    resend_comments(team_id, entry)
-    item = work_item(entry, a.wi, cwd)
-    stale = stop_file(team_id, item["name"])
-    if stale.exists() and stale.stat().st_mtime < started:  # a request from before this run isn't for it
-        stale.unlink(missing_ok=True)
-    with team.CheckoutLock(repo):
-        if a.resume or a.retry or a.full:
-            return resume(team_id, entry, repo, item, a, cwd)
-        return plan_and_merge(team_id, entry, repo, item, a, cwd)
+    try:
+        check_stage(entry, cwd)
+        resend_comments(team_id, entry)
+        item = work_item(entry, a.wi, cwd)
+        stale = stop_file(team_id, item["name"])
+        if stale.exists() and stale.stat().st_mtime < started:  # a request from before this run isn't for it
+            stale.unlink(missing_ok=True)
+        with team.CheckoutLock(repo):
+            if a.resume or a.retry or a.full:
+                return resume(team_id, entry, repo, item, a, cwd)
+            return plan_and_merge(team_id, entry, repo, item, a, cwd)
+    except Stop as stop:
+        raise known_phase(team_id, a.wi, stop)
+
+
+AFTER_MERGE = {"merging", "merged", "syncing", "recheck", "completing", "promoting", "tests-running", "tests-failed",
+               "failed", "unverified"}  # a delivery's steps once its merge was asked for
+
+
+def known_phase(team_id, wi_name, stop):
+    """A failure once this delivery's merge or promotion is under way says where the delivery stands and to resume,
+    whatever the step that failed could tell: the record keeps the phase and the request. A failure that already
+    says how to go on is left as it is."""
+    if stop.code != 1 or any(stop.data.get(k) for k in ("resume", "retry", "choices")) or not WI_NAME.match(str(wi_name)):
+        return stop
+    record = read_record(team_id, wi_name)
+    step, token = record.get("step"), record.get("token")
+    if step not in AFTER_MERGE:
+        return stop
+    stop.data.update(resume=True, pending=True, phase=step, **({"token": token} if token else {}))
+    stop.data["reason"] = (f"{stop.data.get('reason')}. {wi_name} is past its merge ({step}" +
+                           (f", request {token}" if token else "") + f"), so deliver --wi {wi_name} --resume picks up "
+                           "from there")
+    return stop
 
 
 def checks(team_id, entry, repo, item, head, base, tree, pr, a, cwd, merged=False):
@@ -1068,7 +1584,8 @@ def checks(team_id, entry, repo, item, head, base, tree, pr, a, cwd, merged=Fals
     tests = {k: validation.get(k) for k in ("tests", "suites", "testsRun", "jobId")}
     if after:
         tests["after"] = plan["tests_after"] = after
-    summary = {"scope": "ok", "other_files": scope["other_files"], "effects": "ok", "direct_edits": edits,
+    summary = {"scope": "ok" if scope["declared"] else "not declared: the work item has no Components line, so the "
+               "captain's yes approves this list", "other_files": scope["other_files"], "effects": "ok", "direct_edits": edits,
                "base": dict(evidence, confirmed=evidence["state"] != "checked"), "overwrite": sorted(changed), "tests": tests}
     return plan, {"org": org, "overwrite": {c: r["digest"] for c, r in changed.items()}, "validated": tests,
                   "tests_after": after, "summary": summary}
@@ -1489,6 +2006,11 @@ def read_back(team_id, entry, repo, item, state, cwd):
     """The org's copies against the merge: only this says verified. Then the baselines, and the pull request's
     comment, kept until GitHub takes it."""
     name, merge, components = item["name"], state["merge"], state["components"]
+    if not components:  # nothing mapped is nothing read back, so never verified
+        write_record(team_id, name, step="unverified")
+        raise failed("the promotion finished, but Scout maps none of the merge's files to components, so there's "
+                     "nothing to read back and it isn't verified. Look at the common org yourself", merge=merge[:12],
+                     work_item=name)
     progress(name, "reading back", f"{len(components)} components from the common org")
     target = state.get("target") or merge  # after a full promotion: main as Scout checked it, or as it stands
     expected = team.files_at(repo, target, set(components))
@@ -1508,21 +2030,69 @@ def read_back(team_id, entry, repo, item, state, cwd):
     for component in components:
         save_baseline(team_id, entry, component, merge, org[component]["files"])
     shown = f"all {len(components)} components on main, after a full promotion" if state.get("target") else ", ".join(components)
-    body = f"Verified in the common org at {target}: {shown} (Scout's read-back)."
+    warnings = tab_warnings(repo, state.get("base"), target, components)
+    body = f"Verified in the common org at {target}: {shown} (Scout's read-back)." + (
+        " Warning: " + "; ".join(warnings) + "." if warnings else "")
     record = read_record(team_id, name)
     owed = owed_tests(entry, repo, state, record, components, cwd)
     if owed:  # the platform ran none of them at deploy time, or nothing shows it ran them: Scout runs them now
         promotion = promotion_for(entry, item, cwd) or {}
         write_record(team_id, name, step="tests-running", promoted=merge, read_back=body, pr=state["pr"],
                      checked_against=target, checked_components=components, tests_after=owed, test_run=None,
+                     warnings=warnings,
                      promoted_at=state.get("promoted_at") or promotion.get("completed") or promotion.get("at"))
         return run_owed_tests(team_id, entry, repo, item, cwd)
-    write_record(team_id, name, pr=state["pr"])
+    write_record(team_id, name, pr=state["pr"], warnings=warnings)
     set_comment(team_id, name, body, step="verified", verified=merge)
     clear_backflow(team_id, name)
     sent = send_comment(team_id, entry, name)
     return {"work_item": name, "outcome": "verified", "merge": merge[:12], "components": components,
-            "comment": "sent" if sent else "pending: GitHub didn't take it; Scout sends it again at the next team step"}
+            "comment": "sent" if sent else "pending: GitHub didn't take it; Scout sends it again at the next team step",
+            **({"warnings": warnings, "presenter": entry["common_org"].get("username")} if warnings else {})}
+
+
+TAB_SETTING = re.compile(rb"<tabSettings>(.*?)</tabSettings>", re.S)
+
+
+def tab_warnings(repo, base, target, components):
+    """A warning for each new custom object the delivery brings (custom settings need no tab). Scout reads Git only:
+    it can tell whether main gives the object a tab and a permission set that makes the tab visible, never whether
+    the user who presents can see it, so until a read-back shows that, the warning asks for the permission set to be
+    assigned to that user in the common org (by default the captain's user). Warnings, never a failure."""
+    objects = sorted(c for c in components if c.startswith("CustomObject:") and c.endswith("__c"))
+    known = {team.component_of(p) for p in paths_of(repo, [base], set(objects))} if objects and base else set()
+    current = team.files_at(repo, target, set(objects) - known) if objects else {}
+    new = [c for c in objects if c not in known and current.get(c)
+           and not any(b"<customSettingsType>" in data for data in current[c].values())]
+    if not new:
+        return []
+    listing = out(repo, "ls-tree", "-r", "--name-only", target, "--", team.SOURCE + "tabs",
+                  team.SOURCE + "permissionsets", check=False).splitlines()
+    tabs, visible = {team.component_of(p) for p in listing}, {}
+    for path in listing:
+        component = team.component_of(path) or ""
+        if component.startswith("PermissionSet:"):
+            for setting in TAB_SETTING.findall(git(repo, "show", f"{target}:{path}", binary=True).stdout):
+                tab = re.search(rb"<tab>\s*([^<\s]+)\s*</tab>", setting)
+                if tab and re.search(rb"<visibility>\s*(?:Visible|Available)\s*</visibility>", setting):
+                    visible.setdefault(tab[1].decode("utf-8", "replace"), set()).add(component.split(":", 1)[1])
+    who = "the user who presents (the captain's user, unless the team names others)"
+    warnings = []  # Git shows what main holds, never who can see what: the org may hold a tab or access Git doesn't
+    for component in new:
+        name = component.split(":", 1)[1]
+        if f"CustomTab:{name}" not in tabs:
+            warnings.append(f"Git holds no tab for the new object {name}, so whether it shows in the App Launcher is "
+                            f"unverified: {who} checks there, and if it's missing, the team delivers its tab and a "
+                            "permission set that makes the tab visible, assigned to that user in the common org")
+        elif name not in visible:
+            warnings.append(f"Git holds no permission set that makes the new object {name}'s tab visible, so its "
+                            f"visibility is unverified: {who} checks the App Launcher, and if it's missing, the team "
+                            "delivers one, assigned to that user in the common org")
+        else:
+            warnings.append(f"Git gives the new object {name} a tab and a permission set that makes it visible "
+                            f"({', '.join(sorted(visible[name]))}), but Scout checked Git only, not who can see it: assign "
+                            f"that permission set in the common org to {who}, then check the App Launcher as that user")
+    return warnings
 
 
 TEST_RUN = re.compile(r"707[0-9A-Za-z]{12}(?:[0-9A-Za-z]{3})?")
@@ -1531,12 +2101,16 @@ RUN_GOING = {"Queued", "Preparing", "Processing", "Holding"}
 
 def owed_tests(entry, repo, state, record, components, cwd):
     """The tests a delivery owes after its promotion: the ones the platform skipped at deploy time, or, when no record
-    shows a validation that ran tests (a lost record, say), the ones a validation would have asked for."""
-    if record.get("tests_passed"):
+    shows a validation that ran tests (a lost record, say), the ones a validation would have asked for. A record's
+    tests count only for the revision its plan checked: a merge Scout didn't plan, merged and promoted elsewhere after
+    a plan for another revision, owes the tests a validation of it would have asked for."""
+    planned = bool(record.get("plan_id")) and \
+        (record.get("head"), record.get("base"), record.get("tree")) == (state.get("head"), state.get("base"), state.get("tree"))
+    if planned and record.get("tests_passed"):
         return []
-    if record.get("tests_after"):
+    if planned and record.get("tests_after"):
         return list(record["tests_after"])
-    if (record.get("validated") or {}).get("testsRun"):
+    if planned and (record.get("validated") or {}).get("testsRun"):
         return []
     if not any(c.startswith(("ApexClass:", "ApexTrigger:")) for c in components):
         return []
@@ -1631,6 +2205,9 @@ def check_test_run(team_id, entry, repo, item, record, run_id, cwd):
     else says plainly that it isn't."""
     name, wanted, target = item["name"], list(record.get("tests_after") or []), entry["common_org"]["target"]
     common_still(entry, cwd)
+    if not wanted:  # a run judged against no owed test proves nothing
+        raise failed(f"not verified: {name}'s delivery record names no tests it owes, so run {run_id} can't prove it; "
+                     "look at the run in the common org", work_item=name, test_run=run_id)
     jobs = query(f"SELECT Status, CreatedDate FROM AsyncApexJob WHERE Id = {quoted(run_id)}", target, cwd)
     if not jobs:
         raise failed(f"the common org has no test run {run_id}, so it isn't verified; resume to read it again", pending=True,
@@ -1659,8 +2236,14 @@ def check_test_run(team_id, entry, repo, item, record, run_id, cwd):
         set_comment(team_id, name, body, step="tests-failed", tests_failed=problems[:20], tests_failed_text=text)
         raise failed(text, work_item=name, test_run=run_id, tests_failed=problems[:20], choices=failure_choices(record),
                      comment=comment_state(team_id, entry, name))
-    components = record.get("checked_components") or []
-    expected = team.files_at(repo, record.get("checked_against") or record.get("promoted"), set(components))
+    components = record.get("checked_components") or record.get("components") or []
+    against = record.get("checked_against") or record.get("promoted")
+    if not components or not against:  # copies Scout can't name can't be read again, so the run proves nothing
+        write_record(team_id, name, step="unverified")
+        raise failed(f"not verified: the tests passed (run {run_id}), but {name}'s delivery record doesn't say which "
+                     f"copies Scout read back, so the run doesn't prove this delivery. deliver --wi {name} --resume reads "
+                     "them back and runs the owed tests again", work_item=name, test_run=run_id)
+    expected = team.files_at(repo, against, set(components))
     org = read_org(entry, repo, components)
     moved = [c for c in components if org[c]["state"] != "present" or not same(expected.get(c) or {}, org[c]["files"])]
     if moved:  # the run tested other copies than the ones read back
@@ -1678,7 +2261,9 @@ def check_test_run(team_id, entry, repo, item, record, run_id, cwd):
     clear_backflow(team_id, name)
     sent = send_comment(team_id, entry, name)
     return {"work_item": name, "outcome": "verified", "merge": str(record.get("promoted"))[:12], "tests": wanted,
-            "test_run": run_id, "comment": "sent" if sent else "pending: GitHub didn't take it; Scout sends it again at the next team step"}
+            "test_run": run_id, "comment": "sent" if sent else "pending: GitHub didn't take it; Scout sends it again at the next team step",
+            **({"warnings": record["warnings"], "presenter": entry["common_org"].get("username")}
+               if record.get("warnings") else {})}
 
 
 def next_comment(record, body):
@@ -1743,9 +2328,10 @@ def post_comment(team_id, entry, wi_name):
     if not comment or comment.get("sent"):
         return True
     code, stdout, stderr = gh(["pr", "view", str(comment["pr"]), "--repo", entry["repo"], "--json", "comments"], timeout=30)
-    try:
-        bodies = [c.get("body") for c in json.loads(stdout or "{}").get("comments") or []] if code == 0 else None
-    except (ValueError, AttributeError):
+    try:  # an empty or odd answer is no read: the comment waits rather than risk a second copy
+        shown = json.loads(stdout) if code == 0 else None
+        bodies = [c.get("body") for c in shown["comments"]] if isinstance((shown or {}).get("comments"), list) else None
+    except (ValueError, AttributeError, TypeError):
         bodies = None
     if bodies is None:
         note_comment(team_id, wi_name, comment["body"], problem=f"couldn't read #{comment['pr']}: {(stderr or stdout)[-160:]}")
@@ -1973,7 +2559,7 @@ def cmd_status(a):
             "common_org": entry["common_org"]["label"],
             "work_items": [{"name": r["Name"], "subject": r.get("Subject"), "status": r.get("Status"),
                             "by": (r.get("LastModifiedBy") or {}).get("Name"), "at": r.get("LastModifiedDate")} for r in rows],
-            "deliveries": deliveries, "unsent_comments": unsent_comments(team_id)}
+            "deliveries": deliveries, "unsent_comments": unsent_comments(team_id), **roster(entry)}
 
 
 def events_file(team_id):
@@ -2057,9 +2643,9 @@ def cmd_fetch(a):
             events.append(promotion_event(row))
     if rows:
         cursor["promotions"] = (rows[-1].get("DevopsPipelnStgProm") or {}).get("LastModifiedDate") or cursor.get("promotions")
-    for pr in sorted(gh_json(["pr", "list", "--repo", entry["repo"], "--state", "all", "--limit", "50", "--search",
+    for pr in sorted(gh_list(["pr", "list", "--repo", entry["repo"], "--state", "all", "--limit", "50", "--search",
                               f"updated:>={overlap(cursor.get('prs') or joined)} sort:updated-asc", "--json",
-                              "number,title,state,headRefName,updatedAt,author"]) or [], key=lambda p: str(p.get("updatedAt"))):
+                              "number,title,state,headRefName,updatedAt,author"]), key=lambda p: str(p.get("updatedAt"))):
         if prs.get(str(pr["number"])) != pr["state"]:
             prs[str(pr["number"])] = pr["state"]
             events.append(pr_event(pr))
@@ -2219,6 +2805,8 @@ def main(argv=None):
         p.add_argument("--checkout")
         p.add_argument("--me")
         p.add_argument("--yes", action="store_true")
+        p.add_argument("--yes-guard", action="store_true", help="a joining SE's yes to Scout's guard on this machine")
+        p.add_argument("--no-guard", action="store_true", help="a joining SE's no: Lifecycle Center mode works without it")
     p = commands.add_parser("package")
     p.add_argument("action", choices=["start", "check"])
     p.add_argument("--team")
@@ -2248,6 +2836,9 @@ def main(argv=None):
     p = commands.add_parser("stop")
     p.add_argument("--team")
     p.add_argument("--wi", required=True)
+    p = commands.add_parser("unguard")
+    p.add_argument("--team")
+    p.add_argument("--yes", action="store_true")
     p = commands.add_parser("backflow")
     p.add_argument("--team")
     p.add_argument("--components", nargs="+", required=True)
@@ -2267,8 +2858,11 @@ def main(argv=None):
     a = parser.parse_args(argv)
     handlers = {"start": cmd_start, "join": cmd_join, "package": cmd_package, "handover": cmd_handover,
                 "deliver": cmd_deliver, "peek": cmd_peek, "stop": cmd_stop, "backflow": cmd_backflow, "status": cmd_status, "fetch": cmd_fetch,
+                "unguard": cmd_unguard,
                 "updates": cmd_updates, "watch": cmd_watch, "ack": cmd_ack}
     try:
+        if os.name == "nt":  # team mode on Windows comes later: the locks and liveness checks here are POSIX ones
+            raise refused(ON_WINDOWS)
         result = handlers[a.command](a)
     except Stop as stop:
         if a.command == "updates" and a.hook:

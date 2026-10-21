@@ -1,5 +1,6 @@
 """W9 prep-mode contracts: constructed read-only checks, the total verdict, and safe publication."""
 import contextlib
+import datetime
 import errno
 import hashlib
 import io
@@ -12,15 +13,62 @@ import stat
 import subprocess
 import sys
 import tempfile
-import time
+import types
 import unittest
 from unittest.mock import patch
 
 SCRIPTS = Path(__file__).resolve().parents[1] / 'scripts'
 sys.path.insert(0, str(SCRIPTS))
 import scout_prep as prep
+import stand_ins
+
+POSIX_MODES = os.name != 'nt'  # Windows keeps no POSIX permission bits to compare
+
+
+def scratch_base():
+    """Where prep makes its scratch: the root-owned, sticky /tmp, or on Windows the user's own temp folder."""
+    if os.name == 'nt':
+        return os.path.realpath(os.environ.get('TMP') or os.environ.get('TEMP') or tempfile.gettempdir())
+    return os.path.realpath(prep.SCRATCH_BASE)
 
 ORG, USER = '00D000000000001EAA', 'maple@example.test'
+def write_exact(path, text):
+    """The text's own bytes: text mode would write CRLF on Windows, which turns Scout's regions into the SE's edits."""
+    path.write_bytes(text.encode('utf-8'))
+
+
+def read_exact(path):
+    return path.read_bytes().decode('utf-8')
+
+
+class Berlin(datetime.tzinfo):
+    """Europe/Berlin by the EU's rules: summer time from the last Sunday in March to the last Sunday in October, at
+    01:00 UTC both. Built here, so a test pins the same zone on every platform: Windows' Python has no IANA database,
+    and no time.tzset()."""
+
+    @staticmethod
+    def last_sunday(year, month):
+        last = datetime.date(year + month // 12, month % 12 + 1, 1) - datetime.timedelta(days=1)
+        return last - datetime.timedelta(days=(last.weekday() + 1) % 7)
+
+    def summer(self, utc):
+        start, end = (datetime.datetime.combine(self.last_sunday(utc.year, month), datetime.time(1)) for month in (3, 10))
+        return start <= utc < end
+
+    def fromutc(self, moment):
+        utc = moment.replace(tzinfo=None)
+        return (utc + datetime.timedelta(hours=2 if self.summer(utc) else 1)).replace(tzinfo=self)
+
+    def utcoffset(self, moment):
+        return datetime.timedelta(hours=2 if self.summer(moment.replace(tzinfo=None) - datetime.timedelta(hours=2)) else 1)
+
+    def dst(self, moment):
+        return self.utcoffset(moment) - datetime.timedelta(hours=1)
+
+    def tzname(self, moment):
+        return 'CEST' if self.dst(moment) else 'CET'
+
+
 NOW, STARTED, STAMP = '2026-10-13T16:00:00+02:00', '2026-10-13T14:50:00+02:00', '2026-10-13T15:00:00+02:00'
 KEY = 'task-2026-10-13-1200-x.md#B1/claim1'
 FAKE = r'''
@@ -92,7 +140,7 @@ def inventory(root):
     for directory, folders, files in os.walk(root):
         for name in folders + files:
             path = Path(directory) / name
-            relative = str(path.relative_to(root))
+            relative = path.relative_to(root).as_posix()
             if path.is_symlink():
                 found[relative] = 'link:' + os.readlink(path)
             elif path.is_dir():
@@ -165,6 +213,12 @@ class Fixture(unittest.TestCase):
         self.assertEqual(code, 0, output)
         return self.destination.read_bytes()
 
+    def berlin(self):
+        """Date-only validity reads in this machine's zone; pin it to Berlin, the same way on every platform."""
+        zone = patch.object(prep, 'local_zone', lambda: Berlin())
+        zone.start()
+        self.addCleanup(zone.stop)
+
     def regions(self, text):
         return {name: found['body'] for name, found in prep.parse_regions(text).items()}
 
@@ -227,15 +281,16 @@ class QueryGrammarTests(unittest.TestCase):
 class FakeCli(Fixture):
     def setUp(self):
         super().setUp()
-        binary = self.root / 'bin' / 'sf'
-        binary.parent.mkdir()
-        binary.write_text('#!' + sys.executable + '\n' + FAKE)
-        binary.chmod(0o700)
+        stand_ins.require_node()  # prep reaches the CLI through Node on Windows, so a query keeps every character
+        folder = self.root / 'bin'
+        folder.mkdir()
+        stand_ins.salesforce_cli(folder, FAKE)
         self.calls = self.root / 'calls.jsonl'
         self.state = self.root / 'state.json'
         self.set_state()
-        patcher = patch.dict(os.environ, dict(PATH=str(binary.parent), HOME=str(self.root), PREP_CALLS=str(self.calls),
-                                              PREP_STATE=str(self.state), PYTHONDONTWRITEBYTECODE='1'), clear=True)
+        patcher = patch.dict(os.environ, stand_ins.keep(dict(stand_ins.home(self.root), PATH=stand_ins.path(folder, node=True),
+                                                             PREP_CALLS=str(self.calls), PREP_STATE=str(self.state),
+                                                             PYTHONDONTWRITEBYTECODE='1')), clear=True)
         patcher.start()
         self.addCleanup(patcher.stop)
         real = getattr(prep, 'scratch_dir', None)
@@ -317,7 +372,7 @@ class RunTests(FakeCli):
         call = [c for c in self.log() if c['args'][:3] == ['project', 'retrieve', 'start']][0]
         self.assertEqual(Path(call['args'][call['args'].index('--target-metadata-dir') + 1]), directory)
         self.assertEqual(Path(call['cwd']).resolve(), directory.parent.resolve())  # N3: cwd inside that scratch
-        self.assertEqual(str(directory.parent.parent), os.path.realpath(prep.SCRATCH_BASE))
+        self.assertEqual(str(directory.parent.parent), scratch_base())
         self.assertEqual((observed['files'], observed['complete']), (['objects/X.object'], True))
         self.assertEqual(inventory(self.orgs), before)
 
@@ -329,6 +384,8 @@ class RunTests(FakeCli):
         self.assertEqual(list(self.folder.iterdir()), [])
         for call in self.log():
             self.assertFalse(call['cwd'].startswith(str(self.orgs)), call)  # F05
+        if os.name == 'nt' or not stand_ins.symlinks():
+            self.skipTest('the root-owned, sticky scratch base and its symlink check are POSIX rules')
         link = self.root / 'base-link'
         link.symlink_to(self.folder, target_is_directory=True)
         with patch.object(prep, 'SCRATCH_BASE', str(link)):
@@ -647,16 +704,17 @@ class RenderTests(Fixture):
         }
         for name, text in cases.items():
             with self.subTest(case=name):
-                self.destination.write_text(text)
+                write_exact(self.destination, text)
                 code, output, candidate = self.render(results(obligation()))
                 self.assertEqual(code, 3, output)  # F03
                 self.assertEqual(self.destination.read_text(), text)
                 self.assertFalse(candidate.exists())
         owned = good.replace(prep.MARKER + '\n', prep.MARKER + '\r\n# SE title\r\n```yaml\nscout: enabled\n```\n', 1) + '## SE notes\r\n'
-        self.destination.write_text(owned)
+        write_exact(self.destination, owned)
         code, output, candidate = self.render(results(obligation(text='Updated observation')))
         self.assertEqual(code, 0, output)
 
+    @stand_ins.needs_symlinks
     def test_prep_never_creates_or_follows_a_customer_folder(self):
         self.save(results(obligation()))
         linked = self.scratch / 'linked-folder'
@@ -673,7 +731,7 @@ class RenderTests(Fixture):
         data = results(obligation())
         self.published(data)
         edited = self.destination.read_text().replace('## Known seams\n', '## Known seams\n- My own seam note\n')
-        self.destination.write_text(edited)
+        write_exact(self.destination, edited)
         code, output, candidate = self.render(data)
         self.assertEqual(code, 3, output)  # X10
         self.assertIn('edited Scout region', output)
@@ -688,11 +746,12 @@ class RenderTests(Fixture):
             self.cli('render', '--results', self.results, '--folder', self.folder, '--out', self.orgs / 'other' / 'task-new.md')
         first, second = (Path(json.loads(self.cli('render', '--results', self.results, '--folder', self.folder)[1])['candidate'])
                          for _ in range(2))
-        base = Path(os.path.realpath(prep.SCRATCH_BASE))
+        base = Path(scratch_base())
         for candidate in (first, second):
             self.assertEqual(candidate.parent.parent, base)
             self.assertTrue(candidate.parent.name.startswith('scout-prep-'))
-            self.assertEqual(stat.S_IMODE(candidate.parent.stat().st_mode), 0o700)
+            if POSIX_MODES:
+                self.assertEqual(stat.S_IMODE(candidate.parent.stat().st_mode), 0o700)
             self.assertTrue(prep.meta_path(candidate).is_file())
         self.assertNotEqual(first.parent, second.parent)  # every render gets a new folder; nothing is overwritten
         self.assertEqual(task.read_text(), 'ORIGINAL TASK EVIDENCE\n')
@@ -734,10 +793,10 @@ class GateTests(Fixture):
         data = results(obligation())
         _, _, candidate = self.render(data)
         self.assertEqual(self.gate(candidate, data, org='00D000000000002EAA')[0], 3)
-        candidate.write_text(candidate.read_text().replace('— ready —', '— ready with exceptions —'))
+        write_exact(candidate, read_exact(candidate).replace('— ready —', '— ready with exceptions —'))
         self.assertEqual(self.gate(candidate, data)[0], 3)
         _, _, candidate = self.render(data)
-        candidate.write_text(candidate.read_text().replace('Two overdue rows', 'Three overdue rows'))
+        write_exact(candidate, read_exact(candidate).replace('Two overdue rows', 'Three overdue rows'))
         self.assertIn('changed after rendering', self.gate(candidate, data)[1])
         data['obligations'].append(obligation('t.md#I9', None, kind='item', proof=False))
         _, _, candidate = self.render(data)
@@ -773,7 +832,7 @@ class PublishTests(Fixture):
         _, _, candidate = self.render(data)
         self.assertEqual(self.publish(candidate, results(obligation(text='Another claim')))[0], 3)
         self.assertEqual(self.publish(candidate, data, org='00D000000000002EAA')[0], 3)
-        self.destination.write_text('# My handmade file\nSE notes\n')
+        write_exact(self.destination, '# My handmade file\nSE notes\n')
         code, output = self.publish(candidate, data)
         self.assertEqual(code, 3, output)
         self.assertEqual(self.destination.read_text(), '# My handmade file\nSE notes\n')
@@ -789,7 +848,7 @@ class PublishTests(Fixture):
         data = results(obligation())
         self.published(data)
         _, _, candidate = self.render(data)
-        self.destination.write_text(self.destination.read_text() + '\nSE save after render\n')
+        write_exact(self.destination, self.destination.read_text() + '\nSE save after render\n')
         code, output = self.publish(candidate, data)
         self.assertEqual(code, 3, output)  # F01
         self.assertTrue(self.destination.read_text().endswith('SE save after render\n'))
@@ -801,14 +860,14 @@ class PublishTests(Fixture):
         _, _, candidate = self.render(data)
         real = os.rename
         def racing(source, destination, *args, **kwargs):
-            if source == prep.NAME:  # R02 changed this hook: publish moves and links by name, relative to the folder's descriptor
-                self.destination.write_text(self.destination.read_text() + '\nLAST SECOND SE SAVE\n')
+            if Path(source).name == prep.NAME:  # By name, relative to the folder's descriptor; on Windows, by path
+                write_exact(self.destination, self.destination.read_text() + '\nLAST SECOND SE SAVE\n')
             return real(source, destination, *args, **kwargs)
         with patch.object(prep.os, 'rename', racing):
             code, output = self.publish(candidate, data)
         self.assertEqual(code, 3, output)  # F01
         self.assertTrue(self.destination.read_text().endswith('LAST SECOND SE SAVE\n'))
-        self.assertIn(str(self.destination), output)
+        self.assertIn(str(self.destination), json.loads(output)['refused'])
         self.assertEqual(self.staged(), [])
 
     def test_a_save_between_the_move_and_the_link_keeps_both_files(self):
@@ -818,15 +877,15 @@ class PublishTests(Fixture):
         real = os.rename
         def racing(source, destination, *args, **kwargs):
             moved = real(source, destination, *args, **kwargs)
-            if source == prep.NAME:  # R02 changed this hook: publish moves and links by name, relative to the folder's descriptor
-                self.destination.write_text('NEW FILE SAVED BY THE EDITOR\n')
+            if Path(source).name == prep.NAME:  # By name, relative to the folder's descriptor; on Windows, by path
+                write_exact(self.destination, 'NEW FILE SAVED BY THE EDITOR\n')
             return moved
         with patch.object(prep.os, 'rename', racing):
             code, output = self.publish(candidate, data)
         self.assertEqual(code, 3, output)  # F01: link never clobbers
         self.assertEqual(self.destination.read_text(), 'NEW FILE SAVED BY THE EDITOR\n')
         self.assertEqual([p.read_bytes() for p in self.backups()], [previous])
-        self.assertIn(str(self.backups()[0]), output)
+        self.assertIn(str(self.backups()[0]), json.loads(output)['refused'])
         self.assertEqual(self.staged(), [])
 
     def test_a_file_created_after_an_absent_render_is_kept(self):
@@ -834,8 +893,8 @@ class PublishTests(Fixture):
         _, _, candidate = self.render(data)
         real = os.link
         def racing(source, destination, *args, **kwargs):
-            if destination == prep.NAME:  # R02 changed this hook: publish moves and links by name, relative to the folder's descriptor
-                self.destination.write_text('HAND-MADE, SAVED DURING PREP\n')
+            if Path(destination).name == prep.NAME:  # By name, relative to the folder's descriptor; on Windows, by path
+                write_exact(self.destination, 'HAND-MADE, SAVED DURING PREP\n')
             return real(source, destination, *args, **kwargs)
         with patch.object(prep.os, 'link', racing):
             code, output = self.publish(candidate, data)
@@ -854,6 +913,7 @@ class PublishTests(Fixture):
         self.assertEqual(self.destination.read_bytes(), previous)
         self.assertEqual((self.backups(), self.staged()), ([], []))
 
+    @stand_ins.needs_symlinks
     def test_backups_and_the_destination_never_follow_a_symlink(self):
         data = results(obligation())
         self.published(data)
@@ -996,12 +1056,14 @@ class Round3Tests(FakeCli):
         code, output = self.cli('scratch')
         self.assertEqual(code, 0, output)
         folder = Path(json.loads(output)['scratch'])
-        self.assertEqual(folder.parent, Path(os.path.realpath(prep.SCRATCH_BASE)))
+        self.assertEqual(folder.parent, Path(scratch_base()))
         self.assertTrue(folder.name.startswith('scout-prep-'))
-        self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o700)
+        if POSIX_MODES:
+            self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o700)
         self.assertNotEqual(folder, Path(json.loads(self.cli('scratch')[1])['scratch']))
 
     def test_r03_a_later_demo_never_revives_an_expired_date(self):
+        self.berlin()  # just after midnight there: in UTC the date would still be the 13th
         self.clock = prep.now('2026-10-14T00:30:00+02:00')
         run = dict(started_at='2026-10-14T00:10:00+02:00', observed_at='2026-10-14T00:25:00+02:00')
         expired = results(obligation(valid_until='2026-10-13', at='2026-10-14T00:20:00+02:00'), **run)
@@ -1043,7 +1105,7 @@ class Round3Tests(FakeCli):
         with patch.object(prep, 'read_at', failing):
             code, output = self.publish(candidate, data)
         self.assertEqual(code, 3, output)
-        self.assertIn('is back at %s' % self.destination, output)
+        self.assertIn('is back at %s' % self.destination, json.loads(output)['refused'])
         self.assertEqual(self.destination.read_bytes(), original)
         self.assertEqual((self.backups(), self.staged()), ([], []))
 
@@ -1099,20 +1161,6 @@ class Round4Tests(FakeCli):
     are crafted races outside the realistic threat model (Decisions, round 5)."""
     verdict = VerdictTests.verdict
 
-    def berlin(self):
-        """Q02's checks read this machine's zone; pin it, and restore it after."""
-        saved = os.environ.get('TZ')
-        os.environ['TZ'] = 'Europe/Berlin'
-        time.tzset()
-
-        def restore():
-            if saved is None:
-                os.environ.pop('TZ', None)
-            else:
-                os.environ['TZ'] = saved
-            time.tzset()
-        self.addCleanup(restore)
-
     def test_q02_a_daylight_saving_change_never_shifts_the_validity_day(self):
         self.berlin()
         self.clock = prep.now('2026-03-28T10:00:00+01:00')
@@ -1131,12 +1179,12 @@ class Round4Tests(FakeCli):
         first, second = (self.render(data)[2].read_text() for data in (good, bad))
         one, two = prep.parse_regions(first), prep.parse_regions(second)
         mixed = first[:one['path']['start']] + second[two['path']['start']:two['path']['end']] + first[one['path']['end']:]
-        self.destination.write_text(mixed)
+        write_exact(self.destination, mixed)
         code, output, _ = self.render(good)
         self.assertEqual(code, 3, output)
         self.assertIn('hand-assembled', output)
         self.assertEqual(self.destination.read_text(), mixed)
-        self.destination.write_text(first)  # a whole verbatim copy stays Scout's (R15)
+        write_exact(self.destination, first)  # a whole verbatim copy stays Scout's (R15)
         self.assertEqual(self.render(good)[0], 0)
 
     def test_q06_a_relative_folder_path_resolves_against_the_workspace(self):
@@ -1167,6 +1215,7 @@ class Round4Tests(FakeCli):
         self.assertEqual(self.staged(), [])
         self.assertEqual(sorted(p.name for p in self.folder.iterdir()), ['.scout-work', 'demo-path.md'])
 
+    @unittest.skipUnless(hasattr(os, 'mkfifo'), 'needs a FIFO')
     def test_q11_the_destination_read_never_blocks_and_checks_the_descriptor(self):
         """F2 changed this pin: call read_nofollow itself on a FIFO. Without O_NONBLOCK it hangs past the timeout; without
         the descriptor check it returns empty bytes. Either way it fails."""
@@ -1202,13 +1251,80 @@ class Round4Tests(FakeCli):
         self.assertIn('Show the saved screenshot', seams)
 
 
+class WindowsPublishTests(PublishTests):
+    """Every publication case again, through the Windows branch: no directory descriptors, each folder held by path
+    and checked by identity, links refused by an explicit check."""
+
+    def setUp(self):
+        windows = patch.object(prep.scout_portable, 'PLATFORM', 'win32')
+        windows.start()
+        self.addCleanup(windows.stop)
+        super().setUp()
+        self.assertFalse(prep.descriptors())
+
+
+class WindowsPrepTests(Fixture):
+    def setUp(self):
+        windows = patch.object(prep.scout_portable, 'PLATFORM', 'win32')
+        windows.start()
+        self.addCleanup(windows.stop)
+        super().setUp()
+
+    def test_scratch_is_a_private_folder_in_the_users_temp_folder(self):
+        with patch.dict(os.environ, {'TMP': str(self.scratch)}):
+            folder = prep.scratch_dir()
+        self.assertEqual(folder.parent, Path(os.path.realpath(str(self.scratch))))
+        self.assertTrue(folder.name.startswith('scout-prep-'))
+        if os.name != 'nt':
+            self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o700)
+
+    @stand_ins.needs_symlinks
+    def test_an_explicit_check_stands_in_for_o_nofollow(self):
+        target = self.orgs / 'other' / 'task-2026-10-01-0900-other.md'
+        self.destination.symlink_to(target)
+        with self.assertRaises(prep.Refused):
+            prep.read_nofollow(self.destination)
+        self.destination.unlink()
+        self.destination.write_bytes(b'line one\r\nline two\n')
+        self.assertEqual(prep.read_nofollow(self.destination), b'line one\r\nline two\n')  # bytes exact
+        folder = prep.open_directory(str(self.folder))
+        self.assertIsInstance(folder, prep.PathFolder)
+        (self.folder / '.scout-work').symlink_to(self.orgs / 'other', target_is_directory=True)
+        with self.assertRaises(prep.Refused):
+            prep.open_directory('.scout-work', folder, create=True)
+
+    def test_a_link_reparse_point_counts_as_a_link_and_a_cloud_folder_doesnt(self):
+        info = os.lstat(str(self.folder))
+        def reparse(tag):
+            return types.SimpleNamespace(st_mode=info.st_mode, st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT,
+                                         st_reparse_tag=tag)
+        self.assertTrue(prep.plain(info, stat.S_ISDIR))
+        for tag in (prep.scout_portable.IO_REPARSE_TAG_MOUNT_POINT, prep.scout_portable.IO_REPARSE_TAG_SYMLINK,
+                    0xA0000027):  # a junction, a symlink, and another name surrogate
+            self.assertFalse(prep.plain(reparse(tag), stat.S_ISDIR), hex(tag))
+        self.assertTrue(prep.plain(reparse(0x9000601A), stat.S_ISDIR))  # a OneDrive folder's cloud-file tag
+
+    def test_it_imports_without_the_posix_only_flags(self):
+        probe = ('import os, sys\n'
+                 'for name in ("O_DIRECTORY", "O_NOFOLLOW", "O_NONBLOCK"):\n'
+                 '    if hasattr(os, name):\n'
+                 '        delattr(os, name)\n'
+                 'sys.path.insert(0, sys.argv[1])\n'
+                 'import scout_prep\n'
+                 'print(scout_prep.DIRECTORY == os.O_RDONLY, scout_prep.NOFOLLOW, scout_prep.NONBLOCK)\n')
+        result = subprocess.run([sys.executable, '-B', '-c', probe, str(SCRIPTS)], capture_output=True, text=True,
+                                timeout=30)
+        self.assertEqual((result.returncode, result.stdout), (0, 'True 0 0\n'), result.stderr)
+
+
 class BytecodeTests(unittest.TestCase):
     def test_the_helpers_write_no_bytecode_even_without_dash_b(self):
         with tempfile.TemporaryDirectory(prefix='scout-prep-pyc-') as temp:
             root = Path(temp)
             plugin = root / 'scripts'
             plugin.mkdir()
-            for name in ('scout_target.py', 'scout_prep.py', 'scout_report_repair.py', 'scout_report_xml.py'):
+            for name in ('scout_target.py', 'scout_prep.py', 'scout_report_repair.py', 'scout_report_xml.py',
+                         'scout_portable.py'):
                 shutil.copyfile(str(SCRIPTS / name), str(plugin / name))
             env = {k: v for k, v in os.environ.items() if k not in ('PYTHONDONTWRITEBYTECODE', 'PYTHONPYCACHEPREFIX')}
             env.update(HOME=str(root), PYTHONPYCACHEPREFIX=str(root / 'cache'))

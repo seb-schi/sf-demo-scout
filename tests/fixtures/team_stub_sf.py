@@ -240,6 +240,10 @@ def main():
                 report.append({"component": key, "outcome": "conflict", "files": sorted(local), "saved": str(saved),
                                "detail": "your copy differs from the org's (last changed by Setup User)"})
         save_baselines(cwd, bases)
+        if os.environ.get("STUB_RETRIEVE") == "drop":  # an answer that leaves a requested component out
+            report = report[:-1]
+        elif os.environ.get("STUB_RETRIEVE") == "odd":  # an outcome this version of Scout doesn't know
+            report = [dict(r, outcome="surprise") for r in report]
         done({"orgId": org_id_of(target), "components": report}, 1 if any(r["outcome"] == "conflict" for r in report) else 0)
     if args[:2] == ["mp", "deploy"]:
         target = flag(args, "--target-org")
@@ -275,6 +279,14 @@ def main():
             sys.exit(137)
         elif mode == "unverified":
             record.update(state="reconciled-success", verified=False)
+        elif mode == "partial-readback":  # settled, but the read-back covers only the first component
+            head = local_components(cwd, set(keys))
+            for key in keys:
+                for rel, data in head.get(key, {}).items():
+                    dest = org_dir(target) / rel[len(SOURCE):]
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(data)
+            record.update(state="settled-success", readback={keys[0]: {"matches": True}})
         elif mode == "unverified-landed":  # settled by hand without a read-back, though the deploy did land
             for key, files in local_components(cwd, set(keys)).items():
                 for rel, data in files.items():

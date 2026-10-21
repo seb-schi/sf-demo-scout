@@ -770,8 +770,8 @@ class JobTests(Harness):
         self.assertIn('A1 left job %s non-terminal, yet A2 started after it' % DEPLOY, self.assert_rule('plan'))  # no crash on a bad heading date
 
     def test_the_routes_job_template_parses(self):
-        """The `job:` line exactly as commands/scout.md prints it, filled in, settles; a non-terminal one doesn't."""
-        command = (Path(__file__).resolve().parents[1] / 'commands/scout.md').read_text()
+        """The `job:` line exactly as prompts/scout/router-build.md prints it, filled in, settles; a non-terminal one doesn't."""
+        command = (Path(__file__).resolve().parents[1] / 'prompts/scout/router-build.md').read_text()
         template = re.search(r'`(- job:<ID>;[^`]+)`', command)[1]
         def filled(status):
             return (template.replace('<ID>', DEPLOY).replace('<terminal>', status)
@@ -943,7 +943,7 @@ class Round3Tests(Harness):
         self.passes()
 
     def test_r2_f12_the_route_lists_the_lesson_source(self):
-        route = (Path(BUILD.__file__).resolve().parents[1] / 'commands/scout.md').read_text()
+        route = ((Path(BUILD.__file__).resolve().parents[1] / 'skills/scout/SKILL.md').read_text() + (Path(BUILD.__file__).resolve().parents[1] / 'prompts/scout/router-build.md').read_text())
         self.assertIn('Sources: `docs|skill|org|lesson|ungrounded`', route)
 
     def test_c1_pending_names_a_prior_task_open_job(self):

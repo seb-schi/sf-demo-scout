@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 from datetime import datetime, timezone
-import fcntl
 import hashlib
 import json
 import os
@@ -20,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 
+import scout_portable
 from scout_report_xml import LIMIT, RepairError, candidate, selected_value, signature, xml
 
 ASSETS = Path(__file__).resolve().with_name("build-assets.py")
@@ -27,6 +27,10 @@ ERRORS = (RepairError, OSError, ValueError, KeyError, TypeError, subprocess.Subp
 RELEASED = {"applied", "already_satisfied", "not_applied", "released_unverified"}
 NO_LAUNCH_ERRORS = {"NothingToDeploy", "SourceConflictError"}
 RELEASE_HOLD_SECONDS = 10 * 60
+# Flags Windows lacks are 0 there, where an explicit link check stands in; O_BINARY keeps its bytes exact.
+NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+NONBLOCK = getattr(os, "O_NONBLOCK", 0)
+BINARY = getattr(os, "O_BINARY", 0)
 
 
 def code_span(value):
@@ -40,19 +44,37 @@ def checkpoint_marker(task):
     return f"<!-- scout-repair:{task.name} -->"
 
 
+def linked(part: Path) -> bool:
+    """A symlink, or on Windows also a junction or another name-surrogate link, which is_symlink() doesn't report.
+    A cloud file or folder, such as OneDrive's, is a reparse point too, but no link, so it counts as plain."""
+    if part.is_symlink():
+        return True
+    if not scout_portable.windows():
+        return False
+    try:
+        return scout_portable.is_link(os.lstat(part))
+    except OSError:
+        return False
+
+
 def path(value: str | Path) -> Path:
     candidate = Path(value)
     if not candidate.is_absolute() or ".." in candidate.parts:
         raise RepairError("use an absolute path without parent traversal")
     for part in (candidate, *candidate.parents):
-        if part.is_symlink():
+        if linked(part):
             raise RepairError("symlink paths are not supported")
     return candidate
 
 
 def read(file: Path) -> bytes:
-    file = path(file)
-    descriptor = os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    file = path(file)  # on Windows, where O_NOFOLLOW is missing, this is the link check
+    try:
+        descriptor = os.open(file, os.O_RDONLY | NOFOLLOW | NONBLOCK | BINARY)
+    except PermissionError:
+        if os.path.isdir(file):  # Windows opens no folder; elsewhere the check below refuses one
+            raise RepairError("expected a bounded regular file") from None
+        raise
     try:
         info = os.fstat(descriptor)
         if not stat.S_ISREG(info.st_mode) or info.st_size > LIMIT:
@@ -98,17 +120,23 @@ def write(file: Path, content: bytes, *, exclusive: bool = False) -> None:
     try:
         with os.fdopen(descriptor, "wb") as stream:
             if mode is not None:
-                os.fchmod(stream.fileno(), mode)
+                fchmod = getattr(os, "fchmod", None)
+                if fchmod is not None:
+                    fchmod(stream.fileno(), mode)
+                else:
+                    os.chmod(temporary, mode)  # Windows before Python 3.13 has no fchmod
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
         if exclusive:
             os.link(temporary, file)  # Publish complete bytes atomically, never overwrite.
         else:
-            os.replace(temporary, file)
+            scout_portable.replace(temporary, file)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+    if scout_portable.windows():
+        return  # Windows can't open a folder to fsync it, so there the file's own fsync is what there is
     directory = os.open(file.parent, os.O_RDONLY)
     try:
         os.fsync(directory)
@@ -122,8 +150,14 @@ def save(file: Path, value, *, exclusive: bool = False) -> None:
 
 
 def text(value: str, label: str, maximum: int = 8192) -> str:
+    """A non-empty, bounded string that every platform can pass on. A lone surrogate is refused here: macOS and Linux
+    can't put it in a command line or a UTF-8 file, and Windows would pass it on to the next command."""
     if not isinstance(value, str) or not value or len(value) > maximum or "\x00" in value:
         raise RepairError("invalid " + label)
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        raise RepairError("invalid " + label) from None
     return value
 
 
@@ -164,7 +198,10 @@ class Salesforce:
             raise RepairError("Salesforce CLI is unavailable")
 
     def run(self, args, cwd, *, accept_error=False, receipt=None):
-        command = [self.executable, *args, "--json"]
+        try:  # on Windows, through the CLI's Node entry, so cmd.exe never re-parses these arguments
+            command = scout_portable.sf_command(self.executable, [*args, "--json"])
+        except ValueError as error:
+            raise RepairError(str(error)) from error
         if receipt is None:
             result = subprocess.run(command, cwd=cwd, stdin=subprocess.DEVNULL,
                                     capture_output=True, timeout=75)
@@ -172,7 +209,7 @@ class Salesforce:
         else:
             # The child writes directly to a private durable receipt, so a host
             # interruption after its response does not lose a returned job ID.
-            descriptor = os.open(path(receipt), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            descriptor = os.open(path(receipt), os.O_WRONLY | os.O_CREAT | os.O_EXCL | BINARY, 0o600)
             with os.fdopen(descriptor, "wb") as stream:
                 try:
                     result = subprocess.run(command, cwd=cwd, stdin=subprocess.DEVNULL,
@@ -273,14 +310,11 @@ def outcome(state):
 
 @contextmanager
 def locked(file):
-    descriptor = os.open(path(file), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        yield
+        with scout_portable.lock(path(file)):
+            yield
     except BlockingIOError as error:
         raise RepairError("another repair process holds this lock") from error
-    finally:
-        os.close(descriptor)
 
 
 class Repair:
