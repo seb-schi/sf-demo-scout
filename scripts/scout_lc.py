@@ -13,7 +13,7 @@ and teammates' updates. A delivery resumes from what GitHub and the server show,
 checked as it stands on main before anything deploys.
 
 Commands print one JSON object (the hook prints text). Exit codes: 0 done; 2 refused, nothing changed; 3 stopped for
-the SE's decision (the JSON says which); 1 failed (the JSON says what is left).
+a decision (the JSON says which); 1 failed (the JSON says what is left).
 """
 from __future__ import annotations
 
@@ -40,6 +40,7 @@ if os.name != "nt":  # Windows has no fcntl; team mode comes there later, and ma
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import scout_team as team  # noqa: E402  the lane's helpers: processes, registry, cache, components, normalization
+import scout_portable  # noqa: E402  (ships beside this helper)
 
 Stop, refused, failed, decide = team.Stop, team.refused, team.failed, team.decide
 git, out, sf, gh, now = team.git, team.out, team.sf, team.gh, team.now
@@ -1021,13 +1022,13 @@ def guard_here(repo, common, yes, captain):
 
 
 GUARD_NOTES = {
-    "off": "Scout's guard isn't on this machine for this team, by the SE's choice: nothing here stops this machine's sf "
+    "off": "Scout's guard isn't on this machine for this team, by your choice: nothing here stops this machine's sf "
            "CLI from deploying to the common org, so build only in your own sandbox. The captain's status shows your "
            "guard is off",
-    "on": "the SE chose no guard, but a guard from an earlier join still guards the common org on this machine, and "
+    "on": "you chose no guard, but a guard from an earlier join still guards the common org on this machine, and "
           "Scout leaves it as it is: the team's record says so, and the captain's status shows it on. Taking it off "
           "is a step of its own: scout_lc.py unguard --team lc-{team}",
-    "unknown": "the SE chose no guard, and Scout can't tell whether an earlier join's guard still guards the common "
+    "unknown": "you chose no guard, and Scout can't tell whether an earlier join's guard still guards the common "
                "org on this machine ({why}), so the team's record says unknown",
 }
 
@@ -1125,7 +1126,7 @@ def release_guard(org_id):
 
 def cmd_unguard(a):
     """Takes Scout's guard off this machine for this team's common org: a step of its own, never part of a join, and
-    only on the SE's yes. Only that org's binding goes; sf-mp stays for other orgs, and a captain's machine, or another
+    only on the builder's yes. Only that org's binding goes; sf-mp stays for other orgs, and a captain's machine, or another
     team here that relies on the guard, keeps it."""
     team_id, entry = pick(a.team)
     org = entry["common_org_id"]
@@ -1239,7 +1240,7 @@ def cmd_start(a, role="captain"):
                          "it's missing, guard the common org here, and add Scout's team rules (AGENTS.md, .gitignore "
                          "and .gitattributes lines) on main", needs="start-yes", plan=plan)
         raise decide("one yes for joining on this machine: clone the repository and register the team here; and the "
-                     f"SE's yes or no for Scout's guard. {LC_GUARD}", needs="start-yes", plan=plan, guard=LC_GUARD,
+                     f"builder's yes or no for Scout's guard. {LC_GUARD}", needs="start-yes", plan=plan, guard=LC_GUARD,
                      choices=["join with the guard: --yes --yes-guard", "or join without it: --yes --no-guard"])
     if role == "builder" and not (a.yes_guard or a.no_guard):
         raise decide(LC_GUARD, needs="guard-choice", plan=plan, guard=LC_GUARD,
@@ -1272,7 +1273,7 @@ def cmd_start(a, role="captain"):
     guarded = role == "captain" or a.yes_guard
     if guarded:
         guard = dict(guard_here(repo, common["target"], True, captain=role == "captain"), choice="yes", binding="on")
-    else:  # the SE's no puts nothing on; what's bound already (an earlier join's guard, say) stays, and is said
+    else:  # the builder's no puts nothing on; what's bound already (an earlier join's guard, say) stays, and is said
         binding, why = guard_binding(common["org_id"])
         guard = {"guard": binding, "binding": binding, "choice": "no", "note": GUARD_NOTES[binding].format(
             why=why, team=team.slug(shape["repo"]))}
@@ -2725,7 +2726,7 @@ def cmd_updates(a):
             texts.append(f"No watcher is running for the {entry.get('name')} team in the background.")
         if shown:
             texts.append(f"From the {entry.get('name')} team (Lifecycle Center and GitHub), new since this machine "
-                         "last showed it. Scout shows teammates' updates to the SE before its answer:\n" +
+                         "last showed it. Scout shows teammates' updates to the builder before its answer:\n" +
                          "\n".join("- " + e["text"] for e in shown) +
                          (f"\n({len(rest)} more follow at the next prompt.)" if rest else ""))
     if a.hook:
@@ -2764,7 +2765,7 @@ def cmd_watch(a):
                     team.write_json_atomic(events_file(team_id), latest)
                 print(f"From the {entry.get('name')} team (the background watcher):\n" +
                       "\n".join("- " + e["text"] for e in fresh) +
-                      f"\nAfter relaying this to the SE, Scout runs `scout_lc.py ack --team {team_id} --upto {upto}` "
+                      f"\nAfter relaying this to the builder, Scout runs `scout_lc.py ack --team {team_id} --upto {upto}` "
                       "and starts one new watcher.")
                 return None
             time.sleep(a.interval)
@@ -2805,8 +2806,8 @@ def main(argv=None):
         p.add_argument("--checkout")
         p.add_argument("--me")
         p.add_argument("--yes", action="store_true")
-        p.add_argument("--yes-guard", action="store_true", help="a joining SE's yes to Scout's guard on this machine")
-        p.add_argument("--no-guard", action="store_true", help="a joining SE's no: Lifecycle Center mode works without it")
+        p.add_argument("--yes-guard", action="store_true", help="a joining builder's yes to Scout's guard on this machine")
+        p.add_argument("--no-guard", action="store_true", help="a joining builder's no: Lifecycle Center mode works without it")
     p = commands.add_parser("package")
     p.add_argument("action", choices=["start", "check"])
     p.add_argument("--team")
@@ -2880,4 +2881,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     sys.exit(main())

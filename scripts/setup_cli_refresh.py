@@ -51,6 +51,21 @@ def installed_version(cli: List[str]) -> Tuple[int, str]:
     return code, versions[0] if code == 0 and len(versions) == 1 else ""
 
 
+def windows_installer(cli: Optional[str]) -> bool:
+    """Whether the active `sf` is the launcher Salesforce's Windows installer writes, in a folder with a space, such
+    as C:\\Program Files\\sf\\bin\\sf.cmd.
+
+    cmd.exe drops the first and the last quote of a command line with more than two, so whenever another argument is
+    quoted it cuts that path at the space, and a coding tool's own `sf` call fails with 'C:\\Program' is not
+    recognized. Scout's own calls start the CLI's Node script instead (scout_portable.sf_argv), so they still work.
+    npm's own shim never counts, wherever it lives."""
+    if not (scout_portable.windows() and cli and " " in cli and cli.lower().endswith(scout_portable.BATCH_SUFFIXES)):
+        return False
+    if scout_portable.NPM_ENTRY.search(scout_portable._batch_text(cli)):
+        return False
+    return scout_portable._installer_entry(cli) is not None
+
+
 def ownership(npm: Optional[str], cli: Optional[str]) -> str:
     if npm is None or cli is None or not os.path.isfile(OWNER_HELPER):
         return "unavailable"
@@ -69,28 +84,27 @@ def last_line(output: bytes) -> bytes:
 
 
 def main(argv: List[str]) -> int:
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", newline="\n")  # the outcome lines, the same on every platform
-    except (AttributeError, ValueError):
-        pass
     if (argv[1] if len(argv) > 1 else "") != "sf":
         print("usage: setup_cli_refresh.py sf", file=sys.stderr)
         return 64
     npm, cli_path = scout_portable.shell_which("npm"), scout_portable.shell_which("sf")
     owner = ownership(npm, cli_path)
     if owner != "owned":
-        if owner == "different":
+        if windows_installer(cli_path):
+            print(f"SF_CLI_WINDOWS_INSTALLER ({cli_path}; the Windows installer's copy, whose launcher breaks when an "
+                  "argument is quoted; skipped update)")
+        elif owner == "different":
             print("SF_CLI_NOT_NPM_OWNED (active executable belongs to another installation; skipped update)")
         else:
             print("SF_CLI_OWNERSHIP_UNVERIFIED (npm ownership could not be proved; skipped update)")
         return 0
     print("CHECKING_SF_CLI", flush=True)
     cli, npm_command = scout_portable.sf_argv(cli_path), [npm]
-    # Gate on what npm would actually install here, not on `npm view` latest: `npm view` ignores the SE's
+    # Gate on what npm would actually install here, not on `npm view` latest: `npm view` ignores the builder's
     # ~/.npmrc min-release-age policy, so comparing against it would report "behind" whenever the newest
     # release is younger than the policy window. The dry-run resolve ("X => Y") honors that policy. Skipping
     # the reinstall when already on the newest installable version keeps the CLI's keychain-backed org logins
-    # away from a needless Node rebuild, which would leave the SE with an empty org list.
+    # away from a needless Node rebuild, which would leave the builder with an empty org list.
     _, installed = installed_version(cli)
     resolved_from = resolved = ""
     if installed:
@@ -147,4 +161,5 @@ def main(argv: List[str]) -> int:
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     raise SystemExit(main(sys.argv))

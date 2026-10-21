@@ -398,10 +398,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", newline="\n")  # tokens and paths, the same on every platform
-    except (AttributeError, ValueError):
-        pass
     arguments = parse_args()
     command = arguments.command
     try:
@@ -441,4 +437,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     sys.exit(main())

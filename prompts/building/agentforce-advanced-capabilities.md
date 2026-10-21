@@ -8,7 +8,7 @@ build-time-authorable** (Scout authors + deploys it), but the **UI wiring and
 go-live verification are runtime-only** — no FlowTest / event-log signal can
 assert them, so they render/route correctly only in a live Enhanced Web Chat
 session. Scout authors what it can prove at build time, then hands the runtime
-wiring to the SE with the exact steps below. This mirrors the `NeedsUICommit`
+wiring to the builder with the exact steps below. This mirrors the `NeedsUICommit`
 pattern — author + validate, then a UI handoff.
 
 Source: one customer's build (2026-08-04 → 08-07), docs-verified.
@@ -48,7 +48,7 @@ Source: one customer's build (2026-08-04 → 08-07), docs-verified.
 - `connected-agent-unsupported-scheme`: the URI scheme must be `agentforce://`,
   not `agent://`.
 
-### SE handoff (runtime — UI-only)
+### Handoff to the builder (runtime — UI-only)
 - Wire the actual connection in **Agent Builder** (Beta, unversioned — no
   Metadata API / Agent Script path for the connection itself).
 - Verify the handoff passes silent inputs correctly in a **live messaging
@@ -72,7 +72,7 @@ Enhanced Chat v2 connection. (Docs: Salesforce Help
     outbound_route_name: "flow://<Escalation_Route_Flow>"    # flow:// prefix required
   ```
 
-### SE handoff (runtime — UI-only)
+### Handoff to the builder (runtime — UI-only)
 - In Agentforce Builder, add the **Enhanced Chat v2 connection tile** (Explorer
   panel).
 - **Republish the Embedded Service Deployment** after ANY agent version change —
@@ -123,6 +123,6 @@ by an Apex class. Requires Enhanced Chat v2 (§2).
 - Testing/previewing custom Lightning Types for a Service agent is **not
   supported in Agentforce Builder** — test only in "Test Enhanced Web Chat".
 
-### SE handoff (runtime)
+### Handoff to the builder (runtime)
 - Confirm the form renders inline and `@api value` submits correctly in a live
   Enhanced Web Chat session (no build-time signal).

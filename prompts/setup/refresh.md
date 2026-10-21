@@ -6,7 +6,7 @@ On Codex and Cursor run a.0, the Salesforce CLI ownership/update check a, and
 `${CLAUDE_PLUGIN_ROOT}/prompts/setup/other-hosts.md` in place of b.5 and c.6.
 Skip b: it reports on Claude. Use the host's own updater and configuration
 controls; on a clone of Scout, offer `git -C "[PLUGIN_ROOT]" pull --ff-only` for
-Scout's folder and for the official skills clone, each on the SE's yes. Unknown host must return before
+Scout's folder and for the official skills clone, each on the builder's yes. Unknown host must return before
 any setup writes. On Claude, run the complete procedure below; in a self-repair
 run, ask its one question first (`skills/scout-setup/SKILL.md`).
 
@@ -14,7 +14,7 @@ Refresh changes nothing outside Scout's own files except what a step below names
 it never edits shell files such as `~/.zshrc`, other tools' hooks or settings,
 or permission rules in `~/.claude/settings.json`.
 
-**Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an SE-chosen `/mcp` action is safe — setup re-observes MCP status without modifying connections, and completed steps keep their no-op probes. Always run end-to-end; do NOT skip steps trying to "resume". Within the same CC session you may rely on conversation memory to fast-forward; across sessions, run the full sequence.
+**Idempotency contract:** every step below is idempotent and self-detecting. Re-running after a builder-chosen `/mcp` action is safe — setup re-observes MCP status without modifying connections, and completed steps keep their no-op probes. Always run end-to-end; do NOT skip steps trying to "resume". Within the same CC session you may rely on conversation memory to fast-forward; across sessions, run the full sequence.
 
 ## a.0: Node toolchain probe (npm presence)
 
@@ -33,7 +33,7 @@ A version number means `NPM_PRESENT`; an error such as "not found" or "not recog
 
 **Skip this step if a.0 reported `NPM_ABSENT`.**
 
-The shipped helper reinstalls the global `sf` CLI only when this npm provably owns the active executable and it's behind the newest installable version, so the usual refresh is a true no-op. An unconditional reinstall churns the binary and can orphan the keychain-backed org logins across a Node rebuild; the SE then sees an empty org list.
+The shipped helper reinstalls the global `sf` CLI only when this npm provably owns the active executable and it's behind the newest installable version, so the usual refresh is a true no-op. An unconditional reinstall churns the binary and can orphan the keychain-backed org logins across a Node rebuild; the builder then sees an empty org list.
 
 Before running it, resolve this active Scout plugin installation's root from the current plugin context to a concrete absolute path, and substitute it for `/absolute/path/of/active/sf-demo-scout` below. Don't pass a literal `${CLAUDE_PLUGIN_ROOT}` to the shell, and don't search for or guess another cached plugin version. If it can't be resolved or the shipped script is missing (Python then can't open the file), surface `CLI_REFRESH_UNAVAILABLE`, skip the CLI update and continue setup; don't reconstruct the helper in the conversation.
 
@@ -72,7 +72,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/official-plugins.md` and execute it. C
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute its read-only readiness check. Never infer absence from list output or auto-register a replacement.
 
-Scout registers no other connection. Slack, Google Drive and similar tools come from the SE's own host connectors, if any; the done message carries the heads-up note about them.
+Scout registers no other connection. Slack, Google Drive and similar tools come from the builder's own host connectors, if any; the done message carries the heads-up note about them.
 
 ## Done
 

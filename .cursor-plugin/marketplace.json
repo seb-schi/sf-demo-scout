@@ -7,7 +7,7 @@
     {
       "name": "sf-demo-scout",
       "source": ".",
-      "description": "Salesforce demo preparation pipeline — sparring, audit, deployment for SE demo orgs"
+      "description": "Salesforce demo preparation pipeline — sparring, audit, deployment for demo orgs"
     }
   ]
 }

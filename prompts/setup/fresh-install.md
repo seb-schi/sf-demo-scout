@@ -15,7 +15,7 @@ Setup changes nothing outside Scout's own files except what a step below names:
 it never edits shell files such as `~/.zshrc`, other tools' hooks or settings,
 or permission rules in `~/.claude/settings.json`.
 
-**Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an abort (e.g. after a step the SE ran in a terminal) is safe and fast — completed steps fast-no-op via their own probes (`BREW_OK`, `NODE_PRESENT`, `SETTINGS_PRESENT`, `AUTOUPDATE_ALREADY`, etc.). Always run end-to-end; do NOT skip steps trying to "resume" — the no-ops are the resume mechanism. Within the same CC session you may rely on conversation memory to fast-forward; across sessions, just run the full sequence — it will land in the right place naturally.
+**Idempotency contract:** every step below is idempotent and self-detecting. Re-running after an abort (e.g. after a step the builder ran in a terminal) is safe and fast — completed steps fast-no-op via their own probes (`BREW_OK`, `NODE_PRESENT`, `SETTINGS_PRESENT`, `AUTOUPDATE_ALREADY`, etc.). Always run end-to-end; do NOT skip steps trying to "resume" — the no-ops are the resume mechanism. Within the same CC session you may rely on conversation memory to fast-forward; across sessions, just run the full sequence — it will land in the right place naturally.
 
 ## a: Brew Check (hard abort if missing)
 
@@ -25,7 +25,7 @@ commands there.
 `command -v brew` misses when brew is installed but not yet on PATH (Apple
 Silicon installs to `/opt/homebrew/bin`; the post-install `eval` line adds it
 to PATH). So probe the known install locations before concluding it's missing —
-otherwise an SE who installed brew but skipped the `eval` step gets a false
+otherwise a builder who installed brew but skipped the `eval` step gets a false
 `BREW_MISSING` and dead-ends.
 
 ```bash
@@ -108,9 +108,17 @@ For each independent call:
   Scout requires Python 3.9+ within major 3.
 - `NODE_UNSUPPORTED` — ABORT. Keep the existing Node unchanged and explain
   Scout requires Node 22.20 or later.
-- `*_MISSING` (Windows) — ABORT. Scout installs nothing on Windows: give the SE
+- `*_MISSING` (Windows) — ABORT. Scout installs nothing on Windows: give the builder
   the install command from the line in a copyable block, to run in a terminal,
   then rerun `/scout-setup`.
+- `*_NOT_IN_THIS_WINDOW` (Windows) — ABORT. The tool is installed, at the path the
+  line names, but the app started before it was, and Windows gives each window the
+  PATH it had when it opened. Don't install it again. Tell the builder in plain words
+  that it's installed and the app can't see it yet: for any command they still run in
+  PowerShell, open a new PowerShell window first; then quit the app completely,
+  reopen it, and rerun `/scout-setup`. When the same line comes back after a reopen,
+  that folder isn't on their PATH at all: name it, to add to `Path` under "Edit
+  environment variables for your account" (search the Start menu for it).
 - `*_INSTALL_FAILED` — ABORT. Report the installer exit code and warn that a
   failed installer may have partially changed state; do not promise the old
   state survived.
@@ -118,10 +126,11 @@ For each independent call:
   helper/log issue. In particular, missing npm blocks sf installation even when
   Node exists.
 
-On any nonzero helper exit, stop the fresh-install procedure. Ask the SE to
+On any nonzero helper exit, stop the fresh-install procedure. Ask the builder to
 select a suitable existing executable or repair it through its own manager in a
-terminal, then rerun `/scout-setup`. Suggest installation only when the tool is
-missing. Never fall through to the ready/Done handoff.
+terminal, then rerun `/scout-setup`; for `*_NOT_IN_THIS_WINDOW`, its own step above
+is the whole advice. Suggest installation only when the tool is missing. Never fall
+through to the ready/Done handoff.
 
 ## d–f: Verified Workspace, SFDX Scaffold, Lessons, Settings, and Config
 
@@ -173,9 +182,9 @@ Carry each reported older model's source and its provider-specific fix into the
 closing message verbatim; don't invent model IDs. Unknown or deployment-name
 values are unassessed.
 
-## g.5: Turn on marketplace autoUpdate when the SE hasn't chosen
+## g.5: Turn on marketplace autoUpdate when the builder hasn't chosen
 
-Fresh-install SEs add the Scout marketplace via `/plugin marketplace add` BEFORE running `/scout-setup`, so CC writes the `extraKnownMarketplaces.scout` entry without `autoUpdate`. This step turns it on only when the entry has no `autoUpdate` at all. An explicit `autoUpdate: false` is the SE's choice and stays as it is. Idempotent, safe-fail.
+Fresh-install builders add the Scout marketplace (`claude plugin marketplace add` in a terminal, or `/plugin marketplace add` in a terminal session) BEFORE running `/scout-setup`, so CC writes the `extraKnownMarketplaces.scout` entry without `autoUpdate`. This step turns it on only when the entry has no `autoUpdate` at all. An explicit `autoUpdate: false` is the builder's choice and stays as it is. Idempotent, safe-fail.
 
 ```bash
 python3 -B "[PLUGIN_ROOT]/scripts/setup-settings.py" marketplace-autoupdate --name scout --settings "$HOME/.claude/settings.json"
@@ -184,7 +193,7 @@ python3 -B "[PLUGIN_ROOT]/scripts/setup-settings.py" marketplace-autoupdate --na
 Surface inline:
 - `AUTOUPDATE_ALREADY[…]` — silent.
 - `AUTOUPDATE_SET[…]` — "Enabled auto-updates for Scout marketplace — future versions will install automatically on session start."
-- `AUTOUPDATE_LEFT_AS_CHOSEN[…]` — one line: "Scout's marketplace has auto-update switched off, as you set it; turn it on under `/plugin` → Marketplaces if you want updates to arrive on their own."
+- `AUTOUPDATE_LEFT_AS_CHOSEN[…]` — one line: "Scout's marketplace has auto-update switched off, as you set it; turn it on under `/plugin` → Marketplaces in a terminal `claude` session if you want updates to arrive on their own."
 - `AUTOUPDATE_ABSENT[…]` / `AUTOUPDATE_NO_ENTRY[…]` — silent (the marketplace add step writes these; absence means setup is being run in an unexpected state, not Scout's problem).
 - Any other `AUTOUPDATE_…` line — one-line note, proceed.
 
@@ -194,9 +203,9 @@ Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/official-plugins.md` and execute it. C
 
 ## h.7: Salesforce Docs MCP
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute it. Preserve existing registrations and report observed status; when none is observed, offer the Agentforce Labs Salesforce Docs MCP and register it only on the SE's yes. Required Docs tools are checked when needed. Return and continue setup.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/setup/salesforce-docs-mcp.md` and execute it. Preserve existing registrations and report observed status; when none is observed, offer the Agentforce Labs Salesforce Docs MCP and register it only on the builder's yes. Required Docs tools are checked when needed. Return and continue setup.
 
-Scout registers no other connection. Slack, Google Drive and similar tools come from the SE's own host connectors, if any; the closing message carries the heads-up note about them (`done.md`).
+Scout registers no other connection. Slack, Google Drive and similar tools come from the builder's own host connectors, if any; the closing message carries the heads-up note about them (`done.md`).
 
 ## i: Config Postcondition
 

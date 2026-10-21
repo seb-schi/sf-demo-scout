@@ -26,8 +26,9 @@ SECTIONS = ('Verified — Applied This Build', 'Verified — Already Satisfied B
             'Accounted-for Exceptions', 'Unresolved Work')
 LOG_SECTIONS = ('Achieved State', 'What Was Deployed', 'What Was Skipped',
                 'Completion Reconciliation', 'Companion Permission Set', 'Issues Encountered',
-                'Docs Consulted', 'SE Must Do Next (in order)', 'How to Verify',
+                'Docs Consulted', 'Your Next Steps (in order)', 'How to Verify',
                 'Open Questions for Next Session')
+LOG_SECTION_ALIASES = {'Your Next Steps (in order)': ('SE Must Do Next (in order)',)}  # Change logs before 2.4.1
 ARCH_SECTIONS = ('Customer Context & Value Spine', 'Demo Flow / Narrative Arc',
                  'Decision Log', 'Pointers (not duplicated here)')
 KNOWN_TYPES = set('customobject customfield recordtype permissionset permissionsetassignment '
@@ -677,7 +678,9 @@ def check(task, record):
                 if any(status_fields(text[section[2]:section[3]], nested=True, receipt_ids=receipt_ids)):
                     issue('checkpoint', 'pending before-state status fields', log)
         for level, name in required:
-            found = [s for s in sections if s[1] == level and (re.sub(r' \([^()]*\)$', '', s[0]) == re.sub(r' \([^()]*\)$', '', name) or s[0].startswith(name + ' —'))]
+            found = [s for s in sections if s[1] == level and any(
+                re.sub(r' \([^()]*\)$', '', s[0]) == re.sub(r' \([^()]*\)$', '', accepted) or s[0].startswith(accepted + ' —')
+                for accepted in (name,) + LOG_SECTION_ALIASES.get(name, ()))]
             if len(found) != 1:
                 issue('log-section', 'expected one ' + name, log)
         reconciliation = [s for s in sections if s[0] == 'Completion Reconciliation' and s[1] == 2]
@@ -766,7 +769,7 @@ def check(task, record):
                     continue
                 if section[0] == 'Decision Log':
                     decision_lines.update(range(map_text[:section[2]].count('\n') + 1, len(map_text[:section[3]].splitlines())))
-                # Creation owns all nested text. Reconciliation preserves old SE sections.
+                # Creation owns all nested text. Reconciliation preserves older builder-written sections.
                 end = section[3] if created else next((s[2] for s in map_sections if section[2] < s[2] < section[3]), section[3])
                 begin_line, end_line = map_text[:section[2]].count('\n'), len(map_text[:end].splitlines())
                 owned.update(n for n in range(begin_line, end_line) if created or not lines[n].lstrip().startswith('>'))
@@ -775,7 +778,7 @@ def check(task, record):
                            if line.strip() and not headings(line) and
                            (created or not line.lstrip().startswith('>'))):
                         issue('arch', 'arc beats must be <=320 characters', arch)
-            # Current-task references are owned wherever they occur, including nested/SE sections.
+            # Current-task references are owned wherever they occur, including nested/builder-written sections.
             for n, line in enumerate(visible_lines):
                 current = bool(stamp.search(line)) and not (n < len(header.splitlines()) and line.startswith('Reconciled through:'))
                 following = visible_lines[n + 1:n + 2]
@@ -793,7 +796,7 @@ def check(task, record):
             template = map_text if created else '\n'.join(lines[n] for n in sorted(owned))
             over = lambda value: len(value.splitlines()) > 350 or len(value.split()) > 3750
             if over(text):
-                issue('arch', 'map exceeds 350 lines / 3750 words' + (' only due to SE sections' if not over(template) else ''),
+                issue('arch', 'map exceeds 350 lines / 3750 words' + (' only due to builder-written sections' if not over(template) else ''),
                       arch, warning=not over(template))
     checkpoints, names = log_checkpoints(log) if log.exists() else ([], [])
     for rule, message in BUILD.check_findings(record, task.parent, checkpoints, names, markdown(read(task))[0]):
@@ -1252,4 +1255,5 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
+    scout_portable.utf8_output()
     raise SystemExit(main())

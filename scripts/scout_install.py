@@ -79,7 +79,7 @@ def thin_skill(name: str) -> str:
         lines.append("disable-model-invocation: true")
     lines += ["---", MARKER, "",
               "Scout lives in the folder `%s`; that is Scout's root (`PLUGIN_ROOT_ABS`) for this whole task." % ROOT,
-              "Read `%s` now and follow it exactly, with the request the SE sent with this skill."
+              "Read `%s` now and follow it exactly, with the request the builder sent with this skill."
               % (ROOT / "skills" / name / "SKILL.md"),
               "If that file is missing, say Scout's folder moved or was removed, and stop.", ""]
     return "\n".join(lines)
@@ -311,4 +311,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     sys.exit(main())

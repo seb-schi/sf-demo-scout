@@ -24,7 +24,7 @@ SECTIONS = ('Verified — Applied This Build', 'Verified — Already Satisfied B
             'Accounted-for Exceptions', 'Unresolved Work')
 LOG_SECTIONS = ('Achieved State', 'What Was Deployed', 'What Was Skipped', 'Completion Reconciliation',
                 'Companion Permission Set', 'Issues Encountered', 'Docs Consulted',
-                'SE Must Do Next (in order)', 'How to Verify', 'Open Questions for Next Session')
+                'Your Next Steps (in order)', 'How to Verify', 'Open Questions for Next Session')
 ARCH_SECTIONS = ('Customer Context & Value Spine', 'Demo Flow / Narrative Arc',
                  'Pointers (not duplicated here)', 'Decision Log')
 
@@ -1097,6 +1097,13 @@ class ScoutHistoryTests(unittest.TestCase):
         (self.folder / 'seed.sh').write_text('# synthetic\n')
         self.save(checkpoint())
         self.log.write_text(self.log.read_text().replace('## Script Deliverables', '## Gone'))
+        self.assert_rule('log-section')
+
+    def test_log_sections_accept_the_heading_older_logs_use(self):
+        # Change logs written before 2.4.1 name the next-steps section "SE Must Do Next"; they stay valid.
+        self.log.write_text(self.log.read_text().replace('## Your Next Steps (in order)', '## SE Must Do Next (in order)'))
+        self.assertEqual(self.run_cli()[0], 0)
+        self.log.write_text(self.log.read_text() + '## Your Next Steps (in order)\nRecorded.\n')
         self.assert_rule('log-section')
 
     def test_reconciliation_wrong_section_duplicate_and_semantic_text(self):

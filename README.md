@@ -1,17 +1,19 @@
 # SF Demo Scout
 
-A plugin for Salesforce Solution Engineers that runs in Claude Code, Codex or
-Cursor; one of them is enough. Run `/scout` and say what you need: Scout spars
-with you on the demo story, builds it in your demo org, checks every piece there,
-and preps you for delivery, all in one session. Scout 2.0 is built for Opus 5.5
-and later; on Codex and Cursor, pick the strongest model you have.
+A plugin for anyone who builds Salesforce demos, for customers or for their own
+stakeholders. It runs in Claude Code, Codex or Cursor; one of them is enough. Run
+`/scout` and say what you need: Scout spars with you on the demo story, builds it in
+your demo org, checks every piece there, and preps you for delivery, all in one
+session. Scout 2.0 is built for Opus 5.5 and later, ideally at High effort or higher
+(`/effort high`, or Effort in the desktop app's model picker); on Codex and Cursor,
+pick the strongest model you have, at its highest reasoning setting.
 
 ## Why Scout exists
 
-The SE role is shifting. We're increasingly asked to do post-sales
-activation work — configuring real Salesforce orgs through CLI-native
-tools that didn't exist 18 months ago — and the gap between what the
-platform now expects and what most of us trained for is real. The tooling
+Building on Salesforce is shifting. Demos and prototypes are increasingly
+built in real Salesforce orgs through CLI-native AI tools that didn't exist
+18 months ago, and the gap between what the platform now expects and what
+most of us trained for is real. The tooling
 landscape doesn't help: a dozen MCP servers, community skill repos, half a
 dozen ways to stand up an AI coding tool. The cost of starting is high, and the
 cost of starting wrong is higher.
@@ -36,7 +38,7 @@ Scout is the on-ramp. Setup stands up everything you need, and from there
 
 Scout works because it drives Salesforce's [official
 skills](https://github.com/forcedotcom/sf-skills), straight from Salesforce's own
-GitHub repository and kept current, with an orchestration layer for SEs on top. Rather than improvising Apex, Flow
+GitHub repository and kept current, with an orchestration layer for demo builders on top. Rather than improvising Apex, Flow
 XML, or agent metadata from training data, it uses the same authoring
 rules and validation patterns the platform team publishes, the day they
 publish them. You're not vibe-coding the platform layer — you're driving it.
@@ -45,12 +47,12 @@ publish them. You're not vibe-coding the platform layer — you're driving it.
 
 One session from idea to a checked demo. The 5.5 models carry the whole job;
 Scout supplies the Salesforce playbook (Salesforce's official skills, deployment
-rules, Salesforce Docs) and the SE rigour (org binding, confirmations, read-back,
+rules, Salesforce Docs) and a demo builder's rigour (org binding, confirmations, read-back,
 per-customer history, and a log of what was done, with which skill, and why).
 
 ```mermaid
 flowchart TD
-    SE(["👤 Solution Engineer"])
+    YOU(["👤 Builder"])
 
     subgraph SCOUT["/scout · one session"]
         B["`Bind to your org
@@ -70,7 +72,7 @@ in the org`"]
     PREP["`🎬 Prep before the meeting
 readiness check + click path`"]
 
-    SE --> SCOUT
+    YOU --> SCOUT
     R --> OUT --> PREP
 
     classDef scout fill:#e8eefc,stroke:#3b5ba5,color:#1a2a4a;
@@ -102,35 +104,81 @@ metadata, or anything destructive, without your say-so.
 
 | Scout builds and verifies | Scout builds it — you stay in the loop |
 |---|---|
-| Custom objects, fields, record types | Complex / multi-component LWC (deployed; visual QA) |
-| Permission sets (incl. companion sets) | Existing Lightning-page field-section edits, page-layout arrangements, dashboards (deployed; visual QA) |
-| Lightning apps, tabs, queues, reports | Screen flows using non-whitelisted components (deployed Draft; QA, then activate) |
-| Flows — record-triggered, screen (branching, cross-screen), scheduled | Orchestration flows (deployed; you validate the lifecycle) |
+| Custom objects, fields, record types | Lightning Web Components, one or several (deployed and checked; visual QA) |
+| Permission sets (incl. companion sets) | Additions to existing Lightning record pages, page-layout arrangements, dashboards (deployed; visual QA) |
+| Lightning apps, tabs, queues, reports | Screen, scheduled and platform-event flows, any screens and components (deployed Draft; QA, then activate) |
+| Flows — record-triggered and autolaunched (Flow tests where Salesforce supports them) | Orchestration flows (deployed; you validate the lifecycle) |
 | Apex — multi-class, cross-object (bounded test-fix loop) | Multi-agent wiring, channel assignment, OmniStudio (UI-only — Scout builds the metadata around them) |
 | Agentforce agents (deploy, activate, smoke-test) | Anything destructive or on existing metadata — never without confirmation |
 
-For Lightning Record Pages, additions to existing Dynamic Forms field sections
-remain supported, and Scout still deploys underlying artifacts such as LWCs,
-Paths, CompactLayouts, and ListViews. A full new `RecordPage` is composed
-manually by the SE in App Builder, where the complete page can be arranged and
-previewed safely.
+On an existing Lightning record page, Scout adds what you approve (a tab, a
+component, a field section or fields) with Salesforce's official page skill,
+then checks that everything already on the page is still where it was. It writes
+nothing it can't ground in your org's own pages, Salesforce's references or the
+docs. If your org rejects a component, Scout leaves it out and tells you how to
+add it in App Builder; a second rejection ends the edit, so rejected components
+cost at most three dry runs. Moving or removing what's already on a page needs
+your yes. A new `RecordPage` from scratch is still yours to compose in App
+Builder, where the whole page can be arranged and previewed.
 
 ## Install
 
+You type in two places: a **terminal** (Terminal on macOS, PowerShell on Windows) and
+your coding tool's **chat**. Each step below says which. If something fails, look up the
+message in [Troubleshooting](docs/troubleshooting.md).
+
+### On Windows (beta): the tools first
+
+On Windows, setup names what's missing but installs nothing itself, so check these
+first, in **PowerShell**:
+
+1. **Git for Windows:** `git --version`. If it's missing: `winget install --exact --id Git.Git`.
+2. **Python 3.9 or later:** `py -3 --version`. If it's missing or older:
+   `winget install --exact --id Python.PythonInstallManager`, then, in a new
+   PowerShell window, `pymanager install default`.
+3. **Node 22.20 or later:** `node --version`. If it's missing or older:
+   `winget install --exact --id OpenJS.NodeJS.LTS`.
+4. **The Salesforce CLI, from npm:** `sf.cmd --version`. If it's missing:
+   `npm.cmd install --global @salesforce/cli`. (In PowerShell, type `npm.cmd` and `sf.cmd`:
+   plain `npm` and `sf` can start PowerShell scripts that Windows blocks by default.)
+   If `where.exe sf` shows `C:\Program Files\sf`,
+   that's the CLI's Windows installer, whose launcher breaks on quoted arguments from a
+   coding tool's shell: uninstall **Salesforce CLI** in Settings → Apps (your saved logins
+   stay), then run the npm line.
+5. **jq:** `jq --version`. If it's missing: `winget install --exact --id jqlang.jq`.
+
+After installing anything, open a new PowerShell window, and quit and reopen your
+Claude, Codex or Cursor app, so they find the new commands.
+
+Behind a company proxy, Git for Windows can refuse GitHub with "self-signed certificate
+in certificate chain", so adding Scout's marketplace or cloning fails. Then tell Git to
+use Windows' own certificate store, once:
+`git config --global http.sslBackend schannel`
+([Git's documentation](https://git-scm.com/docs/git-config#Documentation/git-config.txt-httpsslBackend)).
+
 ### Claude Code
 
-Inside Claude Code, run these four commands in order:
+In a **terminal**, add Scout's marketplace and install Scout; the desktop app doesn't
+run `/plugin`:
 
-```
-/plugin marketplace add https://github.com/seb-schi/sf-demo-scout.git
-/plugin install sf-demo-scout@scout
-/reload-plugins
-/scout-setup
+```bash
+claude plugin marketplace add https://github.com/seb-schi/sf-demo-scout.git
 ```
 
-When prompted on the install step, select `Install for you (user scope)`.
+```bash
+claude plugin install sf-demo-scout@scout
+```
+
+If your terminal doesn't know `claude`, install Claude Code's command line first, as
+[Anthropic's setup guide](https://code.claude.com/docs/en/setup) shows (on Windows,
+`winget install Anthropic.ClaudeCode`). Then open a new Claude Code session, in the
+desktop app's Code tab or with `claude` in a terminal, and in the **chat** run
+`/scout-setup`. Inside an interactive `claude` session, `/plugin marketplace add` and
+`/plugin install` do the same as the two terminal lines.
 
 ### Codex (CLI and desktop app)
+
+In a **terminal**:
 
 ```bash
 codex plugin marketplace add seb-schi/sf-demo-scout
@@ -140,14 +188,14 @@ codex plugin marketplace add seb-schi/sf-demo-scout
 codex plugin add sf-demo-scout@scout
 ```
 
-Then restart Codex and run `$sf-demo-scout:scout-setup`; afterwards, start a demo
-with `$sf-demo-scout:scout`, where these instructions say `/scout`. Codex's IDE
-extension doesn't load plugins; use the CLI or the desktop app.
+Then restart Codex, and in the **chat** run `$sf-demo-scout:scout-setup`; afterwards,
+start a demo with `$sf-demo-scout:scout`, where these instructions say `/scout`.
+Codex's IDE extension doesn't load plugins; use the CLI or the desktop app.
 
 ### Cursor
 
 Managed Cursor installs often refuse third-party plugins, so Scout installs from
-a folder of your choice. On macOS or Linux:
+a folder of your choice. In **Terminal** on macOS or Linux:
 
 ```bash
 git clone https://github.com/seb-schi/sf-demo-scout.git ~/sf-demo-scout
@@ -157,11 +205,19 @@ git clone https://github.com/seb-schi/sf-demo-scout.git ~/sf-demo-scout
 python3 ~/sf-demo-scout/scripts/scout_install.py skills --host cursor --yes
 ```
 
-On Windows, in PowerShell, clone to `$HOME\sf-demo-scout` the same way and run
-`py -3 $HOME\sf-demo-scout\scripts\scout_install.py skills --host cursor --yes`.
-Then open a new Cursor chat and run `/scout-setup`. Where your organisation's
-Cursor allows third-party plugins, it can also add this repository as a plugin
-marketplace instead.
+In **PowerShell** on Windows:
+
+```powershell
+git clone https://github.com/seb-schi/sf-demo-scout.git $HOME\sf-demo-scout
+```
+
+```powershell
+py -3 $HOME\sf-demo-scout\scripts\scout_install.py skills --host cursor --yes
+```
+
+Then open a new Cursor chat, and in the **chat** run `/scout-setup`. Where your
+organisation's Cursor allows third-party plugins, it can also add this repository as a
+plugin marketplace instead.
 
 ### What setup does
 
@@ -192,7 +248,7 @@ To remove Scout's own files, ask Scout to uninstall itself before you remove the
 plugin. It runs `scripts/scout_uninstall.py`, shows what it would remove, and
 removes only Scout's configuration and cache on your yes. Your Scout workspace and
 its org histories go only if you ask for that too (`--workspace`). Then remove the
-plugin with `/plugin uninstall sf-demo-scout@scout` on Claude Code, or
+plugin with `claude plugin uninstall sf-demo-scout@scout` in a terminal for Claude Code, or
 `codex plugin remove sf-demo-scout@scout` on Codex. On Cursor, run
 `scripts/scout_install.py uninstall --host cursor --yes` and delete the folder.
 
@@ -200,7 +256,7 @@ plugin with `/plugin uninstall sf-demo-scout@scout` on Claude Code, or
 
 | Command | What it does |
 |---|---|
-| `/scout` | Scout 2.0: spar, build, fix or prep a demo in one session, in the org you name. Built for Opus 5.5 and later. |
+| `/scout` | Scout 2.0: spar, build, fix or prep a demo in one session, in the org you name. Built for Opus 5.5 and later, at High effort or higher. |
 | `/scout-setup` | Setup, updates, and repairs. Scout also runs it itself when it finds its setup broken. |
 
 `/scout-sparring` and `/scout-building` are the classic command names. They now open `/scout`; `/scout-building` hands it your spec as the brief.
@@ -228,16 +284,16 @@ you builds in your own sandbox; the captain delivers the team's work into its co
 - **Claude Code:** automatic. Setup turns on auto-update for Scout's marketplace,
   unless you've set it yourself. To update now, run `claude plugin marketplace update
   scout` and then `claude plugin update sf-demo-scout@scout` in a terminal, then
-  `/reload-plugins` in Claude Code.
+  open a new Claude Code session.
 - **Codex:** Codex updates Scout when it starts, so restart it, then open a new
   chat. To update now: `codex plugin marketplace upgrade scout`.
 - **Cursor:** Scout tells you when a new release is out, and updates its folder with
   `git pull` on your yes. Start a new chat afterwards.
 
 **Staying on a release.** Each release has a tag, such as `scout-2.4.0`.
-- **Claude Code:** `/plugin marketplace remove scout` (this removes Scout too; your
-  workspace and its histories stay), then `/plugin marketplace add
-  seb-schi/sf-demo-scout#scout-2.4.0` and `/plugin install sf-demo-scout@scout`.
+- **Claude Code:** in a terminal, `claude plugin marketplace remove scout` (this removes
+  Scout too; your workspace and its histories stay), then `claude plugin marketplace add
+  seb-schi/sf-demo-scout#scout-2.4.0` and `claude plugin install sf-demo-scout@scout`.
 - **Codex:** `codex plugin marketplace remove scout`, then add it again with
   `--ref scout-2.4.0`, and run `codex plugin add sf-demo-scout@scout`.
 - **Cursor:** `git -C ~/sf-demo-scout checkout scout-2.4.0`.
@@ -252,15 +308,15 @@ the recovery branch made for this: on Claude Code, the steps above with
 
 | | macOS | Windows 11 | Linux |
 |---|---|---|---|
-| Claude Code (CLI, desktop app, VS Code) | yes | setup, builds, repairs and prep, once tested | best effort |
-| Codex (CLI, desktop app) | yes | setup, builds, repairs and prep, once tested | best effort |
-| Cursor (IDE, `cursor-agent`) | yes | setup, builds, repairs and prep, once tested | best effort |
+| Claude Code (CLI, desktop app, VS Code) | yes | beta: setup, builds, repairs and prep | best effort |
+| Codex (CLI, desktop app) | yes | beta: setup, builds, repairs and prep | best effort |
+| Cursor (IDE, `cursor-agent`) | yes | beta: setup, builds, repairs and prep | best effort |
 
 Building one demo org together (team mode and Lifecycle Center mode) runs on macOS
 for now. On Windows, Scout needs Git for Windows (its Git Bash), Python 3.9 or
 later, Node 22.20 or later, the Salesforce CLI and `jq`; Salesforce's official
-skills use the last two. A Windows host is marked tested once it has passed the
-release's Windows checklist.
+skills use the last two. Windows leaves beta once each host has passed the
+[Windows checklist](docs/windows-testers.md).
 
 ## Development checks
 
@@ -276,7 +332,8 @@ The full clone-install history is preserved at branch
 
 ## Questions and problems
 
-Open an issue on this repository. If your GitHub account can't open issues here,
+Look up the message in [Troubleshooting](docs/troubleshooting.md) first. Otherwise, open an issue
+on this repository. If your GitHub account can't open issues here,
 for example a managed enterprise account, contact the maintainer through the
 channel your organisation used to share Scout.
 

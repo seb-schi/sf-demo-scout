@@ -2,6 +2,30 @@
 
 Newest first. Scout updates itself; each entry says what changed for you.
 
+## 2026-10-21 (Scout 2.4.1)
+
+- **Scout calls you a builder.** Scout is for anyone who builds Salesforce demos now, so its messages, rules and handovers say "builder", not "SE". The handover's list for you is "Your manual checklist", and change logs end with "Your next steps". Change logs from earlier versions still count.
+- **The demo story works for any audience.** The value story was written for a customer meeting. It now works the same way for an audience inside your company, such as a product review: who has to say yes, their pain, what doing nothing costs, the beats and the proof moment.
+- **Flows go to Salesforce's tools first.** Salesforce's hosted generator builds a new Flow. Scout asks once before switching the generator on in an org, because it's beta and may be billed. An edit to an existing Flow changes only what you asked, with Salesforce's official skills. Scout's own Flow builder comes last, and still writes the FlowTests.
+- **Scout does more of the build itself.** Several limits written for weaker models are gone:
+  - **Record pages:** Scout adds tabs, components, sections and fields to an existing Lightning record page through Salesforce's official page skill. It grounds each component in your org first, drops one the org rejects, and stops after a second rejection. Moving or removing what's already on the page asks first, and before and after the deploy Scout checks that everything already there stayed as it was, apart from exactly what you approved. New pages from scratch stay in App Builder for now.
+  - **Flows:** screen flows have no screen cap or component list, and orchestration flows deploy for a visual check. Salesforce's generator gets up to ten tries per Flow, each told what went wrong last time, and Scout says how many Flows it will generate before it starts.
+  - **Smaller steps:** Scout proposes a scheduled flow's timing, checks that a platform event exists, fills in a blank agent Role or Company, and sets an agent's model in Agent Script.
+  - **Long fixes:** after ten Apex test runs or ten attempts on one item, Scout tells you what it tried and asks whether to go on, instead of stopping.
+- **Opus 5.5 at High effort or higher.** Scout works best there. On Claude Code, Scout's session banner says so when the effort is lower; switch with `/effort high`, or under Effort in the model picker.
+- **On Claude Code, Scout installs from a terminal.** The desktop app doesn't run `/plugin`, so the README's two install lines run in Terminal or PowerShell: `claude plugin marketplace add …`, then `claude plugin install sf-demo-scout@scout`. Then open a new session and run `/scout-setup`. Scout's automatic updates still switch on.
+- **Windows, still in beta, with fewer snags:**
+  - **Python:** setup's hint is `pymanager install default`, the install manager's own command, which an older Python launcher can't take over.
+  - **The Salesforce CLI:** install it with npm. The copy from Salesforce's Windows installer, under `C:\Program Files\sf`, breaks when a command has a quoted argument. Setup says so and how to switch, and Scout reruns such a call through the CLI's own Node script.
+  - **Logins:** a new org's alias has no spaces, and a login counts once Scout's binding confirms the org, whatever the login command's exit code.
+  - **A tool you just installed** that this window can't see yet: setup says to reopen the app, instead of asking you to install it again.
+  - **Behind a company proxy,** the README names the Git setting that lets Git for Windows reach GitHub.
+  - **Scripts' output** no longer depends on the console's code page, and setup's model note names Windows' own settings there.
+  - **Windows CI** runs the session-start and Salesforce CLI tests too, on Python 3.12 and 3.15.
+- **Troubleshooting by message.** `docs/troubleshooting.md` starts from the exact message you see, with what it means, the fix and a quick check.
+- **Notices you see.** On Claude Code, a newer Scout release, or a setup that needs repair, shows in the session's own banner, not only to Scout.
+- **The update check keeps its last answer** when GitHub can't be reached, so a network hiccup doesn't hide a newer release for a day.
+
 ## 2026-10-21 (Scout 2.4.0)
 
 - **Scout runs in Claude Code, Codex and Cursor; one of them is enough.** Claude Code and Codex install Scout as a plugin. Cursor installs it from a folder you clone, because managed Cursor installs often refuse third-party plugins: two small skills point Cursor at that folder. `/scout` and `/scout-setup` work the same everywhere; on Codex they're `$sf-demo-scout:scout` and `$sf-demo-scout:scout-setup`. The README has the steps for each.
@@ -24,7 +48,7 @@ Newest first. Scout updates itself; each entry says what changed for you.
   - **For builders without Scout,** the team's rules gain three lines: deploy to your own sandbox when an official deploy skill fails; ship a new object with its tab and a permission set that shows it; and let tests that insert a new record type's records create their own user. For every new object, the captain's read-back asks the presenting user to check that they see its tab: Scout reads Git, not who can see what.
   - **Checks that stop instead of guessing:** a build org that turns out to be the common org is refused, and a delivery check whose input is missing stops or says not verified, instead of passing. A missing answer after a promotion went out says where the delivery stands and how to resume. A member's guard is reported as unknown, not off, when Scout can't tell.
   - **The kit needs Node 22 or later,** like the Salesforce CLI.
-- **Apex tests and new record types.** From API 67.0, a test can't insert records of a new record type as the admin who deployed it: it fails with `INVALID_CROSS_REFERENCE_KEY … this ID value isn't valid for the user`. Scout's tests create their own user, grant the record type through a permission set, and insert as that user.
+- **Apex tests and new record types.** From API 67.0, Apex checks that the running user can use a record type: a test that inserts records of a new record type before anyone is granted it fails with `INVALID_CROSS_REFERENCE_KEY … this ID value isn't valid for the user`, even when it runs as the admin who deployed it. Scout's tests create their own user, grant the record type through a permission set, and insert as that user.
 - **Uninstall.** Ask Scout to uninstall itself. It shows what it would remove, removes only its own configuration and cache on your yes, and your workspace with its org histories only on a separate yes. Then it tells you how to remove the plugin.
 
 ## 2026-10-19 (Scout 2.3.2)

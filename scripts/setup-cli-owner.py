@@ -27,12 +27,13 @@ def npm_ownership(selector: str, npm_arg: str, active_arg: str) -> str:
     try:
         probe = subprocess.run(
             [str(npm), "root", "-g"],
-            encoding="utf-8",
             capture_output=True,
             timeout=10 if scout_portable.windows() else 2,  # npm.cmd starts slowly on Windows
             check=False,
         )
-        roots = [line.strip() for line in probe.stdout.splitlines() if line.strip()]
+        # Bytes, decoded here: in text mode a byte that isn't UTF-8 left Windows' reader thread without output.
+        text = (probe.stdout or b"").decode("utf-8", "replace")
+        roots = [line.strip() for line in text.splitlines() if line.strip()]
         if probe.returncode != 0 or len(roots) != 1:
             return "unavailable"
         root = Path(roots[0])
@@ -87,4 +88,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     raise SystemExit(main())

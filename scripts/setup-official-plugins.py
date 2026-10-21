@@ -4,7 +4,7 @@ and for a build's repair of a missing add-on.
 
 Claude host only. Each step checks first, then acts, and prints one token line; the last line is a readiness
 verdict from Scout's own resolver. It never touches logins, default orgs or aliases, switches other copies of these
-plugins off only when asked (after the SE's yes), and never removes anything."""
+plugins off only when asked (after the builder's yes), and never removes anything."""
 from __future__ import annotations
 
 import argparse
@@ -19,6 +19,7 @@ import time
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import scout_official  # noqa: E402  the one resolver: source matching, states and readiness
+import scout_portable  # noqa: E402  (ships beside this helper)
 
 NAME = "salesforce"
 BUDGET = 570  # seconds for the whole run, inside the callers' 10-minute timeout, so a slow download ends with a reason
@@ -58,7 +59,7 @@ def claude_json(claude, args):
 
 
 def find_claude():
-    """The running client's own Claude Code binary first, then `claude` on the PATH. An SE who uses only the desktop
+    """The running client's own Claude Code binary first, then `claude` on the PATH. A builder who uses only the desktop
     app has no `claude` command, but the app's bundled binary manages the same plugins."""
     running = os.environ.get("CLAUDE_CODE_EXECPATH", "")
     if os.path.isabs(running) and os.access(running, os.X_OK):
@@ -151,10 +152,10 @@ def registration_ok(name, form):
 
 
 def unpin(claude, name, approved_ref):
-    """Make one registration the SE approved follow Salesforce's latest, checking every stage: unpin the settings
+    """Make one registration the builder approved follow Salesforce's latest, checking every stage: unpin the settings
     entry (only while it's still fixed to the approved ref), re-add the marketplace from the same form, read the
     registration back, then update each plugin installed from it. A failed re-add restores the ref only while the
-    settings still hold Scout's own change; a newer SE choice is kept. A rerun after the ref is gone still runs the
+    settings still hold Scout's own change; the builder's newer choice is kept. A rerun after the ref is gone still runs the
     updates. Returns token lines; takeover completion is reported apart from readiness."""
     records = read_records()
     if records is None:
@@ -245,13 +246,14 @@ def main(argv=None):
     parser.add_argument("--launch-dir", type=Path, default=Path.cwd(),
                         help="the folder this session started in, whose own plugin selections count (never edited)")
     parser.add_argument("--plugins", nargs="+", choices=sorted(CAPABILITIES["plugins"]),
-                        help="install only these (a build's repair of a missing add-on, after the SE's yes) instead of the setup set")
+                        help="install only these (a build's repair of a missing add-on, after the builder's yes) instead of the setup set")
     parser.add_argument("--disable-duplicates", nargs="+", default=[], metavar="ID",
-                        help="after the SE's yes, switch off exactly these other copies (they stay installed)")
+                        help="after the builder's yes, switch off exactly these other copies (they stay installed)")
     parser.add_argument("--unpin", nargs="+", default=[], metavar="NAME[:REF]",
-                        help="after the SE's yes, make exactly these registrations follow Salesforce's latest")
-    parser.add_argument("--keep-se-choices", action="store_true",
-                        help="a self-repair run: leave plugins the SE switched off or removed as they are, until the SE's yes")
+                        help="after the builder's yes, make exactly these registrations follow Salesforce's latest")
+    # --keep-se-choices is the spelling before 2.4.1, still accepted so earlier callers keep working.
+    parser.add_argument("--keep-builder-choices", "--keep-se-choices", dest="keep_se_choices", action="store_true",
+                        help="a self-repair run: leave plugins the builder switched off or removed as they are, until their yes")
     args = parser.parse_args(argv)
     if args.host != "claude":
         print("OFFICIAL_PLUGINS_SKIPPED host=%s (sf-skills ships no plugin for this host)" % args.host)
@@ -270,7 +272,7 @@ def main(argv=None):
         print(readiness(wanted, args.launch_dir))
         return 0
     name, failure = find_marketplace(claude, args.source)
-    registered = bool(name)  # with Salesforce's marketplace already set up, a missing or switched-off plugin may be the SE's choice
+    registered = bool(name)  # with Salesforce's marketplace already set up, a missing or switched-off plugin may be the builder's choice
     if failure:
         print("OFFICIAL_MARKETPLACE_UNKNOWN could not list marketplaces: %s" % failure)
         print(readiness(wanted, args.launch_dir))
@@ -292,7 +294,7 @@ def main(argv=None):
     before = snapshot()
     changed = False
     done = set()
-    for approval in args.unpin:  # exactly the registrations the SE approved, before anything else installs from them
+    for approval in args.unpin:  # exactly the registrations the builder approved, before anything else installs from them
         market, _, ref = approval.partition(":")
         lines = unpin(claude, market, ref or None)
         done.add(market)
@@ -347,7 +349,7 @@ def main(argv=None):
             continue
         for other in found.get("others", []):
             where = found.get("switched_on_in", {}).get(other)
-            if where:  # the folder's own selection: the SE's to change, never Scout's
+            if where:  # the folder's own selection: the builder's to change, never Scout's
                 print("OFFICIAL_PROJECT_COPY %s %s" % (other, where))
             elif other in approved:
                 approved.discard(other)
@@ -379,4 +381,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     raise SystemExit(main())

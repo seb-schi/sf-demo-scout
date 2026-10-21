@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scout's team mode (multiplayer): every step Scout takes for a team, so SEs never type git, gh or sf mp.
+"""Scout's team mode (multiplayer): every step Scout takes for a team, so builders never type git, gh or sf mp.
 
 A team is one Git repository. `main` holds the source the team has delivered into its common org (a kit project
 bound by sf-mp). `mp/ledger` holds the team ledger (members, work packages, deliveries) as small JSON files,
@@ -9,7 +9,7 @@ three-way merge from the builder's actual base. Only the captain's machine write
 sf-mp's guarded lane; every other member's machine guards it.
 
 Commands print one JSON object (the hook and the watcher print text). Exit codes: 0 done; 2 refused, nothing
-changed; 3 stopped for the SE's decision (the JSON says which); 1 failed (the JSON says what is left).
+changed; 3 stopped for a decision (the JSON says which); 1 failed (the JSON says what is left).
 """
 from __future__ import annotations
 
@@ -30,6 +30,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import scout_portable  # noqa: E402  (ships beside this helper)
 
 ROOT = Path(__file__).resolve().parents[1]
 SF_MP = ROOT / "packages" / "sf-mp"
@@ -668,7 +670,7 @@ def board_lines(entry, state):
             f"Open packages: {summary}. Say \"team status\" for the board."]
 
 
-# ---- the guard (sf-mp in the SE's sf CLI) ----
+# ---- the guard (sf-mp in the builder's sf CLI) ----
 
 # What the guard does, said at every join before it goes in (Lifecycle Center mode reuses the first sentence).
 GUARD_WHAT = ("Scout's guard (sf-mp, a Salesforce CLI plugin that isn't signed by Salesforce) stops this machine's "
@@ -723,7 +725,7 @@ def ensure_guard(yes):
         return {"guard": "installed", "version": version}
     if not yes:
         raise decide(f"Scout's team guard (sf-mp {version}) isn't in this machine's sf CLI{' (it has ' + have + ')' if have else ''}. "
-                     "It isn't signed by Salesforce, so installing it needs the SE's yes", needs="guard-install", version=version)
+                     "It isn't signed by Salesforce, so installing it needs the builder's yes", needs="guard-install", version=version)
     tarball = build_tarball(tarball_path())
     result = run([tool("sf"), "plugins", "install", f"file:{tarball}"], input="y\n", timeout=600)
     if result.returncode or installed_sf_mp() != version:
@@ -1345,7 +1347,7 @@ def handover(repo, ident, team_id, entry, a):
     if old:
         raise decide("your org didn't have the team's version of these when the package started, and package sync hasn't "
                      "brought it in since, so handing them over would undo teammates' work. Bring the team's version into "
-                     "your org (package sync) and redo your edits on it; or, on the SE's explicit yes, hand them over as a "
+                     "your org (package sync) and redo your edits on it; or, on your explicit yes, hand them over as a "
                      "full replacement of the team's copy (--overwrite)", needs="sync", components=old)
     branch = package.get("branch") or f"wp/{a.id}"
     tip = remote_branch(repo, branch)
@@ -2141,7 +2143,7 @@ def cmd_refresh(a):
             merge = git(repo, "merge", "--no-edit", "refs/remotes/origin/main", check=False)
             if merge.returncode:
                 conflicted = out(repo, "diff", "--name-only", "--diff-filter=U").splitlines()
-                raise decide("main conflicts with the hand-over branch in these files; resolve them with the SE, then run "
+                raise decide("main conflicts with the hand-over branch in these files; resolve them with the builder, then run "
                              "refresh --continue", outcome="conflicts", files=conflicted, checkout=str(repo), branch=branch)
         push = git(repo, "push", "--quiet", "origin", f"{branch}:refs/heads/{branch}", check=False, timeout=120)
         head = out(repo, "rev-parse", "HEAD")
@@ -2387,7 +2389,7 @@ def cmd_updates(a):
             if lines and a.hook and age > 600 and cached.get("fetched_at"):
                 lines.append(f"(This copy of the team ledger is {int(age // 60)} minutes old.)")
             return (f"From the {entry.get('name')} team ledger, new since this machine last showed it. Scout shows "
-                    "teammates' updates to the SE before its answer:\n" + "\n".join(lines)) if lines else ""
+                    "teammates' updates to the builder before its answer:\n" + "\n".join(lines)) if lines else ""
 
         shown = events[:REPORT_LIMIT]
         text = compose(shown)
@@ -2445,7 +2447,7 @@ def cmd_watch(a):
                 advance(repo, team_id, "watched", events[-1]["commit"])
                 print(f"From the {entry.get('name')} team ledger (the background watcher):\n"
                       + update_block(entry, state, events)
-                      + f"\nAfter relaying this to the SE, Scout runs `scout_team.py ack --team {team_id} --upto "
+                      + f"\nAfter relaying this to the builder, Scout runs `scout_team.py ack --team {team_id} --upto "
                         f"{events[-1]['commit']}` and starts one new watcher.")
                 return None
             time.sleep(a.interval)
@@ -2507,7 +2509,7 @@ def main(argv=None):
     p.add_argument("--org-id")
     p.add_argument("--cwd")
     p = commands.add_parser("guard")
-    p.add_argument("--yes", action="store_true", help="the SE said yes to installing the unsigned plugin")
+    p.add_argument("--yes", action="store_true", help="the builder said yes to installing the unsigned plugin")
     p = commands.add_parser("repo-create")
     p.add_argument("--name", required=True)
     p.add_argument("--owner")
@@ -2527,7 +2529,7 @@ def main(argv=None):
         p.add_argument(flag)
     p.add_argument("--accept-invite", action="store_true")
     p.add_argument("--yes-guard", action="store_true")
-    p.add_argument("--no-guard", action="store_true", help="the SE said no to the guard, which this lane needs")
+    p.add_argument("--no-guard", action="store_true", help="the builder said no to the guard, which this lane needs")
     p = commands.add_parser("package")
     p.add_argument("action", choices=("start", "update", "stop", "sync", "accept"))
     for flag in ("--team", "--id", "--title", "--task", "--note"):
@@ -2606,4 +2608,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     sys.exit(main())

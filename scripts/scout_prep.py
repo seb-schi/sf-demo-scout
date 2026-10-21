@@ -962,7 +962,7 @@ def compose(existing, data, demo_time):
     regions = owned_regions(existing)
     edited = [name for name in REGIONS if digest(regions[name]['body'].encode()) != regions[name]['sha']]
     if edited:
-        raise Refused('the SE edited Scout region "%s"; offer a new file instead' % edited[0])
+        raise Refused('the builder edited Scout region "%s"; offer a new file instead' % edited[0])
     bodies, outcome = region_bodies(data, demo_time, run_lines(regions['runs']['body']))
     pieces, cursor = [], 0
     for name in REGIONS:
@@ -1406,4 +1406,5 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
+    scout_portable.utf8_output()
     raise SystemExit(main())

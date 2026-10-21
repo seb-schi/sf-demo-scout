@@ -179,7 +179,7 @@ class SelfRepairTests(unittest.TestCase):
         self.assertEqual(held["refresh"], {"a", "b.5"})
         fragment = (ROOT / "prompts/setup/salesforce-docs-mcp.md").read_text()  # the registration stays the SE's choice
         self.assertIn("claude mcp add", fragment)
-        self.assertIn("run this only on the SE's yes", fragment)
+        self.assertIn("run this only on the builder's yes", fragment)
 
     def test_every_entry_point_starts_a_self_repair_run_and_a_no_is_reported(self) -> None:
         for path in ("hooks/session_startup.py", "prompts/workspace-bootstrap.md", "AGENTS.md"):
@@ -188,25 +188,25 @@ class SelfRepairTests(unittest.TestCase):
         self.assertIn("On `CHECK_FAILED`, absent success evidence or nonzero exit, follow the gate's rules.", command)
         setup = (ROOT / "skills/scout-setup/SKILL.md").read_text()
         for phrase in ("this run's arguments are the text sent with it (on Claude Code, the `ARGUMENTS:` line)", "fixes Scout's workspace files and installs Salesforce's "
-                       "official plugins without asking", "Before its first step, it asks the SE one question",
+                       "official plugins without asking", "Before its first step, it asks the builder one question",
                        "On a yes, run the procedure as usual.", "On a no, skip those steps, and fresh install `a` too, "
-                       "since the Homebrew check only serves `b`'s installs", "add `--keep-se-choices`",
+                       "since the Homebrew check only serves `b`'s installs", "add `--keep-builder-choices`",
                        "Read-only reports run either way, such as the running-client and model-routing reports.",
                        "Name each skipped step and left plugin in the closing message",
-                       "A `/scout-setup` the SE runs themselves asks nothing extra.", "--keep-se-choices"):
+                       "A `/scout-setup` the builder runs themselves asks nothing extra.", "--keep-builder-choices"):
             self.assertIn(phrase, setup)
-        self.assertIn("If the SE said no to the held steps, name each as skipped", (ROOT / "prompts/setup/done.md").read_text())
+        self.assertIn("If the builder said no to the held steps, name each as skipped", (ROOT / "prompts/setup/done.md").read_text())
         for name in ("refresh.md", "fresh-install.md"):
             text = " ".join((ROOT / "prompts/setup" / name).read_text().split())
             self.assertIn("self-repair run, ask its one question first (`skills/scout-setup/SKILL.md`)", text, name)
         overrides = (ROOT / "prompts/building/official-skill-overrides.md").read_text()
         self.assertIn("the one exception is the missing-plugin repair below, which says when it asks first", overrides)
-        self.assertIn("official-plugins.md` with `--keep-se-choices`, with this session's launch folder", overrides)
+        self.assertIn("official-plugins.md` with `--keep-builder-choices`, with this session's launch folder", overrides)
 
     def test_the_rule_names_a_setup_skill_the_session_can_run(self) -> None:
         rule = (ROOT / "AGENTS.md").read_text().split("## Org\n", 1)[1].split("\n## ", 1)[0]
         self.assertIn("When startup or a Scout check reports setup incomplete or broken, run `/scout-setup self-repair` yourself "
-                      "(the `sf-demo-scout:scout-setup` skill) once per session, saying so in one line, not asking the SE; "
+                      "(the `sf-demo-scout:scout-setup` skill) once per session, saying so in one line, not asking the builder; "
                       "its own questions still need their answers, and if it can't fix the problem, say why.", rule)
         # `sf-demo-scout:scout-setup` is this plugin's command, and the model may invoke it.
         self.assertIn('"name": "sf-demo-scout"', (ROOT / ".claude-plugin/plugin.json").read_text())

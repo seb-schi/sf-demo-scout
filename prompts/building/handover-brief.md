@@ -21,8 +21,8 @@ identities or chronology cannot be reconciled, state unresolved rather than gues
 3. [Then... — supporting workflow or automation]
 4. [Close with... — value moment tied to pain point]
 
-(Derive the intended story from the spec; label unfulfilled steps as planned/unverified.
-Use "Show the customer..." framing. 3-5 steps.)
+(Derive the intended story from the task's story; label unfulfilled steps as planned/unverified.
+Use "Show the customer..." framing, one step per beat.)
 
 **Already Done (Scout handled this)**
 Synthesise only reconciler VERIFIED items from the change log. Each bullet is a
@@ -38,7 +38,7 @@ following are VERIFIED in the change log:
 - Agentforce smoke test: [pass/fail count from change log]
 
 **Built — Needs Validation (Scout attempted these; finish them in this session)**
-For approved metadata-authorable work within Scout's build boundaries, separate deployment from validation. Apex tests and supported, exact-version Flow tests may validate logic; visual surfaces still need UI confirmation. Include an artifact as deployed-but-unconfirmed only when deployment evidence supports that description and reconciliation reports AWAITING_QA. Failed, blocked or incomplete deployment is not a built artifact. Preserve the named full-new-RecordPage exception in the build boundaries; do not imply Scout deployed an excluded page. Missing automated coverage does not itself establish an API limitation. Include only what applies:
+For approved metadata-authorable work within Scout's build boundaries, separate deployment from validation. Apex tests and supported, exact-version Flow tests may validate logic; visual surfaces still need UI confirmation. Include an artifact as deployed-but-unconfirmed only when deployment evidence supports that description and reconciliation reports AWAITING_QA. Failed, blocked or incomplete deployment is not a built artifact. A new record page from scratch stays manual; do not imply Scout deployed one. For a record page edit, name the record and click path to check, and list each component the convergence rule dropped with its App Builder step under Your Setup. Missing automated coverage does not itself establish an API limitation. Include only what applies:
 - [ ] **Every reconciler AWAITING_QA item:** [ledger item id] — [remaining test,
   visual, or live-runtime confirmation].
 - [ ] **Every remaining Agentforce action, guardrail, or test obligation:** [ledger
@@ -48,13 +48,13 @@ For approved metadata-authorable work within Scout's build boundaries, separate 
 - [ ] **Test-unvalidated Apex:** for each Apex class in the change log's "Issues Encountered" whose generated test failed or is low-coverage — review the logic and the test, then iterate in this session until it passes (or confirm the demo path works without it). The class IS deployed.
 - [ ] **Draft flows:** [flow API name, deployed version, type, test/run ID if available] — [failed, pending, unsupported, unavailable, or wrong-version validation]. Name the exact remaining validation step from Phase 2. Test the intended draft with a supported mechanism and verify terminal results before activation; a passing test of an older active version is insufficient. Keep the new version Draft/AWAITING_QA until proven. If an incumbent version is active, state that it remains active; never claim the new draft is running.
 - [ ] **Screen-flow visual QA:** walk through each activated screen flow once in the Lightning UI (labels, button order, help text) — this has no metadata signal and is always a human-eyes step.
-- [ ] **No-signal visual artifacts (deployed, unconfirmed):** for each item the change log flags as deployed-but-needs-visual-QA (a new/edited Lightning page or FlexiPage, a Page Layout arrangement, a screen flow using a non-whitelist component, a custom LWC's rendered UI, a dashboard) — open it in the relevant builder, confirm it renders/behaves as the story needs, and adjust. The metadata IS deployed; there is simply no build-time signal that could confirm the visual result.
+- [ ] **No-signal visual artifacts (deployed, unconfirmed):** for each item the change log flags as deployed-but-needs-visual-QA (an edited Lightning record page, a Page Layout arrangement, a screen flow, a custom LWC's rendered UI, a dashboard) — open it in the relevant builder, confirm it renders/behaves as the story needs, and adjust. The metadata IS deployed; there is simply no build-time signal that could confirm the visual result.
 
 **Your Setup and Unresolved Work**
-Populate from the reconciled change log and the spec's SE Manual Checklist. Label docs-confirmed UI-only work with its source; distinguish it from missing provisioning, unavailable evidence, failed deployment or work Scout has not verified. Do not present every outstanding item as a Salesforce API limitation.
-- [ ] **Every reconciler BLOCKED manual item:** [ledger item id] — [specific SE
-  action]. Keep it visible until completed; a manual handoff is not a skip.
-- [ ] [SE Manual Checklist items from spec + change log "SE Must Do Next", rephrased with Setup navigation paths where applicable]
+Populate from the reconciled change log and the spec's manual checklist. Label docs-confirmed UI-only work with its source; distinguish it from missing provisioning, unavailable evidence, failed deployment or work Scout has not verified. Do not present every outstanding item as a Salesforce API limitation.
+- [ ] **Every reconciler BLOCKED manual item:** [ledger item id] — [specific action
+  for the builder]. Keep it visible until completed; a manual handoff is not a skip.
+- [ ] [Manual checklist items from spec + change log "Your Next Steps", rephrased with Setup navigation paths where applicable]
 - [ ] **Every remaining FAILED, BLOCKED or INCOMPLETE item:** [ledger item id, actual result, reason and next action]. A failed retrieval means source editability is unknown unless absence was positively established; do not prescribe an agent upgrade from that failure alone.
 
 **For each `actions_unverified_in_preview` entry in the change log, append a checklist item under Your Setup only when its reconciled ledger item remains AWAITING_QA, BLOCKED, FAILED, or INCOMPLETE.** Do not resurrect an entry whose exact action obligation has a current independent PASS; keep unrelated outstanding entries. The canonical definition of this field lives in `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md`. Formatting rules:
@@ -66,9 +66,9 @@ Populate from the reconciled change log and the spec's SE Manual Checklist. Labe
 - [ ] Agent **[api_name]** is authored + validated but NOT live (this org instance's headless publish route is not provisioned — a Salesforce platform gap, not a Scout limit). Take it live via the Builder UI runbook (`prompts/building/agent-ui-commit-runbook.md`): New Draft → merge your real topics into the template shell → reconcile action I/O → Commit → Activate. Then verify action side-effects in a live Messaging Session. Escalate the instance gap: Salesforce Support case citing the org instance ID.
 
 Append the change log's **actual absolute recovery artifact and recovery bundle
-paths** to that item so the SE can follow the runbook in a later session. If
+paths** to that item so the builder can follow the runbook in a later session. If
 preservation is blocked, say so, include the original scratch path and cleanup-
-withheld warning, and direct the SE to resolve preservation before proceeding.
+withheld warning, and direct the builder to resolve preservation before proceeding.
 Never describe an unverified or scratch-only file as a preserved blueprint.
 
 For an **Existing Agent Before-State** section, carry the original active version,
@@ -90,7 +90,7 @@ means cleanup stays withheld and the handover names the retained scratch path.
 **Want to Change Something? Two Ways.**
 This demo isn't locked. Pick the door that fits:
 
-**Quick tweak, fix, or tinker — stay right here.** Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? Just tell Claude what you want changed in this session — it'll use Scout's compact direct-repair route and the relevant Salesforce skill (`sf-flow`, `experience-lwc:experience-lwc-generate`, `salesforce-development:platform-data-manage`, and friends), then append the attempt and outcome to this org's change log automatically. These edits won't be written back to the spec — and that's fine for iteration.
+**Quick tweak, fix, or tinker — stay right here.** Wrong picklist value, a flow that should fire on close instead of create, seeded data that doesn't fit the story, a field in the wrong spot? Just tell Claude what you want changed in this session — it'll use Scout's compact direct-repair route and the relevant official Salesforce skill (`salesforce-development:platform-metadata-deploy` for a Flow edit, `experience-lwc:experience-lwc-generate`, `salesforce-development:platform-data-manage`, and friends), then append the attempt and outcome to this org's change log automatically. These edits won't be written back to the spec — and that's fine for iteration.
 
 **New scenario or structural rework — run `/scout`.** A different headline, a new agent, a story rebuild: open a new Claude Code session and run `/scout` with the change (and if you know the scenario cold, just tell Scout to move fast). It spars on the story first, then builds and checks each item, keeping this folder's history.
 
@@ -100,7 +100,7 @@ All files for this demo live in one folder. To open it, run this line in a termi
 [OPEN] "[ORG_FOLDER]"
 ```
 (`[OPEN]` is `open` on macOS, which shows the folder in Finder; `explorer.exe` on Windows, with the folder's path
-written with backslashes; and `xdg-open` on Linux. Give only the line for the SE's computer.)
+written with backslashes; and `xdg-open` on Linux. Give only the line for the builder's computer.)
 - `demo-spec-[...].md` — full build spec (what and why)
 - `changes-[...].md` — deployment log (what actually happened, rollback commands)
 - `audit-[...].md` — org snapshot before deployment

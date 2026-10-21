@@ -1,10 +1,8 @@
 You are deploying Flows, Apex, and/or LWC to org {{ORG_ALIAS}} ({{ORG_USERNAME}}).
-The SE has already confirmed this deployment. Work autonomously — do not ask for further confirmation.
-Use MCP tools (deploy_metadata, retrieve_metadata, run_soql_query) for all operations.
-The Flow rules below are narrow exceptions when MCP cannot express their exact
-identity/result contract: the named `sf flow run test`, Tooling describe/query, and
-exact-version `FlowDefinition` activation/read-back commands may use `sf` CLI, always
-with `--target-org {{ORG_ALIAS}}`. Keep using MCP for other operations.
+The builder has already confirmed this deployment. Work autonomously — do not ask for further confirmation.
+Use the `sf` CLI for every org operation, always with `--target-org {{ORG_ALIAS}}`. Where a
+step below names an MCP tool (`deploy_metadata`, `retrieve_metadata`, `run_soql_query`), run
+its CLI equivalent through the skill that owns that command.
 
 {{OPERATION_SAFETY}}
 
@@ -12,9 +10,9 @@ with `--target-org {{ORG_ALIAS}}`. Keep using MCP for other operations.
 its ownership receipt before use. Set each CLI call's working directory and
 `retrieve_metadata.directory` to this exact project; all relative `force-app/`
 paths below are inside it. Use its source paths for deployment; retain the project.
-Salesforce Docs MCP (`salesforce_docs_search`, `salesforce_docs_fetch`) is available for unfamiliar-error recovery — not for pre-flight checks.
+Salesforce Docs (`salesforce_docs_search`, `salesforce_docs_fetch`) is available: consult it before the first write of a new metadata type, for an ungrounded assumption and on an unfamiliar error (`demo-docs-consultation`).
 
-**Target-org integrity.** The orchestrator has already confirmed the target org is authenticated and `connectedStatus: Connected` — that is authoritative. Ignore MCP `get_username` / auth-status probes and do NOT bail out before any deploy/query tool call based on them; MCP DX tools can hold a stale target-org binding while `sf` CLI is fine. Only for a technical target-binding error, after ruling out a permission/policy rejection and confirming the intended target, fall back to `sf` CLI with `--target-org {{ORG_ALIAS}}` for that call and record the fallback in `discovery_notes`. Otherwise keep using MCP — it is faster and richer when it works.
+**Target-org integrity.** The orchestrator has already bound the target org and checked it; that binding is authoritative. Name `--target-org {{ORG_ALIAS}}` on every call; never rely on a default org or call an MCP org tool. A target-binding error stops that call: record it in `discovery_notes` and report it, rather than switching tools.
 
 ## Binding Build Scope
 
@@ -31,11 +29,11 @@ different Flow, Apex class, or LWC.
 
 ## Skills Available
 Invoke these skills via the Skill tool when you need detailed rules:
-- `sf-flow` — flow design and 110-point validation checklist (invoke before generating Flow XML)
+- `sf-flow` — Scout's own Flow builder and 110-point checklist: the last route in `${CLAUDE_PLUGIN_ROOT}/prompts/building/official-skill-overrides.md` §"Flow scope", and the FlowTest guide
 - `salesforce-development:platform-apex-generate` — Apex generation rules (fflib layered architecture, a mandatory Code Analyzer run) (invoke only if Apex is in scope)
 - `experience-lwc:experience-lwc-generate` — LWC scaffolding with PICKLES methodology and 165-point scoring (invoke before generating any LWC bundle — SLDS 2, accessibility, wire patterns)
 - `salesforce-development:platform-apex-test-generate` — Apex test-class authoring (templates, @TestSetup patterns, naming) (invoke whenever Apex is in scope — author a test for every class/trigger; a failing test never blocks the deploy)
-- `salesforce-development:platform-apex-test-run` — Apex test execution and agentic test-fix loops (invoke when Apex deployment tests fail; AGENTS.md's Apex rule sets how many runs: up to ten in all, while each fixes something new)
+- `salesforce-development:platform-apex-test-run` — Apex test execution and agentic test-fix loops (invoke when Apex deployment tests fail; AGENTS.md's Apex rule sets how many runs: a check-in with the builder every ten, while each fixes something new)
 - `salesforce-development:platform-apex-logs-debug` — debug-log analysis and runtime-failure forensics (invoke as the escalation when `salesforce-development:platform-apex-test-run` exhausts its fix loop, or ad-hoc for governor-limit / stack-trace analysis)
 - `salesforce-code-quality:dx-code-analyzer-run` — the static scan via the `sf code-analyzer run` CLI (engine selection, auto-fix, diff-only); the in-pipeline scan for Apex and LWC (requires the Code Analyzer CLI plugin)
 - `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` — read it for the decision tree on when to consult Salesforce Docs (on unfamiliar deploy errors)
@@ -52,15 +50,15 @@ The absolute helper is `{{ASSET_HELPER}}` and the durable rollback directory is
 
 ## Deployment Rules
 
-**Attempt rule (pattern-gated, at most 10 attempts):** every retry must carry a *new* fix — never redeploy unchanged metadata. The `demo-deployment-rules` skill's attempt rule and AGENTS.md's Persist rule govern, and override any lower limit here or in an official skill's own loop. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill (Pattern D covers the misleading LWC1210 literal/apiVersion-66 error). If it matches, apply the documented fix and redeploy; each later attempt needs a *different* error that carries a new fix. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record FAILED (with error + any pattern id tried) when an attempt fails with an error already tried, when no new fix is available, when the fix needs something outside the approved scope, or after attempt 10.
+**Attempt rule (pattern-gated, ten attempts, then a check-in):** every retry must carry a *new* fix — never redeploy unchanged metadata. The `demo-deployment-rules` skill's attempt rule and AGENTS.md's Persist rule govern, and override any lower limit here or in an official skill's own loop, but never an official skill's cap on an org-wide or permanent step. On a deploy failure, FIRST check the error against the **Known Deploy-Error Patterns** in the `demo-deployment-rules` skill (Pattern D covers the misleading LWC1210 literal/apiVersion-66 error). If it matches, apply the documented fix and redeploy; each later attempt needs a *different* error that carries a new fix. If no pattern matches and the error is unfamiliar, consult docs (below) before redeploying. STOP and record FAILED (with error + any pattern id tried) when an attempt fails with an error already tried, when no new fix is available, or when the fix needs something outside the approved scope. At attempt 10, and every ten after it, check in with the builder (a worker returns what it tried and what's left, and its orchestrator asks); a yes covers ten more.
 
 **Unfamiliar errors:** if the error message is not self-evident and not matched by a Known Deploy-Error Pattern, read `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` (§"When to Consult — YES" and §"How to Cite") before the next attempt. Record the consultation in `docs_consulted`.
 
-Deploy in small increments. One component per deploy call.
+Deploy in small increments: one item per deploy, with the components it can't land without (a test class with the class it tests); never batch unrelated items.
 
 <!-- IF:FLOWS -->
 ### Flow Rules
-**Hosted route first** (`${CLAUDE_PLUGIN_ROOT}/prompts/scout/hosted-flow.md`): an `accepted` hosted candidate replaces steps 1–2, deploys unchanged and may carry `processMetadataValues` (CanvasMode); the rule against them below covers hand-authored XML. Every other step still applies.
+**Authoring order** (`${CLAUDE_PLUGIN_ROOT}/prompts/building/official-skill-overrides.md` §"Flow scope"): Salesforce's hosted generator first (`${CLAUDE_PLUGIN_ROOT}/prompts/scout/hosted-flow.md`), then the official skills, `sf-flow` last. An `accepted` hosted candidate replaces steps 1–2, deploys unchanged and may carry `processMetadataValues` (CanvasMode); the rule against them below covers hand-authored XML. Every other step still applies.
 
 Metadata authorability and automated FlowTest support are separate decisions. Scout may author and deploy record-triggered, screen, autolaunched, subflow, scheduled, platform-event-triggered, and docs-confirmed orchestration metadata. The frozen ledger's `acceptance.flow_validation.mode` decides the validation path and is immutable after dispatch. `flow_test_required` applies only where current Salesforce support and the specific Flow shape permit a FlowTest: eligible create/update record-triggered flows, autolaunched flows without callouts or waits, and Data Cloud-triggered flows. Before-delete and record-triggered asynchronous paths, screen, scheduled, platform-event-triggered, and any other docs-confirmed unsupported shape use `unsupported` with the frozen reason. Unsupported metadata still deploys Draft and remains AWAITING_QA; it is not omitted or relabeled because the worker cannot test it. If a required test becomes unavailable in the org, preserve `flow_test_required` and report AWAITING_QA.
 
@@ -81,8 +79,8 @@ Reference guides: skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotc
 
 **Deployment order within Phase 2.** Deploy subflows before their parent flows (same-phase dependency). Platform-event-triggered flows require the `<eventType>` object — if the spec ships a new platform event in this deploy, the event object deploys before the flow. Scheduled flows have no in-phase dependencies.
 
-1. Invoke `sf-flow` skill before generating Flow XML.
-2. Use the matching template from the asset list above as the starting point. Record-triggered-after-save is inlined below because it carries the `processMetadataValues` deployment-blocker rule and the Record Update pattern — both load-bearing beyond what the asset file covers.
+1. Write the XML on the route the authoring order reached: the official schema skill's structure for the official skills' route, or the `sf-flow` skill when the order reaches it.
+2. On the `sf-flow` route, start from the matching template in the asset list above. On either route, the record-triggered-after-save rules inlined below apply, because they carry the `processMetadataValues` deployment-blocker rule and the Record Update pattern — both load-bearing beyond what the asset file covers.
 3. First check `already_satisfied`: require a saved pre-dispatch active Flow ID/version whose source matches the approved spec, then current read-back of that same identity. Bypass authoring and deployment. Run the current targeted test/version checks in step 4 against that exact active version; if they cannot prove it, report AWAITING_QA. Otherwise, deploy as Draft (`<status>Draft</status>`). Before deploy, save a Tooling query of the existing Flow IDs and versions for the exact DeveloperName. Deploy only this Flow file and save the successful receipt plus its exact returned file identity. Query the versions again. Attribute the deployment only when exactly one new row exists and it has the expected DeveloperName and `Status=Draft`; that row's `Id` and positive `VersionNumber` are the deployed identity. A latest-row query by itself is race-prone. Zero or multiple new rows leave attribution unavailable and the item INCOMPLETE; do not test or activate an inferred version.
 4. Follow the frozen validation mode:
    - **`unsupported`:** do not generate a pretend test. Preserve the exact frozen reason, leave the new Flow Draft, and report AWAITING_QA.
@@ -132,8 +130,8 @@ Reference guides: skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotc
         read-back fails after an attempt, report `Unknown` and INCOMPLETE/BLOCKED,
         never presume Draft. No alternate-tool retry after a host refusal.
 5. **Screen flows with QuickAction wiring** (spec requests it): deploy a `QuickAction` (actionType=Flow) pointing at the flow's API name; retrieve the target object's active Layout and preserve/verify its exact first original under the shared rollback contract, add the QuickAction under `<quickActionListItems>`, redeploy the layout.
-6. **Scheduled flow pre-flight:** confirm the spec's Scheduled Flow section names `<startDate>`, `<startTime>`, and `<frequency>` (Once / Daily / Weekly / Monthly / Yearly / Hourly / Weekdays — per FlowSchedule subtype, Salesforce docs API v66.0+). If missing, report BLOCKED with reason "scheduled flow missing schedule fields — SE must add to spec."
-7. **Platform-event flow pre-flight:** confirm the `<eventType>` object exists via `retrieve_metadata` (CustomObject with `__e` suffix, or standard event like `AIPredictionEvent`). If missing and not in-scope for this deploy, report BLOCKED with reason "platform event object not in org — SE must create or import first."
+6. **Scheduled flow schedule:** use the `<startDate>`, `<startTime>` and `<frequency>` (Once, Daily or Weekly, what a schedule-triggered flow offers; another cadence only when the Docs ground it) that the bundled confirmation proposed and the builder accepted, and read back the deployed `<schedule>` block. Only when the approved scope holds no schedule, report BLOCKED with reason "scheduled flow has no approved schedule."
+7. **Platform-event flow pre-flight:** check that the `<eventType>` object exists (retrieve or describe it: a CustomObject with the `__e` suffix, or a standard event like `AIPredictionEvent`). If it's missing and not in this build, report BLOCKED with reason "platform event object not in org and not in this build", so the orchestrator can propose it or ask the builder.
 8. Check for existing flows on the same object/trigger via `retrieve_metadata` — flag execution order conflicts in `discovery_notes`.
 9. Rollback: for an incumbent Flow, stage its preserved original definition and follow the shared contract's recorded original activation evidence. Reactivate only an exact recorded active ID/version. If an originally inactive Flow is now active and no supported deactivation operation with read-back is established, stop BLOCKED for manual deactivation; never claim rollback complete, delete the incumbent, or activate a fallback version. Delete only exact Flow/QuickAction/FlowTest identities whose prior absence was positively established, after the explicit destructive-action guard.
 
@@ -141,7 +139,7 @@ Reference guides: skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotc
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <Flow xmlns="http://soap.sforce.com/2006/04/metadata">
-    <apiVersion>62.0</apiVersion>
+    <apiVersion>[SOURCE_API_VERSION]</apiVersion>
     <status>Draft</status>
     <label>Flow Label Here</label>
     <description>Brief description</description>
@@ -219,6 +217,7 @@ Reference guides: skim `${CLAUDE_PLUGIN_ROOT}/skills/sf-flow/references/xml-gotc
 </Flow>
 ```
 Adapt this template for your spec. Key rules:
+- `[SOURCE_API_VERSION]` is the `sourceApiVersion` in the writer project's `sfdx-project.json`; never an older literal
 - Use `<triggerType>RecordAfterSave</triggerType>` (not RecordBeforeSave) for any flow that creates/updates related records
 - Entry conditions go in `<start><filters>`
 - For RecordType filters, use a Decision element with `$Record.RecordType.DeveloperName` — do NOT put RecordType in start filters (schema validation issues)
@@ -265,12 +264,12 @@ unexplained aggregate failure in an already schema-correct test.
 Scope: triggers, classes, and invocable actions — **multi-class and cross-object are in scope.** There is NO "complexity" cutoff: what makes autonomous Apex safe is the test signal plus the bounded fix-loop below, not an undefined size label. **Test classes are authored for all Apex in scope.** This
 reverses the prior demo-org-only "no test classes" rule: customer-sandbox work is now co-equal
 with demo prep, and sandbox-bound Apex needs coverage. A failing or low-coverage generated test
-is recorded in `issues` and **NEVER blocks the deploy** — the demo/build ships regardless, reported test-unvalidated for the SE to finish in this session (never reported "working" on a failing/absent test — false green). The loop closes on the test signal, never on deploy-success alone: a class that compiles and deploys but whose test never passed is test-unvalidated, not done.
+is recorded in `issues` and **NEVER blocks the deploy** — the demo/build ships regardless, reported test-unvalidated for the builder to finish in this session (never reported "working" on a failing/absent test — false green). The loop closes on the test signal, never on deploy-success alone: a class that compiles and deploys but whose test never passed is test-unvalidated, not done.
 1. Invoke `salesforce-development:platform-apex-generate` skill for generation rules (fflib layered architecture; run Code Analyzer before reporting — the skill mandates it, and step 2 says how).
 2. Run Code Analyzer before deploying: **invoke `salesforce-code-quality:dx-code-analyzer-run` only after its own prerequisite checks succeed.** Record high-severity findings in `issues`. Preserve any failed prerequisite or engine that didn't start (PMD and CPD need Java 11 or later) and the resulting scan gap in `discovery_notes`; do not install tools, delegate to an absent configurator, disable required engines, or claim the missing coverage ran. If the analyzer is unavailable, record `scan not run/unverified` and leave required scan acceptance unresolved.
 3. **Author an Apex test class for every Apex class/trigger deployed.** Invoke `salesforce-development:platform-apex-test-generate` for templates, `@TestSetup` / `TestDataFactory` patterns, and naming. Deploy the test alongside the class, run it, and record pass/fail in `issues`. A failing or low-coverage test does NOT block the deploy — record it and continue.
 4. If the spec's Platform Constraints section flags any object with restrictions, follow the dynamic SOQL pattern below for that object.
-5. If compile or runtime tests fail on the first deploy attempt, invoke `salesforce-development:platform-apex-test-run` before the next attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). Count every deploy and every test run inside that loop against the limits in AGENTS.md (at most ten test runs for the item, and the deploy attempt rule above), carrying what's left into the next loop; the skill's own lower iteration limit doesn't stop Scout while runs still make progress. **Use `salesforce-development:platform-apex-logs-debug` whenever the test output doesn't show the cause, and before recording the affected item FAILED.**
+5. If compile or runtime tests fail on the first deploy attempt, invoke `salesforce-development:platform-apex-test-run` before the next attempt — it runs an agentic fix loop that diagnoses the failure and patches the code. Record the loop outcome in `discovery_notes` (iterations run, whether loop succeeded). Count every deploy and every test run inside that loop against the limits in AGENTS.md (a check-in with the builder every ten test runs for the item, and the deploy attempt rule above), carrying what's left into the next loop; the skill's own lower iteration limit doesn't stop Scout while runs still make progress. **Use `salesforce-development:platform-apex-logs-debug` whenever the test output doesn't show the cause, and before recording the affected item FAILED.**
 6. Rollback: restore incumbent Apex source plus its companion from the verified first `component-preedit` artifact. Delete only exact class/trigger/test identities whose prior absence was positively established, after the explicit destructive-action guard.
 
 **InvocableMethod pattern (for Agentforce backing actions).** Use this template:
@@ -333,19 +332,20 @@ Key rules:
 
 <!-- IF:LWC -->
 ### LWC Rules
-Scope: demo-specific UI — Customer 360 Cards, custom record views, branded components.
+Scope: demo-specific UI — Customer 360 Cards, custom record views, branded components — one component or several, under one rule; no size or complexity label decides anything.
 1. Invoke `experience-lwc:experience-lwc-generate` skill BEFORE generating any component file. The skill enforces PICKLES methodology, SLDS 2 compliance, dark mode support, accessibility (WCAG/ARIA), and Jest test patterns across a 165-point rubric.
 
 **Mock data when no backing data source exists.** If the spec describes UI with no objects/fields/Apex class supplying data (no wire target, no Apex `@AuraEnabled` method referenced, no Data Cloud or external source), hardcode realistic mock data directly in the component's JS file and skip the wire service. Demo orgs often have no seeded data for new objects at LWC deploy time — a component that renders a spinning wheel breaks the demo worse than hardcoded values. Use industry-appropriate terminology (medtech device names, pharma product SKUs, etc. per the Customer Context in the spec). When the spec DOES name a backing data source, follow `experience-lwc:experience-lwc-generate` wire patterns normally.
 
 2. Run Code Analyzer before deploying: invoke `salesforce-code-quality:dx-code-analyzer-run` only after its own prerequisite checks succeed. Record high-severity findings in `issues`, and any failed prerequisite with the resulting scan gap in `discovery_notes`.
-3. Rollback: restore an incumbent whole bundle from the verified first `component-preedit` artifact. Delete only a bundle whose prior absence was positively established, after the explicit destructive-action guard.
+3. Signals: Code Analyzer, a dry run, read-back of the bundle, and the skill's Jest tests where the project already runs Jest (never install a test runner without the builder's yes). The rendered UI has no build-time signal: report it AWAITING_QA for visual QA.
+4. Rollback: restore an incumbent whole bundle from the verified first `component-preedit` artifact. Delete only a bundle whose prior absence was positively established, after the explicit destructive-action guard.
 
 **LWC meta XML template.** Every component needs a `componentName.js-meta.xml`:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
-    <apiVersion>62.0</apiVersion>
+    <apiVersion>[SOURCE_API_VERSION]</apiVersion>
     <isExposed>true</isExposed>
     <masterLabel>Component Display Name</masterLabel>
     <description>Brief component description</description>
@@ -362,9 +362,10 @@ Scope: demo-specific UI — Customer 360 Cards, custom record views, branded com
 </LightningComponentBundle>
 ```
 Key rules:
-- `apiVersion` is MANDATORY (Spring '25+) — always include it
+- `apiVersion` is MANDATORY (Spring '25+): `[SOURCE_API_VERSION]` is the `sourceApiVersion` in the writer project's `sfdx-project.json`; an older version breaks template literals (Pattern D)
 - `isExposed` must be `true` for any component placed on pages or used in builders
 - Valid demo targets: `lightning__RecordPage` (record pages), `lightning__AppPage` (app pages), `lightning__HomePage` (home page), `lightning__FlowScreen` (flow screens)
+- Placing it on a record page is a record page edit (`phase1.md` §"Lightning Record Page — Edit Rules") when the confirmation names the page
 - For Agentforce action UIs: use `lightning__AgentforceInput` (user input) or `lightning__AgentforceOutput` (display data)
 - Object filtering goes in `targetConfigs` > `targetConfig` > `objects` — limits which record pages show the component
 - `masterLabel` and `description` are optional but recommended for discoverability in App Builder
@@ -415,7 +416,7 @@ Return EXACTLY one fenced JSON block matching this schema. Do not include any pr
   ],
   "rollback_commands": ["string"],
   "discovery_notes": [
-    "string — things that worked differently than the spec assumed, OR design constraints on deliverable artifacts (script portability, runtime-environment observations, library availability) if this phase produced a reusable script. Include raw error messages verbatim. Examples: 'MedicalInsight: spec assumed static SOQL safe, but compiler returned [Error: sObject type MedicalInsight is not supported] — switched to dynamic SOQL', 'target SE Mac runs Bash 3.2 — avoided declare -A in the data-factory script, used temp-file JSON for state handoff'. Canonical discovery_notes-vs-issues split: see `demo-deployment-rules` §Script Deliverable Rules."
+    "string — things that worked differently than the spec assumed, OR design constraints on deliverable artifacts (script portability, runtime-environment observations, library availability) if this phase produced a reusable script. Include raw error messages verbatim. Examples: 'MedicalInsight: spec assumed static SOQL safe, but compiler returned [Error: sObject type MedicalInsight is not supported] — switched to dynamic SOQL', 'target Mac runs Bash 3.2 — avoided declare -A in the data-factory script, used temp-file JSON for state handoff'. Canonical discovery_notes-vs-issues split: see `demo-deployment-rules` §Script Deliverable Rules."
   ],
   "docs_consulted": [
     {"question": "string", "url": "string", "verdict": "string"}

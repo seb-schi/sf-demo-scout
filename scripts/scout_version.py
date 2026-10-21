@@ -5,21 +5,27 @@
 when the folder isn't one, and so does the update check, with `SCOUT_ROOT_INVALID`. The update check compares this
 copy's version with the plugin manifest on Scout's `main` branch and prints one `SCOUT_UPDATE` line with this host's
 way to update, or nothing when this copy is current, the check is off (`SCOUT_NO_UPDATE_CHECK=1`) or the answer is
-unknown (offline, rate-limited, unreadable). It sends no token or data beyond the request itself, waits at most three
-seconds, and asks GitHub at most once a day, a failed attempt included.
+unknown (offline, rate-limited, unreadable) and no earlier answer named a release. It sends no token or data beyond the
+request itself, waits at most three seconds, and asks GitHub at most once a day, a failed attempt included; a failed
+attempt keeps the release the last good answer named.
 """
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 from pathlib import Path
 import re
 import sys
+import tempfile
 import time
 import urllib.request
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import scout_portable  # noqa: E402  (ships beside this helper)
+
 ROOT = Path(__file__).resolve().parents[1]
 LATEST_URL = "https://raw.githubusercontent.com/seb-schi/sf-demo-scout/main/.claude-plugin/plugin.json"
 DAY = 24 * 60 * 60
@@ -57,29 +63,61 @@ def fetch() -> str | None:
     return version if isinstance(version, str) and parse(version) else None
 
 
-def latest(now: float | None = None) -> str | None:
-    """The newest release, from a cache under a day old or from GitHub; None when unknown."""
-    now = time.time() if now is None else now
-    path = cache_file()
+def read_cache(path: Path) -> tuple[str | None, float | None]:
+    """The cached release, when it's a strict version, and when it was last asked for; None for what's unreadable."""
     try:
         cached = json.loads(path.read_text(encoding="utf-8"))
-        if now - float(cached["checked"]) < DAY:
-            return cached["version"] if parse(cached.get("version")) else None
-    except (OSError, ValueError, UnicodeError, KeyError, TypeError):
-        pass
+    except (OSError, ValueError, UnicodeError):
+        return None, None
+    if not isinstance(cached, dict):
+        return None, None
+    version = cached.get("version")
+    try:
+        checked = float(cached["checked"])
+    except (KeyError, TypeError, ValueError, OverflowError):
+        checked = None
+    return (version if isinstance(version, str) and parse(version) else None), checked
+
+
+def latest(now: float | None = None) -> str | None:
+    """The newest release, from a cache under a day old or from GitHub; None when unknown.
+
+    An answer that isn't a strict version (offline, a proxy's sign-in page, a manifest without one) keeps the release
+    the cache already knew, so a newer release that's known stays announced."""
+    now = time.time() if now is None else now
+    path = cache_file()
+    known, checked = read_cache(path)
+    if checked is not None and now - checked < DAY:
+        return known
     version = fetch()
+    if not parse(version):
+        version = known
     try:  # a failed attempt counts too, so an offline machine waits a day rather than three seconds every time
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"version": version, "checked": now}), encoding="utf-8")
+        write_cache(path, {"version": version, "checked": now})
     except OSError:
         pass  # a read-only cache only means asking again next time
     return version
 
 
+def write_cache(path: Path, record: dict) -> None:
+    """Write the cache beside itself, then swap it in: a disk that fills mid-write leaves the old cache, and with it
+    the last known release, as it was."""
+    descriptor, temporary = tempfile.mkstemp(prefix=".update-check-", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(json.dumps(record))
+        scout_portable.replace(temporary, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(temporary)
+        raise
+
+
 def advice(host: str, root: Path = ROOT) -> str:
     if host == "claude":
         return ("Claude Code installs it with auto-update; to update now, run `claude plugin marketplace update scout` and "
-                "`claude plugin update sf-demo-scout@scout` in a terminal, then `/reload-plugins`.")
+                "`claude plugin update sf-demo-scout@scout` in a terminal, then open a new Claude Code session.")
     if host == "codex":
         return "Restart Codex to update it (or run `codex plugin marketplace upgrade scout`), then start a new chat."
     if (root / ".git").exists():
@@ -120,4 +158,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     sys.exit(main())

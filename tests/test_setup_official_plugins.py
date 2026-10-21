@@ -181,9 +181,10 @@ class OfficialPluginSetupTests(SetupFixture):
                             for row in state['plugins'] if row['id'] != 'service-engagement@salesforce']  # and one removed
         self.configure(**state)
         calls = len(self.calls_made())
-        out = self.run_setup('--keep-se-choices')
+        out = self.run_setup('--keep-builder-choices')
         self.assertIn('OFFICIAL_PLUGIN_LEFT experience-lwc disabled', out)
         self.assertIn('OFFICIAL_PLUGIN_LEFT service-engagement installable', out)
+        self.assertEqual(self.run_setup('--keep-se-choices'), out)  # the spelling before 2.4.1 still works
         self.assertFalse(any(c[:2] in (['plugin', 'install'], ['plugin', 'enable']) for c in self.calls_made()[calls:]))
         out = self.run_setup('--plugins', 'experience-lwc', 'service-engagement')  # after the SE's yes
         self.assertIn('OFFICIAL_PLUGIN_ENABLED experience-lwc', out)
@@ -193,13 +194,13 @@ class OfficialPluginSetupTests(SetupFixture):
         # Registered, nothing installed (an interrupted first setup, or an SE who only added the marketplace): a
         # self-repair run can't tell that from a removal, so it leaves them for the one question.
         self.configure(marketplaces=[{'name': 'salesforce', 'source': 'git', 'url': 'https://github.com/forcedotcom/sf-skills.git'}])
-        out = self.run_setup('--keep-se-choices')
+        out = self.run_setup('--keep-builder-choices')
         self.assertEqual([l for l in out if l.startswith('OFFICIAL_PLUGIN_LEFT')],
                          ['OFFICIAL_PLUGIN_LEFT %s installable' % p for p in PLUGINS])
         self.assertFalse([c for c in self.calls_made() if c[:2] == ['plugin', 'install']])
 
     def test_a_self_repair_run_still_sets_up_plugins_that_were_never_set_up(self):
-        out = self.run_setup('--keep-se-choices')  # no marketplace yet, so nothing missing is the SE's choice
+        out = self.run_setup('--keep-builder-choices')  # no marketplace yet, so nothing missing is the SE's choice
         self.assertEqual(out[0], 'OFFICIAL_MARKETPLACE_ADDED salesforce')
         self.assertEqual(out[2:7], ['OFFICIAL_PLUGIN_INSTALLED %s' % p for p in PLUGINS])
         self.assertFalse([line for line in out if line.startswith('OFFICIAL_PLUGIN_LEFT')])

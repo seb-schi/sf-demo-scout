@@ -60,7 +60,7 @@ component contract; delete only an exact positively-proven-new BusinessProcess.
 [API names, object, record type, driving field, step count]
 Rollback: restore an incumbent from its verified before-state under the shared
 component contract; delete only an exact positively-proven-new PathAssistant.
-Note: visual placement of the Path component on the Lightning record page is SE Manual (App Builder).
+Note: placing the Path component on a Lightning record page is a record page edit when the confirmation names the page; otherwise it's a manual-checklist item (App Builder).
 
 ## Flows Deployed (if any)
 [API names, description, active/draft status]
@@ -98,7 +98,7 @@ fixed retest. Worker smoke booleans are summary only. A PASS resolves only that 
 list every remaining Agentforce action, guardrail and QA obligation separately.]
 
 ## Actions Unverified in Preview (if any)
-Aggregated from the Phase 3 sub-agent's `actions_unverified_in_preview` array (see `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` for the canonical definition). The SE must verify each entry manually — in a live Messaging Session for session-context-dependent actions, or in Builder after creating dependent resources (e.g. Data Libraries for Knowledge grounding).
+Aggregated from the Phase 3 sub-agent's `actions_unverified_in_preview` array (see `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase3.md` for the canonical definition). The builder must verify each entry manually — in a live Messaging Session for session-context-dependent actions, or in the Builder UI after creating dependent resources (e.g. Data Libraries for Knowledge grounding).
 - **[Action name]** — [reason]
 
 ## Agent Not Live — UI Commit Required (only if Phase 3 `deployed.agent.status` = NeedsUICommit)
@@ -141,7 +141,7 @@ with later-added or unknown contents is retained.
 
 ## Script Deliverables
 
-Persistent artifacts from this deployment the SE can re-run after a re-spin or hand to a colleague. Each script is idempotent and exposes `--pilot-only` for a safe one-record rehearsal.
+Persistent artifacts from this deployment the builder can re-run after a re-spin or hand to a colleague. Each script is idempotent and exposes `--pilot-only` for a safe one-record rehearsal.
 
 - **[script path]**
   - Pilot: `[pilot_command]`
@@ -159,7 +159,7 @@ Aggregated from sub-agent `docs_consulted` arrays + any orchestrator-level error
   - **URL:** [doc URL]
   - **Verdict:** [what the doc confirmed/contradicted/left ambiguous]
 
-## SE Must Do Next (in order)
+## Your Next Steps (in order)
 1. [Specific steps with UI paths]
 
 ## How to Verify
@@ -169,8 +169,8 @@ Aggregated from sub-agent `docs_consulted` arrays + any orchestrator-level error
 [Unresolved items, follow-up]
 ```
 
-After saving, tell the SE:
-> "Change log saved. Review 'SE Must Do Next' — complete those before the demo."
+After saving, tell the builder:
+> "Change log saved. Review 'Your Next Steps' — complete those before the demo."
 
 Diagnostic accuracy: a test execution may roll back business DML while persisting test
 result records; do not label it literally read-only. Aggregate failures do not identify

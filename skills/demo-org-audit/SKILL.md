@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 Save to: `orgs/[alias]-[customer]/audit-[YYYY-MM-DD]-[HHmm].md`
 - alias from `sf config get target-org`
-- customer = lowercase-hyphenated customer name provided by SE during Stage 0 (e.g. `makana-medtech`, `deutsche-fachpflege`)
+- customer = lowercase-hyphenated customer name provided by the builder during Stage 0 (e.g. `makana-medtech`, `deutsche-fachpflege`)
 - HHmm = local time at audit creation (e.g. 0930, 1445)
 
 Use MCP `retrieve_metadata` for metadata and `run_soql_query` for record counts.

@@ -362,6 +362,38 @@ class WindowsLocationTests(unittest.TestCase):
             self.assertIn('A Sonnet pin was read at ' + str(settings), output)
             self.assertNotIn('\r', output)
 
+    def test_each_platform_names_its_own_sources_for_a_session_value(self):
+        # A value only the session has comes from the shell or a launch agent on macOS and Linux; on Windows from a
+        # user or system environment variable, or the app that started the session.
+        wording = {'darwin': 'session environment, set outside the files Scout read (shell profile, launch agent or host app)',
+                   'linux': 'session environment, set outside the files Scout read (shell profile, launch agent or host app)',
+                   'win32': 'session environment, set outside the files Scout read (a user or system environment '
+                            'variable, or the app that started the session)'}
+        with tempfile.TemporaryDirectory(prefix='scout-report-') as raw:
+            home = Path(raw)
+            environment = stand_ins.keep({'PATH': str(home / 'no-tools'), PIN: 'claude-sonnet-4-6',
+                                          'CLAUDE_CODE_USE_BEDROCK': '1'})  # no launchctl to find, on macOS either
+            for platform, surface in wording.items():
+                with self.subTest(platform=platform), patch.dict(os.environ, environment, clear=True), \
+                        patch.object(REPORT.subprocess, 'run', side_effect=AssertionError('no launchctl call')):
+                    rows, provider, failed = REPORT.collect(home, home / 'project', home / 'managed.json',
+                                                            home / 'vscode.json', home / '.zshrc', platform=platform)
+                    self.assertIn(dict(surface=surface, kind='shell', key=PIN, value='claude-sonnet-4-6'), rows)
+                    output = '\n'.join(REPORT.report(rows, provider, failed, platform=platform))
+                    self.assertIn(f'Model routing: {PIN} at {surface}:', output)
+                    if platform == 'win32':
+                        for macos in ('shell profile', 'launch agent', 'launchctl'):
+                            self.assertNotIn(macos, output)
+
+    def test_the_sonnet_advisory_names_launchctl_only_where_it_exists(self):
+        before = ('Model routing advisory: with no Sonnet pin read in user settings, managed settings or launchctl, '
+                  'the sonnet alias resolves to Sonnet 4.5 unless the session starts on a specific Sonnet version, so '
+                  'a host’s default worker under an Opus session gets 4.5. Reopen /setup-bedrock to pin Sonnet 5.5.')
+        self.assertEqual(REPORT.report([], 'bedrock', platform='darwin'), [before])
+        self.assertEqual(REPORT.report([], 'bedrock', platform='linux'), [before])
+        self.assertEqual(REPORT.report([], 'bedrock', platform='win32'),
+                         [before.replace('user settings, managed settings or launchctl', 'user settings or managed settings')])
+
     def test_each_platform_reads_its_own_managed_and_vscode_settings(self):
         home = Path(tempfile.gettempdir()) / 'scout-home'
         self.assertEqual(REPORT.default_managed('win32'), Path('C:\\Program Files\\ClaudeCode\\managed-settings.json'))

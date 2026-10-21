@@ -156,7 +156,7 @@ class InstallTests(unittest.TestCase):
                 self.assertNotIn("allowed-tools", description)  # only the description, never the next field
                 self.assertNotIn("argument-hint", description)
                 self.assertEqual("disable-model-invocation: true" in thin, user_only)
-        self.assertIn("when the SE asks to set up or update Scout", INSTALL.frontmatter("scout-setup")[0])
+        self.assertIn("when the builder asks to set up or update Scout", INSTALL.frontmatter("scout-setup")[0])
         self.assertEqual(INSTALL.frontmatter("scout")[0],
                          "Build, repair or prep demo items in a named Salesforce org, with targeted inspection and read-back.")
 

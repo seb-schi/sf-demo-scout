@@ -30,10 +30,10 @@ class PhaseRuleTests(unittest.TestCase):
 
     def test_explicit_no_apex_and_the_bounded_backing_action_fallback(self):
         phase3 = " ".join(read("prompts/building/phase3.md").split())
-        for rule in ("Explicit no-Apex is binding in every mode",
-                     "Showtime E4 permits standard actions only and never permits backing Apex fallback",
-                     "E3 never selects Phase 3 or authorizes an agent backing action",
-                     "Explicit no-Apex and Showtime E4 forbid backing Apex even after failure",
+        # 2.4.1: Scout 1.x's Showtime modes are gone; explicit no-Apex is the one rule that forbids the fallback.
+        self.assertNotIn("Showtime", phase3)
+        for rule in ("Explicit no-Apex is binding in every mode and never permits a backing Apex fallback",
+                     "Explicit no-Apex forbids backing Apex even after failure",
                      "fallback is allowed only when BUILD_SCOPE names it, the approved spec names the exact Apex class/action",
                      "the frozen expected-work ledger already contains matching artifact/action obligations",
                      "Generic permission is insufficient",
