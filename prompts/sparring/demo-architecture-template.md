@@ -50,7 +50,7 @@ ROLLING, not append-only. Newest at top. Two tiers, both one line each:
 ## Pointers (not duplicated here)
 - **Build ledger:** see change logs `changes-*.md` in this folder — what was actually deployed, per session.
 - **Latest build order:** see most recent `demo-spec-*.md`.
-- **Outstanding SE-manual work:** see the most recent change log's "SE Must Do" / handover brief.
+- **Outstanding manual work:** see the most recent change log's "Your Next Steps" / handover brief.
 - **Deep history:** the change logs are the archive — older decisions compacted out of the log above are recoverable there.
 ```
 
@@ -66,7 +66,7 @@ Write the doc for the FIRST time when a new or reuse-org session produces a spec
 
 This runs at iteration bootstrap, BEFORE the Stage 3i questions. Two cases.
 
-**Read cap (applies to BOTH cases — the balloon backstop):** change logs are read newest-first and CAPPED. Read at most the **5 most recent** relevant change logs in FULL. For any older change log still in scope, read ONLY its handover-brief / "SE Must Do" tail (the last section), not the whole ledger — the doc already reflects the rest, and full bodies are what front-loaded context on large demos. If you truncate, note it to the SE ("folded in the last 5 change logs in full; older ones by their handover tails"). NEVER read "all" change logs in full.
+**Read cap (applies to BOTH cases — the balloon backstop):** change logs are read newest-first and CAPPED. Read at most the **5 most recent** relevant change logs in FULL. For any older change log still in scope, read ONLY its handover-brief / "Your Next Steps" tail (the last section), not the whole ledger — the doc already reflects the rest, and full bodies are what front-loaded context on large demos. If you truncate, note it to the builder ("folded in the last 5 change logs in full; older ones by their handover tails"). NEVER read "all" change logs in full.
 
 **Case A — arch doc exists.** Reconcile it to current reality:
 1. Read `demo-architecture.md`. Note its `Last reconciled` timestamp and `Reconciled through` filename.
@@ -78,7 +78,7 @@ This runs at iteration bootstrap, BEFORE the Stage 3i questions. Two cases.
    - Carry the Value Spine forward (edit only if genuinely changed).
    - Do NOT create or grow a header narrative banner. If the prior doc has one (legacy), delete it — its content belongs in the arc.
    - Check the whole-doc budget (~350 lines / ~5k tokens). If over, compact harder before presenting.
-5. Present the drafted reconciliation to the SE as ONE message and wait:
+5. Present the drafted reconciliation to the builder as ONE message and wait:
    > "Here's the [Customer] demo as I have it recorded:
    > **Flow:** [current narrative arc, condensed to beats]
    > **Key decisions:** [last 2-3 decision-log entries]
@@ -86,7 +86,7 @@ This runs at iteration bootstrap, BEFORE the Stage 3i questions. Two cases.
    > Since I last reconciled ([date]), I folded in [N] change log(s): [1-line each]. [If capped: "(last 5 in full, [M] older by handover tail.)"] [If audit diff ran and found deltas: "The fresh audit also shows [X] I didn't have recorded."]
    >
    > **Anything change in the org since [date] that isn't in a change log?** (a live tweak, a fix, seed edits — only if it's not already above). Then confirm this picture or correct it."
-6. On SE confirm/correct: write the reconciled (compacted) doc, stamp `Last reconciled: [now]` and `Reconciled through: [newest change log folded in]`. THEN proceed to the Stage 3i questions — which now build on a confirmed shared picture instead of a cold interview.
+6. On the builder's confirm/correct: write the reconciled (compacted) doc, stamp `Last reconciled: [now]` and `Reconciled through: [newest change log folded in]`. THEN proceed to the Stage 3i questions — which now build on a confirmed shared picture instead of a cold interview.
 
 **Case B — no arch doc, but prior specs/change logs exist (backfill an in-flight demo).** Synthesize one:
 1. Read the most recent `demo-spec-*.md` (for Customer Context + Value Spine + scenario). For change logs, apply the read cap: the last 5 `changes-*.md` in full + the handover tails of any older ones — NOT every historical change log, and NOT every historical spec (older specs are superseded snapshots).
@@ -94,10 +94,10 @@ This runs at iteration bootstrap, BEFORE the Stage 3i questions. Two cases.
 3. Present it for confirm/edit with the same message shape as Case A step 5 (adjust the lead-in: "I don't have a living architecture doc for [Customer] yet, so I synthesized one from your latest spec and [M] change logs — confirm or correct, and it becomes the running record.").
 4. On confirm: write the doc, stamp `Last reconciled: [now]`, `Reconciled through: [newest change log]`. Proceed to Stage 3i questions.
 
-## Auto-draft decision entries (Stage 6, all authoring paths — SE-gated)
+## Auto-draft decision entries (Stage 6, all authoring paths — builder-gated)
 
-When (re)writing the doc at Stage 6, draft new Decision Log entries from THIS session's material decisions, then show them to the SE for confirm/edit before writing (never silent auto-write). Draw from:
-- The Stage 5 cut-gate answer (what the SE would cut / what's load-bearing → a decision about scope).
+When (re)writing the doc at Stage 6, draft new Decision Log entries from THIS session's material decisions, then show them to the builder for confirm/edit before writing (never silent auto-write). Draw from:
+- The Stage 5 cut-gate answer (what the builder would cut / what's load-bearing → a decision about scope).
 - Scenario forks (net-new vs modify-existing agent; existing-first vs new object).
 - Features proposed and dropped (→ a [REJECTED] entry so they're not re-proposed).
 Keep each entry to the template's ONE-line + **Why:** shape (a second line means it belongs in the change log). If nothing material was decided this session, add no entry — do not manufacture one.

@@ -192,4 +192,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    scout_portable.utf8_output()
     main()

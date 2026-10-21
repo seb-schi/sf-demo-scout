@@ -375,6 +375,19 @@ class CheckTests(Fixture):
                         files=['skills/platform-report-generate/references/column-names.md'])
         self.assertEqual(official.check(['report'])['report']['state'], 'installed')
 
+    def test_record_page_edits_need_the_page_skill_and_the_schema_reference(self):
+        # 2.4.1: record page edits run through Salesforce's page skill, with FlexiPage's schema from the metadata
+        # reference skill; readiness names whichever is missing.
+        self.assertEqual(official.capability_map()['capabilities']['flexipage'], {'skills': [
+            'salesforce-development:platform-flexipage-generate', 'salesforce-development:platform-metadata-api-context-get']})
+        root = self.plugin_dir('github', 'salesforce-development', skills=['platform-flexipage-generate'])
+        self.register('salesforce', GITHUB, 'salesforce-development', root)
+        report = official.check(['flexipage'])['flexipage']
+        self.assertEqual((report['state'], report['missing']),
+                         ('missing', ['salesforce-development:platform-metadata-api-context-get']))
+        self.plugin_dir('github', 'salesforce-development', skills=['platform-metadata-api-context-get'])
+        self.assertEqual(official.check(['flexipage'])['flexipage']['state'], 'installed')
+
     def test_the_worst_plugin_state_wins(self):
         root = self.plugin_dir('github', 'salesforce-development', skills=['platform-apex-generate'])
         self.register('salesforce', GITHUB, 'salesforce-development', root)

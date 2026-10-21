@@ -8,14 +8,14 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/demo-docs-consultation/SKILL.md` for the NO l
 
 Gather from prior stages — they drive search topic inference:
 - **Audit findings:** star-flagged build surface, non-universal standard objects from `demo_surface_notes` (Stage 3), existing agents, active flows, custom objects
-- **SE discovery answers:** pain points (Stage 3/3i), industry cloud named by SE (question 2), feature requests (question 6), build surface confirmation
+- **The builder's discovery answers:** pain points (Stage 3/3i), the industry cloud they named (question 2), feature requests (question 6), build surface confirmation
 - **Intent:** new scenario vs. iteration (determines search depth)
 
 ## Step 0 — Object Capability Pre-Flight
 
 For every managed or industry-cloud standard object the scenario will touch, run:
 
-Build the IN clause from: (a) non-universal standard objects with data, reported in the audit's `demo_surface_notes`, plus (b) any managed/industry objects the SE named during Stage 3 discovery.
+Build the IN clause from: (a) non-universal standard objects with data, reported in the audit's `demo_surface_notes`, plus (b) any managed/industry objects the builder named during Stage 3 discovery.
 
 ```sql
 SELECT QualifiedApiName, IsQueryable, IsEverCreatable, IsCustomizable
@@ -46,32 +46,32 @@ For each object with at least one restriction (IsEverCreatable/IsQueryable/IsTri
 
 Write the workaround into the Platform Constraints block as the `Impact` line:
 ```
-- Inquiry: IsEverCreatable=false (managed RT), not queueable. Impact: no API data seeding (SE manual), Apex must use Database.query() + .get() pattern, no queue routing available
+- Inquiry: IsEverCreatable=false (managed RT), not queueable. Impact: no API data seeding (manual, by the builder), Apex must use Database.query() + .get() pattern, no queue routing available
 ```
 
 Budget: 1 docs call per restricted object (typically 1-3 objects per scenario).
 
 **Skip this step for standard unmanaged objects** (Account, Contact, Case, Lead, Opportunity) — their capabilities are stable and well-known.
 
-**Managed-package default rule:** if an object has a non-null namespace prefix (visible in EntityDefinition or evident from the API name pattern), write `dynamic SOQL recommended (managed package)` in Platform Constraints regardless of EntityDefinition flags. EntityDefinition flags alone are insufficient — managed objects can reject static type references at compile time even when IsEverCreatable=true. If the scenario includes Agentforce actions on a managed object, add: `⚠️ Agentforce may reject managed objects at runtime — SE should confirm willingness to proceed (see `orgs/lessons/managed-packages.md` for known cases).`
+**Managed-package default rule:** if an object has a non-null namespace prefix (visible in EntityDefinition or evident from the API name pattern), write `dynamic SOQL recommended (managed package)` in Platform Constraints regardless of EntityDefinition flags. EntityDefinition flags alone are insufficient — managed objects can reject static type references at compile time even when IsEverCreatable=true. If the scenario includes Agentforce actions on a managed object, add: `⚠️ Agentforce may reject managed objects at runtime — the builder should confirm willingness to proceed (see `orgs/lessons/managed-packages.md` for known cases).`
 
 ## Step 1 — Infer Search Topics
 
 Based on audit + discovery, infer 3-7 doc search topics. Categories:
 
-1. **Industry data model** (if SE named an industry cloud): search for that cloud's standard data model, key objects, recommended patterns. Cross-reference against objects the audit found with data.
-2. **Feature-specific** (if SE named a feature in question 6): current capabilities, setup requirements, known limitations.
-3. **Agentforce patterns** (if the org has existing agents or scenario involves AI/automation): current Agent Script capabilities, available agent templates, topic routing patterns. Agentforce ships features monthly — always check current state. **Do NOT spend sub-agent budget inspecting a live agent's actual topic/action composition during sparring.** `GenAiPlannerBundle` / `AiAuthoringBundle` are non-retrievable via the Metadata API and non-queryable via SOQL — a sub-agent dispatched to "read the live agent's topics" returns unreliable, contradictory output (one such probe cost ~37k tokens / 28 tool calls and returned topics that contradicted both the prior spec and the SE's screenshot). It is a black box from the outside (same constraint the building pipeline hits when it must edit such an agent). If you need the agent's current wiring, ASK the SE for a screenshot of the Agent Builder topics list, or defer the inspection to building (which works against the agent in-org). Research the agent's *intended* design via docs here; do not try to reverse-engineer its *current* state.
+1. **Industry data model** (if the builder named an industry cloud): search for that cloud's standard data model, key objects, recommended patterns. Cross-reference against objects the audit found with data.
+2. **Feature-specific** (if the builder named a feature in question 6): current capabilities, setup requirements, known limitations.
+3. **Agentforce patterns** (if the org has existing agents or scenario involves AI/automation): current Agent Script capabilities, available agent templates, topic routing patterns. Agentforce ships features monthly — always check current state. **Do NOT spend sub-agent budget inspecting a live agent's actual topic/action composition during sparring.** `GenAiPlannerBundle` / `AiAuthoringBundle` are non-retrievable via the Metadata API and non-queryable via SOQL — a sub-agent dispatched to "read the live agent's topics" returns unreliable, contradictory output (one such probe cost ~37k tokens / 28 tool calls and returned topics that contradicted both the prior spec and the builder's screenshot). It is a black box from the outside (same constraint the building pipeline hits when it must edit such an agent). If you need the agent's current wiring, ASK the builder for a screenshot of the Agent Builder topics list, or defer the inspection to building (which works against the agent in-org). Research the agent's *intended* design via docs here; do not try to reverse-engineer its *current* state.
 4. **Data Cloud / Analytics** (if mentioned): current integration patterns, relevant features.
 5. **Platform capabilities** (for non-trivial features): Flow capabilities, LWC patterns, custom metadata approaches.
 
 For iterations: narrow to 1-3 searches focused on the specific change and its integration points.
 
-## Step 2 — SE Refinement (conditional)
+## Step 2 — Builder Refinement (conditional)
 
-If topics are straightforward (SE named a cloud -> search its data model; SE named a feature -> search it) — skip to Step 3. The SE will review findings in Step 4.
+If topics are straightforward (the builder named a cloud -> search its data model; they named a feature -> search it) — skip to Step 3. The builder will review findings in Step 4.
 
-If topics are ambiguous, numerous (>5), or span multiple unrelated areas, present and ask the SE to prioritize:
+If topics are ambiguous, numerous (>5), or span multiple unrelated areas, present and ask the builder to prioritize:
 
 > "Before I propose a scenario, I'll research these against current Salesforce docs:
 > 1. [topic — why it matters for this demo]
@@ -80,13 +80,13 @@ If topics are ambiguous, numerous (>5), or span multiple unrelated areas, presen
 >
 > Anything to add or remove from this list?"
 
-**Wait for SE response.** Adjust topics based on their input.
+**Wait for the builder's response.** Adjust topics based on their input.
 
 ## Step 3 — Execute Searches
 
 For each confirmed topic: run `salesforce_docs_search`, capture URL + question + verdict. If a search reveals related objects, standard fields, or platform patterns that affect the data model, note them — these directly shape the scenario proposal.
 
-Budget: 3-7 searches for new scenarios, 1-3 for iterations. If you find yourself exceeding 7, you're exploring too broadly — anchor on the SE's #1 pain point.
+Budget: 3-7 searches for new scenarios, 1-3 for iterations. If you find yourself exceeding 7, you're exploring too broadly — anchor on the builder's #1 pain point.
 
 **Docs-unavailable fallback:** If `salesforce_docs_search` returns 0 results for an industry-cloud object, fall back to the live org's FieldDefinition:
 ```
@@ -107,4 +107,4 @@ Present a structured summary of what docs revealed, grouped by impact:
 >
 > "These findings will shape the scenario I propose next. Any questions before I proceed?"
 
-**Wait for SE confirmation**, then return to the main command for Stage 5/5i.
+**Wait for the builder's confirmation**, then return to the main command for Stage 5/5i.

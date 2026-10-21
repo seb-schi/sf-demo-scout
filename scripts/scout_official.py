@@ -29,13 +29,13 @@ CAPABILITIES = ROOT / "assets" / "official-capabilities.json"
 # Worst first: a capability takes the worst state of the plugins it needs.
 STATES = ("unknown", "unsupported-host", "setup-needed", "conflict", "disabled", "missing", "installable", "installed")
 ACTIONS = {
-    "unknown": "Claude's plugin records couldn't be read; ask the SE to run /scout-setup",
+    "unknown": "Claude's plugin records couldn't be read; ask the builder to run /scout-setup",
     "unsupported-host": "this host can't load Salesforce's official skills; run /scout-setup",
     "setup-needed": "Salesforce's official skills aren't set up from GitHub; install them (official-skill-overrides.md §Missing-plugin repair), with /scout-setup on Codex and Cursor",
     "conflict": "another copy of the same plugin is switched on; /scout-setup offers to switch it off",
-    "disabled": "installed but switched off; Scout can switch it on after the SE's yes",
+    "disabled": "installed but switched off; Scout can switch it on after the builder's yes",
     "missing": "the installed official plugin doesn't have this; report the item blocked",
-    "installable": "not installed yet; Scout can install it after the SE's yes",
+    "installable": "not installed yet; Scout can install it after the builder's yes",
 }
 NAMED_LEVELS = ("off", "low", "standard", "high")  # the official recommender's own levels (sf_context.py)
 
@@ -356,7 +356,7 @@ def installation(plugin, host="claude", data=None):
 
 
 def check(names, host="claude", launch_dir=None):
-    """Each capability's state, the worst of the plugins it needs, with what's missing and the SE-facing action. With
+    """Each capability's state, the worst of the plugins it needs, with what's missing and the builder-facing action. With
     a launch folder, that folder's own plugin settings and installs count too."""
     data = capability_map()
     try:
@@ -638,7 +638,7 @@ def inspect(report, host, launch_dir):
                 optional[plugin] = {"state": state, "area": spec["offer"]}
     pinned = sorted({"%s@%s" % (f["ident"].rpartition("@")[2], f["pinned"]) for f in plugins.values() if f.get("pinned")})
     copies = (personal_copies(launch_dir, records) if records else None) if host == "claude" else []
-    notes = {}  # never blocking: setup can tidy the first; the second is the SE's to keep or remove
+    notes = {}  # never blocking: setup can tidy the first; the second is the builder's to keep or remove
     if pinned:
         notes["pinned"] = pinned
     if copies is None:
@@ -692,4 +692,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     raise SystemExit(main())

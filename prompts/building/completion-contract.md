@@ -36,7 +36,7 @@ Each completion row has exactly this meaning:
 - `awaiting_qa`: deployment/read-back succeeded but required visual, test, or live
   runtime confirmation remains. It is never success and never belongs in `skipped`.
 - There is no worker-authorized `skipped` status. Only the orchestrator's frozen
-  `authorized_skips[]` can produce SKIPPED, based on an explicit SE non-execution
+  `authorized_skips[]` can produce SKIPPED, based on an explicit builder non-execution
   decision or explicit approved-spec exclusion. Runtime refusals and manual
   handoffs are BLOCKED; deployed items awaiting confirmation are AWAITING_QA.
 

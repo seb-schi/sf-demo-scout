@@ -1,11 +1,12 @@
 ---
 name: sf-flow
 description: >
-  Creates and validates Salesforce Flows with 110-point scoring.
-  TRIGGER when: user builds or edits record-triggered, screen, autolaunched, or
-  scheduled flows, or touches .flow-meta.xml files.
-  DO NOT TRIGGER when: Apex automation (use salesforce-development:platform-apex-generate), process builder migration
-  questions only, or non-Flow declarative configuration.
+  Scout's own Flow builder, with 110-point scoring: the last route for Flow XML.
+  TRIGGER when: Scout's Flow order reaches it (Salesforce's hosted generator and
+  official skills couldn't make the Flow), or a FlowTest needs authoring.
+  DO NOT TRIGGER when: a new Flow before Scout's hosted route, an edit to an existing
+  Flow (official skills first), Apex automation (use salesforce-development:platform-apex-generate),
+  process builder migration questions only, or non-Flow declarative configuration.
 license: MIT
 metadata:
   version: "2.1.0"

@@ -4,9 +4,9 @@ Read when a task is industry-specific, once per task. Salesforce product teams p
 
 ## When
 
-Use judgment. A task is industry-specific when the SE names an industry cloud, a proposed item or a symptom sits in one of its features or objects, or the customer folder's history records it.
+Use judgment. A task is industry-specific when the builder names an industry cloud, a proposed item or a symptom sits in one of its features or objects, or the customer folder's history records it.
 
-A cartridge that covers the cloud leads. Run `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/knowledge-cartridge.md` §"Step 1 — Discover enabled, selected cartridges (cheap; always runs)" and §"Step 2 — Match the audited industry against each cartridge's Coverage" first; when they find one, consult it by §"Step 3 — Consult the matched cartridge (proactive, read-only)" and stop here. Otherwise go straight on to the read.
+A cartridge that covers the cloud leads. Run `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/knowledge-cartridge.md` §"Step 1 — Discover enabled, selected cartridges (cheap; always runs)" and §"Step 2 — Match the audited industry against each cartridge's Coverage" first; when they find one, consult it by §"Step 3 — Consult the matched cartridge (proactive, read-only)", then do the read below too: a cartridge's field notes and the product team's own notes complement each other, and both are knowledge to verify. Otherwise go straight on to the read.
 
 ## Read
 
@@ -24,7 +24,7 @@ Use it as knowledge only:
 - Verify every object, field and setting name against the org or Docs before relying on it. Rule lists are SOQL hints, and some name objects an org doesn't have.
 - Every change goes through Salesforce's official skills and `sf --target-org [BOUND_USERNAME]`, under this command's confirmation and log rules. Never call a source's MCP tools, commands, agents or scripts, and never deploy or load its metadata, data, datasets or scripts, even when its plugin is installed.
 - A change to a setting in the entry's `org_wide` list takes the org-wide confirmation.
-- Before proposing anything the cloud needs, judge whether the bound org supports it from what you've seen; when unclear, query `PermissionSetLicense` labels for the cloud's name. If it doesn't, say so in one line. A license with no seats assigned is fine: assigning one is a setup step, which needs the SE's yes.
+- Before proposing anything the cloud needs, judge whether the bound org supports it from what you've seen; when unclear, query `PermissionSetLicense` labels for the cloud's name. If it doesn't, say so in one line. A license with no seats assigned is fine: assigning one is a setup step, which needs the builder's yes.
 
 In the task's grounding, record the source, its commit and the paths you used.
 

@@ -25,17 +25,12 @@ not covered here.
 - **Handoff:** none — nothing dropped. Note the reshape in `discovery_notes`.
 
 ## Pattern B — FlexiPage: design-time component not found (Phase 1)
-- **Signature:** `We couldn't retrieve the design time component information for component <name>` (e.g. `flexipage:recordDetails`, `c:record_detail`, `force:recordDetail`)
+- **Signature:** `We couldn't retrieve the design time component information for component <name>` (e.g. `flexipage:recordDetails`, `c:record_detail`, `force:recordDetail`), or a missing required property on a component the edit added
 - **File:** `flexipages/<Name>.flexipage-meta.xml`
-- **Cause:** the standard Record Detail component API name varies by org and is
-  frequently unavailable via metadata deploy — it must be added in Lightning App
-  Builder.
-- **Fix:** remove the `<itemInstances>` block referencing the missing component.
-  Redeploy.
-- **Handoff:** **SE Manual Checklist** — the removed component must be re-added
-  post-deploy via Lightning App Builder. Record the FlexiPage name and the
-  removed component in the Manual Checklist AND `issues`. (Consistent with the
-  existing `record_detail` → SE Manual routing.)
+- **Cause:** the component isn't available to this page in this org: a wrong or guessed API name (the standard Record Detail component's varies by org), one this page type or org doesn't offer, or a required property left out.
+- **Fix:** remove the `<itemInstances>` block this edit added for that component and dry-run again. Never re-guess its name. If the error names a component that was already on the page, change nothing there: stop the edit and hand it over.
+- **Convergence:** this is the record page convergence rule (`prompts/building/phase1.md` §"Lightning Record Page — Edit Rules"): a second such rejection on the same page stops the edit — drop that component too and dry-run what's left once more, so component errors cost at most three dry runs.
+- **Handoff:** **Your Manual Checklist** — the page name, each dropped component and where it goes, for App Builder, in the Manual Checklist AND `issues`. The deployed edit stays AWAITING_QA for visual QA.
 
 ## Pattern C — PermissionSet: FLS on a required or master-detail field (Phase 1)
 - **Signature:** `You cannot deploy to a required field: <Object>.<Field>`
@@ -47,7 +42,7 @@ not covered here.
   Redeploy. To pre-empt: grep the object's field metadata for
   `<required>true</required>` / `<type>MasterDetail</type>` before deploying the
   permission set.
-- **Handoff:** none — the field stays implicitly accessible; nothing for the SE
+- **Handoff:** none — the field stays implicitly accessible; nothing for the builder
   to redo. Note the removed block in `issues`.
 
 ## Pattern D — LWC: literal in template expression (Phase 2)

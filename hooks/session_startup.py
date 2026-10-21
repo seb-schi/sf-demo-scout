@@ -2,9 +2,14 @@
 """Scout's session-start hook: standing rules, setup and official-plugin notices, and the active org.
 
 Claude Code runs it at each session start, through run-hook.cmd. Host-specific checks never consult another host.
-Outside the SE's workspace it prints only the notices that apply in every folder; inside, it adds the default
+Outside the builder's workspace it prints only the notices that apply in every folder; inside, it adds the default
 org's evidence, which it caches privately for the day. It never stops a session: a check that fails becomes a
 warning line, or nothing. The SCOUT_* environment overrides are narrow test seams.
+
+On Claude Code the model reads what the hook prints, and the builder sees only its JSON systemMessage. So there the
+builder gets the client floor line and one plain line for each notice: a session at low or medium effort, Salesforce's
+official plugins, a newer release. The model still gets the full text of the plugin and release notices, instructions
+for it included. Codex and Cursor read the plain text as before.
 """
 from __future__ import annotations
 
@@ -24,7 +29,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, NamedTuple, Optional
 
 sys.dont_write_bytecode = True
 HOOK_DIR = Path(__file__).resolve().parent
@@ -36,13 +41,27 @@ import scout_portable  # noqa: E402  (ships with the other helpers)
 INFO, WARN, OK = "ℹ️", "⚠️", "✅"  # the banner's emoji, exactly as before
 DASH = "—"
 
-# A broken setup is Scout's to repair: the session runs setup itself instead of asking the SE to (AGENTS.md, Setup).
-SELF_REPAIR = ("Before the first Scout task or Salesforce change in this session, tell the SE in one line that Scout "
+
+class Notice(NamedTuple):
+    context: str  # the model's full text, with any instruction meant only for it
+    line: str  # the one plain line the builder sees on Claude Code
+
+
+NO_NOTICE = Notice("", "")
+# A broken setup is Scout's to repair: the session runs setup itself instead of asking the builder to (AGENTS.md, Setup).
+SELF_REPAIR = ("Before the first Scout task or Salesforce change in this session, tell the builder in one line that Scout "
                "is repairing its setup, then run `/scout-setup self-repair` yourself (the `sf-demo-scout:scout-setup` "
                "skill with argument `self-repair`), once.")
-CONFLICT_NOTICE = (f"## {INFO} Two copies of Salesforce's official plugin are switched on. {SELF_REPAIR} "
-                   "It asks the SE before switching the extra one off.\n\n")
-MISSING_NOTICE = f"## {INFO} Scout builds with Salesforce's official plugins, which aren't set up yet. {SELF_REPAIR}\n\n"
+CONFLICT_NOTICE = Notice(f"## {INFO} Two copies of Salesforce's official plugin are switched on. {SELF_REPAIR} "
+                         "It asks the builder before switching the extra one off.\n\n",
+                         "Two copies of Salesforce's official plugin are switched on; Scout offers to switch the extra "
+                         "one off before its first task in this session.")
+MISSING_NOTICE = Notice(f"## {INFO} Scout builds with Salesforce's official plugins, which aren't set up yet. "
+                        f"{SELF_REPAIR}\n\n",
+                        "Scout builds with Salesforce's official plugins, which aren't set up yet; it sets them up "
+                        "before its first task in this session.")
+EFFORT_NOTICE = Notice("", "Scout works best on Opus 5.5 at High effort or higher. Switch with `/effort high`, or "
+                           "under Effort in the model picker.")
 RULES_LIMIT = 600
 READY = ("---\n**Ready.**\n"
          f"  /scout           {DASH} Scout 2.0: spar, build, fix or prep a demo in one session\n"
@@ -260,10 +279,10 @@ class Evidence:
         except EvidenceFailed:
             return ""
 
-    def hook_output(self, floor_line: str, context: str) -> str:
+    def hook_output(self, message: str, context: str) -> str:
         def run(h):
             self._text(h, context.encode("utf-8"))
-            return json.dumps({"systemMessage": floor_line, "hookSpecificOutput": {
+            return json.dumps({"systemMessage": message, "hookSpecificOutput": {
                 "hookEventName": "SessionStart", "additionalContext": context}})
         return self.call(run)
 
@@ -310,8 +329,9 @@ class ProgramEvidence(Evidence):
         except EvidenceFailed:
             return ""
 
-    def hook_output(self, floor_line: str, context: str) -> str:
-        return self.text(["hook-output", "--floor-line", floor_line], context.encode("utf-8"))
+    def hook_output(self, message: str, context: str) -> str:
+        # The helper's option is named for the message's first use, the client floor line.
+        return self.text(["hook-output", "--floor-line", message], context.encode("utf-8"))
 
 
 def evidence_for(path: str) -> Evidence:
@@ -402,7 +422,7 @@ def rules_block(root: str) -> str:
         root = root[:-1]
     path = (root + "/AGENTS.md").replace("\\", "\\\\").replace('"', '\\"')
     block = ("Scout is installed. Before any Salesforce org change, including a quick fix outside a Scout command, "
-             'read "' + path + '" and follow it.\nGet the SE\'s explicit confirmation before:\n'
+             'read "' + path + '" and follow it.\nGet the builder\'s explicit confirmation before:\n'
              "- Delete existing metadata or records\n- Modify existing profiles or permission sets\n"
              "- Touch anything prefixed `sb_` or `managed__`")
     return block if len(block) + 2 <= RULES_LIMIT else ""
@@ -418,16 +438,16 @@ def active_host() -> str:
         return ""
 
 
-def official_notice(host: str, clock: Clock) -> str:
+def official_notice(host: str, clock: Clock) -> Notice:
     """Salesforce's official plugins, which Scout builds with (Claude only; it never blocks). A client notice, so
-    it applies in every folder: an SE whose Scout updated while they work outside the workspace still gets setup
+    it applies in every folder: a builder whose Scout updated while they work outside the workspace still gets setup
     repaired. Local reads only, but bounded anyway: a stalled config folder must never stall the session start."""
     script = os.environ.get("SCOUT_OFFICIAL_SCRIPT") or str(SCRIPTS / "scout_official.py")
     if host != "claude" or not os.path.isfile(script):
-        return ""
+        return NO_NOTICE
     out = temp_file("scout-official.")
     if out is None:
-        return ""
+        return NO_NOTICE
     try:
         run_bounded(clock.bound(bounds()["official"]), out,
                     [sys.executable, "-B", script, "resolve", "--host", "claude", "--plugin", "salesforce-development",
@@ -440,19 +460,25 @@ def official_notice(host: str, clock: Clock) -> str:
     except (ValueError, KeyError, TypeError, IndexError):
         state = ""
     if state in ("installed", ""):
-        return ""
+        return NO_NOTICE
     return CONFLICT_NOTICE if state == "conflict" else MISSING_NOTICE
 
 
-def update_notice(host: str, clock: Clock) -> str:
+def effort_notice() -> Notice:
+    """A line for a builder whose Claude Code session runs at low or medium effort. Claude Code gives hook commands
+    its effort as $CLAUDE_EFFORT, though maybe not a session-start hook: unset, empty or another value says nothing."""
+    return EFFORT_NOTICE if os.environ.get("CLAUDE_EFFORT") in ("low", "medium") else NO_NOTICE
+
+
+def update_notice(host: str, clock: Clock) -> Notice:
     """One line when a newer Scout release is out (scripts/scout_version.py asks GitHub at most once a day, and
-    never blocks: offline or unknown says nothing)."""
+    never blocks: offline or unknown says nothing). The line is written for the builder, who sees it as it is."""
     script = os.environ.get("SCOUT_VERSION_SCRIPT") or str(SCRIPTS / "scout_version.py")
     if os.environ.get("SCOUT_NO_UPDATE_CHECK") == "1" or not os.path.isfile(script):
-        return ""
+        return NO_NOTICE
     out = temp_file("scout-version.")
     if out is None:
-        return ""
+        return NO_NOTICE
     try:
         run_bounded(clock.bound(bounds()["version"]), out,
                     [sys.executable, "-B", script, "--host", host if host in ("claude", "codex", "cursor") else "unknown"],
@@ -462,8 +488,9 @@ def update_notice(host: str, clock: Clock) -> str:
         unlink(out)
     line = (data or b"").decode("utf-8", errors="replace").strip()
     if not line.startswith("SCOUT_UPDATE ") or "\n" in line:
-        return ""
-    return f"## {INFO} {line[len('SCOUT_UPDATE '):]}\n\n"
+        return NO_NOTICE
+    text = line[len("SCOUT_UPDATE "):]
+    return Notice(f"## {INFO} {text}\n\n", text)
 
 
 def failure_reason(status: str) -> str:
@@ -718,12 +745,12 @@ class Startup:
                 "To work in another org, name it in your /scout request.\n\n")
 
 
-def emit(text: str, floor_line: str, evidence: Evidence) -> bool:
-    """Print the context as hook JSON with the client floor notice, when there is one and the helper works."""
-    if not floor_line:
+def emit(text: str, message: str, evidence: Evidence) -> bool:
+    """Print the context as hook JSON with the builder's message, when there is one and the helper works."""
+    if not message:
         return False
     try:
-        rendered = evidence.hook_output(floor_line, text)
+        rendered = evidence.hook_output(message, text)
     except EvidenceFailed:
         return False
     write(rendered + "\n")
@@ -736,10 +763,19 @@ def write(text: str) -> None:
     sys.stdout.buffer.flush()
 
 
-def finish(rules: str, legacy: str, floor_line: str, evidence: Evidence) -> None:
+def finish(rules: str, legacy: str, message: str, evidence: Evidence) -> None:
     context = rules + "\n\n" + legacy if rules else legacy
-    if not emit(context, floor_line, evidence):
+    if not emit(context, message, evidence):
         write(context)
+
+
+def builder_message(host: str, floor_line: str, notices: List[Notice]) -> str:
+    """What the builder sees: the client floor line, and on Claude Code, whose builder sees no plain hook output, one
+    line per notice. Elsewhere the notices' text stays in the plain output, as before, and their lines go nowhere."""
+    lines = [floor_line] if floor_line else []
+    if host == "claude":
+        lines += [notice.line for notice in notices if notice.line]
+    return "\n".join(lines)
 
 
 def stop_on_signals() -> None:
@@ -761,10 +797,13 @@ def main() -> int:
     evidence = evidence_for(os.environ.get("SCOUT_STARTUP_EVIDENCE") or str(SCRIPTS / "startup-evidence.py"))
     floor_line = client_floor(clock) if evidence.ready and not current_client_cached() else ""
     rules = rules_block(os.environ.get("CLAUDE_PLUGIN_ROOT", ""))
-    notice = official_notice(active_host(), clock) + update_notice(active_host(), clock)
+    host = active_host()
+    official, update = official_notice(host, clock), update_notice(host, clock)
+    notice = official.context + update.context
+    message = builder_message(host, floor_line, [effort_notice(), official, update])
     workspace = os.environ.get("SCOUT_WORKSPACE") or home_join("claude-projects", "sf-demo-scout")
     if not same_folder(launch_dir(), workspace):
-        finish(rules, notice, floor_line, evidence)
+        finish(rules, notice, message, evidence)
         return 0
     os.umask(0o077)
     startup = Startup(evidence, clock)
@@ -772,7 +811,7 @@ def main() -> int:
         report = startup.report(notice)
     finally:
         startup.cleanup()
-    finish(rules, report + "\n", floor_line, evidence)
+    finish(rules, report + "\n", message, evidence)
     return 0
 
 

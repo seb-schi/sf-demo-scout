@@ -3,7 +3,7 @@
 Read this only in prep mode. Prep is read-only: it returns before any task record, change log or history step. Its only local writes are `demo-path.md`, its backup under `.scout-work/prep/`, and scratch from `python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py scratch`.
 
 ## Start
-Bind, check the target and choose the folder as `skills/scout/SKILL.md` requires, but never create a folder: with no matching folder, say so and stop. Note the demo's date and time if the SE gave one ("demo tomorrow 10:00"), with a timezone; otherwise checks run against now. Before the first check, set `started_at` from `date +%Y-%m-%dT%H:%M:%S%z`.
+Bind, check the target and choose the folder as `skills/scout/SKILL.md` requires, but never create a folder: with no matching folder, say so and stop. Note the demo's date and time if the builder gave one ("demo tomorrow 10:00"), with a timezone; otherwise checks run against now. Before the first check, set `started_at` from `date +%Y-%m-%dT%H:%M:%S%z`.
 
 ## Collect the obligations
 Build one results file in scratch, `results.json`:
@@ -14,7 +14,7 @@ Each obligation is `{"key":"<task-file>#<B2/claim1|I3|FL1|manual2|…>","kind":"
 Find the story in this order:
 1. The task records' blocks: beats, claims and read-backs, item dispositions, flips with record IDs and before-values, seed assets, `valid_until`, visual-QA items, and the beat verdicts and rehearsal results that `prompts/scout/build.md` records.
 2. The map's arc.
-3. The change logs' Demo Story, How to Verify and SE Must Do Next.
+3. The change logs' Demo Story, How to Verify and Your Next Steps.
 
 Follow provenance to an originating log's sections, even past the read cap. Derive legacy prose into obligations yourself, naming the source section. If no story or proof moment can be recovered, say so; never invent beats.
 
@@ -45,12 +45,12 @@ Run every check through the helper, never by hand and never by running a stored 
 Record each result as `{"status":"passed|failed|unavailable|open|unknown|eye|visual_qa|persona","observed":"…","at":"<the helper's at, else date's>"}`. A flip record must sit in its before-state. A time-relative claim must hold through the demo's time: record its `valid_until`. Set `observed_at` the same way after the last check.
 
 ## Verdict, gate and publish
-Run in order, each with `--demo-time T` when the SE gave one:
+Run in order, each with `--demo-time T` when the builder gave one:
 1. `python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py verdict --results R`: the verdict is computed, never chosen.
    - **not ready:** any ✗, unavailable, open, unknown, unfinished, expired or unrecognized state, or a blocking gap.
    - **ready with exceptions:** the only gaps are check-by-eye, visual-QA and persona checks.
    - **ready:** every obligation passed.
-2. `python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py render --results R --folder F`, which prints the candidate C. It refuses a hand-made `demo-path.md`, or one whose Scout regions the SE edited: then report inline and offer a new file name.
+2. `python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py render --results R --folder F`, which prints the candidate C. It refuses a hand-made `demo-path.md`, or one whose Scout regions the builder edited: then report inline and offer a new file name.
 3. `python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py check --results R --candidate C --org-id [BOUND_ORG_ID] --username [BOUND_USERNAME]`: must exit 0.
 4. `python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_prep.py publish --results R --folder F --candidate C --org-id [BOUND_ORG_ID] --username [BOUND_USERNAME]`: gates again and replaces atomically; if it refuses, say why and name the files it kept.
 
@@ -63,5 +63,5 @@ Send one outcome-first message:
 
 Offer fixes; never apply them.
 - A reseed or reset uses this folder's own `seed_asset` only. Before offering it, check that the script takes `--target-org` explicitly and contains no `sf config set`, alias or default-org use. Show its path and last-modified time; recheck all three right before running it, and if anything changed, ask again.
-- On the SE's yes, run the fix as a normal `/scout` task, then run prep again in full.
+- On the builder's yes, run the fix as a normal `/scout` task, then run prep again in full.
 - An incompatible script, or any other fix, becomes a proposed `/scout` task.

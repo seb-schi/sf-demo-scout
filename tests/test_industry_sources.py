@@ -479,11 +479,14 @@ class HelperShapeTests(unittest.TestCase):
 
 
 class ContractTests(unittest.TestCase):
-    POINTER = ("When the task is industry-specific and no cartridge covers it, follow "
-               "`${CLAUDE_PLUGIN_ROOT}/prompts/scout/industry-sources.md`")
+    # 2.4.1: the source is read after a covering cartridge, so discovery no longer skips it when one covers the task.
+    POINTER = ("When the task is industry-specific, also follow "
+               "`${CLAUDE_PLUGIN_ROOT}/prompts/scout/industry-sources.md`: the product team's reviewed source comes "
+               "after a covering cartridge, not instead of it")
 
     def test_both_routes_point_to_the_contract(self):
         self.assertIn(self.POINTER, (ROOT / "prompts/scout/discovery.md").read_text())
+        self.assertNotIn('no cartridge covers it', (ROOT / "prompts/scout/discovery.md").read_text())
         overrides = (ROOT / "prompts/building/official-skill-overrides.md").read_text()
         readiness = overrides.split("## Readiness", 1)[1].split("\n## ", 1)[0]
         # T3 (2026-10-18): a pointer deferred to "once inspection shows the cloud" was read and not followed, so
@@ -517,6 +520,14 @@ class ContractTests(unittest.TestCase):
                        "never run `build-index`", "repo@commit:path", "missing or excluded",
                        "Never paste whole files back"):
             self.assertIn(phrase, brief)
+
+    def test_a_covering_cartridge_comes_first_and_the_source_is_read_too(self):
+        # 2.4.1: a Life Sciences task consulted the covering cartridge and stopped there, so the product team's own
+        # repo was read only when the builder asked for it. The cartridge leads; the source is read after it.
+        when = CONTRACT.split("## When", 1)[1].split("## Read", 1)[0]
+        self.assertNotIn("stop here", when)
+        self.assertIn("then do the read below too", when)
+        self.assertIn("both are knowledge to verify", when)
 
     def test_contract_names_no_specific_cartridge(self):
         # Scout reads a cartridge's published contract and names none (knowledge-cartridge.md).

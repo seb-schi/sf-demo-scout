@@ -26,6 +26,9 @@ import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import scout_portable  # noqa: E402  (ships beside this helper)
+
 LESSONS_INDEX = Path('orgs') / 'lessons' / 'INDEX.md'
 LESSONS_HEADER = '# Lessons Index'  # the first line Scout's setup has written since the lessons moved there
 
@@ -127,4 +130,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == '__main__':
+    scout_portable.utf8_output()
     sys.exit(main())

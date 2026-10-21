@@ -17,6 +17,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import scout_portable  # noqa: E402  (ships beside this helper)
+
 
 MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_DEPTH = 20
@@ -412,7 +415,7 @@ def _authorized_skips(
     for item_id, skip in indexed.items():
         if not _is_one_of(skip.get("authorization_type"), SKIP_AUTHORIZATIONS):
             errors.append(
-                f"authorized skip {item_id} requires explicit SE non-execution or spec exclusion"
+                f"authorized skip {item_id} requires explicit builder non-execution or spec exclusion"
             )
             continue
         if not _nonempty(skip.get("decision_source")) or not _nonempty(skip.get("reason")):
@@ -1483,7 +1486,7 @@ def _item_result(
         if item["kind"] == "manual":
             result.update(
                 disposition="BLOCKED",
-                reason="manual/SE action is still required and has no explicit non-execution authorization",
+                reason="manual/builder action is still required and has no explicit non-execution authorization",
             )
         return result
     status = completion.get("status")
@@ -1766,4 +1769,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     sys.exit(main())

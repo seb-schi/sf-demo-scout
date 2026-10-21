@@ -15,15 +15,38 @@ import time
 import unittest
 from unittest import mock
 
+import stand_ins
+
 
 ROOT = Path(__file__).resolve().parents[1]
 HOOK = ROOT / "hooks" / "session_startup.py"
 HOOKS_FILE = ROOT / "hooks" / "claude-hooks.json"
 HELPER = ROOT / "scripts" / "startup-evidence.py"
 SLUGIFY = ROOT / "scripts" / "slugify.py"
-SELF_REPAIR = ("Before the first Scout task or Salesforce change in this session, tell the SE in one line that Scout is "
+SELF_REPAIR = ("Before the first Scout task or Salesforce change in this session, tell the builder in one line that Scout is "
                "repairing its setup, then run `/scout-setup self-repair` yourself (the `sf-demo-scout:scout-setup` skill "
                "with argument `self-repair`), once.")
+# What the builder sees of each official-plugins notice on Claude Code, where the model gets the full text above.
+MISSING_LINE = ("Scout builds with Salesforce's official plugins, which aren't set up yet; it sets them up before its "
+                "first task in this session.")
+CONFLICT_LINE = ("Two copies of Salesforce's official plugin are switched on; Scout offers to switch the extra one off "
+                 "before its first task in this session.")
+UPDATE = "Scout 2.4.0 is installed; 2.5.0 is out. Restart."  # what the version stub reports, after SCOUT_UPDATE
+# The line for a session at low or medium effort, which adds nothing to the model's text.
+EFFORT_LINE = ("Scout works best on Opus 5.5 at High effort or higher. Switch with `/effort high`, or under Effort in "
+               "the model picker.")
+
+
+def hook_output(stdout: str) -> tuple[str, str]:
+    """What the model and the builder each get from one run: hook JSON's additionalContext and systemMessage, or a
+    plain output, which on Claude Code only the model reads."""
+    try:
+        payload = json.loads(stdout)
+    except ValueError:
+        return stdout, ""
+    return payload["hookSpecificOutput"]["additionalContext"], payload["systemMessage"]
+
+
 # Runs the hook with its cache publication refused, the way a failing rename would refuse it.
 REFUSE_REPLACE = """import runpy, sys
 sys.path.insert(0, sys.argv[2])
@@ -35,7 +58,37 @@ hook = sys.argv[1]
 sys.argv = [hook]
 runpy.run_path(hook, run_name="__main__")
 """
-NEEDS_BASH = unittest.skipUnless(Path("/bin/bash").exists(), "the sf and claude stubs are bash scripts")
+# Each org probe's bound in the fixture, and how long the timeout stand-in hangs past it: on Windows a probe starts
+# Node and then Python, which takes longer there, the first time most of all.
+PROBE_BOUND, PROBE_HANG = (6, 10) if stand_ins.WINDOWS else (3, 5)
+# The fixture's Salesforce CLI and claude stand-ins. Each logs the kind of call to SCOUT_FIXTURE_LOG, does what the
+# kind's mode file in SCOUT_FIXTURE_DIR says (ok, exit:N, timeout, or signal: it ends itself with SIGTERM), and then
+# prints its answer file from that folder.
+FIXTURE_PROBE = """
+with open(os.environ["SCOUT_FIXTURE_LOG"], "ab") as log:
+    log.write(kind.encode() + b"\\n")
+mode_file = folder / (kind + ".mode")
+mode = mode_file.read_text().strip() if mode_file.is_file() else "ok"
+if mode == "signal":
+    os.kill(os.getpid(), signal.SIGTERM)
+    time.sleep(5)
+elif mode == "timeout":
+    time.sleep(float(os.environ["SCOUT_FIXTURE_HANG"]))
+elif mode.startswith("exit:"):
+    sys.exit(int(mode[len("exit:"):]))
+sys.stdout.buffer.write((folder / answer).read_bytes())
+"""
+FIXTURE_SF = """import os, signal, sys, time
+from pathlib import Path
+folder = Path(os.environ["SCOUT_FIXTURE_DIR"])
+kind = {"config get": "config", "org list": "list", "org display": "display"}.get(" ".join(sys.argv[1:3]), "unknown")
+answer = kind + ".json"
+""" + FIXTURE_PROBE
+FIXTURE_CLAUDE = """import os, signal, sys, time
+from pathlib import Path
+folder = Path(os.environ["SCOUT_FIXTURE_DIR"])
+kind, answer = "mcp", "mcp.txt"
+""" + FIXTURE_PROBE
 
 
 def load_hook():
@@ -73,58 +126,17 @@ class StartupFixture:
         self.fixtures.mkdir()
         self.bin = base / "bin"
         self.bin.mkdir()
-        if os.name != "nt":  # for the bash stubs below, which the tests that need them don't run on Windows
-            (self.bin / "python3").symlink_to(sys.executable)
         self.settings.write_text('{"env":{"ANTHROPIC_AUTH_TOKEN":"synthetic"}}')
         self.scout_config.write_text("{}")
         self.log = base / "calls.log"
         # The machine's own Claude config never leaks in: by default the official plugin is set up, so no notice.
         self.claude_config = official_config(base / "claude-config", ready=True)
-        self._write_cli_stubs()
+        self.sf = stand_ins.salesforce_cli(self.bin, FIXTURE_SF)
+        self.claude = stand_ins.tool(self.bin, "claude", FIXTURE_CLAUDE)
         self.write_config("QA A")
         self.write_list([{"alias": "QA A", "username": "qa-a@example.invalid"}])
         self.write_display("QA A", username="qa-a@example.invalid")
         self.write_mcp("slack: https://mcp.slack.com - ✓ Connected\n")
-
-    def _write_cli_stubs(self) -> None:
-        sf = self.bin / "sf"
-        sf.write_text(
-            """#!/bin/bash
-set -u
-kind=unknown
-case "$1 $2" in
-  "config get") kind=config ;;
-  "org list") kind=list ;;
-  "org display") kind=display ;;
-esac
-printf '%s\n' "$kind" >> "$SCOUT_FIXTURE_LOG"
-mode_file="$SCOUT_FIXTURE_DIR/$kind.mode"
-mode=ok
-[ ! -f "$mode_file" ] || mode=$(cat "$mode_file")
-case "$mode" in
-  signal) kill -TERM $$ ;;
-  timeout) sleep 5 ;;
-  exit:*) exit "${mode#exit:}" ;;
-esac
-cat "$SCOUT_FIXTURE_DIR/$kind.json"
-"""
-        )
-        sf.chmod(0o700)
-        claude = self.bin / "claude"
-        claude.write_text(
-            """#!/bin/bash
-set -u
-printf '%s\n' mcp >> "$SCOUT_FIXTURE_LOG"
-mode=ok
-[ ! -f "$SCOUT_FIXTURE_DIR/mcp.mode" ] || mode=$(cat "$SCOUT_FIXTURE_DIR/mcp.mode")
-case "$mode" in
-  timeout) sleep 5 ;;
-  exit:*) exit "${mode#exit:}" ;;
-esac
-cat "$SCOUT_FIXTURE_DIR/mcp.txt"
-"""
-        )
-        claude.chmod(0o700)
 
     def write_config(self, target: str | None, *, malformed: bool = False) -> None:
         if malformed:
@@ -163,7 +175,7 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
         )
 
     def write_mcp(self, text: str) -> None:
-        (self.fixtures / "mcp.txt").write_text(text)
+        (self.fixtures / "mcp.txt").write_text(text, encoding="utf-8")
 
     def set_mode(self, kind: str, mode: str | None) -> None:
         path = self.fixtures / f"{kind}.mode"
@@ -185,8 +197,9 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
     ) -> subprocess.CompletedProcess[str]:
         workdir = cwd or self.workspace
         env = dict(os.environ)
+        # The stand-ins' folder first; on Windows Node's folder too, for the CLI's route, and no installed CLI's update.
+        env.update(stand_ins.cli_environment(self.bin, "/usr/bin", "/bin", "/usr/sbin", "/sbin"))
         env.update(
-            PATH=os.pathsep.join((str(self.bin), "/usr/bin", "/bin", "/usr/sbin", "/sbin")),
             PYTHONDONTWRITEBYTECODE="1",
             CLAUDE_PLUGIN_ROOT=plugin_root,
             SCOUT_HOST=host,
@@ -200,13 +213,15 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
             SCOUT_FIXTURE_DIR=str(self.fixtures),
             SCOUT_FIXTURE_LOG=str(self.log),
             # Keep ordinary stub startup tolerant of a busy developer machine.
-            # The timeout fixture sleeps five seconds, so a three-second bound
-            # still exercises the real process-group timeout/cleanup path.
-            SCOUT_NETWORK_TIMEOUT="3",
+            # The timeout fixture hangs past the bound, so it still exercises
+            # the real process-group timeout/cleanup path.
+            SCOUT_NETWORK_TIMEOUT=str(PROBE_BOUND),
+            SCOUT_FIXTURE_HANG=str(PROBE_HANG),
             CLAUDE_CONFIG_DIR=str(self.claude_config),
             PWD=str(workdir),
             SCOUT_NO_UPDATE_CHECK="1",  # never GitHub, nor the developer's own update cache, from a test
         )
+        env.pop("CLAUDE_EFFORT", None)  # nor the effort of a Claude Code session running the tests
         env.update(self.extra_env)
         if nocache:
             env["SCOUT_HOOK_NOCACHE"] = "1"
@@ -222,7 +237,8 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
             command,
             cwd=workdir,
             env=env,
-            text=True,
+            encoding="utf-8",  # what the hook prints on every platform, whatever the console's code page
+            errors="replace",  # for stderr, which a Python on Windows may write in the ANSI code page
             capture_output=True,
             timeout=30,  # a loaded machine (a review or second suite running) can pass 15 s on the 100-folder fixture
             check=False,
@@ -230,20 +246,78 @@ cat "$SCOUT_FIXTURE_DIR/mcp.txt"
 
 
 class StartupUpdateNoticeTests(unittest.TestCase):
+    """On Claude Code the builder sees only the hook's systemMessage, so the client floor and each notice go there as
+    one plain line each, while the model still gets the plugin and release notices' full text. Codex and Cursor keep
+    plain output."""
+
+    def setUp(self) -> None:
+        temp = tempfile.TemporaryDirectory(prefix="scout-update-notice-")
+        self.addCleanup(temp.cleanup)
+        self.fx = StartupFixture(Path(temp.name).resolve())
+        self.stub = self.fx.base / "version-stub.py"
+        self.stub.write_text("print(%r)\n" % ("SCOUT_UPDATE " + UPDATE))
+        # No client of this machine's own: only the test that names one gets a floor line.
+        self.fx.extra_env = {"SCOUT_VERSION_SCRIPT": str(self.stub), "SCOUT_NO_UPDATE_CHECK": "",
+                             "CLAUDE_CODE_EXECPATH": "", "CLAUDE_CODE_ENTRYPOINT": "", "CLAUDE_PLUGIN_DATA": ""}
+        self.outside = self.fx.base / "outside"
+        self.outside.mkdir()
+
     def test_a_newer_release_is_one_line_and_nothing_otherwise(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="scout-update-notice-") as raw:
-            base = Path(raw).resolve()
-            fixture = StartupFixture(base)
-            stub = base / "version-stub.py"
-            for printed, expected in (("SCOUT_UPDATE Scout 2.4.0 is installed; 2.5.0 is out. Restart.", True),
-                                      ("", False), ("Traceback (most recent call last):", False)):
-                with self.subTest(printed=printed):
-                    stub.write_text("print(%r)\n" % printed)
-                    fixture.extra_env = {"SCOUT_VERSION_SCRIPT": str(stub), "SCOUT_NO_UPDATE_CHECK": ""}
-                    result = fixture.run()
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual("2.5.0 is out" in result.stdout, expected, result.stdout)
-                    self.assertNotIn("Traceback", result.stdout)
+        for printed, expected in (("SCOUT_UPDATE " + UPDATE, True), ("", False),
+                                  ("Traceback (most recent call last):", False)):
+            with self.subTest(printed=printed):
+                self.stub.write_text("print(%r)\n" % printed)
+                result = self.fx.run()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                context, shown = hook_output(result.stdout)
+                self.assertEqual("2.5.0 is out" in context, expected, result.stdout)
+                self.assertEqual(shown, UPDATE if expected else "")
+                self.assertNotIn("Traceback", result.stdout)
+
+    def test_claude_code_shows_the_builder_the_line_and_codex_and_cursor_keep_plain_text(self) -> None:
+        self.assertEqual(hook_output(self.fx.run(cwd=self.outside).stdout), (f"## ℹ️ {UPDATE}\n\n", UPDATE))
+        for host in ("codex", "cursor"):
+            with self.subTest(host=host):
+                self.assertEqual(self.fx.run(cwd=self.outside, host=host).stdout, f"## ℹ️ {UPDATE}\n\n")
+
+    def test_a_low_or_medium_effort_gets_one_line_on_claude_code_only(self) -> None:
+        self.stub.write_text("print('')\n")  # no newer release, so the effort line is all there is to show
+        for effort, shown in (("low", EFFORT_LINE), ("medium", EFFORT_LINE), ("high", ""), (None, ""), ("", ""),
+                              ("xhigh", ""), ("max", ""), ("auto", "")):
+            with self.subTest(effort=effort):
+                self.fx.extra_env.pop("CLAUDE_EFFORT", None)  # None: unset, which Claude Code may leave it here
+                if effort is not None:
+                    self.fx.extra_env["CLAUDE_EFFORT"] = effort
+                result = self.fx.run(cwd=self.outside)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(hook_output(result.stdout), ("", shown))  # the model's context stays as it was
+        self.fx.extra_env["CLAUDE_EFFORT"] = "low"
+        for host in ("codex", "cursor"):
+            with self.subTest(host=host):
+                self.assertEqual(self.fx.run(cwd=self.outside, host=host).stdout, "")
+
+    def test_the_floor_line_and_every_notice_make_one_valid_message(self) -> None:
+        self.fx.claude_config = official_config(self.fx.base / "claude-config-missing", ready=False)
+        client = stand_ins.tool(self.fx.base, "old-claude", 'print("2.1.280 (Claude Code)")\n')
+        self.fx.extra_env.update(CLAUDE_CODE_EXECPATH=str(client), CLAUDE_CODE_ENTRYPOINT="claude-desktop",
+                                 CLAUDE_EFFORT="medium")
+        payload = json.loads(self.fx.run(nocache=True).stdout)
+        self.assertEqual(sorted(payload), ["hookSpecificOutput", "systemMessage"])
+        self.assertEqual(payload["hookSpecificOutput"]["hookEventName"], "SessionStart")
+        floor, effort, missing, update = payload["systemMessage"].split("\n")
+        self.assertTrue(floor.startswith("Scout needs Claude Code 2.1.293+ for the 5.5 models;"), floor)
+        self.assertEqual((effort, missing, update), (EFFORT_LINE, MISSING_LINE, UPDATE))
+        self.assertNotIn(SELF_REPAIR, payload["systemMessage"])
+        context = payload["hookSpecificOutput"]["additionalContext"]
+        self.assertIn(f"## ℹ️ Scout builds with Salesforce's official plugins, which aren't set up yet. "
+                      f"{SELF_REPAIR}\n\n## ℹ️ {UPDATE}\n\n", context)  # the model's full text, with the repair it runs
+        self.assertIn("## ✅ Active Org", context)
+
+    def test_scout_leaves_the_update_notice_to_the_claude_code_banner(self) -> None:
+        skill = (ROOT / "skills" / "scout" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("put a `SCOUT_UPDATE` line into your first message, once, unless on Claude Code your "
+                      "session-start context already holds the same notice, which the builder saw at session start;",
+                      skill)
 
 
 class StartupEvidenceTests(unittest.TestCase):
@@ -354,7 +428,6 @@ class StartupEvidenceTests(unittest.TestCase):
         self.assertEqual(calendar_invalid.returncode, 65)
 
 
-@NEEDS_BASH
 class StartupHookTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="scout-startup-test-")
@@ -369,8 +442,8 @@ class StartupHookTests(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         self.assertFalse(self.fx.cache.exists())
 
-    def test_the_setup_notice_also_reaches_an_se_outside_the_workspace(self) -> None:
-        # After Scout updates, an SE who starts Claude in another folder still learns that setup is needed;
+    def test_the_setup_notice_also_reaches_a_builder_outside_the_workspace(self) -> None:
+        # After Scout updates, a builder who starts Claude in another folder still learns that setup is needed;
         # the org probes stay workspace-only.
         outside = self.fx.base / "outside"
         outside.mkdir()
@@ -378,11 +451,11 @@ class StartupHookTests(unittest.TestCase):
         self.fx.claude_config = official_config(self.fx.base / "claude-config-empty", ready=False)
         result = self.fx.run(cwd=outside)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), "## ℹ️ " + notice)
+        self.assertEqual(hook_output(result.stdout), ("## ℹ️ " + notice + "\n\n", MISSING_LINE))
         self.assertEqual(self.fx.run(cwd=outside, host="codex").stdout, "")
         self.assertFalse(self.fx.log.exists())  # no org or MCP probes outside the workspace
         self.assertFalse(self.fx.cache.exists())
-        self.assertEqual(self.fx.run(nocache=True).stdout.count(notice), 1)
+        self.assertEqual(hook_output(self.fx.run(nocache=True).stdout)[0].count(notice), 1)
 
     def test_default_runtime_works_when_tmpdir_is_unset(self) -> None:
         result = self.fx.run(nocache=True, default_runtime=True)
@@ -417,13 +490,17 @@ class StartupHookTests(unittest.TestCase):
         self.assertNotIn("**Username:** space@example.invalid", second)
 
     def test_display_failure_non_connected_signal_and_timeout_are_distinct(self) -> None:
-        cases = (
+        cases = [
             ("exit:44", "Org 'QA A' evidence unavailable (exit 44)"),
             ("signal", "Org 'QA A' evidence unavailable (terminated by signal 15)"),
             ("timeout", "Org 'QA A' evidence unavailable (timed out)"),
-        )
+        ]
+        if stand_ins.WINDOWS:  # no signals there: a status past 128 is an exit status like any other
+            cases.append(("exit:143", "Org 'QA A' evidence unavailable (exit 143)"))
         for mode, expected in cases:
             with self.subTest(mode=mode):
+                if mode == "signal" and stand_ins.WINDOWS:
+                    self.skipTest("Windows has no signals to end a process with; the hook reports its exit status")
                 self.fx.set_mode("display", mode)
                 output = self.fx.run(nocache=True).stdout
                 self.assertIn(expected, output)
@@ -492,14 +569,16 @@ class StartupHookTests(unittest.TestCase):
         for secret in secrets:
             self.assertNotIn(secret, output)
             self.assertNotIn(secret, cache_text)
-        self.assertEqual(stat.S_IMODE(self.fx.cache.stat().st_mode), 0o700)
         cache_files = list(self.fx.cache.glob("*.json"))
         self.assertTrue(cache_files)
+        self.assertFalse(list(self.fx.cache.glob("*.partial*")))
+        self.assertEqual(list(self.fx.runtime.rglob("*")), [])
+        if stand_ins.WINDOWS:
+            return  # the rest checks POSIX permission bits, which Windows doesn't keep
+        self.assertEqual(stat.S_IMODE(self.fx.cache.stat().st_mode), 0o700)
         self.assertTrue(
             all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in cache_files)
         )
-        self.assertFalse(list(self.fx.cache.glob("*.partial*")))
-        self.assertEqual(list(self.fx.runtime.rglob("*")), [])
 
     def test_late_cache_publication_failure_discards_all_probe_evidence(self) -> None:
         fresh = self.fx.run()
@@ -525,12 +604,12 @@ class StartupHookTests(unittest.TestCase):
         self.assertIn("**Ready.**", missing)
 
     def test_missing_salesforce_cli_does_not_fall_through_to_user_path(self) -> None:
-        (self.fx.bin / "sf").unlink()
+        stand_ins.remove(self.fx.sf)
         output = self.fx.run(nocache=True).stdout
         self.assertIn("Default Salesforce org check unavailable (command unavailable)", output)
 
     def test_missing_claude_cli_does_not_probe_another_path(self) -> None:
-        (self.fx.bin / "claude").unlink()
+        stand_ins.remove(self.fx.claude)
         output = self.fx.run(nocache=True).stdout
         self.assertNotIn("Slack MCP registered", output)
         calls = self.fx.log.read_text().splitlines()
@@ -543,15 +622,13 @@ class StartupHookTests(unittest.TestCase):
             path.write_text('{"slack": "Needs authentication", "header": "RAW_SECRET"}\n')
         self.fx.log.write_text("")
         self.fx.settings.unlink()
-        codex = self.fx.bin / "codex"
-        codex.write_text(
-            '#!/bin/bash\n'
-            'printf "codex-mcp\\n" >> "$SCOUT_FIXTURE_LOG"\n'
-            'printf \'%s\\n\' \'[{"name":"slack","enabled":false,'
+        stand_ins.tool(self.fx.bin, "codex", (
+            'import os\n'
+            'with open(os.environ["SCOUT_FIXTURE_LOG"], "ab") as log:\n'
+            '    log.write(b"codex-mcp\\n")\n'
+            'print(\'[{"name":"slack","enabled":false,'
             '"disabled_reason":"requirements (Baseline)",'
-            '"transport":{"http_headers":{"Authorization":"RAW_SECRET"}}}]\'\n'
-        )
-        codex.chmod(0o700)
+            '"transport":{"http_headers":{"Authorization":"RAW_SECRET"}}}]\')\n'))
         result = self.fx.run(host="codex")
         self.assertEqual(result.returncode, 0, result.stderr)
         for wrong in ("LLM" + "GW", "Claude Code installer", "Opus", "Slack", "needs authentication", "RAW_SECRET"):
@@ -568,7 +645,9 @@ class StartupHookTests(unittest.TestCase):
         config = official_config(self.fx.base / "claude-config-notice", ready=False)
         self.fx.claude_config = config
         notice = "Scout builds with Salesforce's official plugins, which aren't set up yet"
-        self.assertIn(notice, self.fx.run(nocache=True).stdout)
+        context, shown = hook_output(self.fx.run(nocache=True).stdout)
+        self.assertIn(notice + ". " + SELF_REPAIR, context)
+        self.assertEqual(shown, MISSING_LINE)
         self.assertNotIn(notice, self.fx.run(nocache=True, host="codex").stdout)
         root = config / "cache/salesforce/salesforce-development/2.4.0"
         root.mkdir(parents=True)
@@ -582,11 +661,14 @@ class StartupHookTests(unittest.TestCase):
         output = self.fx.run(nocache=True).stdout
         self.assertNotIn(notice, output)
         self.assertNotIn("Two copies", output)
+        self.assertEqual(hook_output(output)[1], "")  # nothing to tell the builder: the plain context, as before
         enabled["salesforce-development@claude-plugins-official"] = True
         (config / "settings.json").write_text(json.dumps({"enabledPlugins": enabled}))
-        self.assertIn("Two copies of Salesforce's official plugin are switched on", self.fx.run(nocache=True).stdout)
+        context, shown = hook_output(self.fx.run(nocache=True).stdout)
+        self.assertIn("Two copies of Salesforce's official plugin are switched on", context)
+        self.assertEqual(shown, CONFLICT_LINE)
 
-    def test_a_broken_setup_is_repaired_by_the_session_not_left_to_the_se(self) -> None:
+    def test_a_broken_setup_is_repaired_by_the_session_not_left_to_the_builder(self) -> None:
         healthy = self.fx.run(nocache=True).stdout
         self.assertNotIn(SELF_REPAIR, healthy)
         self.fx.scout_config.unlink()  # setup never finished
@@ -594,7 +676,8 @@ class StartupHookTests(unittest.TestCase):
         self.fx.scout_config.write_text("{}")
         config = official_config(self.fx.base / "claude-config-repair", ready=False)
         self.fx.claude_config = config
-        self.assertIn("which aren't set up yet. " + SELF_REPAIR, self.fx.run(nocache=True).stdout)
+        missing = hook_output(self.fx.run(nocache=True).stdout)
+        self.assertIn("which aren't set up yet. " + SELF_REPAIR, missing[0])
         root = config / "cache/salesforce/salesforce-development/2.4.0"
         root.mkdir(parents=True)
         (config / "plugins/known_marketplaces.json").write_text(json.dumps(
@@ -604,11 +687,15 @@ class StartupHookTests(unittest.TestCase):
             "salesforce-development@claude-plugins-official": [{"scope": "user", "installPath": str(root)}]}}))
         (config / "settings.json").write_text(json.dumps({"enabledPlugins": {
             "salesforce-development@salesforce": True, "salesforce-development@claude-plugins-official": True}}))
-        conflict = self.fx.run(nocache=True).stdout  # setup repairs this one only on the SE's yes
-        self.assertIn("are switched on. " + SELF_REPAIR + " It asks the SE before switching the extra one off.", conflict)
-        for output in (healthy, conflict):
+        conflict = hook_output(self.fx.run(nocache=True).stdout)  # setup repairs this one only on the builder's yes
+        self.assertIn("are switched on. " + SELF_REPAIR + " It asks the builder before switching the extra one off.",
+                      conflict[0])
+        for output in (healthy, *missing, *conflict):
             self.assertNotIn("Run `/scout-setup`", output)
             self.assertNotIn("Run /scout-setup", output)
+        for shown in (missing[1], conflict[1]):  # the builder learns of the repair; running it is the session's job
+            self.assertTrue(shown)
+            self.assertNotIn("/scout-setup", shown)
 
     def test_the_notice_judges_the_folder_the_session_started_in(self) -> None:
         # Both copies are switched on for the user, but this project switches Anthropic's off: no "two copies" here.
@@ -628,7 +715,7 @@ class StartupHookTests(unittest.TestCase):
         (project / ".claude/settings.json").write_text(json.dumps(
             {"enabledPlugins": {"salesforce-development@claude-plugins-official": False}}))
         self.assertEqual(self.fx.run(cwd=project).stdout, "")
-        self.assertIn("Two copies of Salesforce's official plugin are switched on", self.fx.run(cwd=other).stdout)
+        self.assertEqual(hook_output(self.fx.run(cwd=other).stdout)[1], CONFLICT_LINE)
 
     def test_a_stalled_resolver_never_stalls_startup_or_shows_a_false_notice(self) -> None:
         slow = self.fx.base / "slow_official.py"

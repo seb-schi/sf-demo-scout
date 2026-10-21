@@ -990,4 +990,5 @@ def main(argv: Sequence[str] = None) -> int:
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     sys.exit(main())

@@ -29,7 +29,7 @@ Apply this before Scout setup, discovery, builds, repairs, or tool calls.
   `PYTHON_MANAGER_AUTOMATIC_INSTALL=false py -3 --version`). Wherever Scout's text runs
   `python3`, run `[PYTHON]`. When none qualifies, say Python 3.9 or later is needed, name
   the install command for the OS (on Windows `winget install --exact --id
-  Python.PythonInstallManager`, then `py install default`), and stop before any helper call.
+  Python.PythonInstallManager`, then `pymanager install default`), and stop before any helper call.
 - Scout's fences are one command each wherever they run outside Claude. Values a
   fence writes as `$NAME`, `{{NAME}}` or `[NAME]` are placeholders: substitute them
   before running it, since on Windows the shell may be PowerShell or `cmd.exe`.
@@ -37,6 +37,14 @@ Apply this before Scout setup, discovery, builds, repairs, or tool calls.
   is rewritten into a Windows path before the command sees it, which breaks Salesforce
   URL paths such as `/lightning/...`. Put `MSYS_NO_PATHCONV=1` in front of such a
   command, that command only; never in PowerShell or `cmd.exe`.
+- On Windows, `sf` is a batch launcher. When its folder has a space (the Windows
+  installer's `C:\Program Files\sf`, or npm's under a user folder with a space), cmd.exe
+  can cut that path at the space if another argument is quoted: the call fails with
+  `'C:\Program' is not recognized`. Rerun it with the argv that `[PYTHON]
+  "[PLUGIN_ROOT_ABS]/scripts/scout_sf_argv.py"` prints, the CLI Scout's own helpers run,
+  and the same arguments; when it can't resolve one, say so and stop that call. For the installer's copy, say once that npm's usually avoids
+  this: uninstall **Salesforce CLI** in Settings → Apps, then
+  `npm.cmd install --global @salesforce/cli` in PowerShell.
 - On Windows, Salesforce's official skills run bash scripts and `jq`. Check both once
   per session, before setup's official-skills step and before a build's first deploy
   through an official skill: `jq --version` must report 1.7 or later, and `bash` must
@@ -47,7 +55,7 @@ Apply this before Scout setup, discovery, builds, repairs, or tool calls.
   line (`winget install --exact --id jqlang.jq`, `winget install --exact --id Git.Git`)
   and follow `prompts/building/official-skill-overrides.md` §Hosts.
 - If a Scout file goes missing mid-task (an update can replace the plugin folder
-  under a running session), stop, keep progress in the task record, and tell the SE
+  under a running session), stop, keep progress in the task record, and tell the builder
   to start a new session; never rebuild a helper or prompt from memory. On Codex, a
   restart of the app loads an update; a new chat alone keeps the version it has.
 - Claude-specific `allowed-tools` and `mcp__plugin_...`/`mcp__...` names are
@@ -63,7 +71,7 @@ Apply this before Scout setup, discovery, builds, repairs, or tool calls.
   they're `$sf-demo-scout:scout` and `$sf-demo-scout:scout-setup`. Name them that
   way when you tell a Codex user to run one.
 - Questions: on Claude use `AskUserQuestion`; on Codex and Cursor, ask in plain text
-  with numbered options, and accept the SE's number or words.
+  with numbered options, and accept the builder's number or words.
 - Long waits: on Claude, run them in the background and let the session wake; on
   Codex and Cursor, run them in the foreground and relay the helpers' progress lines.
 - `/model` notices and `Agent(...)` examples apply to Claude. On Codex and Cursor use
@@ -73,6 +81,9 @@ Apply this before Scout setup, discovery, builds, repairs, or tool calls.
   instruct a Codex or Cursor user to switch to an unavailable Claude model.
 - Reloads: on Claude, `/reload-plugins` or a new session; on Codex, a new chat, and a
   restart of the app to fetch an update; on Cursor, a new chat or Reload Window.
+- Install, update or remove plugins only with the host's own commands (on Claude Code,
+  `claude plugin …` in a terminal, since the desktop app doesn't run `/plugin`) or
+  `/scout-setup`; never write a host's plugin registry or marketplace files yourself.
 - When a host's sandbox or policy refuses a call, name the access the call needed
   (network to the org, or the Salesforce CLI's files in `~/.sf` and `~/.config`) and
   the host's own approval path. Tell a sandbox limit from a policy denial, and never

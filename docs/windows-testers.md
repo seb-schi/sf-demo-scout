@@ -6,19 +6,18 @@ asks for a password.
 
 ## Before you start
 
-You need Windows 11 (x64), and in a PowerShell window:
-
-1. **Git for Windows:** `git --version`. If it's missing: `winget install Git.Git`.
-2. **Python 3.9 or later:** `py -3 --version`. If it's missing: `winget install Python.Python.3.12`.
-3. **Node 22.20 or later:** `node --version`. If it's missing or older: `winget install OpenJS.NodeJS.LTS`.
-4. **The Salesforce CLI:** `sf --version`. If it's missing: `npm install --global @salesforce/cli`.
-5. **jq:** `jq --version`. If it's missing: `winget install jqlang.jq`. Salesforce's official skills use it.
-
-Open a new PowerShell window after any install, so the new commands are found.
+You need Windows 11 (x64 or ARM). In PowerShell, check the five tools in the README's
+[On Windows (beta): the tools first](../README.md#on-windows-beta-the-tools-first), and fix what's missing the
+way it says. Then open a new PowerShell window, and quit and reopen the Claude, Codex or Cursor app, so the new
+commands are found. If a step fails, look up its message in [Troubleshooting](troubleshooting.md) before you
+report it, and say in your report whether a fix from there worked.
 
 ## The checks, once for each host you use
 
-Install Scout the way the README says for that host (Claude Code, Codex or Cursor), then:
+Install Scout the way the README says for that host (Claude Code, Codex or Cursor). On Claude Code, the install
+lines run in PowerShell (`claude plugin marketplace add …`, then `claude plugin install …`), because the desktop
+app doesn't run `/plugin`; if PowerShell doesn't know `claude`, install it first with
+`winget install Anthropic.ClaudeCode`. Then:
 
 | # | Do this | It passes when |
 |---|---|---|

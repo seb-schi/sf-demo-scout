@@ -15,6 +15,9 @@ import subprocess
 import sys
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import scout_portable  # noqa: E402  (ships beside this helper)
+
 PROVIDERS = {'CLAUDE_CODE_USE_BEDROCK': 'bedrock', 'CLAUDE_CODE_USE_VERTEX': 'vertex',
              'CLAUDE_CODE_USE_FOUNDRY': 'foundry', 'CLAUDE_CODE_USE_ANTHROPIC_AWS': 'aws'}
 KEYS = ('ANTHROPIC_MODEL', 'ANTHROPIC_DEFAULT_MODEL', 'ANTHROPIC_SMALL_FAST_MODEL',
@@ -75,7 +78,16 @@ def read_text(path: Path) -> str:
     return content.decode('utf-8')
 
 
-def collect(home: Path, project: Path, managed: Path, vscode: Path, zshrc: Path) -> tuple[list[dict], str, bool]:
+def session_surface(platform: str) -> str:
+    """Where a session value that none of the files Scout read sets comes from, in the platform's own terms."""
+    origin = ('a user or system environment variable, or the app that started the session' if platform == 'win32'
+              else 'shell profile, launch agent or host app')
+    return f'session environment, set outside the files Scout read ({origin})'
+
+
+def collect(home: Path, project: Path, managed: Path, vscode: Path, zshrc: Path,
+            platform: str | None = None) -> tuple[list[dict], str, bool]:
+    platform = platform or sys.platform
     rows, failed, environments = [], False, []
     def add(surface: str, kind: str, key: str, value: object) -> None:
         if key in KEYS or key == 'model' or re.fullmatch(r'ANTHROPIC_DEFAULT_[A-Z]+_MODEL', key):
@@ -129,7 +141,7 @@ def collect(home: Path, project: Path, managed: Path, vscode: Path, zshrc: Path)
         pass
     except (OSError, UnicodeError, ValueError):
         failed = True
-    launchctl = shutil.which('launchctl') if sys.platform == 'darwin' else None
+    launchctl = shutil.which('launchctl') if platform == 'darwin' else None
     if launchctl:
         for key in KEYS:
             try:
@@ -142,8 +154,7 @@ def collect(home: Path, project: Path, managed: Path, vscode: Path, zshrc: Path)
     # second source; wait until shell/launchctl sources have also been read.
     for key, value in os.environ.items():
         if not any(row['key'] == key and row['value'] == value for row in rows):
-            add('session environment, set outside the files Scout read (shell profile, launch agent or host app)',
-                'shell', key, value)
+            add(session_surface(platform), 'shell', key, value)
     effective = {}
     for env in environments:
         effective.update(env)
@@ -179,7 +190,8 @@ def fix(row: dict, provider: str, family: str) -> str:
     return where + advice
 
 
-def report(rows: list[dict], provider: str, failed: bool = False) -> list[str]:
+def report(rows: list[dict], provider: str, failed: bool = False, platform: str | None = None) -> list[str]:
+    platform = platform or sys.platform
     lines, uncertain = [], failed
     forced = any(row['key'] == 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE' and row['value'] == '1' for row in rows)
     pins = {row['key'] for row in rows if row['key'].startswith('ANTHROPIC_DEFAULT_') and row['value']
@@ -211,7 +223,9 @@ def report(rows: list[dict], provider: str, failed: bool = False) -> list[str]:
         sources = '; '.join(dict.fromkeys(row['surface'] for row in sonnet_pins))
         limited = (f'A Sonnet pin was read at {sources}; sessions started without it can still resolve sonnet to 4.5. '
                    if sources else '')
-        lines.append('Model routing advisory: with no Sonnet pin read in user settings, managed settings or launchctl, '
+        # launchctl is macOS's; Windows has no such source, and the report reads it only on macOS.
+        read = 'user settings or managed settings' if platform == 'win32' else 'user settings, managed settings or launchctl'
+        lines.append(f'Model routing advisory: with no Sonnet pin read in {read}, '
                      'the sonnet alias resolves to Sonnet 4.5 '
                      'unless the session starts on a specific Sonnet version, so a host’s default worker '
                      'under an Opus session gets 4.5. '
@@ -241,10 +255,6 @@ def default_vscode(home: Path, platform: str = sys.platform) -> Path:
 
 
 def main() -> None:
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", newline="\n")  # the report's lines and paths, the same everywhere
-    except (AttributeError, ValueError):
-        pass
     parser = argparse.ArgumentParser()
     parser.add_argument('--managed', type=Path, default=default_managed())
     parser.add_argument('--project', type=Path, default=Path.cwd())
@@ -260,4 +270,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    scout_portable.utf8_output()
     main()

@@ -42,10 +42,13 @@ def keep(environment: dict) -> dict:
     return environment
 
 
-def cli_environment(folder) -> dict:
-    """PATH and LOCALAPPDATA for a test of the Salesforce CLI stand-in in `folder`: on Windows, Node's folder is on
-    the PATH for Scout's runner, and no installed CLI can be found in its place."""
-    return {"PATH": path(folder, node=True), "LOCALAPPDATA": NO_LOCAL_APP_DATA} if WINDOWS else {"PATH": str(folder)}
+def cli_environment(folder, *more) -> dict:
+    """PATH and LOCALAPPDATA for a test of the Salesforce CLI stand-in in `folder`, with any `more` folders after it
+    on the PATH: on Windows, Node's folder follows them for Scout's runner, and no installed CLI can be found in its
+    place."""
+    if WINDOWS:
+        return {"PATH": path(folder, *more, node=True), "LOCALAPPDATA": NO_LOCAL_APP_DATA}
+    return {"PATH": path(folder, *more)}
 
 
 def home(folder) -> dict:
@@ -104,6 +107,15 @@ def salesforce_cli(folder, source: str) -> Path:
     return stand_in
 
 
+def remove(stand_in) -> None:
+    """Take a stand-in off the PATH, as if the tool were uninstalled: on Windows its Python file goes too, since a
+    PATHEXT that lists .py would still find that one."""
+    stand_in = Path(stand_in)
+    stand_in.unlink()
+    if WINDOWS:
+        stand_in.with_suffix(".py").unlink()
+
+
 _SYMLINKS = []
 
 
@@ -138,7 +150,8 @@ NOT_WINDOWS_MODES = unittest.skipIf(WINDOWS, "checks POSIX permission bits, whic
 
 def ended(pid: int, seconds: float = 5.0) -> bool:
     """Whether process `pid` has ended, waiting up to `seconds` for that: on Windows, taskkill returns before the
-    processes it ends have quite gone."""
+    processes it ends have quite gone, and elsewhere an orphan is collected by the process that adopted it a moment
+    after it ends."""
     deadline = time.monotonic() + seconds
     while _running(pid):
         if time.monotonic() >= deadline:
@@ -155,7 +168,7 @@ def _running(pid: int) -> bool:
             return False
         except PermissionError:
             return True
-        return True
+        return not _zombie(pid)
     import ctypes
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.OpenProcess.restype = ctypes.c_void_p
@@ -170,3 +183,12 @@ def _running(pid: int) -> bool:
         return bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259  # STILL_ACTIVE
     finally:
         kernel32.CloseHandle(handle)
+
+
+def _zombie(pid: int) -> bool:
+    """Whether `pid` has ended and only waits for its parent to collect it, which Linux shows in /proc."""
+    try:
+        with open("/proc/%d/stat" % pid, encoding="ascii", errors="replace") as stat:
+            return stat.read().rsplit(")", 1)[1].split()[0] == "Z"  # "pid (name) state …"; a name may hold ")"
+    except (OSError, IndexError):
+        return False

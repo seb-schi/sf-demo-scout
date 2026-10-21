@@ -1,10 +1,10 @@
 # Lessons Bootstrap
 
 How Scout's lessons folder is created and loaded. `/scout` reads `orgs/lessons/INDEX.md`
-at its start (`skills/scout/SKILL.md`), and runs Step 1 below on the SE's yes to a first lesson
+at its start (`skills/scout/SKILL.md`), and runs Step 1 below on the builder's yes to a first lesson
 (`prompts/scout/history.md`).
 
-Lessons live in the SE's PERSONAL workspace (`orgs/lessons/`), not in the
+Lessons live in the builder's PERSONAL workspace (`orgs/lessons/`), not in the
 plugin — so the plugin cannot ship them. This fragment creates the INDEX
 lazily on first run, then drives the load.
 

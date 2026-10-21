@@ -105,9 +105,11 @@ Agent Script or use Builder so Salesforce creates the matching schemas.
 ### Required identity fields (confirm before reporting done)
 Confirm the deployed agent has a NON-EMPTY **Role** and **Company** (description) field — both are
 mandatory agent-identity fields. An agent can deploy and activate with these blank (it still appears
-in Setup), but it ships incomplete and the SE must hand-fill them. If either is blank post-deploy,
-record it in `issues` and surface it in the change log's SE checklist — do not silently report the
-agent complete.
+in Setup), but it ships incomplete. If either is blank post-deploy, set it in the `.agent` config as
+`phase3.md`'s required identity fields say (from the request, or derived from the agent's purpose and
+the customer), validate, republish through the same publish path, activate the new version and read
+both fields back. Record the fix in `issues`. Only when that republish fails does the change log's
+"Your Next Steps" hand the two fields to the builder; never report the agent complete with either blank.
 
 ### Reporting
 The worker records `smoke_test.action_invocation_confirmed` honestly, but it is
