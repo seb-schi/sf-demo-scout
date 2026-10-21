@@ -46,7 +46,7 @@ the slug.
 
 ## Reference implementation
 
-`scripts/slugify.py` (SE-facing plugin, stdlib only — `unicodedata` NFKD + an
+`scripts/slugify.py` (builder-facing plugin, stdlib only — `unicodedata` NFKD + an
 explicit map for non-decomposing characters like `ß`→`ss`, `ø`→`o`) is the
 canonical **executable** implementation of the transform above, including the
 40-character and overlong-first-segment boundary rules. It is pinned to the

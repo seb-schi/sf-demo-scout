@@ -1,8 +1,8 @@
 # Compact Direct Repair
 
-Use this route when the SE asks for a small fix or tweak, in `/scout` or outside
+Use this route when the builder asks for a small fix or tweak, in `/scout` or outside
 any command: the current repair instruction supplies the scope. Keep the confirmation tier in Scout's `AGENTS.md`, category gates, no-Apex choice,
-target-org checks, and whole-new-FlexiPage exclusion unchanged.
+target-org checks, and the new-page exclusion (a new Lightning record page stays manual) unchanged.
 
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md` from the active plugin context first, then `${CLAUDE_PLUGIN_ROOT}/prompts/operation-safety.md` before any tool mutation.
 Resolve the successful bootstrap workspace and selected customer as absolute paths;
@@ -32,20 +32,27 @@ and the shared operation-safety block for this repair. Retain its source at fini
    `${CLAUDE_PLUGIN_ROOT}/prompts/building/agentforce-validation-gate.md`; otherwise do not load either Agentforce file.
 3. Resolve the installed supported skill/tool before any write and follow its compact
    technical procedure. Do not invent a missing skill or substitute an incompatible
-   generator. Whole-page FlexiPage authoring and other unsupported operations remain
+   generator. New-page FlexiPage authoring and other unsupported operations remain
    explicit BLOCKED/manual outcomes. For a Report or ReportType, use the report
    fallback and read-back rules in
    `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase1.md`. For a Flow, load the Flow
    identity, testing, activation, and rollback rules in
    `${CLAUDE_PLUGIN_ROOT}/prompts/building/phase2.md` plus the Phase-2 Flow Evidence
-   section in `${CLAUDE_PLUGIN_ROOT}/prompts/building/sub-agent-validation.md`. A
+   section in `${CLAUDE_PLUGIN_ROOT}/prompts/building/sub-agent-validation.md`, and
+   edit it in the order of `${CLAUDE_PLUGIN_ROOT}/prompts/building/official-skill-overrides.md`
+   §"Flow scope": the retrieved XML, changed only where the request changes it, with
+   the official skills, and `sf-flow` last. A
    direct Flow repair does not create a full ledger: freeze the exact Flow API name,
    expected state, supported validation mode and every exact required test API name (or concrete
    unsupported reason), pre-repair source identity, and original activation evidence
    in the pending repair checkpoint. Wherever those loaded rules say frozen ledger,
    use these immutable checkpoint fields for this repair only. A
-   FlexiPage repair may use only Phase 1's existing compatible field-section append
-   path; an incompatible or whole-page request is BLOCKED/manual.
+   record page repair follows Phase 1's §"Lightning Record Page — Edit Rules":
+   additive edits through `salesforce-development:platform-flexipage-generate`,
+   its convergence rule (nothing ungrounded is written, a rejected component is
+   dropped, and a second rejection stops the edit) and the incumbent read-back.
+   Moving or removing an existing component needs its own yes; a new page is
+   BLOCKED/manual.
 4. Read and follow `${CLAUDE_PLUGIN_ROOT}/prompts/building/component-rollback.md`
    before retrieve scratch can be overwritten/cleaned or any mutation occurs. Resolve
    `ASSET_HELPER` to the absolute installed `scripts/build-assets.py` path and
@@ -62,6 +69,6 @@ and the shared operation-safety block for this repair. Retain its source at fini
    never deletes an incumbent record. Missing stable identity or before-values is
    BLOCKED. This is a direct data operation, not a new seed/completion engine.
 7. Append the outcome automatically to the same change log as `applied`, `failed`,
-   `blocked`, `already_satisfied`, or `unverified`. Give the SE the concrete result,
+   `blocked`, `already_satisfied`, or `unverified`. Give the builder the concrete result,
    saved evidence, rollback route, and next action. Supported handoffs remain explicit;
-   do not build a new completion engine or ask the SE to remember to log the repair.
+   do not build a new completion engine or ask the builder to remember to log the repair.

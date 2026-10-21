@@ -320,8 +320,8 @@ class WindowsBootstrapTests(unittest.TestCase):
         for selector, expected in (
                 ("node", "NODE_MISSING (install it with: winget install --exact --id OpenJS.NodeJS.LTS)\n"),
                 ("python", "PYTHON_MISSING (install it with: winget install --exact --id Python.PythonInstallManager, "
-                           "then: py install default)\n"),
-                ("sf", "SF_CLI_MISSING (install it with: npm install @salesforce/cli --global)\n")):
+                           "then: pymanager install default)\n"),
+                ("sf", "SF_CLI_MISSING (install it with: npm.cmd install --global @salesforce/cli)\n")):
             with self.subTest(selector=selector):
                 result = self.run_windows(selector)
                 self.assertEqual((result.returncode, result.stdout), (1, expected), result.stderr)

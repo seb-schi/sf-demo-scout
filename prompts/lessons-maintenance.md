@@ -1,9 +1,9 @@
 # Lessons Handling
 
 Canonical procedure for routing lessons into the topic-clustered
-`orgs/lessons/` directory and, when a topic file gets long, offering the SE a
+`orgs/lessons/` directory and, when a topic file gets long, offering the builder a
 per-topic review. `/scout` reads it at its lessons step
-(`prompts/scout/history.md`) and when the SE approves a lesson proposal.
+(`prompts/scout/history.md`) and when the builder approves a lesson proposal.
 
 The INDEX and topic files are created + loaded by
 `${CLAUDE_PLUGIN_ROOT}/prompts/lessons-bootstrap.md` at session start. This
@@ -37,7 +37,7 @@ lesson spans two topics, put it in the more specific one (e.g. an lsc4ce
 Agentforce-action block goes in `managed-packages.md`, not `agentforce.md`,
 because the managed-package restriction is the load-bearing fact).
 
-If NO existing topic fits, do NOT silently mint one — propose it to the SE
+If NO existing topic fits, do NOT silently mint one — propose it to the builder
 first, so the taxonomy stays coherent and near-duplicate topics
 (`permissions.md` vs a later `fls-and-sharing.md`) don't accumulate:
 
@@ -49,7 +49,7 @@ On approval (or a rename), create the topic file (`# <Topic>` header + the
 lesson) AND add a new `- **<file>.md** — <descriptive line>` bullet to
 `orgs/lessons/INDEX.md` so it is discoverable next session. Keep INDEX
 descriptive lines concrete — they are what the next session's topic-selection
-judgment reads. If the SE points at an existing topic instead, file it there.
+judgment reads. If the builder points at an existing topic instead, file it there.
 
 After appending, count the lessons (top-level `- ` bullets) in the topic file
 you just wrote. If it exceeds 15, continue with the Per-Topic Review below.
@@ -77,7 +77,7 @@ numbered list. Ask which entries to remove. Apply removals. A lesson that a
 built-in prompt or skill now enforces (Scout's maintainers took it upstream) is
 the prime removal candidate — its job is done.
 
-If "split": propose the new topic names + which lessons go to each, get SE
+If "split": propose the new topic names + which lessons go to each, get the builder's
 sign-off, then create the new topic files (preserving each lesson's date +
 `[sha]` verbatim), update `orgs/lessons/INDEX.md` (add the new bullets, remove
 or rewrite the old one), and delete the now-empty original if everything moved.
@@ -92,10 +92,10 @@ makes the review actually get done.
 Read by `/scout`'s history step (`prompts/scout/history.md`), before the handover.
 
 Review the session for:
-- Two-attempt failures reported by sub-agents (what failed and why)
+- Items that needed more than one attempt, or ended `failed` (what failed, why, and the fix that worked)
 - Sub-agent output validation failures — especially schema-drift-with-successful-deployment (the sub-agent emitted the wrong envelope but the org probe passed). Candidate lesson: the drift vector itself (what the sub-agent emitted vs what the schema required), so the next author can tighten the prompt.
 - Unexpected conflict check findings from Step 4
-- SE corrections during gated confirmations
+- The builder's corrections during gated confirmations
 - Permission set or layout issues reported by sub-agents
 - Phase 2 AND Phase 3 `discovery_notes` entries — if any describe a new platform restriction, validate/publish/activate-time workaround, or standard-action-to-Apex fallback, propose adding it (with the exact error message or symptom as a diagnostic pattern). Managed-package restrictions → `managed-packages.md`; generic deploy/parse gotchas → `metadata-deploy.md`; Agentforce publish-time fixes (nested-if syntax, license-restricted permissions, CLI prefix requirements) → `agentforce.md`. These recur across every Agentforce deployment.
 - `actions_unverified_in_preview` entries — if a new category appears (e.g. a new stateless-preview gap not seen before), propose a lesson so future Phase 3 prompts can pre-emptively warn.

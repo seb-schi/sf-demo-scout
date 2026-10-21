@@ -27,6 +27,9 @@ import urllib.parse
 import urllib.request
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import scout_portable  # noqa: E402  (ships beside this helper)
+
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER = ROOT / "assets" / "industry-sources.json"
 INDEX = ROOT / "assets" / "industry-sources-index.json"
@@ -394,4 +397,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     raise SystemExit(main())

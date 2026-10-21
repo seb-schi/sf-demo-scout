@@ -41,7 +41,8 @@ DEVELOPER_NAME, LABEL, TOOL = "platform_metadata_experts", "metadata-experts", "
 PLUGIN = "salesforce-development"
 PROXY = Path("scripts/sf-mcp-proxy.bundled.js")
 PROBE_SECONDS, WAIT_SECONDS, POLL_SECONDS, CANDIDATE_SECONDS, CALL_SECONDS = 60, 180, 15, 600, 180
-MAX_GENERATION_CALLS, GRACE_SECONDS = 40, 2
+MAX_GENERATION_CALLS, GRACE_SECONDS = 40, 2  # the call cap guards one generation that never finishes
+MAX_CANDIDATES = 10  # candidates count toward the attempt rule's ten, like any other route's attempts
 NS = "{http://soap.sforce.com/2006/04/metadata}"
 QUERY = "SELECT Id, DeveloperName, Active FROM McpServerAccess WHERE DeveloperName = '%s'" % DEVELOPER_NAME
 NO_TOOL = "the official proxy listed no generation tool (often a sign-in problem)"
@@ -163,7 +164,7 @@ class Proxy:
     """The official proxy as Scout's own subprocess, bound to the org through its environment."""
 
     def __init__(self, script, username, org, deadline):
-        self.folder = cache_root() / "metadata-experts" / org  # a Scout-owned helper folder, never an SE project
+        self.folder = cache_root() / "metadata-experts" / org  # a Scout-owned helper folder, never a builder's project
         (self.folder / ".sf").mkdir(parents=True, exist_ok=True)
         (self.folder / "sfdx-project.json").write_text('{"packageDirectories":[{"path":"force-app","default":true}]}\n')
         # The environment binds the proxy (it reads it first); the private config only backs that up.
@@ -359,6 +360,8 @@ def generate(plugin, target, prompt, folder, candidate):
         except ProxyError as error:
             if error.state != "unavailable" or error.code is None or "retried" in receipt:
                 raise
+            if step == "generation" and actions["generation"] >= MAX_GENERATION_CALLS:
+                raise  # a retry would be one generation request past the budget
             receipt["retried"] = name
             time.sleep(max(0.0, min(POLL_SECONDS, deadline - time.monotonic() - CALL_SECONDS)))
             actions[step] += 1
@@ -517,7 +520,8 @@ def dispatch(argv):
         if name == "flow":
             sub.add_argument("--prompt-file", required=True, type=Path)
             sub.add_argument("--out-dir", required=True, type=Path)
-            sub.add_argument("--candidate", required=True, type=int, choices=(1, 2))
+            sub.add_argument("--candidate", required=True, type=int, choices=range(1, MAX_CANDIDATES + 1),
+                             metavar="1-%d" % MAX_CANDIDATES, help="a number never used before for this Flow")
     sub = commands.add_parser("check")
     sub.add_argument("--xml", required=True, type=Path)
     sub.add_argument("--spec", required=True, type=Path)
@@ -548,7 +552,7 @@ def run(parser, args):
         result = {"state": "conflict" if issues else "clear", "issues": issues}
         return result, EXIT[result["state"]]
     if args.command == "activate" and not args.confirmed:
-        result = {"state": "refused", "reason": "activation needs the SE's explicit yes (--confirmed)"}
+        result = {"state": "refused", "reason": "activation needs the builder's explicit yes (--confirmed)"}
         return result, EXIT["refused"]
     plugin = official(args.host, args.official_root)
     if args.command in ("activate", "flow") or getattr(args, "probe", False):
@@ -608,4 +612,5 @@ def run(parser, args):
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     raise SystemExit(main())

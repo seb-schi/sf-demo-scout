@@ -42,10 +42,13 @@ def keep(environment: dict) -> dict:
     return environment
 
 
-def cli_environment(folder) -> dict:
-    """PATH and LOCALAPPDATA for a test of the Salesforce CLI stand-in in `folder`: on Windows, Node's folder is on
-    the PATH for Scout's runner, and no installed CLI can be found in its place."""
-    return {"PATH": path(folder, node=True), "LOCALAPPDATA": NO_LOCAL_APP_DATA} if WINDOWS else {"PATH": str(folder)}
+def cli_environment(folder, *more) -> dict:
+    """PATH and LOCALAPPDATA for a test of the Salesforce CLI stand-in in `folder`, with any `more` folders after it
+    on the PATH: on Windows, Node's folder follows them for Scout's runner, and no installed CLI can be found in its
+    place."""
+    if WINDOWS:
+        return {"PATH": path(folder, *more, node=True), "LOCALAPPDATA": NO_LOCAL_APP_DATA}
+    return {"PATH": path(folder, *more)}
 
 
 def home(folder) -> dict:
@@ -102,6 +105,15 @@ def salesforce_cli(folder, source: str) -> Path:
         stand_in.write_text("@rem npm layout: node_modules\\@salesforce\\cli\\bin\\run.js\r\n"
                             + stand_in.read_text(encoding="utf-8"), encoding="utf-8")
     return stand_in
+
+
+def remove(stand_in) -> None:
+    """Take a stand-in off the PATH, as if the tool were uninstalled: on Windows its Python file goes too, since a
+    PATHEXT that lists .py would still find that one."""
+    stand_in = Path(stand_in)
+    stand_in.unlink()
+    if WINDOWS:
+        stand_in.with_suffix(".py").unlink()
 
 
 _SYMLINKS = []

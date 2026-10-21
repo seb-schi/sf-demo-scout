@@ -10,9 +10,13 @@ nothing and exit 1.
 The alias is read as a command ARGUMENT, never interpolated into program
 source, so alias characters are always data (never shell/regex/glob syntax).
 """
+import os
 import sys
 import re
 import unicodedata
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import scout_portable  # noqa: E402  (ships beside this helper)
 
 # Explicit transliterations for characters NFKD does NOT decompose.
 EXPLICIT = {
@@ -82,4 +86,5 @@ def main():
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     main()

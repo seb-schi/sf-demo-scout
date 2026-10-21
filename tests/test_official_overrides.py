@@ -105,10 +105,10 @@ class OverridesContractTests(unittest.TestCase):
         self.assertIn("Scout repairs its own setup: say in one line, before inspection,", install)
         self.assertIn("so I'm installing them now. It takes about a minute, and they keep themselves up to date.", install)
         self.assertNotIn("Shall I install them now?", install)
-        self.assertIn("run the first bash block of `prompts/setup/official-plugins.md` with `--keep-se-choices`",
+        self.assertIn("run the first bash block of `prompts/setup/official-plugins.md` with `--keep-builder-choices`",
                       install)  # its `sf plugins update` waits for a /scout-setup run
         self.assertIn("a 10-minute timeout", install)
-        self.assertIn("ask the SE to run `/reload-plugins`, and resume the same task once readiness passes", install)
+        self.assertIn("ask the builder to run `/reload-plugins`, and resume the same task once readiness passes", install)
         self.assertIn("A failure leaves the build items blocked; read-only work goes on.", install)
         self.assertIn("install them (official-skill-overrides.md", read("scripts/scout_official.py"))
 
@@ -175,6 +175,38 @@ class OverridesContractTests(unittest.TestCase):
         self.assertIn("BLOCKED", flow)
         self.assertIn("required-test set, version, activation and rollback", flow)
 
+    def test_flow_order_puts_salesforces_tools_first_and_sf_flow_last(self):
+        # 2.4.1, the maintainer: Scout's own Flow skill is the last fallback, not the default. A new Flow goes to
+        # Salesforce's hosted generator first; an edit, or a Flow that route can't make, to the official skills.
+        flow = section(self.reference, "Flow scope")
+        hosted, official, last = (flow.index(marker) for marker in
+                                  ("1. **A new Flow:**", "2. **An edit to an existing Flow", "3. **`sf-demo-scout:sf-flow` last:**"))
+        self.assertLess(hosted, official)
+        self.assertLess(official, last)
+        self.assertIn("`salesforce-development:platform-metadata-api-context-get`", flow)
+        self.assertIn("`salesforce-development:platform-metadata-deploy`", flow)
+        self.assertIn("change only what the request changes", flow)
+        self.assertIn("for FlowTests, whose authoring guide and templates only it has", flow)
+        hosted_route = read("prompts/scout/hosted-flow.md")
+        self.assertNotIn("`sf-flow` stays the fallback", hosted_route)
+        self.assertIn("the official skills come next and `sf-flow` last", hosted_route)
+        self.assertIn("`no-official-plugin`: `sf-flow`, since the next route needs that plugin too", hosted_route)
+        # The route's later fallbacks follow the same order (the limits review found four that still went to sf-flow).
+        for stale in ("means no activation and `sf-flow`", "not ready yet\", then `sf-flow`",
+                      "`sf-flow` authors a separate Flow", "repairs go to `sf-flow`"):
+            self.assertNotIn(stale, hosted_route)
+        self.assertNotIn("edits its retrieved XML through `sf-flow`", self.reference)
+        # An edit never reaches the hosted route's probe or activation offer.
+        self.assertIn("for each new Flow item (an edit to an existing Flow takes the official skills' route, with no probe and no activation offer)", hosted_route)
+        self.assertIn("An edit to an existing Flow skips it for the official skills' route", read("prompts/scout/build.md"))
+        self.assertNotIn("(`sf-flow`, `experience-lwc", read("prompts/building/handover-brief.md"))
+        for path in ("prompts/building/phase2.md", "skills/demo-deployment-rules/SKILL.md"):
+            self.assertNotIn("Invoke `sf-flow` skill before generating Flow XML", read(path))
+            self.assertNotIn("Invoke the `sf-flow` skill before generating any Flow XML", read(path))
+        self.assertIn("the last route for Flow XML", read("skills/sf-flow/SKILL.md"))
+        self.assertIn("then the official skills, `sf-flow` last", read("prompts/scout/build.md"))
+        self.assertIn("with\n   the official skills, and `sf-flow` last", read("prompts/building/direct-repair.md"))
+
     def test_analyzer_runs_through_the_official_cli_skill_and_preserves_scan_gaps(self):
         analyzer = section(self.reference, "Analyzer prerequisites")
         self.assertTrue(analyzer.startswith("Run Code Analyzer through `salesforce-code-quality:dx-code-analyzer-run`"))
@@ -211,9 +243,16 @@ class OverridesContractTests(unittest.TestCase):
                        "literal strings"):
             self.assertIn(phrase, formulas)
         flexipage = section(self.reference, "FlexiPage scope")
-        for phrase in ("whole RecordPages", "manual/App Builder", "never run the official FlexiPage generator",
-                       "compatible field-section append", "confirmed page", "confirmed section", "read-back", "BLOCKED"):
+        # 2.4.1: additive edits to existing record pages go through Salesforce's page skill, grounded in the org's own
+        # pages instead of the hosted discovery Scout doesn't reach for pages yet; new pages stay manual.
+        for phrase in ("`salesforce-development:platform-flexipage-generate`", "the `flexipage` capability is ready",
+                       "A new page from scratch stays manual/App Builder work", "never bootstrap one with `sf template generate flexipage`",
+                       "never change a page's activation or assignment", "Skip its `DISCOVER_UI_COMPONENTS` and `GET_UI_COMPONENT_SCHEMAS` calls",
+                       "Its ban on components from memory stands", "never the skill's whole-directory command",
+                       "`--target-org [bound username]`", "nothing ungrounded is written", "a second rejection stops the edit",
+                       "at most three dry runs", "needs its own yes", "other changes are BLOCKED for App Builder"):
             self.assertIn(phrase, flexipage)
+        self.assertNotIn("never run the official FlexiPage generator", flexipage)
         email = section(self.reference, "Email-to-Case scope")
         self.assertIn("resolved `service-engagement` root", email)
         self.assertIn("channel assignment stays manual", email)

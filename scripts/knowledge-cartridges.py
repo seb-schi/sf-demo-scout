@@ -17,6 +17,9 @@ import subprocess
 import sys
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import scout_portable  # noqa: E402  (ships beside this helper)
+
 
 MAX_BYTES = 2 * 1024 * 1024
 MAX_PLUGINS = 1000
@@ -103,7 +106,7 @@ def selected_cartridges(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def claude_command() -> str:
     """The running client's own Claude Code binary when it is one, else `claude` from the PATH, by its full path:
-    Windows starts an npm install's `claude.cmd` only that way. A desktop-only SE has no `claude` command; the app's
+    Windows starts an npm install's `claude.cmd` only that way. A desktop-only builder has no `claude` command; the app's
     bundled binary reads the same plugin inventory."""
     running = os.environ.get("CLAUDE_CODE_EXECPATH", "")
     if os.path.isabs(running) and os.access(running, os.X_OK):
@@ -162,4 +165,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     raise SystemExit(main())

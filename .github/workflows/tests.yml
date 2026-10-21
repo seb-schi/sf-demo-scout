@@ -20,6 +20,10 @@ jobs:
         include:
           - os: ubuntu-latest
             python: "3.9"  # Scout's floor
+          - os: windows-latest
+            python: "3.15"  # what Python's install manager installs today
+          - os: ubuntu-latest
+            python: "3.15"
     runs-on: ${{ matrix.os }}
     env:
       PYTHONDONTWRITEBYTECODE: "1"

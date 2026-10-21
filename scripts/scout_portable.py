@@ -10,6 +10,7 @@
 - sf_argv(executable), cmd_safe(args) and sf_command(executable, args): run the Salesforce CLI without
   cmd.exe re-parsing its arguments
 - is_link(info): whether an os.lstat() result is a link, on Windows a junction too, but never a cloud file
+- utf8_output(): stdout and stderr in UTF-8 with LF line ends, whatever the console's code page
 
 Standard library only, Python 3.9 or newer. Every Windows branch reads PLATFORM when it runs, so tests can set
 it to "win32" and exercise those branches on any machine.
@@ -51,6 +52,20 @@ NAME_SURROGATE = 0x20000000
 
 def windows() -> bool:
     return PLATFORM == "win32"
+
+
+def utf8_output() -> None:
+    """Write stdout and stderr in UTF-8 with LF line ends, the same on every platform; each helper calls this first.
+
+    Before Python 3.15, Windows encodes a pipe with the ANSI code page (cp1252 and the like), where printing →, ★,
+    ✓ or ✗, or a path such as C:\\Users\\Łukasz, raises UnicodeEncodeError. Each stream keeps its error handling. One
+    that can't be reconfigured, because it was replaced or there is none, stays as it is.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors=stream.errors, newline="\n")
+        except (AttributeError, ValueError):
+            pass
 
 
 @contextlib.contextmanager

@@ -23,6 +23,7 @@ sys.path.insert(0, str(SCRIPTS))
 sys.dont_write_bytecode = True
 import scout_portable  # noqa: E402
 import scout_report_repair as repair  # noqa: E402
+import stand_ins  # noqa: E402
 
 # npm's cmd-shim, as `npm install --global` writes it next to node.exe
 NPM_SHIM = ('@ECHO off\r\nGOTO start\r\n:find_dp0\r\nSET dp0=%~dp0\r\nEXIT /b\r\n:start\r\nSETLOCAL\r\nCALL :find_dp0\r\n'
@@ -247,7 +248,6 @@ class ClientVersionTests(Folder):
         self.assertIn("Update the Claude desktop app", floor)  # the notice itself is the same on every platform
 
 
-@unittest.skipIf(os.name == "nt", "the npm stand-in is a script with a shebang")
 class CliOwnerTests(Folder):
     def setUp(self) -> None:
         super().setUp()
@@ -262,9 +262,7 @@ class CliOwnerTests(Folder):
         self.shim = self.prefix / "sf.cmd"
         self.shim.write_text(NPM_SHIM)
         (self.prefix / "node.exe").write_bytes(b"node")
-        self.npm = self.base / "npm-stand-in"
-        self.npm.write_text(f"#!{sys.executable}\nprint({str(self.root)!r})\n")
-        self.npm.chmod(0o755)
+        self.npm = stand_ins.tool(self.base, "npm-stand-in", f"print({str(self.root)!r})\n")
         local = mock.patch.dict(os.environ, {"LOCALAPPDATA": str(self.base / "LocalAppData")})
         local.start()
         self.addCleanup(local.stop)
@@ -275,8 +273,15 @@ class CliOwnerTests(Folder):
     def test_a_plain_npm_install_is_npm_owned(self) -> None:
         with as_windows():
             self.assertEqual(self.owner(self.shim), "owned")
-        # Elsewhere the active CLI must be npm's own symlink; a shim file isn't one.
-        self.assertEqual(self.owner(self.shim), "different")
+        # Elsewhere the active CLI must be npm's own symlink; a shim file isn't one (that branch, on any machine).
+        with mock.patch.object(scout_portable, "PLATFORM", "linux"):
+            self.assertEqual(self.owner(self.shim), "different")
+
+    def test_npm_output_that_isnt_utf8_proves_nothing(self) -> None:
+        self.npm = stand_ins.tool(self.base, "npm-bad-bytes", "import sys\nsys.stdout.buffer.write(b'\\xff\\n')\n")
+        for platform in ("win32", "linux"):
+            with self.subTest(platform=platform), mock.patch.object(scout_portable, "PLATFORM", platform):
+                self.assertEqual(self.owner(self.shim), "unavailable")
 
     def test_the_installers_cli_belongs_to_another_installation(self) -> None:
         launcher = self.base / "Program Files" / "sf" / "bin" / "sf.cmd"

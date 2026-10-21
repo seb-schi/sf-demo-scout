@@ -5,7 +5,7 @@
 and follow the normal New-Agent / Modify-Existing paths.
 
 The orchestrator routed you here because: the spec targets a UI-built agent (planner-only,
-no editable source), the change is STRUCTURAL (adds/moves a topic or action), AND the SE has
+no editable source), the change is STRUCTURAL (adds/moves a topic or action), AND the builder has
 confirmed they flipped the in-place Builder upgrade — which makes the agent's
 `GenAiPlannerBundle` retrievable via Metadata API. Your job is NOT to hand-patch that planner.
 Your job is to read it, reconstruct its topics/actions as fresh Agent Script, publish a clean
@@ -24,7 +24,7 @@ project root for parsing:
 # {{ORG_ALIAS}} substituted by orchestrator; directory pinned per the Retrieve output location rule
 ```
 Use `retrieve_metadata` for `GenAiPlannerBundle:[LegacyAgentName]` with
-`directory` = the worker-owned absolute `PROJECT_ROOT` already supplied by the parent. If the retrieve FAILS here (the SE did not
+`directory` = the worker-owned absolute `PROJECT_ROOT` already supplied by the parent. If the retrieve FAILS here (the builder did not
 actually complete the upgrade, or it is org-specific), **STOP** and record the phase **BLOCKED**
 in `issues` with reason "re-author requested but GenAiPlannerBundle:[LegacyAgentName] did not
 retrieve — upgrade not confirmed on the org; do not ship a partial build." Report the agent NOT
@@ -38,7 +38,7 @@ Parse the retrieved planner. Build a structured inventory of:
   `flow://` reference named in the planner or its `plannerActions`/`localActions` subtree).
 - Planner-level standard actions (e.g. `AnswerQuestionsWithKnowledge`) — reproduce as standard
   actions, do NOT attempt to re-create knowledge grounding from scratch unless the spec calls for it.
-Record the extracted inventory in `discovery_notes` so the SE can diff it against the legacy agent.
+Record the extracted inventory in `discovery_notes` so the builder can diff it against the legacy agent.
 
 ### Step R3 — Re-author as fresh Agent Script under a NEW api name
 Invoke `agentforce-adlc:agentforce-generate` and follow its New-Agent (create-from-scratch) workflow — NOT the
@@ -50,7 +50,7 @@ spec adds new backing logic). Then ADD the spec's new topic/action/capability on
 the whole point of the migration.
 
 Publish via `sf agent publish authoring-bundle --api-name [LegacyAgentName]_Scout --json` and activate.
-The legacy agent is UNTOUCHED and stays Active — the SE retires it manually once satisfied.
+The legacy agent is UNTOUCHED and stays Active — the builder retires it manually once satisfied.
 
 ### Step R4 — Mandatory validation (reuses the standard gate)
 Run the Smoke Test + Validation Gate below against `[LegacyAgentName]_Scout`. The
@@ -60,6 +60,6 @@ action confirmed firing is reported **deployed but NOT validated**, never "Activ
 ### Step R5 — Report honestly
 In `issues`, record the n=0 caveat verbatim: "Re-authored [LegacyAgentName]_Scout from the
 upgraded planner's inventory. Side-by-side with the untouched legacy [LegacyAgentName]. Topic/action
-fidelity is NOT machine-verified beyond the smoke test — SE MUST diff re-authored behavior against
+fidelity is NOT machine-verified beyond the smoke test — you MUST diff re-authored behavior against
 the legacy agent (or its known demo script) before demo day, then retire the legacy agent." Carry
 this into the change log and handover brief.

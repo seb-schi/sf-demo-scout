@@ -10,7 +10,11 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 from urllib.parse import urlsplit
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import scout_portable  # noqa: E402  (ships beside this helper)
 
 
 ALIASES = {
@@ -261,4 +265,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     raise SystemExit(main())

@@ -1,7 +1,7 @@
 ---
 name: scout-setup
 description: >
-  One-stop install, refresh, and repair for Scout. Use when the SE asks to set up or update Scout, or when
+  One-stop install, refresh, and repair for Scout. Use when the builder asks to set up or update Scout, or when
   Scout's own checks report its setup broken (self-repair). Idempotent — safe to re-run any time.
 argument-hint: "[self-repair]"
 allowed-tools: Read, Write, Edit, Bash
@@ -15,12 +15,12 @@ Run each bash fence in this command and every setup prompt it dispatches in its 
 
 ## Self-repair runs
 
-Scout runs this command itself, with the argument `self-repair`, when one of its checks finds its setup broken; this run's arguments are the text sent with it (on Claude Code, the `ARGUMENTS:` line). A self-repair run fixes Scout's workspace files and installs Salesforce's official plugins without asking, and says so in one line. Before its first step, it asks the SE one question, in plain words, about the steps below, which change the SE's machine:
+Scout runs this command itself, with the argument `self-repair`, when one of its checks finds its setup broken; this run's arguments are the text sent with it (on Claude Code, the `ARGUMENTS:` line). A self-repair run fixes Scout's workspace files and installs Salesforce's official plugins without asking, and says so in one line. Before its first step, it asks the builder one question, in plain words, about the steps below, which change their machine:
 - the Salesforce CLI and its tools: fresh install `b`, refresh `a`, and `sf plugins update` in the official-plugins step (fresh install `g.6`, refresh `b.5`)
 - Scout's marketplace auto-update setting in Claude's settings: fresh install `g.5`, which only fills in a missing setting
-- turning back on, or installing, a Salesforce plugin that's switched off or missing while Salesforce's marketplace is set up, which may be the SE's choice
+- turning back on, or installing, a Salesforce plugin that's switched off or missing while Salesforce's marketplace is set up, which may be the builder's choice
 
-On a yes, run the procedure as usual. On a no, skip those steps, and fresh install `a` too, since the Homebrew check only serves `b`'s installs; add `--keep-se-choices` to the official-plugins helper, which leaves such plugins as they are and names each in an `OFFICIAL_PLUGIN_LEFT` line. Read-only reports run either way, such as the running-client and model-routing reports. Name each skipped step and left plugin in the closing message, with `/scout-setup` to run them any time, and carry on. A `/scout-setup` the SE runs themselves asks nothing extra.
+On a yes, run the procedure as usual. On a no, skip those steps, and fresh install `a` too, since the Homebrew check only serves `b`'s installs; add `--keep-builder-choices` to the official-plugins helper, which leaves such plugins as they are and names each in an `OFFICIAL_PLUGIN_LEFT` line. Read-only reports run either way, such as the running-client and model-routing reports. Name each skipped step and left plugin in the closing message, with `/scout-setup` to run them any time, and carry on. A `/scout-setup` the builder runs themselves asks nothing extra.
 
 ## Step 1: Detect State
 
@@ -55,7 +55,7 @@ Branch on STATE:
 
 Both `fresh-install.md` and `refresh.md` end by returning the outcome lines their steps printed. Capture them — Step 3 needs them.
 
-If the dispatched prompt aborts (e.g. brew missing or pyyaml missing), STOP. Do NOT proceed to Step 3. The abort messages already tell the SE what to do next. The optional Docs check returns with its observed status; an unavailable check or pending connection does not abort setup.
+If the dispatched prompt aborts (e.g. brew missing or pyyaml missing), STOP. Do NOT proceed to Step 3. The abort messages already tell the builder what to do next. The optional Docs check returns with its observed status; an unavailable check or pending connection does not abort setup.
 
 ## Step 3: Done
 

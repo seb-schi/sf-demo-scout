@@ -4,11 +4,13 @@
 It probes the executable the shell would select and installs only when there is none: Node and Python with
 Homebrew, the Salesforce CLI with npm. An existing broken, malformed or unsupported tool is left unchanged;
 Scout never installs a competing runtime over it. On Windows it installs nothing: a missing tool comes back as
-<TOOL>_MISSING with the exact command to run. It prints one outcome line (an install adds INSTALLING_<TOOL>
+<TOOL>_MISSING with the exact command to run, or as <TOOL>_NOT_IN_THIS_WINDOW when it's in its usual install
+location but not on this window's PATH yet. It prints one outcome line (an install adds INSTALLING_<TOOL>
 first) and exits 0 only for a tool that is present or was installed.
 """
 from __future__ import annotations
 
+import glob
 import os
 import re
 import subprocess
@@ -32,14 +34,17 @@ VERSIONS = {
 # What a Windows user runs instead; Scout runs none of these itself.
 WINDOWS_INSTALL = {
     "node": "winget install --exact --id OpenJS.NodeJS.LTS",
-    "python": "winget install --exact --id Python.PythonInstallManager, then: py install default",
-    "sf": "npm install @salesforce/cli --global",
+    # `pymanager` is the install manager's own name for `py`: an older Python launcher can take `py`, never it.
+    "python": "winget install --exact --id Python.PythonInstallManager, then: pymanager install default",
+    # `npm.cmd`: PowerShell would otherwise pick npm.ps1, which the default execution policy blocks on Windows.
+    "sf": "npm.cmd install --global @salesforce/cli",
 }
 # On Windows, Python's launcher first, as the hook launcher has it; Python's own -c reports the version, because
 # `--version` can reach a launcher rather than the interpreter.
 WINDOWS_PYTHONS = (("py", ["-3"]), ("python", []), ("python3", []))
 PYTHON_VERSION = "import platform; print('Python ' + platform.python_version())"
 PROBE_SECONDS = 30  # each probe's limit: a cold start on Windows is slow, and a probe that hangs never stalls setup
+NOT_IN_THIS_WINDOW = "open a new PowerShell window and quit and reopen the app, so it's found"
 
 
 def classify(selector: str, output: str) -> Tuple[str, str]:
@@ -97,6 +102,40 @@ def windows_pythons() -> List[List[str]]:
                 found.append([candidate, *arguments])
                 break
     return found
+
+
+def windows_locations(selector: str) -> List[str]:
+    """Where the usual Windows installers put the tool, built from environment variables only: Node's installer,
+    Python's install manager or its classic installer, and npm or Salesforce's installer for the CLI.
+
+    Windows gives each window the PATH it had when it started, so a tool installed after the app started sits here
+    but isn't on this window's PATH yet."""
+    # A 32-bit Python sees Program Files (x86) as %ProgramFiles%; %ProgramW6432% still names the 64-bit folder.
+    program_files = [folder for folder in dict.fromkeys((os.environ.get("ProgramFiles"),
+                                                          os.environ.get("ProgramW6432"))) if folder]
+    local, roaming = os.environ.get("LOCALAPPDATA"), os.environ.get("APPDATA")
+    if selector == "node":
+        return [os.path.join(folder, "nodejs", "node.exe") for folder in program_files]
+    if selector == "python":
+        if not local:
+            return []
+        aliases = os.path.join(local, "Microsoft", "WindowsApps")  # the install manager's app execution aliases
+        classic = glob.glob(os.path.join(glob.escape(local), "Programs", "Python", "Python3*", "python.exe"))
+        return [os.path.join(aliases, "pymanager.exe"), os.path.join(aliases, "py.exe"),
+                os.path.join(local, "Python", "bin", "python.exe"), *sorted(classic, key=python_minor, reverse=True)]
+    return ([os.path.join(roaming, "npm", "sf.cmd")] if roaming else []) + [
+        os.path.join(folder, "sf", "bin", "sf.cmd") for folder in program_files]
+
+
+def python_minor(path: str) -> int:
+    """3.13 for ...\\Python313\\python.exe, so the newest classic install comes first."""
+    match = re.match(r"python3([0-9]+)", os.path.basename(os.path.dirname(path)), re.IGNORECASE)
+    return int(match.group(1)) if match else -1
+
+
+def installed_elsewhere(selector: str) -> Optional[str]:
+    """The first usual install location that holds the tool. Existence only: nothing there runs."""
+    return next((path for path in windows_locations(selector) if os.path.lexists(path)), None)
 
 
 def selected(selector: str, tool: str) -> List[List[str]]:
@@ -179,10 +218,6 @@ def install(selector: str, tool: str, prefix: str) -> int:
 
 
 def main(argv: List[str]) -> int:
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", newline="\n")  # the outcome line, the same on every platform
-    except (AttributeError, ValueError):
-        pass
     selector = argv[1] if len(argv) > 1 else ""
     if selector not in SELECTORS:
         print("usage: setup_bootstrap.py node|python|sf", file=sys.stderr)
@@ -192,10 +227,15 @@ def main(argv: List[str]) -> int:
     if commands:
         return report_existing(selector, prefix, commands)
     if scout_portable.windows():
-        print(f"{prefix}_MISSING (install it with: {WINDOWS_INSTALL[selector]})")
+        found = installed_elsewhere(selector)
+        if found:
+            print(f"{prefix}_NOT_IN_THIS_WINDOW (found at {found}; {NOT_IN_THIS_WINDOW})")
+        else:
+            print(f"{prefix}_MISSING (install it with: {WINDOWS_INSTALL[selector]})")
         return 1
     return install(selector, tool, prefix)
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     raise SystemExit(main(sys.argv))

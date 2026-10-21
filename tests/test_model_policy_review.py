@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -32,7 +33,9 @@ class ReviewTests(unittest.TestCase):
         rows, provider, failed = self.collect(self.home)
         self.assertEqual(len([r for r in rows if r['key'] == PIN]), 3)
         text = '\n'.join(REPORT.report(rows, provider, failed))
-        self.assertIn('set outside the files Scout read (shell profile, launch agent or host app)', text)
+        origin = ('a user or system environment variable, or the app that started the session' if sys.platform == 'win32'
+                  else 'shell profile, launch agent or host app')  # each platform's own sources
+        self.assertIn(f'set outside the files Scout read ({origin})', text)
         self.assertIn('Remove it at this source first', text)
 
     def test_observed_entrypoints_and_host_parity(self):

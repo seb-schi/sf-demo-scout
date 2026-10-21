@@ -16,7 +16,7 @@ If MCP is unavailable, stop and return a JSON error block (see Output Format).
 
 ## Non-Universal Standard Objects (safety net)
 
-After auditing core objects, discover additional standard objects that may indicate an industry cloud or specialized platform feature. This is a safety net — the SE identifies the industry cloud in Stage 3; this query catches objects the SE may not have mentioned.
+After auditing core objects, discover additional standard objects that may indicate an industry cloud or specialized platform feature. This is a safety net — the builder identifies the industry cloud in Stage 3; this query catches objects the builder may not have mentioned.
 
 **Universal standard objects** (always present, already audited above or not demo-relevant):
 
@@ -56,7 +56,7 @@ For each object with >0 records:
 - Record types: `SELECT Name, DeveloperName FROM RecordType WHERE SobjectType = '[Object]' AND IsActive = true` — query unconditionally
 - Platform restrictions: check the EntityDefinition fields from the discovery query. If any of IsEverCreatable, IsQueryable, IsTriggerable, or IsSearchable is `false`, flag explicitly in `demo_surface_notes` with the restriction (e.g., "Inquiry: 12 records, IsEverCreatable=false, IsTriggerable=true — API data seeding blocked")
 - If it has records OR record types: note in `demo_surface_notes` with the observation (e.g., "HealthcareProvider has 84 records and 2 record types — likely Life Sciences Cloud or Health Cloud")
-- Do NOT ★ these or retrieve layouts — that's the job of Stage 4 after the SE confirms which cloud is active
+- Do NOT ★ these or retrieve layouts — that's the job of Stage 4 after the builder confirms which cloud is active
 
 For objects with 0 records: skip silently (universal exclusion handles the noise).
 
@@ -101,8 +101,8 @@ For each entry in `{{ACTIVE_LRP_MAP}}` whose `object` matches a standard object 
 2. Classify composition by scanning `<componentName>` elements in the retrieved XML:
    - Contains `force:detailPanel` AND no `flexipage:fieldSection` → `composition_class: record_detail, gap_risk: false`. The LRP inherits the classic Page Layout fields verbatim — additions to the classic layout render automatically. Safe surface for autonomous field-add-via-layout.
    - Contains `flexipage:fieldSection` AND no `force:detailPanel` → `composition_class: field_section, gap_risk: true`. Each field section enumerates fields explicitly via `<itemInstances><field>...</field></itemInstances>`. Adding to the classic Page Layout has zero visual effect.
-   - Contains BOTH `force:detailPanel` AND `flexipage:fieldSection` → `composition_class: mixed, gap_risk: true`. Mixed model — some fields inherit, some don't. Treat as field_section for safety.
-   - Contains neither → `composition_class: custom, gap_risk: true`. Pure custom LWC or dynamic-form regions. Out of autonomous scope.
+   - Contains BOTH `force:detailPanel` AND `flexipage:fieldSection` → `composition_class: mixed, gap_risk: true`. Mixed model — some fields inherit, some don't; a field for this page goes into a field section.
+   - Contains neither → `composition_class: custom, gap_risk: true`. Pure custom LWC or dynamic-form regions; a page edit reads the retrieved page itself.
 3. For `field_section` and `mixed` LRPs, enumerate the field sections by following the Facet indirection:
 
      a. **Find each `<componentInstance>` whose `<componentName>` is `flexipage:fieldSection`.** Capture the section label from the `<componentInstanceProperties>` block where `<name>label</name>` (decode `@@@SFDCDescription_InformationSFDC@@@`-style placeholders by stripping the `@@@SFDC` / `SFDC@@@` wrappers and using the inner camel-case as the label, e.g. `Description Information`). Also capture the section-body Facet UUID from the `<componentInstanceProperties>` block where `<name>columns</name>` — its `<value>` is a Facet UUID like `Facet-ad131d00-...`. (Multiple comma-separated UUIDs in `columns` are rare; if present, capture each.)
@@ -200,7 +200,7 @@ Write the fragment file, then return EXACTLY one fenced JSON block. No prose out
       ]
     }
   ],
-  "demo_surface_notes": ["string — non-error observations about the org: lean/rich layouts, missing fields, objects that suggest specific demo patterns, data quality signals, non-universal standard objects with data (industry cloud indicators), AND any 🚨 LRP gap-risk observations the SE/spec must read"],
+  "demo_surface_notes": ["string — non-error observations about the org: lean/rich layouts, missing fields, objects that suggest specific demo patterns, data quality signals, non-universal standard objects with data (industry cloud indicators), AND any 🚨 LRP gap-risk observations the builder/spec must read"],
   "issues": ["string — errors, failures, truncations"]
 }
 ```

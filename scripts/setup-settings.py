@@ -380,7 +380,7 @@ def run_marketplace_ref(path: Path, name: str, ref: str | None, expect_ref: str 
                         expect_source: dict | None = None) -> str:
     """Remove (ref None) or restore one declared marketplace's pinned ref, compare-and-set: removal only while the
     ref is still `expect_ref`, restoration only while the source is still exactly `expect_source` (Scout's own
-    post-unpin form). Anything else is the SE's newer choice, kept as found (CHANGED). Claude Code accepts a re-add
+    post-unpin form). Anything else is the builder's newer choice, kept as found (CHANGED). Claude Code accepts a re-add
     only from the source this entry lists, so setup changes the entry first."""
     def change(data: dict[str, object]) -> str | None:
         entry = data.get("extraKnownMarketplaces", {}).get(name) if isinstance(data.get("extraKnownMarketplaces"), dict) else None
@@ -461,4 +461,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     sys.exit(main())

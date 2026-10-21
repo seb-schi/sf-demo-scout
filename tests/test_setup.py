@@ -11,12 +11,61 @@ import tempfile
 import unittest
 import json
 
+import stand_ins
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI_SCRIPT = ROOT / "scripts" / "setup_cli_refresh.py"
+# How long setup-cli-owner.py waits for `npm root -g`: npm.cmd starts slowly on Windows.
+NPM_ROOT_LIMIT = 10 if stand_ins.WINDOWS else 2
+# Stands in for npm: it logs each call to $CALLS and answers the way the NPM_* variables say.
+NPM_STAND_IN = r'''import os, sys, time
+command = " ".join(sys.argv[1:])
+with open(os.environ["CALLS"], "ab") as calls:
+    calls.write(("npm " + command + "\n").encode())
+def say(text):
+    sys.stdout.buffer.write(text.encode() + b"\n")
+if command == "root -g":
+    if os.environ.get("NPM_ROOT_DELAY"):
+        time.sleep(float(os.environ["NPM_ROOT_DELAY"]))
+    if os.environ.get("NPM_ROOT_INVALID_UTF8") == "1":
+        sys.stdout.buffer.write(b"\xff\n")
+    else:
+        say(os.environ.get("NPM_ROOT", ""))
+    sys.exit(int(os.environ.get("NPM_ROOT_RC") or 0))
+if "--dry-run" in command:
+    say(os.environ.get("NPM_RESOLVE_LINE", ""))
+    sys.exit(int(os.environ.get("NPM_DRY_RUN_RC") or 0))
+if "view" in command:
+    say(os.environ.get("NPM_VIEW", ""))
+    sys.exit(0)
+say("npm install log")
+sys.exit(int(os.environ.get("NPM_INSTALL_RC") or 0))
+'''
+# Stands in for the Salesforce CLI: it logs each call to $CALLS; its first --version prints PRE_OUT and exits PRE_RC,
+# each later one POST_OUT and POST_RC, counted in $COUNTER.
+SF_STAND_IN = r'''import os, sys
+arguments = sys.argv[1:]
+with open(os.environ["CALLS"], "ab") as calls:
+    calls.write((sys.argv[0] + " " + " ".join(arguments) + "\n").encode())
+if arguments[:1] == ["--version"]:
+    counter = os.environ.get("COUNTER", "")
+    try:
+        with open(counter) as stream:
+            count = int(stream.read()) + 1
+    except (OSError, ValueError):
+        count = 1
+    try:
+        with open(counter, "w") as stream:
+            stream.write(str(count))
+    except OSError:
+        pass
+    first = count == 1
+    sys.stdout.buffer.write(os.environ.get("PRE_OUT" if first else "POST_OUT", "").encode() + b"\n")
+    sys.exit(int(os.environ.get("PRE_RC" if first else "POST_RC") or 0))
+'''
 
 
-@unittest.skipUnless(Path("/bin/bash").exists(), "the npm and sf stubs are bash scripts")
 class CliRefreshScriptTests(unittest.TestCase):
     """The 24 behavioral B3 assertions; done-summary assertions are packaging tests."""
 
@@ -35,51 +84,31 @@ class CliRefreshScriptTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
 
+    @staticmethod
+    def npm_root(case_dir: Path) -> Path:
+        """What the stand-in's `npm root -g` answers: on Windows, npm keeps node_modules beside its shims."""
+        return case_dir / "bin" / "node_modules" if stand_ins.WINDOWS else case_dir / "npm-root"
+
     def make_stubs(self, case_dir: Path, cli: str) -> tuple[Path, Path]:
+        """npm, and the CLI as `npm install --global` lays it out on this platform."""
+        stand_ins.require_node()  # on Windows the refresh runs the CLI's run.js with Node, as for a real npm install
         bin_dir = case_dir / "bin"
         bin_dir.mkdir(parents=True)
         calls = case_dir / "calls.log"
-        npm = bin_dir / "npm"
-        npm.write_text(
-            """#!/bin/bash
-printf 'npm %s\n' "$*" >> "$CALLS"
-case "$*" in
-  "root -g")
-    [ -n "$NPM_ROOT_DELAY" ] && sleep "$NPM_ROOT_DELAY"
-    if [ "$NPM_ROOT_INVALID_UTF8" = 1 ]; then printf '\377\n'; else printf '%s\n' "$NPM_ROOT"; fi
-    exit "${NPM_ROOT_RC:-0}" ;;
-  *--dry-run*) printf '%s\n' "$NPM_RESOLVE_LINE"; exit "${NPM_DRY_RUN_RC:-0}" ;;
-  *view*) printf '%s\n' "$NPM_VIEW"; exit 0 ;;
-  *) echo "npm install log"; exit "${NPM_INSTALL_RC:-0}" ;;
-esac
-"""
-        )
-        npm.chmod(0o700)
-        tool = bin_dir / cli
-        tool.write_text(
-            """#!/bin/bash
-printf '%s %s\n' "$0" "$*" >> "$CALLS"
-if [ "$1" = "--version" ]; then
-  n=$(cat "$COUNTER" 2>/dev/null || echo 0)
-  n=$((n+1)); echo "$n" > "$COUNTER"
-  if [ "$n" -eq 1 ]; then printf '%s\n' "$PRE_OUT"; exit "${PRE_RC:-0}"; fi
-  printf '%s\n' "$POST_OUT"; exit "${POST_RC:-0}"
-fi
-exit 0
-"""
-        )
-        tool.chmod(0o700)
+        stand_ins.tool(bin_dir, "npm", NPM_STAND_IN)
         package = self.CONFIG[cli]["package"]
-        package_dir = case_dir / "npm-root" / package
-        package_dir.mkdir(parents=True)
-        package_bin = package_dir / "bin" / cli
-        package_bin.parent.mkdir()
-        package_bin.write_text(tool.read_text())
-        package_bin.chmod(0o700)
-        tool.unlink()
-        tool.symlink_to(package_bin)
+        package_dir = self.npm_root(case_dir) / package
+        if stand_ins.WINDOWS:
+            # npm's sf.cmd shim, which starts node_modules\@salesforce\cli\bin\run.js, the package's declared bin
+            stand_ins.salesforce_cli(bin_dir, SF_STAND_IN)
+            entry = "bin/run.js"
+        else:
+            # npm's symlink on the PATH, to the package's declared bin
+            (package_dir / "bin").mkdir(parents=True)
+            (bin_dir / cli).symlink_to(stand_ins.tool(package_dir / "bin", cli, SF_STAND_IN))
+            entry = f"bin/{cli}"
         (package_dir / "package.json").write_text(
-            json.dumps({"name": package, "bin": {cli: f"bin/{cli}"}})
+            json.dumps({"name": package, "bin": {cli: entry}})
         )
         return bin_dir, calls
 
@@ -91,14 +120,14 @@ exit 0
         config = self.CONFIG[cli]
         package_name = overrides.pop("PACKAGE_NAME", None)
         if package_name is not None:
-            metadata_path = case_dir / "npm-root" / config["package"] / "package.json"
+            metadata_path = self.npm_root(case_dir) / config["package"] / "package.json"
             metadata = json.loads(metadata_path.read_text())
             metadata["name"] = package_name
             metadata_path.write_text(json.dumps(metadata))
         env = dict(os.environ)
         env.pop("PYTHONPATH", None)
+        env.update(stand_ins.cli_environment(bin_dir, "/usr/bin", "/bin"))
         env.update(
-            PATH=f"{bin_dir}:/usr/bin:/bin",
             CALLS=str(calls),
             COUNTER=str(case_dir / "counter"),
             PRE_OUT=config["pre"],
@@ -108,7 +137,7 @@ exit 0
             NPM_VIEW="2.0.0",
             NPM_INSTALL_RC="0",
             NPM_DRY_RUN_RC="0",
-            NPM_ROOT=str(case_dir / "npm-root"),
+            NPM_ROOT=str(self.npm_root(case_dir)),
             NPM_ROOT_RC="0",
             NPM_ROOT_DELAY="",
             NPM_ROOT_INVALID_UTF8="0",
@@ -239,7 +268,7 @@ exit 0
                     arguments,
                     env={
                         **os.environ,
-                        "PATH": f"{bin_dir}:/usr/bin:/bin",
+                        "PATH": stand_ins.path(bin_dir, "/usr/bin", "/bin"),
                         "CALLS": str(calls),
                     },
                     text=True,
@@ -277,14 +306,13 @@ exit 0
                 bin_dir, calls = self.make_stubs(case_dir, cli)
                 shadow = case_dir / "shadow"
                 shadow.mkdir()
-                (shadow / cli).write_text("#!/bin/bash\necho native\n")
-                (shadow / cli).chmod(0o700)
+                stand_ins.salesforce_cli(shadow, 'print("native")\n')  # another installation, first on the PATH
                 config = self.CONFIG[cli]
                 result = subprocess.run(
                     [sys.executable, "-B", str(CLI_SCRIPT), cli],
                     env={
                         **os.environ,
-                        "PATH": f"{shadow}:{bin_dir}:/usr/bin:/bin",
+                        **stand_ins.cli_environment(shadow, bin_dir, "/usr/bin", "/bin"),
                         "CALLS": str(calls),
                         "COUNTER": str(case_dir / "counter"),
                         "PRE_OUT": config["pre"],
@@ -292,7 +320,7 @@ exit 0
                         "NPM_VIEW": "2.0.0",
                         "NPM_INSTALL_RC": "0",
                         "NPM_RESOLVE_LINE": f"add {config['package']} 1.0.0 => 2.0.0",
-                        "NPM_ROOT": str(case_dir / "npm-root"),
+                        "NPM_ROOT": str(self.npm_root(case_dir)),
                         "TMPDIR": str(case_dir),
                         "PYTHONDONTWRITEBYTECODE": "1",
                     },
@@ -310,7 +338,9 @@ exit 0
             ("relative_root", {"NPM_ROOT": "relative/root"}),
             ("ambiguous_root", {"NPM_ROOT": "/one\n/two"}),
             ("invalid_utf8", {"NPM_ROOT_INVALID_UTF8": "1"}),
-            ("timeout", {"NPM_ROOT_DELAY": "3"}),
+            # On Windows the owner check's timeout ends npm.cmd's cmd.exe, not the npm under it, and still waits for
+            # npm's output, so this case lasts the whole delay there.
+            ("timeout", {"NPM_ROOT_DELAY": str(NPM_ROOT_LIMIT + 1)}),
         )
         for name, overrides in cases:
             with self.subTest(name=name):
@@ -329,9 +359,11 @@ exit 0
             ("non_executable", json.dumps({"name": "@salesforce/cli", "bin": {"sf": "bin/sf"}}), False),
         ):
             with self.subTest(name=name):
+                if not executable and stand_ins.WINDOWS:
+                    self.skipTest("Windows has no execute permission to take away: any existing file passes X_OK")
                 case_dir = self.base / f"malformed_{name}"
                 bin_dir, calls = self.make_stubs(case_dir, "sf")
-                package = case_dir / "npm-root" / "@salesforce" / "cli"
+                package = self.npm_root(case_dir) / "@salesforce" / "cli"
                 (package / "package.json").write_text(metadata)
                 if not executable:
                     (package / "bin" / "sf").chmod(0o600)
@@ -339,9 +371,9 @@ exit 0
                     [sys.executable, "-B", str(CLI_SCRIPT), "sf"],
                     env={
                         **os.environ,
-                        "PATH": f"{bin_dir}:/usr/bin:/bin",
+                        **stand_ins.cli_environment(bin_dir, "/usr/bin", "/bin"),
                         "CALLS": str(calls),
-                        "NPM_ROOT": str(case_dir / "npm-root"),
+                        "NPM_ROOT": str(self.npm_root(case_dir)),
                         "NPM_ROOT_RC": "0",
                         "NPM_ROOT_DELAY": "",
                         "NPM_ROOT_INVALID_UTF8": "0",
@@ -374,13 +406,10 @@ exit 0
                 bin_dir.mkdir(parents=True)
                 calls = case_dir / "calls.log"
                 if missing != "npm":
-                    npm = bin_dir / "npm"
-                    npm.write_text("#!/bin/bash\necho called >> \"$CALLS\"\n")
-                    npm.chmod(0o700)
+                    stand_ins.tool(bin_dir, "npm", 'import os\nwith open(os.environ["CALLS"], "a") as calls:\n'
+                                                   '    calls.write("called\\n")\n')
                 if missing != "sf":
-                    sf = bin_dir / "sf"
-                    sf.write_text("#!/bin/bash\necho native\n")
-                    sf.chmod(0o700)
+                    stand_ins.tool(bin_dir, "sf", 'print("native")\n')
                 script = CLI_SCRIPT
                 if missing == "owner helper":
                     scripts = case_dir / "scripts"
@@ -392,7 +421,7 @@ exit 0
                     [sys.executable, "-B", str(script), "sf"],
                     env={
                         **os.environ,
-                        "PATH": f"{bin_dir}:/bin",
+                        "PATH": stand_ins.path(bin_dir, "/bin"),  # no Node folder: on Windows it holds a real npm
                         "CALLS": str(calls),
                         "PYTHONDONTWRITEBYTECODE": "1",
                     },

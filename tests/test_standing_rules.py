@@ -14,7 +14,7 @@ import test_model_policy as fixtures
 ROOT = fixtures.ROOT
 BULLETS = ('- Delete existing metadata or records', '- Modify existing profiles or permission sets',
            '- Touch anything prefixed `sb_` or `managed__`')
-QUALIFIER = "Get the SE's explicit confirmation before:"
+QUALIFIER = "Get the builder's explicit confirmation before:"
 NEEDS_BASH = unittest.skipUnless(Path('/bin/bash').exists(), 'the startup fixture\'s sf and claude stubs are bash scripts')
 
 
@@ -52,14 +52,14 @@ class StandingRulesTests(unittest.TestCase):
                          'Companion Permission Set', 'Object CRUD', 'Field Read + Edit',
                          'RecordTypeVisibility', 'TabVisibility', 'AppVisibility',
                          'prompts/building/direct-repair.md', 'append-only', 'incumbent active Paths',
-                         'When developing Scout itself in this repository', 'the SE requests',
+                         'When developing Scout itself in this repository', 'the builder requests',
                          'Report every no-signal artifact as deployed, not as working',
                          'This is the only hard decline', 'not capability gates',
-                         'have the SE confirm', 'manual/`BLOCKED` unless the SE explicitly approves',
+                         'ask only when neither holds', 'manual/`BLOCKED` unless the builder explicitly approves',
                          'folder that contains this file', 'assignment of new or existing',
-                         'Simple demo-specific LWC', 'never batch unrelated changes',
+                         'LWC, one component or several', 'never batch unrelated changes',
                          'Before a multi-step loop', 'orgs/lessons/INDEX.md', '`sf org display --target-org [name]`',
-                         'only explicitly enabled', 'App Builder provides a live preview'):
+                         'only explicitly enabled', 'A new page from scratch goes to the checklist (App Builder)'):
             self.assertIn(required, text)
         command = (ROOT / 'skills/scout/SKILL.md').read_text() + (ROOT / 'prompts/scout/router-build.md').read_text()
         host = command.index('Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md`')

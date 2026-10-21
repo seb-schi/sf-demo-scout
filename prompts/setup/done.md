@@ -20,13 +20,14 @@ When the official-plugins step's last line is `OFFICIAL_READINESS blocked …`, 
 
 **Salesforce CLI outcome (REFRESH):** one plain line when its outcome isn't `SF_CLI_CURRENT`, using the versions its outcome line observed. The outcome token is the truth: never the `->` target, and never the fact that an install command ran.
 - `SF_CLI_UPDATED (X -> Y)`: updated to the observed `Y`.
-- `SF_CLI_HELD`: a newer version exists, but the SE's npm `min-release-age` policy holds it back on purpose, and it installs on a future refresh. Name the kept version. Not an error.
+- `SF_CLI_HELD`: a newer version exists, but the builder's npm `min-release-age` policy holds it back on purpose, and it installs on a future refresh. Name the kept version. Not an error.
 - `SF_CLI_UPDATE_NOOP` or `SF_CLI_CHECK_FAILED`: couldn't confirm it's on the newest version; name the version it reports. Not an update.
 - `SF_CLI_UPDATE_FAILED`: "The Salesforce CLI update didn't complete (installer error); it'll retry on a future refresh." Then "It currently reports [version]." if a version was observed, else "Its current version couldn't be verified." Never say the prior install is intact: a failed install may be partial.
 - `SF_CLI_UPDATE_UNVERIFIED`: couldn't verify the version after the update. Never report it as updated.
 - `SF_CLI_UPDATE_MISMATCH`: it now reports [observed], but [target] was expected, so it's worth a check. Don't imply the target was reached.
 - `SF_CLI_NOT_NPM_OWNED`: the active executable belongs to another installation, so Scout left it to that installation's updater. Not an error.
 - `SF_CLI_OWNERSHIP_UNVERIFIED`: Scout couldn't prove npm owns the active CLI, so it skipped the update. Name no installer.
+- `SF_CLI_WINDOWS_INSTALLER`: the Salesforce CLI here is the Windows installer's copy, so Scout skipped its update. Scout's own steps still work with it, but its launcher sits in a folder with a space, and a quoted argument in the coding tool's own `sf` calls breaks it (`'C:\Program' is not recognized`). The fix: uninstall **Salesforce CLI** in Settings → Apps (saved logins stay), then run `npm.cmd install --global @salesforce/cli` in a new PowerShell window, and quit and reopen the app. Not an error; one note.
 - `CLI_REFRESH_UNAVAILABLE`, `NPM_ABSENT`: the note `refresh.md` gives for it.
 
 **Running client (Claude):** when setup printed a floor notice or couldn't verify the running client, give the running client's observed version or why it's unverified, with any floor notice and its provider-specific advice. Setup doesn't update Claude Code, and a CLI updated on PATH doesn't establish that the desktop or IDE client updated.
@@ -35,6 +36,6 @@ When the official-plugins step's last line is `OFFICIAL_READINESS blocked …`, 
 
 **Auto-update:** when setup reported `AUTOUPDATE_LEFT_AS_CHOSEN`, its one line.
 
-**Self-repair:** after a run Scout started itself, one line on what it repaired. If the SE said no to the held steps, name each as skipped, with `/scout-setup` to run them any time.
+**Self-repair:** after a run Scout started itself, one line on what it repaired. If the builder said no to the held steps, name each as skipped, with `/scout-setup` to run them any time.
 
 **Docs MCP connection:** for a status other than `registration=registered transport=connected`, one short note using the Docs fragment's guidance. A connected status describes transport only: never call it authenticated, or say its tools work, before discovery and the first real use.

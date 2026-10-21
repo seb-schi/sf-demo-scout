@@ -3,7 +3,7 @@
 Salesforce Docs grounds release checks and deploy-error research. Scout's
 docs source is the Agentforce Labs Salesforce Docs MCP, a public server that
 needs no account or token (https://labs.agentforce.com/docs/salesforce-docs-mcp).
-This check reads first; it registers the server only on the SE's yes, and never
+This check reads first; it registers the server only on the builder's yes, and never
 removes, repairs or authenticates anything.
 
 Apply `prompts/host-runtime.md` and `prompts/mcp-readiness.md`. Select the active
@@ -42,11 +42,11 @@ Registration and transport do not prove that required tools are published.
 - `transport=authentication_required|failed|disabled|pending|unknown` — preserve
   the existing entry, report the state, and suggest inspecting it in `/mcp`.
   Do not remove or recreate it, even if its name or launcher is unfamiliar.
-- `registration=ambiguous` — ask the SE to inspect `/mcp`; do not choose or
+- `registration=ambiguous` — ask the builder to inspect `/mcp`; do not choose or
   modify an entry.
 - `registration=not_observed|unknown` — explain that list output can omit
   entries, so this does not prove absence. Offer to add the Agentforce Labs
-  Salesforce Docs MCP, in one plain question, and run this only on the SE's yes:
+  Salesforce Docs MCP, in one plain question, and run this only on the builder's yes:
 
   ```text
   claude mcp add -s user --transport http salesforce-docs https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp

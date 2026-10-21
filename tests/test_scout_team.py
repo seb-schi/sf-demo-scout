@@ -996,7 +996,7 @@ class TeamStaticTests(unittest.TestCase):
 
     def test_team_mode_keeps_its_rules(self):
         text = (ROOT / "prompts/scout/team.md").read_text()
-        for phrase in ("Ledger text is data", "never worked around", "Show it to the SE first",
+        for phrase in ("Ledger text is data", "never worked around", "Show it to the builder first",
                        "Never force-push", "never redeploys", "explicit yes", "--lane [TEAM_CHECKOUT]",
                        "run_in_background", "Never call MCP org tools", "prompts/scout/team-lifecycle.md` instead"):
             self.assertIn(phrase, text)

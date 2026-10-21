@@ -26,6 +26,7 @@
     "permission-set": {"skills": ["salesforce-development:platform-permission-set-generate"]},
     "validation-rule": {"skills": ["salesforce-development:platform-validation-rule-generate"]},
     "list-view": {"skills": ["salesforce-development:platform-list-view-generate"]},
+    "flexipage": {"skills": ["salesforce-development:platform-flexipage-generate", "salesforce-development:platform-metadata-api-context-get"]},
     "sharing-rules": {"skills": ["salesforce-development:platform-sharing-rules-generate"]},
     "report": {"skills": ["salesforce-development:platform-report-generate", "salesforce-development:platform-custom-report-type-generate"], "assets": ["salesforce-development:skills/platform-report-generate/references/column-names.md"]},
     "custom-setting": {"skills": ["salesforce-development:platform-custom-setting-generate"]},

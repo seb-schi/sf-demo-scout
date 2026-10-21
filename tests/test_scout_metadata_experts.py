@@ -147,6 +147,8 @@ for line in sys.stdin:
     if step == 'selection':
         send({'jsonrpc': '2.0', 'id': ident, 'result': envelope({'operationId': 'op-1'})}); continue
     generation[0] += 1
+    if generation[0] == pipe.get('error_at_generation'):
+        send({'jsonrpc': '2.0', 'id': ident, 'error': {'code': -32603, 'message': 'upstream'}}); continue
     if generation[0] <= pipe.get('incomplete', 0) or pipe.get('complete') == 'never':
         send({'jsonrpc': '2.0', 'id': ident, 'result': envelope({'isComplete': False})}); continue
     complete = pipe.get('complete', 'xml')
@@ -443,6 +445,16 @@ class MetadataExpertsTests(unittest.TestCase):
                 self.assertFalse((folder / 'candidate-1.flow-meta.xml').exists())
                 self.assertTrue((folder / 'candidate-1.receipt.json').exists())
 
+    def test_a_retry_never_takes_generation_past_its_budget(self):
+        # A retryable server error on the last allowed generation request isn't retried: that would be one more.
+        self.configure(pipeline={'complete': 'never', 'error_at_generation': 3})
+        with patch.object(experts, 'MAX_GENERATION_CALLS', 3), patch.object(experts, 'POLL_SECONDS', 0.1):
+            code, data = self.generate()
+        receipt = json.loads((self.root / 'out/candidate-1.receipt.json').read_text())
+        self.assertEqual((code, data['state']), (4, 'unavailable'))
+        self.assertEqual(receipt['client_rpc_calls']['generation'], 3)
+        self.assertNotIn('retried', receipt)
+
     def test_budget_existing_candidates_and_the_overall_deadline(self):
         self.configure(pipeline={'complete': 'never'})
         with patch.object(experts, 'MAX_GENERATION_CALLS', 3):
@@ -461,6 +473,25 @@ class MetadataExpertsTests(unittest.TestCase):
             self.assertLess(time.monotonic() - started, 2 + 3)
         self.assertEqual((code, data['state'], data['reason']), (4, 'unavailable', 'timed out'))
         self.assert_reaped()
+
+    def test_candidates_run_from_one_to_ten_and_none_is_reused(self):
+        # 2.4.1: hosted candidates count toward the attempt rule's ten like any other route's attempts (they used to
+        # stop at two). A number outside 1-10 is refused before any org or hosted call, and no number is reused.
+        self.configure()
+        code, data = self.generate('10')
+        self.assertEqual((code, data['state']), (0, 'complete'))
+        self.assertTrue((self.root / 'out/candidate-10.flow-meta.xml').is_file())
+        self.assertEqual(json.loads((self.root / 'out/candidate-10.receipt.json').read_text())['candidate'], 10)
+        calls = len(self.log())
+        for number in ('0', '11'):
+            with self.subTest(number=number):
+                self.assertEqual(self.generate(number), (2, {}))
+        self.assertEqual(len(self.log()), calls)  # refused while parsing: no sf call, no proxy
+        code, data = self.generate('10')
+        self.assertEqual((code, data['state']), (4, 'unknown'))
+        self.assertIn('candidate 10 already exists', data['reason'])
+        self.assertEqual(len(self.proxy_calls()), sum(1 for row in self.log()[:calls] if 'proxy' in row))
+        self.assertEqual((experts.MAX_CANDIDATES, experts.MAX_GENERATION_CALLS), (10, 40))  # the call guard stays
 
     def test_the_proxy_is_started_and_ended_the_portable_way(self):
         # A process group of its own, and kill_tree() at the end: os.killpg and SIGKILL don't exist on Windows.

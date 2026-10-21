@@ -17,6 +17,9 @@ import sys
 import time
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import scout_portable  # noqa: E402  (ships beside this helper)
+
 
 SCHEMA_VERSION = 1
 MAX_INPUT_BYTES = 4 * 1024 * 1024
@@ -312,4 +315,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    scout_portable.utf8_output()
     main()

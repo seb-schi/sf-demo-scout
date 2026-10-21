@@ -237,6 +237,16 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual([name for meta, name in entries if meta.split()[0] == "120000"], [])
         self.assertEqual([name for name in tracked_files() if (ROOT / name).is_symlink()], [])
 
+    def test_every_path_checks_out_on_windows(self) -> None:
+        # A name Windows can't create stops the whole marketplace clone there, for every Windows user: no reserved
+        # characters or device names, no trailing dot or space, and short enough under a plugin cache's own path.
+        reserved = re.compile(r'[<>:"|?*\\\x00-\x1f]|(?:^|/)(?:CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(?:\.[^/]*)?(?:/|$)|[. ](?:/|$)',
+                              re.IGNORECASE)
+        names = tracked_files()
+        self.assertIn("hooks/run-hook.cmd", names)
+        self.assertEqual([name for name in names if reserved.search(name)], [])
+        self.assertEqual([name for name in names if len(name) > 120], [])
+
     def test_json_files_have_no_byte_order_mark(self) -> None:
         names = [name for name in tracked_files() if name.endswith(".json")]
         self.assertIn("hooks/claude-hooks.json", names)

@@ -1,6 +1,6 @@
 # Customer-Name Normalization
 
-Read by `/scout` after the SE names a customer. Produces the deterministic `ORG_FOLDER` path and handles existing-folder matching.
+Read by `/scout` after the builder names a customer. Produces the deterministic `ORG_FOLDER` path and handles existing-folder matching.
 
 ## Slug Rule
 
@@ -15,12 +15,12 @@ Resolve `ORG_FOLDER = orgs/<slug(alias)>-<slug(customer)>/` once here. The RAW a
 
 ## Existing-Folder Match Check
 
-Before creating the folder, run `ls -d orgs/<slug(alias)>-*/ 2>/dev/null` (use the slugified alias in the glob — the on-disk folders are slug-named) and scan for any folder whose suffix is equal to, a prefix of, or shares the first hyphen-delimited segment with the normalized slug. If one or more matches exist, ask the SE in a single message:
+Before creating the folder, run `ls -d orgs/<slug(alias)>-*/ 2>/dev/null` (use the slugified alias in the glob — the on-disk folders are slug-named) and scan for any folder whose suffix is equal to, a prefix of, or shares the first hyphen-delimited segment with the normalized slug. If one or more matches exist, ask the builder in a single message:
 
 > "Found existing folder(s) for this org: [list]. Same customer as one of these, or a new one?
 > - Reply with the matching folder name to continue in it.
 > - Reply `new` to create a fresh customer folder."
 
-Wait for the reply. If the SE names an existing folder, set `ORG_FOLDER` to that folder verbatim. If `new`, create `ORG_FOLDER`. If no matches, proceed with the resolved `ORG_FOLDER` without prompting.
+Wait for the reply. If the builder names an existing folder, set `ORG_FOLDER` to that folder verbatim. If `new`, create `ORG_FOLDER`. If no matches, proceed with the resolved `ORG_FOLDER` without prompting.
 
 Final value: **ORG_FOLDER** = `orgs/<slug(alias)>-<slug(customer)>/` — pass this verbatim to every downstream step (audit orchestration, spec write). The raw alias travels alongside it for `--target-org` use only.
