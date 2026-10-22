@@ -5,8 +5,8 @@ stakeholders. It runs in Claude Code, Codex or Cursor; one of them is enough. Ru
 `/scout` and say what you need: Scout spars with you on the demo story, builds it in
 your demo org, checks every piece there, and preps you for delivery, all in one
 session. Scout 2.0 is built for Opus 5.5 and later, ideally at High effort or higher
-(`/effort high`, or Effort in the desktop app's model picker); on Codex and Cursor,
-pick the strongest model you have, at its highest reasoning setting.
+(`/effort high`, or Effort in the desktop app's model picker). On Codex it's tested
+with GPT-6.1-Sol at Extra High, and on Cursor with Opus 5.5 at High.
 
 ## Why Scout exists
 
@@ -187,6 +187,9 @@ codex plugin marketplace add seb-schi/sf-demo-scout
 ```bash
 codex plugin add sf-demo-scout@scout
 ```
+
+If the terminal doesn't know `codex`, install Codex's command line first: the desktop app
+doesn't always add it. [Troubleshooting](docs/troubleshooting.md) has the line.
 
 Then restart Codex, and in the **chat** run `$sf-demo-scout:scout-setup`; afterwards,
 start a demo with `$sf-demo-scout:scout`, where these instructions say `/scout`.

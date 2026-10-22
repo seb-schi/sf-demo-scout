@@ -171,6 +171,31 @@ class ScoutCardTests(unittest.TestCase):
         other = self.task_file('task-2026-11-03-1300-other.md', [item('I1', 'ApexClass')])
         self.assertEqual(self.run_card('answer', '--task', str(other), '--rating', 'ok')[0], 3, 'no card yet')
 
+    def test_a_task_record_named_by_a_relative_or_missing_path_is_refused_with_its_reason(self):
+        for args, reason in ((('handover', '--task', self.task.name, '--host', 'claude'), 'full path'),
+                             (('handover', '--task', str(self.folder / 'task-2026-11-03-1300-missing.md'), '--host',
+                               'claude'), 'no task record'),
+                             (('answer', '--task', self.task.name, '--rating', 'good'), 'full path'),
+                             (('share-text', '--task', self.task.name), 'full path')):
+            code, data = self.run_card(*args)
+            self.assertEqual(code, 3, args)
+            self.assertIn(reason, data['reason'])
+        self.assertEqual(self.cards(), [], 'no card from a wrong path')
+        self.assertEqual(self.handover()[1]['card']['state'], 'offered', 'the full path works')
+
+    def test_short_times_read_in_minutes_and_one_hour_in_the_singular(self):
+        self.handover()
+        for kind, hours, words in (('hours', '0.33', 'Time saved, my estimate: about 20 minutes.'),
+                                   ('hours', '0.01', 'Time saved, my estimate: about 1 minute.'),
+                                   ('hours', '0.999', 'Time saved, my estimate: about 1 hour.'),
+                                   ('hours', '0.9917', 'Time saved, my estimate: about 1 hour.'),
+                                   ('hours', '1', 'Time saved, my estimate: about 1 hour.'),
+                                   ('hours', '2.5', 'Time saved, my estimate: about 2.5 hours.'),
+                                   ('time_lost', '0.25', 'It cost me time, about 15 minutes.')):
+            code, data = self.run_card('answer', '--task', str(self.task), '--time-kind', kind, '--hours', hours)
+            self.assertEqual(code, 0, data)
+            self.assertIn(words, data['text'])
+
     def test_comments_in_any_language_pass_and_obvious_identifiers_are_refused(self):
         self.handover()
         for comment in ('Ping maple@example.test', 'Broke on acme.my.salesforce.com', 'See 00D000000000001EAA',

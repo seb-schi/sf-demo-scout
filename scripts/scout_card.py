@@ -274,6 +274,16 @@ def comment_problem(comment: str):
     return None
 
 
+def duration(hours) -> str:
+    """The builder's own estimate in words: minutes under an hour, hours from one up."""
+    minutes = round(hours * 60)
+    if minutes < 60:
+        minutes = max(minutes, 1)
+        return "%d minute%s" % (minutes, "" if minutes == 1 else "s")
+    hours = max(round(hours, 2), 1)  # 59.5 minutes rounds up to the hour, never to "0.99 hours"
+    return "%g hour%s" % (hours, "" if hours == 1 else "s")
+
+
 def card_text(card: dict) -> str:
     """The post, from the card's fixed fields and the builder's own answers: what was built, what Scout's
     read-backs found, and the builder's words. Nothing else."""
@@ -291,9 +301,10 @@ def card_text(card: dict) -> str:
     saved = card["time_saved"]
     if saved:
         hours = saved.get("hours")
-        parts.append({"hours": "Time saved, my estimate: about %g hours." % (hours or 0),
+        parts.append({"hours": "Time saved, my estimate: about %s." % duration(hours or 0),
                       "unknown": "Time saved: I can't say.", "none": "Time saved: none.",
-                      "time_lost": "It cost me time" + (", about %g hours." % hours if hours else ".")}[saved["kind"]])
+                      "time_lost": "It cost me time" + (", about %s." % duration(hours) if hours else ".")
+                      }[saved["kind"]])
     if card["rating"]:
         parts.append("How it went: %s." % {"good": "good", "ok": "OK", "poor": "poor"}[card["rating"]])
     if card["comment"]:
@@ -588,6 +599,10 @@ def main(argv=None) -> int:
     summary.add_argument("--month")
     args = parser.parse_args(argv)
     try:
+        if getattr(args, "task", None) is not None:
+            problem = scout_history.task_path_problem(args.task, must_exist=args.command == "handover")
+            if problem:
+                raise Refused(problem)
         payload = globals()["cmd_" + args.command.replace("-", "_")](args)
     except Refused as error:
         print(json.dumps({"reason": str(error)}, ensure_ascii=False))

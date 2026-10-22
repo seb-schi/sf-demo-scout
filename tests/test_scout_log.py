@@ -620,6 +620,22 @@ class ScoutLogTests(unittest.TestCase):
         self.assertEqual((code, data['attachment']), (0, None), 'History incomplete still writes its entry')
         self.assertEqual((len(self.entries()), len(self.org()['files'])), (2, 1))
 
+    def test_a_task_record_named_by_a_relative_or_missing_path_is_refused_before_anything_is_sent(self):
+        self.joined()
+        missing = str(self.task.with_name('task-2026-10-21-1300-missing.md'))
+        for args, reason in ((('add', '--type', 'change', '--task', self.task.name), 'full path'),
+                             (('add', '--type', 'change', '--task', self.task.name, '--incomplete'), 'full path'),
+                             (('add', '--type', 'change', '--task', missing, '--incomplete'), 'no task record'),
+                             (('claim', '--scope', '["CustomField:Example__c.Label__c"]', '--task', self.task.name),
+                              'full path'),
+                             (('release', '--task', self.task.name), 'full path')):
+            code, data = self.on_org(*args)
+            self.assertEqual(code, 3, args)
+            self.assertIn(reason, data['reason'])
+            self.assertNotIn('queued', data, 'refused before anything was saved to send')
+        self.assertEqual(self.call_log(), [], 'no org call at all')
+        self.assertEqual((self.entries(), self.queued()), ([], []))
+
     def test_traps_and_questions_get_a_new_key_each_and_an_answer_closes_its_question(self):
         self.joined()
         for kind in ('trap', 'trap', 'question'):

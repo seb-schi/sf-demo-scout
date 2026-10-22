@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import re
 import stat
 import sys
@@ -54,8 +54,12 @@ class BlockError(ValueError):
 
 
 def read(path):
-    if path.is_symlink() or not path.is_file() or path.stat().st_size > 4 * 1024 * 1024:
-        raise OSError('expected a bounded regular file, not a symlink')
+    if path.is_symlink():
+        raise OSError('expected a regular file, not a symlink')
+    if not path.is_file():
+        raise OSError('no such file' if not path.exists() else 'expected a regular file')
+    if path.stat().st_size > 4 * 1024 * 1024:
+        raise OSError('expected a file under 4 MB')
     return path.read_bytes().decode('utf-8')
 
 
@@ -250,6 +254,21 @@ def schema(record):
     except ValueError as error:
         raise BlockError(str(error)) from error
     return record
+
+
+def task_path_problem(task, must_exist=False):
+    """Why a task record path given on a command line can't be used, or None. Helpers take the record by its full
+    path: a relative one resolves against wherever the command runs, rarely the org folder, and keys the task
+    wrongly. On Windows a full path has its drive or share; Python before 3.13 also calls `\\orgs\\x` absolute."""
+    full = PureWindowsPath(task).is_absolute() if scout_portable.windows() else os.path.isabs(task)
+    if not full:
+        return "pass the task record by its full path, not %s" % task
+    if must_exist:
+        if os.path.islink(task):
+            return "the task record at %s is a link; pass the file itself" % task
+        if not os.path.isfile(task):
+            return "there's no task record at %s" % task
+    return None
 
 
 def task_record(task):

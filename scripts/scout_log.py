@@ -1264,6 +1264,11 @@ def main(argv=None) -> int:
         parser.error("outbox retry needs --selector")
     handler = globals()["cmd_" + args.command.replace("-", "_")]
     try:
+        if getattr(args, "task", None) is not None:
+            problem = scout_history.task_path_problem(
+                args.task, must_exist=args.command == "add" and args.type == "change")
+            if problem:
+                raise Refused(problem)
         payload = handler(args)
     except Conflict as conflict:
         print(json.dumps(conflict.payload, sort_keys=True, ensure_ascii=False))

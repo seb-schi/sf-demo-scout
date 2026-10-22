@@ -2145,5 +2145,34 @@ class ScoutHistoryTests(unittest.TestCase):
         self.assertEqual(self.run_cli()[0], 0, self.run_cli()[1])
 
 
+class TaskPathTests(unittest.TestCase):
+    """The helpers' --task check: a full path, and where the record is read, the file itself."""
+
+    def test_on_windows_a_full_path_names_its_drive_or_share(self):
+        with patch.object(history.scout_portable, 'windows', return_value=True):
+            for task in (r'\orgs\demo\task.md', '/orgs/demo/task.md', 'C:task.md', 'task.md'):
+                self.assertIn('full path', history.task_path_problem(task) or '', task)
+            for task in (r'D:\demos\orgs\demo\task.md', 'D:/demos/orgs/demo/task.md',
+                         r'\\server\share\orgs\demo\task.md'):
+                self.assertIsNone(history.task_path_problem(task), task)
+
+    def test_a_record_that_is_read_must_be_the_file_itself(self):
+        temp = tempfile.TemporaryDirectory(prefix='scout-task-path-')
+        self.addCleanup(temp.cleanup)
+        folder = Path(temp.name).resolve()
+        record = folder / 'task-2026-10-22-1200-example.md'
+        record.write_text('# Task\n')
+        self.assertIsNone(history.task_path_problem(str(record), must_exist=True))
+        self.assertIn('no task record', history.task_path_problem(str(folder / 'task-missing.md'), must_exist=True))
+        self.assertIsNone(history.task_path_problem(str(folder / 'task-missing.md')), 'only a read needs the file')
+        try:
+            (folder / 'task-link.md').symlink_to(record)
+            (folder / 'task-dangling.md').symlink_to(folder / 'task-moved.md')
+        except (OSError, NotImplementedError):
+            self.skipTest('this system cannot create symlinks')
+        for link in ('task-link.md', 'task-dangling.md'):
+            self.assertIn('is a link', history.task_path_problem(str(folder / link), must_exist=True), link)
+
+
 if __name__ == '__main__':
     unittest.main()

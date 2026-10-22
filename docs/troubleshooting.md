@@ -31,6 +31,20 @@ The desktop app doesn't always put Claude Code's command line on the PATH. Insta
 [Anthropic's setup guide](https://code.claude.com/docs/en/setup) shows (on Windows:
 `winget install Anthropic.ClaudeCode`), then open a new PowerShell or Terminal window.
 
+### "'codex' is not recognized" or "command not found: codex"
+
+The ChatGPT desktop app doesn't always put Codex's command line on the PATH, and the README's install commands
+need it. Install it with npm, then open a new PowerShell or Terminal window and run the README's two lines
+again:
+
+```bash
+npm install --global @openai/codex
+```
+
+In PowerShell, type `npm.cmd` instead of `npm`. [OpenAI's Codex README](https://github.com/openai/codex#installing-and-running-codex-cli)
+lists other ways to install it. To update Scout, you don't need the command line: Codex updates Scout when it
+starts, so restart it.
+
 ### "self-signed certificate in certificate chain"
 
 Your network inspects encrypted traffic, and Git for Windows checks certificates against its own list, not
@@ -127,7 +141,8 @@ the login worked, and you can carry on.
 
 On Claude Code, pick Opus 5.5 in the model picker (or `/model` in a terminal session), then run `/scout`
 again. Ideally set its effort to High or higher: `/effort high`, or Effort in the desktop app's model picker.
-On Codex and Cursor, pick the strongest model you have, at its highest reasoning setting.
+On Codex, pick GPT-6.1-Sol or newer at Extra High, which is what Scout is tested with; Ultra, which delegates
+parts of a task automatically, isn't tested. On Cursor, pick Opus 5.5 at High or higher.
 
 ### Scout says Salesforce's official plugins aren't set up, or that two copies are switched on
 

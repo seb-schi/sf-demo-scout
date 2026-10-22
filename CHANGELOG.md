@@ -2,6 +2,19 @@
 
 Newest first. Scout updates itself; each entry says what changed for you.
 
+## 2026-10-22 (Scout 2.5.1)
+
+- **The offer to join a string telephone explains itself.** When an org you build in already has one, Scout now
+  says in plain words what it is and what joining does before it asks, so you can decide without having heard of it.
+- **A clear reason when a task record's path is wrong.** The string telephone and build cards take the task record
+  by its full path. Given a relative path, or one with no file behind it, they now say so and write nothing. Before,
+  the reason read as if the file were a link, or the handover quietly went without its card.
+- **Codex, from the desktop app.** If your terminal doesn't know `codex`, the README and the troubleshooting page now
+  say how to add Codex's command line, which the README's install commands need. And instead of "the highest reasoning
+  setting", they name what Scout is tested with: GPT-6.1-Sol at Extra High on Codex, Opus 5.5 at High on Cursor.
+- **Short times read in minutes on build cards.** Twenty minutes shows as "about 20 minutes", not "about 0.33
+  hours", and one hour as "about 1 hour".
+
 ## 2026-10-22 (Scout 2.5.0)
 
 - **Building one org together, the light way: the string telephone.** It's Simon Beer's idea, now built in.
