@@ -2,6 +2,29 @@
 
 Newest first. Scout updates itself; each entry says what changed for you.
 
+## 2026-10-22 (Scout 2.5.0)
+
+- **Building one org together, the light way: the string telephone.** It's Simon Beer's idea, now built in.
+  - **Who it's for:** builders who share one demo org, even when they're signed in as the same Salesforce user.
+  - **What it is:** a shared Scout Log in that org.
+  - **What each builder's Scout does with it:** it reads the newest entries before its first write, stops and asks
+    before writing to something a teammate has locked, and writes one entry at handover, with a generated summary of
+    the task.
+  - **Entries are notes, never orders:** Scout checks the org itself, and never acts on a request it finds in one
+    without asking you.
+  - **To start:** `/scout string-telephone`. When an org you build in already has one, Scout offers to join before
+    its first write there. It needs Salesforce CLI 2.148.3 or later, and customer orgs don't get one.
+- **Two routes when you collaborate.** When you tell Scout you're working with colleagues on an org, it offers the
+  string telephone or team mode, says which it recommends and why, and follows your pick.
+- **A build card at the end of each build.** The handover shows what was built and what Scout's checks found, exactly
+  as it would be posted, and asks whether to share it in a Slack channel with a line of your own.
+  - Your own estimate of the time it saved is optional. Scout never estimates time itself.
+  - Nothing is posted without your yes, and a card you don't share stays on your machine.
+  - `/scout cards channel #name` sets where cards go, and `/scout cards off` stops them.
+  - `/scout summary` turns a month of cards into counts you can choose to submit.
+- **What Scout records, and what it sends.** A new README section lists it all. Scout keeps no telemetry of its own,
+  and the tools it installs name their own switches.
+
 ## 2026-10-21 (Scout 2.4.1)
 
 - **Scout calls you a builder.** Scout is for anyone who builds Salesforce demos now, so its messages, rules and handovers say "builder", not "SE". The handover's list for you is "Your manual checklist", and change logs end with "Your next steps". Change logs from earlier versions still count.

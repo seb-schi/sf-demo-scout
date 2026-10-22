@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <caseSensitive>true</caseSensitive>
+    <description>A unique key per entry, so a retried write updates the same record instead of creating a duplicate.</description>
+    <externalId>true</externalId>
+    <fullName>Key__c</fullName>
+    <inlineHelpText>Set by Scout. Do not edit.</inlineHelpText>
+    <label>Key</label>
+    <length>80</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

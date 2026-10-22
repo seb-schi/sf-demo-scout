@@ -12,6 +12,8 @@ The request is what the builder sent with `/scout` (on Claude Code, the `ARGUMEN
 
 ## Start and target
 
+Local commands need no org or workspace: after resolving Scout's root (below), `/scout cards …` and `/scout summary` follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/feedback.md`, `/scout string-telephone leave` follows `${CLAUDE_PLUGIN_ROOT}/prompts/scout/string-telephone.md` §"Leaving", and each ends the request.
+
 Read `${CLAUDE_PLUGIN_ROOT}/prompts/host-runtime.md` and resolve Scout's absolute root as it says (where `${CLAUDE_PLUGIN_ROOT}` isn't filled in, it's this file's folder two levels up), then run the read-only gate in `${CLAUDE_PLUGIN_ROOT}/prompts/workspace-bootstrap.md`. On `CHECK_FAILED`, absent success evidence or nonzero exit, follow the gate's rules. Use the verified workspace on every call. Run `python3 [PLUGIN_ROOT_ABS]/scripts/scout_version.py --host [SCOUT_HOST]`: `SCOUT_ROOT_INVALID` means the resolved root is wrong, so stop and say so; put a `SCOUT_UPDATE` line into your first message, once, unless on Claude Code your session-start context already holds the same notice, which the builder saw at session start; run any `git pull` it names only on the builder's yes.
 
 On Claude only, if this session identifies an Opus, Sonnet or Haiku model older than 5.5, send only “Scout 2.0 is built for Opus 5.5 and later, ideally at High effort or higher. Pick Opus 5.5 (model picker or `/model`), then run `/scout` again.” and stop. Say what you will inspect. Check exposed Docs tools; do not load readiness before this message; if unavailable, say so in this first builder-facing message. Read `orgs/lessons/INDEX.md` if present, without creating it; load topic files only when relevant.
@@ -24,7 +26,9 @@ python3 [PLUGIN_ROOT_ABS]/scripts/scout_target.py bind --selector [SELECTOR]
 
 Require exit 0; preserve the returned selector, username, org ID, `class` and `writes`. Scout writes only to demo orgs: trial, sandbox or scratch (`writes: allowed`). In a production org, or one it can't classify (`read-only`), Scout inspects, plans and preps but never writes: say so in one line, naming the class, and point changes to the builder's own pipeline, which Lifecycle Center mode can help set up; that pipeline's own work items and promotions follow `prompts/scout/team-lifecycle.md`. From this point every org-directed `sf` call carries `--target-org [BOUND_USERNAME]`. Never call MCP org tools, even when the bound org is the default. Wherever a file says MCP, the active or default org, `sf config get target-org`, or to omit `--target-org`, use `sf … --target-org [BOUND_USERNAME]`. Keep defaults, aliases and existing logins unchanged; a different target needs the builder to name it and a new binding.
 
-Team: for `/scout session`, `/scout integrate`, collaboration on an org, or a bound org that `python3 [PLUGIN_ROOT_ABS]/scripts/scout_team.py context --org-id [BOUND_ORG_ID]` names, follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/team.md` too.
+On `writes: allowed`, run `python3 -B [PLUGIN_ROOT_ABS]/scripts/scout_log.py status --org-id [BOUND_ORG_ID] --username [BOUND_USERNAME]` and act on it as `${CLAUDE_PLUGIN_ROOT}/prompts/scout/string-telephone.md` §"At binding" says.
+
+Team: for `/scout session`, `/scout integrate`, a team update, or a bound org that `python3 [PLUGIN_ROOT_ABS]/scripts/scout_team.py context --org-id [BOUND_ORG_ID]` names, follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/team.md` too; its common org has no string telephone. Otherwise a joined or named string telephone ("string telephone", "Dosentelefon", "Scout Log") follows `${CLAUDE_PLUGIN_ROOT}/prompts/scout/string-telephone.md`, and other collaboration wording follows `${CLAUDE_PLUGIN_ROOT}/prompts/scout/collaborate.md`.
 
 Before every write (retries too) and every read-back supporting a disposition, run the check below; for a write, add `--write`, which refuses a `read-only` org with exit 5:
 
@@ -33,7 +37,7 @@ python3 [PLUGIN_ROOT_ABS]/scripts/scout_target.py check
   --selector [BOUND_SELECTOR] --username [BOUND_USERNAME] --org-id [BOUND_ORG_ID] [--write]
 ```
 
-On any nonzero exit, stop writing, report the reason and mark unattempted open items `blocked`; any item with an attempted write is `unverified`, never `blocked`, even if its deploy finished. Do not repair authentication or configuration. Invoke helpers and CLI with safely quoted literal arguments; allow 180000 ms for binding/checking. Never automatically retry a write.
+On any nonzero exit, stop writing, report the reason and mark unattempted open items `blocked`; any item with an attempted write is `unverified`, never `blocked`, even if its deploy finished. Do not repair authentication or configuration. Invoke helpers and CLI with safely quoted literal arguments; allow 180000 ms for binding/checking. Never automatically retry a write. On a joined string telephone, its lock check follows every `check --write` (`${CLAUDE_PLUGIN_ROOT}/prompts/scout/string-telephone.md` §"Before each write: the lock check").
 
 Slugify with `${CLAUDE_PLUGIN_ROOT}/scripts/slugify.py` using the alias, otherwise username. Apply `${CLAUDE_PLUGIN_ROOT}/prompts/sparring/customer-normalization.md`: one matching folder → use it only if its change logs or task records name the bound username or org ID, otherwise ask; several → ask which; none → ask the customer name and create `orgs/[org-slug]-[customer-slug]/`. Use its absolute path. A prefix proves no identity. Use `sf alias list --json` if needed. These override the fragment.
 

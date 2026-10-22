@@ -23,6 +23,8 @@ Exit 0 permits handover; warnings disclose Docs-unavailable grounding or builder
 
 Send one outcome-first message: verified items; visual QA; each uncompleted item with disposition, reason and next step; manual checklist; any copy scan; task/log paths. Then the Demo Story and history block, with proposed decisions and lessons for yes/edit/skip. A task with a story tells its beats as `${CLAUDE_PLUGIN_ROOT}/prompts/scout/discovery.md` §"Tell the verified story" says, reread after compaction: each with persona, click path, record, KP, verified claims and climax, the proof moment marked, unfulfilled beats labelled planned/unverified. A bounded change gets one line naming the beat it serves. Write neither without the builder's answer. Follow this file through the post-answer check/receipt.
 
+Before sending, on a joined string telephone, follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/string-telephone.md` §"At handover". Last, follow `${CLAUDE_PLUGIN_ROOT}/prompts/scout/feedback.md` §"At handover".
+
 ## The map and one history question
 
 Propose material decisions: amendments, confirmations, new/existing forks, gated choices, cuts as `[REJECTED]`, items kept without a moment, app and language choices. Change the arc only if flow changed. With neither change, leave the map untouched: “map unchanged”.

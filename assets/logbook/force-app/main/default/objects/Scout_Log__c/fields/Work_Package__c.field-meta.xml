@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>The work package or demo beat the entry belongs to, if any.</description>
+    <fullName>Work_Package__c</fullName>
+    <inlineHelpText>Optional: the demo step or work package name.</inlineHelpText>
+    <label>Work Package</label>
+    <length>60</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

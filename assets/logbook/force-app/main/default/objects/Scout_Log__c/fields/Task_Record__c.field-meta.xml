@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>The file name of the Scout task record behind the entry, so its builder can find the full local history.</description>
+    <fullName>Task_Record__c</fullName>
+    <inlineHelpText>Scout's local task record file name.</inlineHelpText>
+    <label>Task Record</label>
+    <length>120</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>
