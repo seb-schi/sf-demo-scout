@@ -1,6 +1,6 @@
 # /scout in a team: several builders, one common org
 
-Read this when a request starts, joins or works in a team (`/scout session`, `/scout integrate`, "I'm collaborating with … on …"), when `scout_team.py context` names a team for the bound org, or when a 📨 team update arrives. An update alone changes nothing for other orgs: relay it, and apply the rest only to the team's orgs. Everything else in `/scout` still applies.
+Read this when a request starts, joins or works in a team (`/scout session`, `/scout integrate`), when `scout_team.py context` names a team for the bound org, when a 📨 team update arrives, or when the builder picks team mode in `${CLAUDE_PLUGIN_ROOT}/prompts/scout/collaborate.md`. An update alone changes nothing for other orgs: relay it, and apply the rest only to the team's orgs. Everything else in `/scout` still applies.
 
 **On Lifecycle Center:** when the builder wants the team on Lifecycle Center (Salesforce's next-generation DevOps Center), or `context` returns `mode: lifecycle`, read `${CLAUDE_PLUGIN_ROOT}/prompts/scout/team-lifecycle.md` instead of this file.
 

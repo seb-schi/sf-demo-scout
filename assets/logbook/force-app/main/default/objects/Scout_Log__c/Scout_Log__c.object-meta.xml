@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>The Scout Log object is a shared memory for builders working in one demo org. It records each Entry Type (Change/Trap/Lock/Question/Answer only), Status, Author, Components, Note and Lock Until, keyed by a unique Key (external ID). Commonly used for handovers, advisory locks and open questions between builders.</description>
+    <label>Scout Log</label>
+    <nameField>
+        <displayFormat>LOG-{0000}</displayFormat>
+        <label>Entry Number</label>
+        <startingNumber>1</startingNumber>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Scout Log Entries</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+    <visibility>Public</visibility>
+</CustomObject>

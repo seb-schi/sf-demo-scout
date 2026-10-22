@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>The builder's self-chosen display name, because builders often share one Salesforce user.</description>
+    <fullName>Author__c</fullName>
+    <inlineHelpText>The name the builder gave Scout. A label for people, not proof of identity.</inlineHelpText>
+    <label>Author</label>
+    <length>80</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

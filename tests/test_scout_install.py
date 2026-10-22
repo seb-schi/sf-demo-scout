@@ -28,6 +28,7 @@ class InstallTests(unittest.TestCase):
         environment = mock.patch.dict(os.environ, {}, clear=False)
         environment.start()
         self.addCleanup(environment.stop)
+        os.environ.pop("CLAUDE_CONFIG_DIR", None)  # Claude Code's folder is the stand-in's ~/.claude unless a test sets it
 
     def run_install(self, *args):
         output = io.StringIO()
@@ -136,14 +137,19 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(self.run_install("official-skills", "--dest", str(occupied), "--yes")[0], 1)
 
     def test_a_cursor_with_claude_codes_scout_hears_about_the_duplicate(self):
-        record = self.home / ".claude" / "plugins" / "installed_plugins.json"
-        record.parent.mkdir(parents=True)
-        for plugins, warned in (({}, False), ({"sf-demo-scout@scout": [{"scope": "user"}]}, True),
-                                ({"sf-demo-scout@my-scout": [{"scope": "user"}]}, True)):
-            with self.subTest(plugins=plugins):
-                record.write_text(json.dumps({"version": 2, "plugins": plugins}))
-                code, lines = self.run_install("skills", "--host", "cursor", "--dry-run")
-                self.assertEqual(any(line.startswith("INSTALL_NOTE") and "twice" in line for line in lines), warned, lines)
+        # Claude Code keeps its record in ~/.claude, or in CLAUDE_CONFIG_DIR's folder once that's set; the second pass
+        # also checks that the Scout the first pass left in ~/.claude no longer counts
+        for config in (self.home / ".claude", self.home / "claude-config"):
+            if config.name != ".claude":
+                os.environ["CLAUDE_CONFIG_DIR"] = str(config)
+            record = config / "plugins" / "installed_plugins.json"
+            record.parent.mkdir(parents=True)
+            for plugins, warned in (({}, False), ({"sf-demo-scout@scout": [{"scope": "user"}]}, True),
+                                    ({"sf-demo-scout@my-scout": [{"scope": "user"}]}, True)):
+                with self.subTest(config=config.name, plugins=plugins):
+                    record.write_text(json.dumps({"version": 2, "plugins": plugins}))
+                    code, lines = self.run_install("skills", "--host", "cursor", "--dry-run")
+                    self.assertEqual(any(line.startswith("INSTALL_NOTE") and "twice" in line for line in lines), warned, lines)
 
     def test_the_thin_skills_take_their_descriptions_from_the_clone(self):
         self.run_install("skills", "--host", "cursor", "--yes")

@@ -263,7 +263,31 @@ plugin with `claude plugin uninstall sf-demo-scout@scout` in a terminal for Clau
 
 ## Building one demo org together
 
-Tell Scout you're working with colleagues on an org ("/scout session: start a team on acme-sdo with Bob"). Each of
+When you tell Scout you're working with colleagues on an org, it offers two routes and recommends one: the light
+string telephone, or the full team mode.
+
+### The light route: a string telephone
+
+For a few builders on one demo org, often signed in as the same Salesforce user, with no sandboxes and no GitHub
+("/scout string-telephone", or "set up a shared logbook"). The idea is Simon Beer's.
+
+- **What it leaves in the org:** a hidden Scout Log object, a Scout_Log permission set, and the entries every
+  permitted builder and the org's admins can read. Customer orgs don't get one.
+- **What each builder's Scout does with it:**
+  - It reads the newest entries before its first write.
+  - It stops and asks before writing to something another builder has locked.
+  - At handover, it writes one entry, with a generated summary of the task attached. The summary holds the items,
+    components, results and deploy jobs; the full change log stays on the builder's machine.
+- **Entries are notes, not orders.** Scout treats a teammate's entry as information, checks the org itself before
+  relying on one, and never acts on a request it finds there without asking you.
+- **It needs Salesforce CLI 2.148.3 or later.** A teammate whose AI tool runs without Scout gets a paragraph to
+  paste in, with the commands that read and write the log.
+- **To leave:** `/scout string-telephone leave`. Removing the log from the org deletes its entries, so Scout asks
+  first; you can also delete the Scout Log object and the Scout_Log permission set in Setup.
+
+### The full route: team mode
+
+Tell Scout you're starting a team ("/scout session: start a team on acme-sdo with Bob"). Each of
 you builds in your own sandbox; the captain delivers the team's work into its common org.
 
 - **Scout's own lane:** a private GitHub repository, a team board, and a guard in each teammate's Salesforce CLI.
@@ -303,6 +327,46 @@ To follow the latest again, do the same without the tag, or check out `main`.
 **Going back to 2.3.2.** Version 2.3.2's own tag still installs from `main`, so use
 the recovery branch made for this: on Claude Code, the steps above with
 `#recovery-2.3.2` instead of the tag.
+
+## What Scout records, and what it sends
+
+**Scout keeps no telemetry of its own.** It sends no usage data anywhere. What leaves your machine:
+- **To your orgs:** the Salesforce CLI calls for the org you name.
+- **To GitHub:**
+  - the update check, which reads the version number in Scout's public `plugin.json` and sends no identifier. It
+    asks at most once a day, unless it can't save its answer, and then it asks again next session.
+    `SCOUT_NO_UPDATE_CHECK=1` turns it off.
+  - the downloads that setup and updates make
+  - in team mode, the team's work in its own private repository: branches, the team ledger and pull requests
+- **To Salesforce's Docs search,** when you've registered it: the questions Scout asks it about Salesforce features
+  and errors.
+- **To Slack:** only a build card you choose to share, in the channel you name, through your AI tool's own Slack
+  connection, after Scout shows you the exact text.
+
+**Tools Scout installs have their own telemetry,** with their own switches:
+- **Salesforce's official plugins:** the `salesforce-development` plugin's usage telemetry is on by default.
+  `/salesforce-development:telemetry off` turns it off, and so does `SF_DISABLE_TELEMETRY=true` or
+  `DO_NOT_TRACK=true`. See [the plugin's documentation](https://github.com/forcedotcom/sf-skills/tree/main/plugins/builder/salesforce-development);
+  other plugins name theirs in their own.
+- **The Salesforce CLI:** `sf config set disable-telemetry=true --global`, or `SF_DISABLE_TELEMETRY=true`. See
+  [Salesforce CLI data collection](https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_dev_cli_telemetry.htm).
+- **Your AI tool** (Claude Code, Codex or Cursor): under its own settings and documentation.
+
+**What Scout records:**
+- **Your workspace,** `~/claude-projects/sf-demo-scout/`: task records, change logs, audits and lessons, on your
+  machine.
+- **A string telephone,** only in an org where you set one up or join one: the Scout Log described under
+  "Building one demo org together".
+- **Build cards:**
+  - A finished task's handover ends with a build card: what was built and what Scout's checks found, shown exactly as
+    it would be posted.
+  - Scout asks whether to share it in a Slack channel, with a line of your own and, if you like, your own estimate
+    of the time it saved. Scout never estimates time itself.
+  - Each card is saved in `~/.config/sf-demo-scout/feedback/` when it's offered, whether you answer or not. That's
+    outside your workspace, and the card holds no org names, usernames, record values or file names.
+  - A card you don't share stays on your machine. `/scout cards channel #name` sets where cards go, and
+    `/scout cards off` stops them.
+  - `/scout summary` turns a month's cards into counts you can read first and choose to submit.
 
 ## Where Scout runs
 

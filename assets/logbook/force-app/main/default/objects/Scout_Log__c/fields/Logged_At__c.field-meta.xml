@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>When the builder's Scout wrote the entry, by that builder's clock. Scout orders the log by the platform's Last Modified Date.</description>
+    <fullName>Logged_At__c</fullName>
+    <inlineHelpText>Set by Scout from the system clock when it writes the entry.</inlineHelpText>
+    <label>Logged At</label>
+    <required>false</required>
+    <type>DateTime</type>
+</CustomField>

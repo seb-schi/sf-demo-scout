@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>The metadata or data the entry concerns, one Type:FullName identity per line, as in Scout's task records.</description>
+    <fullName>Components__c</fullName>
+    <inlineHelpText>One identity per line, for example CustomField:Account.Tier__c or Data:Account.</inlineHelpText>
+    <label>Components</label>
+    <length>32768</length>
+    <required>false</required>
+    <type>LongTextArea</type>
+    <visibleLines>5</visibleLines>
+</CustomField>
