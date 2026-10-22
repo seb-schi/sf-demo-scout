@@ -237,8 +237,12 @@ files or other tools' settings.
 After setup, kick off your first demo with `/scout`.
 
 **Demo orgs only.** Scout writes only to demo orgs: trials (an org with an expiry
-date), sandboxes, scratch orgs and Developer Editions. In a production org, or one
-it can't classify, Scout inspects, plans and preps, but never writes.
+date), Salesforce's demo orgs (an address ending in `.demo.my.salesforce.com`,
+even when the org never expires), sandboxes, scratch orgs and Developer Editions.
+In a production org, or one it can't classify, Scout inspects, plans and preps,
+but never writes. Salesforce's own deploy check doesn't know the demo address
+yet, so it may ask you to confirm a deploy to a demo org as if it were production.
+Scout then leaves removing metadata there to you, in Setup.
 
 **Connected tools.** Scout can use whatever your coding tool has connected, such
 as Slack or Google Drive. Check what's connected in your environment: when you

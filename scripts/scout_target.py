@@ -2,8 +2,9 @@
 """Read-only target binding for /scout; never change authentication or defaults.
 
 Binding also classifies the org, with the official deploy gate's buckets in its order, from the live Organization
-record: scratch, sandbox, trial (a future expiry date, a Developer Edition, or a trial host), production, or unknown
-when the record doesn't say. Scout writes only to scratch, sandbox and trial orgs; `check --write` refuses the rest."""
+record: scratch, sandbox, trial (a future expiry date, a Developer Edition, a trial host, or Salesforce's demo
+partition), production, or unknown when the record doesn't say. Scout writes only to scratch, sandbox and trial orgs;
+`check --write` refuses the rest."""
 from __future__ import annotations
 
 import argparse
@@ -24,7 +25,10 @@ except ImportError:
 TIMEOUT = 75
 ORGANIZATION = "SELECT Id, IsSandbox, OrganizationType, TrialExpirationDate FROM Organization"
 # The official gate's trial and developer host markers: trials or Developer Editions even without an expiry date.
-TRIAL_HOSTS = ("orgfarm-", ".pc-rnd.", ".develop.my.salesforce.com", ".scratch.my.salesforce.com")
+# Scout adds Salesforce's demo partition: a demo org that never expires has no expiry date, and Salesforce gives the
+# `demo` partition only to demo orgs; production orgs can't be partitioned (Salesforce Help, "Partitioned Domains").
+TRIAL_HOSTS = ("orgfarm-", ".pc-rnd.", ".develop.my.salesforce.com", ".scratch.my.salesforce.com",
+               ".demo.my.salesforce.com")
 WRITABLE = ("scratch", "sandbox", "trial")
 
 

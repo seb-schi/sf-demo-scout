@@ -1,6 +1,6 @@
 {
   "name": "sf-demo-scout",
-  "version": "2.5.1",
+  "version": "2.5.2",
   "description": "Salesforce demo preparation pipeline \u2014 sparring, audit, deployment for demo orgs",
   "author": {
     "name": "Sebastian Schickhoff"

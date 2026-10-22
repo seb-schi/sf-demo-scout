@@ -2,6 +2,14 @@
 
 Newest first. Scout updates itself; each entry says what changed for you.
 
+## 2026-10-22 (Scout 2.5.2)
+
+- **Demo orgs that never expire.** A demo org moved to a status that never expires, such as Demo, has no expiry
+  date, so Scout read it as production and wouldn't build there. Scout now recognizes Salesforce's demo orgs by their
+  address, which ends in `.demo.my.salesforce.com`, and builds there as in any demo org. Salesforce's own deploy
+  check doesn't know that address yet, so it may ask you to confirm such a deploy as if the org were production.
+  Scout then says why, and leaves removing metadata there to you, in Setup.
+
 ## 2026-10-22 (Scout 2.5.1)
 
 - **The offer to join a string telephone explains itself.** When an org you build in already has one, Scout now

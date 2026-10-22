@@ -116,6 +116,11 @@ class ScoutTargetTests(unittest.TestCase):
             ('https://acme.my.salesforce.com', org(expiry='2026-10-20T00:00:00.000+0000'), 'trial'),
             ('https://acme-dev-ed.develop.my.salesforce.com', org(edition='Developer Edition'), 'trial'),
             ('https://orgfarm-abc123.my.salesforce.com', org(), 'trial'),
+            # Salesforce's demo partition: a demo org, even one that never expires. A My Domain name with "demo" in it
+            # is no partition, and My Domain names can't contain a dot.
+            ('https://acme.demo.my.salesforce.com', org(), 'trial'),
+            ('https://acme-demo.my.salesforce.com', org(), 'production'),
+            ('https://demo.my.salesforce.com', org(), 'production'),
             # A trial converted to production keeps its old expiry date: only a future date counts.
             ('https://acme.my.salesforce.com', org(expiry='2025-01-31T00:00:00.000+0000'), 'production'),
             ('https://acme.my.salesforce.com', org(expiry='not a date'), 'production'),
@@ -159,6 +164,16 @@ class ScoutTargetTests(unittest.TestCase):
                                      'TrialExpirationDate': None})
         code, data, _ = self.run_target('check', '--selector', 'maple', '--username', USER, '--org-id', ORG, '--write')
         self.assertEqual((code, data['writes']), (0, 'allowed'))
+
+    def test_check_write_takes_a_demo_org_that_never_expires_by_its_address(self):
+        demo = 'https://acme.demo.my.salesforce.com'
+        self.configure(organization={'IsSandbox': False, 'OrganizationType': 'Enterprise Edition',
+                                     'TrialExpirationDate': None}, instance=demo)
+        code, data, _ = self.run_target('check', '--selector', 'maple', '--username', USER, '--org-id', ORG, '--write')
+        self.assertEqual((code, data['class'], data['writes']), (0, 'trial', 'allowed'))
+        self.configure(type_query_fails=True, instance=demo)  # without the org's type, the address alone isn't enough
+        code, data, _ = self.run_target('check', '--selector', 'maple', '--username', USER, '--org-id', ORG, '--write')
+        self.assertEqual((code, data['class'], data['writes']), (5, 'unknown', 'read-only'))
 
     def test_selector_repoint_username_and_displayed_org_are_mismatches(self):
         for display, reason in ((dict(id=ORG, username='second@example.test'), 'another username'),

@@ -151,8 +151,13 @@ switching the extra copy off. Then open a new session.
 
 ### "This org is read-only" or "not a demo org"
 
-Scout writes only to demo orgs: trials (an org with an expiry date), sandboxes, scratch orgs and Developer
-Editions. Anywhere else it inspects, plans and preps, but changes nothing. Use a demo org.
+Scout writes only to demo orgs: trials (an org with an expiry date), Salesforce's demo orgs (an address ending in
+`.demo.my.salesforce.com`), sandboxes, scratch orgs and Developer Editions. Anywhere else it inspects, plans and
+preps, but changes nothing. Use a demo org.
+
+**A demo org that never expires,** for example one moved to Demo status, has no expiry date. Scout recognizes it by
+its address, which ends in `.demo.my.salesforce.com`. Without that address, and with no other demo-org signal
+such as an expiry date ahead, it reads as production.
 
 ### Building one demo org together on Windows
 
