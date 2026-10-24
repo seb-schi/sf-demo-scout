@@ -60,6 +60,27 @@ MISSING_NOTICE = Notice(f"## {INFO} Scout builds with Salesforce's official plug
                         f"{SELF_REPAIR}\n\n",
                         "Scout builds with Salesforce's official plugins, which aren't set up yet; it sets them up "
                         "before its first task in this session.")
+
+
+def retired_notice(host: str) -> Notice:
+    """Scout 2.6.0 is the farewell release: every session says so once and offers the move to post-Scout, which the
+    builder starts by asking. Scout keeps working for anyone who wants it. SCOUT_NO_RETIREMENT_NOTICE=1 silences it."""
+    if os.environ.get("SCOUT_NO_RETIREMENT_NOTICE") == "1":
+        return NO_NOTICE
+    root = os.environ.get("CLAUDE_PLUGIN_ROOT") or str(Path(__file__).resolve().parents[1])
+    installer = os.path.join(root, "post-scout", "install.py")
+    known = host if host in ("claude", "codex", "cursor") else "claude"
+    return Notice(f"## {INFO} Scout is retired (2.6.0, its farewell release). In Scout's own benchmark, Salesforce's "
+                  "official plugins with a short rules file (post-Scout) matched or beat it at a fraction of the cost. "
+                  "Say this to the builder once, in one line, at the start of your first reply. If they ask to move "
+                  f"off Scout, run `python3 \"{installer}\" --host {known} --dry-run`, show its plan, and run it with "
+                  "`--yes` only on their yes. Removing Scout (`--remove-scout`) and its workspace "
+                  "(`--remove-scout-workspace`) each need their own, separate yes. Scout still works in this session "
+                  "if they want it.\n\n",
+                  "Scout is retired: Salesforce's official plugins with the post-Scout rules now do the job. Say "
+                  "\"move me off Scout\" and Scout sets that up for you.")
+
+
 EFFORT_NOTICE = Notice("", "Scout works best on Opus 5.5 at High effort or higher. Switch with `/effort high`, or "
                            "under Effort in the model picker.")
 RULES_LIMIT = 600
@@ -798,9 +819,9 @@ def main() -> int:
     floor_line = client_floor(clock) if evidence.ready and not current_client_cached() else ""
     rules = rules_block(os.environ.get("CLAUDE_PLUGIN_ROOT", ""))
     host = active_host()
-    official, update = official_notice(host, clock), update_notice(host, clock)
-    notice = official.context + update.context
-    message = builder_message(host, floor_line, [effort_notice(), official, update])
+    official, update, retired = official_notice(host, clock), update_notice(host, clock), retired_notice(host)
+    notice = retired.context + official.context + update.context
+    message = builder_message(host, floor_line, [retired, effort_notice(), official, update])
     workspace = os.environ.get("SCOUT_WORKSPACE") or home_join("claude-projects", "sf-demo-scout")
     if not same_folder(launch_dir(), workspace):
         finish(rules, notice, message, evidence)
