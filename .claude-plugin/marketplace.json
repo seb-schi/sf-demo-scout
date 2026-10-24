@@ -1,14 +1,15 @@
 {
   "name": "scout",
-  "description": "Salesforce demo preparation tooling for builders — discovery sparring, org audit, and automated demo-org deployment",
+  "description": "Retired: use Salesforce's official plugins with the post-Scout rules instead (see the README). Salesforce demo preparation tooling for builders — discovery sparring, org audit, and automated demo-org deployment",
   "owner": {
     "name": "Sebastian Schickhoff"
   },
   "plugins": [
     {
       "name": "sf-demo-scout",
+      "displayName": "SF Demo Scout (retired)",
       "source": ".",
-      "description": "Salesforce demo preparation pipeline — sparring, audit, deployment for demo orgs"
+      "description": "Retired: use Salesforce's official plugins with the post-Scout rules instead (see the README). Salesforce demo preparation pipeline — sparring, audit, deployment for demo orgs"
     }
   ]
 }

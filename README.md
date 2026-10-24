@@ -1,5 +1,115 @@
 # SF Demo Scout
 
+## Scout is retired
+
+Scout 2.6.0 is its farewell release. It keeps working, but no new features are planned, and it now tells you it's
+retired and offers to move you to **post-Scout**: three public pieces you set up once, which together cover what Scout
+did for your builds.
+
+### Why
+
+A benchmark measured Scout against plain Opus 5.5 on Salesforce's official plugins: 27 builds in one test org, three
+setups, three demo scenarios, three runs each, all on Opus 5.5 at High effort in Claude Code, and every build checked in
+the org by a separate evaluator. Scout 2.5.2 was demo-ready in 3 of 9 builds. Opus 5.5 with Salesforce's official
+plugins was demo-ready in 4 of 9 (7 on a lenient reading), and the same with a short rules file in 4 of 9 (6 lenient),
+at about a third of Scout's cost. In a follow-up of 12 builds, a 25-line version of those rules was demo-ready in 6 of
+6, against 0 of 6 without it, at the same cost, with no false "done" claims against 8.
+
+The samples are small, and the follow-up's added lines were written from the same scenarios, so they still have to
+prove themselves on new ones. But the models and Salesforce's official skills have caught up, and what Scout added on
+top now fits in a page of rules. Scout did a few things measurably better, and each of them is now a line in those
+rules: it saved the org-wide default of a new hierarchy custom setting, it made fewer unasked edits to shared
+layouts, and it noticed when Salesforce's hosted Flow generator was switched off. Scout's check before every write
+couldn't be measured: no setup ever tried a command against the wrong org.
+
+### What to use instead
+
+1. **Salesforce's official plugins,** from [github.com/forcedotcom/sf-skills](https://github.com/forcedotcom/sf-skills).
+   Scout already drove them; now you use them directly.
+2. **The public [Agentforce Labs Salesforce Docs MCP](https://labs.agentforce.com/docs/salesforce-docs-mcp),** for
+   answers grounded in Salesforce's documentation.
+3. **The post-Scout rules,** 25 lines in [`post-scout/RULES.md`](post-scout/RULES.md), placed in your `CLAUDE.md` or in a
+   project's `AGENTS.md`. They say: work only in the org you name, and never touch logins, aliases or the default org; ask
+   before deleting anything the session didn't create, before org-wide switches and before editing a shared layout
+   or page you didn't name; what demo-ready means for the person who'll demo it; say when Salesforce's hosted Flow
+   generator is off; and read every item back and prove it before calling it done.
+
+### Move on Claude Code
+
+The easy way: in a Scout session, ask Scout to **"move me off Scout"**. It runs the same installer for you, shows what
+it would change, and changes nothing without your yes.
+
+Or do it yourself in a **terminal**, with or without Scout installed. Get the installer:
+
+```bash
+git clone https://github.com/seb-schi/sf-demo-scout.git
+```
+
+First see every change, without making any:
+
+```bash
+python3 sf-demo-scout/post-scout/install.py --host claude --dry-run
+```
+
+Then make them (add `--remove-scout` to remove Scout as well; its workspace and org histories stay unless you also add
+`--remove-scout-workspace`):
+
+```bash
+python3 sf-demo-scout/post-scout/install.py --host claude --yes
+```
+
+On Windows, type `py -3` where these lines say `python3`. By default the rules go into `~/.claude/CLAUDE.md` for every
+project; `--scope project` writes them into a project's `AGENTS.md` instead. The installer writes the rules, sets up Salesforce's official
+plugins (with auto-update on) and the Docs MCP, and can remove Scout. Then start a new Claude Code session, so the rules and plugins load.
+
+### Move on Codex or Cursor
+
+The benchmark ran on Claude Code only, and Salesforce's official plugins are built as Claude Code plugins. The rules
+are plain text and should carry over, but nothing here measured them on Codex or Cursor.
+
+**Codex:** `python3 sf-demo-scout/post-scout/install.py --host codex --dry-run`, then `--yes`, writes the rules into
+`~/.codex/AGENTS.md` (or a project's `AGENTS.md` with `--scope project`) and prints the commands below.
+1. The rules: written by the installer, or copied from `post-scout/RULES.md`.
+2. If Scout's setup didn't already add Salesforce's plugins, add them in a terminal with
+   `codex plugin marketplace add forcedotcom/sf-skills`, then `codex plugin add <plugin>@salesforce` for each one you
+   use. Scout set up `salesforce-development`, `salesforce-code-quality`, `agentforce-adlc`, `experience-lwc` and
+   `service-engagement`. Restart Codex. Their hooks, Salesforce's own deploy checks, run only after you trust them in
+   `/hooks`, and not on native Windows.
+3. If the Docs MCP isn't registered yet: `codex mcp add salesforce-docs --url https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp`.
+
+**Cursor:** `python3 sf-demo-scout/post-scout/install.py --host cursor --scope project --project <your project> --yes`
+writes the rules into the project's `AGENTS.md` and prints the commands below; for every project, paste
+`post-scout/RULES.md` into Cursor Settings → Rules → User Rules.
+1. The rules: as above.
+2. Salesforce ships no Cursor plugin, and without Scout, Cursor doesn't read the clone of Salesforce's skills that
+   Scout set up. Install the skills as [Salesforce's README](https://github.com/forcedotcom/sf-skills) says:
+   `npx skills add forcedotcom/sf-skills`.
+3. If the Docs MCP isn't in Cursor's MCP settings yet, add it there with the server URL from the Docs MCP page.
+
+### What goes with Scout
+
+The benchmark measured builds from a written brief. Scout also did these, and they go with it:
+- sparring on the demo story, and delivery prep: the click path and the readiness check
+- per-org histories and change logs
+- the string telephone, team mode and build cards; a team on Lifecycle Center can keep using Salesforce's `dx-devops`
+  plugin directly
+- Scout's refusal to write to anything but a demo org: with the post-Scout rules, your AI tool works in the org you
+  name, so name a demo org
+
+Nothing Scout deployed to an org changes, a Scout Log included.
+
+### Uninstall Scout
+
+Move first: the installer lives in Scout's folder. The installer can remove Scout for you; to do it yourself:
+- **Claude Code:** the installer's `--remove-scout`, or ask Scout to uninstall itself. It shows what it would remove, and removes only its configuration and
+  cache on your yes; your workspace and its org histories go only if you ask for that too. Then, in a terminal,
+  `claude plugin uninstall sf-demo-scout@scout` and `claude plugin marketplace remove scout`.
+- **Codex:** ask Scout to uninstall itself in the same way, then `codex plugin remove sf-demo-scout@scout` and
+  `codex plugin marketplace remove scout`.
+- **Cursor:** `python3 <scout-folder>/scripts/scout_install.py uninstall --host cursor --yes`, then delete the folder.
+
+The rest of this README describes Scout as it was, for reference.
+
 A plugin for anyone who builds Salesforce demos, for customers or for their own
 stakeholders. It runs in Claude Code, Codex or Cursor; one of them is enough. Run
 `/scout` and say what you need: Scout spars with you on the demo story, builds it in

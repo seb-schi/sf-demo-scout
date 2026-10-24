@@ -220,6 +220,7 @@ class StartupFixture:
             CLAUDE_CONFIG_DIR=str(self.claude_config),
             PWD=str(workdir),
             SCOUT_NO_UPDATE_CHECK="1",  # never GitHub, nor the developer's own update cache, from a test
+            SCOUT_NO_RETIREMENT_NOTICE="1",  # 2.6.0's notice has its own tests (StartupRetirementNoticeTests)
         )
         env.pop("CLAUDE_EFFORT", None)  # nor the effort of a Claude Code session running the tests
         env.update(self.extra_env)
@@ -273,6 +274,20 @@ class StartupUpdateNoticeTests(unittest.TestCase):
                 self.assertEqual("2.5.0 is out" in context, expected, result.stdout)
                 self.assertEqual(shown, UPDATE if expected else "")
                 self.assertNotIn("Traceback", result.stdout)
+
+    def test_the_retirement_notice_is_on_by_default_and_offers_the_move(self) -> None:
+        self.fx.extra_env["SCOUT_NO_RETIREMENT_NOTICE"] = ""
+        self.stub.write_text("print('')\n")  # no newer release, so only the retirement notice shows
+        context, shown = hook_output(self.fx.run(cwd=self.outside).stdout)
+        self.assertIn("Scout is retired", context)
+        self.assertIn("post-scout", context)
+        self.assertIn("--dry-run", context)
+        self.assertIn("move me off Scout", shown)
+        for host in ("codex", "cursor"):
+            with self.subTest(host=host):
+                plain = self.fx.run(cwd=self.outside, host=host).stdout
+                self.assertIn("Scout is retired", plain)
+                self.assertIn("--host %s" % host, plain)
 
     def test_claude_code_shows_the_builder_the_line_and_codex_and_cursor_keep_plain_text(self) -> None:
         self.assertEqual(hook_output(self.fx.run(cwd=self.outside).stdout), (f"## ℹ️ {UPDATE}\n\n", UPDATE))

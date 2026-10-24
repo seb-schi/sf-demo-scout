@@ -1,6 +1,28 @@
 # What's New in Demo Scout
 
-Newest first. Scout updates itself; each entry says what changed for you.
+Newest first. Scout updates itself; each entry says what changed for you. Scout is retired: see the README.
+
+## 2026-10-24 (Scout 2.6.0)
+
+- **Scout is retired, and this is its farewell release.** Scout keeps working, but it now tells you it's retired and
+  offers to move you to post-Scout: Salesforce's [official plugins](https://github.com/forcedotcom/sf-skills), the
+  public [Agentforce Labs Salesforce Docs MCP](https://labs.agentforce.com/docs/salesforce-docs-mcp), and a one-page set
+  of build rules in your `CLAUDE.md` or a project's `AGENTS.md`. No new features are planned.
+- **Why: a benchmark.** In 27 builds in one test org (three setups, three demo scenarios, three runs each, all on
+  Opus 5.5 at High effort in Claude Code, every build checked in the org by a separate evaluator), Scout 2.5.2 was
+  demo-ready in 3 of 9, Opus 5.5 with Salesforce's official plugins in 4 of 9 (7 on a lenient reading), and the same with
+  a short rules file in 4 of 9 (6 lenient), at about a third of Scout's cost. In a follow-up of 12 builds, a 25-line
+  version of those rules was demo-ready in 6 of 6, against 0 of 6 without it, at the same cost. The samples are small,
+  and the follow-up's added lines were written from the same scenarios.
+- **Moving takes one sentence, or two commands.** Ask Scout "move me off Scout". Or, in a terminal,
+  `python3 <this repository>/post-scout/install.py --host claude --dry-run` shows every change it would make, and the
+  same command with `--yes` makes them. On Claude Code it writes the rules, sets up Salesforce's official plugins (kept up to
+  date) and the Docs MCP, and can remove Scout. On Codex and Cursor it writes the rules and prints Salesforce's own setup
+  commands; the README's first section has the steps. Everything is in
+  the `post-scout` folder.
+- **What goes with Scout.** Story sparring, delivery prep, per-org histories, the string telephone, team mode and build
+  cards. Nothing Scout deployed to an org changes, and removing Scout keeps your workspace and its org histories unless
+  you ask for them to go too.
 
 ## 2026-10-22 (Scout 2.5.2)
 
