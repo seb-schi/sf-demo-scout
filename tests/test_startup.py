@@ -220,7 +220,6 @@ class StartupFixture:
             CLAUDE_CONFIG_DIR=str(self.claude_config),
             PWD=str(workdir),
             SCOUT_NO_UPDATE_CHECK="1",  # never GitHub, nor the developer's own update cache, from a test
-            SCOUT_NO_RETIREMENT_NOTICE="1",  # 2.6.0's notice has its own tests (StartupRetirementNoticeTests)
         )
         env.pop("CLAUDE_EFFORT", None)  # nor the effort of a Claude Code session running the tests
         env.update(self.extra_env)
@@ -275,19 +274,17 @@ class StartupUpdateNoticeTests(unittest.TestCase):
                 self.assertEqual(shown, UPDATE if expected else "")
                 self.assertNotIn("Traceback", result.stdout)
 
-    def test_the_retirement_notice_is_on_by_default_and_offers_the_move(self) -> None:
-        self.fx.extra_env["SCOUT_NO_RETIREMENT_NOTICE"] = ""
-        self.stub.write_text("print('')\n")  # no newer release, so only the retirement notice shows
+    def test_a_session_start_says_nothing_about_the_retirement(self) -> None:
+        # 2.6.2: the farewell comes up only when someone starts Scout (/scout), never in every session.
+        self.stub.write_text("print('')\n")  # no newer release, so nothing else shows either
         context, shown = hook_output(self.fx.run(cwd=self.outside).stdout)
-        self.assertIn("Scout is retired", context)
-        self.assertIn("post-scout", context)
-        self.assertIn("--dry-run", context)
-        self.assertIn("move me off Scout", shown)
+        self.assertNotIn("retir", context + shown)
         for host in ("codex", "cursor"):
             with self.subTest(host=host):
-                plain = self.fx.run(cwd=self.outside, host=host).stdout
-                self.assertIn("Scout is retired", plain)
-                self.assertIn("--host %s" % host, plain)
+                self.assertNotIn("retir", self.fx.run(cwd=self.outside, host=host).stdout)
+        entry = (ROOT / "skills" / "scout" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("Scout is retiring", entry)
+        self.assertIn("move me off Scout", entry)
 
     def test_claude_code_shows_the_builder_the_line_and_codex_and_cursor_keep_plain_text(self) -> None:
         self.assertEqual(hook_output(self.fx.run(cwd=self.outside).stdout), (f"## ℹ️ {UPDATE}\n\n", UPDATE))

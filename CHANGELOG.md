@@ -2,6 +2,12 @@
 
 Newest first. Scout updates itself; each entry says what changed for you. Scout is retired: see the README.
 
+## 2026-10-25 (Scout 2.6.2)
+
+- **The farewell comes up only when you start Scout.** Scout no longer mentions its retirement at the start of every
+  session, in every folder. It tells you when you start Scout (`/scout`, or `$sf-demo-scout:scout` on Codex), and
+  offers the move there, as before.
+
 ## 2026-10-25 (Scout 2.6.1)
 
 - **The farewell, explained.** When a session starts, Scout now says in a few plain sentences why it's retiring and
