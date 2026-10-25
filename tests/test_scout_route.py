@@ -120,7 +120,7 @@ class ScoutRouteTests(unittest.TestCase):
 
     def test_budget_and_every_concrete_plugin_reference_exists(self):
         optional = list((ROOT / 'prompts/scout').glob('*'))
-        caps = {'SKILL.md': 1310,  # 2.4: the entry skill; the router's build half moved to router-build.md; 2.5 +90 for the local commands and the string telephone's status, routing and lock-check pointers; 2.6 +160 for the retirement preface and the move off Scout
+        caps = {'SKILL.md': 1410,  # 2.4: the entry skill; the router's build half moved to router-build.md; 2.5 +90 for the local commands and the string telephone's status, routing and lock-check pointers; 2.6 +160 for the retirement preface and the move off Scout; 2.6.1 +100 for the farewell's why, the workspace that stays and the lesson review
                 'router-build.md': 1540,  # 2.4: the router's later sections, read before inspection; 2.5 +20 for the string telephone's brief and claim pointer
                 'history.md': 1015, 'discovery.md': 1100, 'build.md': 1385, 'prep.md': 900,  # W10 C9 and W9 C5; 2.4.1: build.md +15 for the Flow order's pointer, +15 for edits skipping the hosted inspection; 2.4: build.md +5 for naming the router's two files;
                 # W19: build.md +15 for the hosted Flow route's two pointers

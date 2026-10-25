@@ -2,37 +2,63 @@
 
 ## Scout is retired
 
-Scout 2.6.0 is its farewell release. It keeps working, but no new features are planned, and it now tells you it's
-retired and offers to move you to **post-Scout**: three public pieces you set up once, which together cover what Scout
-did for your builds.
+I started Scout in April 2026, when hand-building one customer's demo took too long. The goal was to take a demo from
+discovery to demo-ready in hours instead of days. AI tools could already build what you asked, but a build isn't a
+demo: fields nobody can see, empty records, a page the presenter never opens, and "done" before anything was checked.
+Scout closed that gap. It sparred with you on the story, checked every piece in the org, guarded every write and kept a
+history per org, and builders from the US to Japan used it for their demos.
 
-### Why
+A lot has happened since. The models got much better, and Salesforce published its own official plugins, which Scout
+already builds with. In October I rebuilt Scout to lean on the new models, and most of the releases since were for a
+customer workshop in early November, where a customer's team will build alongside us in one org for three days: Scout
+was to be the frame that gets them going quickly, with a reliable way to stand up Salesforce's DevOps tooling. For our
+own demo building, though, I wanted to know whether Scout still earns its place, so I measured it (see
+[How I know](#how-i-know)). It doesn't anymore, which says a lot about how far the models have come: today's model with
+Salesforce's plugins builds demos at least as well, and what Scout still added fits in 25 lines of rules.
 
-A benchmark measured Scout against plain Opus 5.5 on Salesforce's official plugins: 27 builds in one test org, three
-setups, three demo scenarios, three runs each, all on Opus 5.5 at High effort in Claude Code, and every build checked in
-the org by a separate evaluator. Scout 2.5.2 was demo-ready in 3 of 9 builds. Opus 5.5 with Salesforce's official
-plugins was demo-ready in 4 of 9 (7 on a lenient reading), and the same with a short rules file in 4 of 9 (6 lenient),
-at about a third of Scout's cost. In a follow-up of 12 builds, a 25-line version of those rules was demo-ready in 6 of
-6, against 0 of 6 without it, at the same cost, with no false "done" claims against 8.
+So 2.6 is Scout's farewell release. Nothing breaks, Scout keeps working for now, and it helps you move. Thank you for
+all the feedback along the way.
 
-The samples are small, and the follow-up's added lines were written from the same scenarios, so they still have to
-prove themselves on new ones. But the models and Salesforce's official skills have caught up, and what Scout added on
-top now fits in a page of rules. Scout did a few things measurably better, and each of them is now a line in those
-rules: it saved the org-wide default of a new hierarchy custom setting, it made fewer unasked edits to shared
-layouts, and it noticed when Salesforce's hosted Flow generator was switched off. Scout's check before every write
-couldn't be measured: no setup ever tried a command against the wrong org.
+### What happens next
 
-### What to use instead
+The next time you start Scout, it tells you it's retiring and offers to move you to **post-Scout**. Say **"move me off
+Scout"** and it sets up three public pieces that together keep most of what Scout gave you, without the big suite:
 
-1. **Salesforce's official plugins,** from [github.com/forcedotcom/sf-skills](https://github.com/forcedotcom/sf-skills).
-   Scout already drove them; now you use them directly.
+1. **Salesforce's official plugins,** from [github.com/forcedotcom/sf-skills](https://github.com/forcedotcom/sf-skills),
+   kept up to date. Scout already drove them; now you use them directly.
 2. **The public [Agentforce Labs Salesforce Docs MCP](https://labs.agentforce.com/docs/salesforce-docs-mcp),** for
    answers grounded in Salesforce's documentation.
-3. **The post-Scout rules,** 25 lines in [`post-scout/RULES.md`](post-scout/RULES.md), placed in your `CLAUDE.md` or in a
-   project's `AGENTS.md`. They say: work only in the org you name, and never touch logins, aliases or the default org; ask
-   before deleting anything the session didn't create, before org-wide switches and before editing a shared layout
-   or page you didn't name; what demo-ready means for the person who'll demo it; say when Salesforce's hosted Flow
-   generator is off; and read every item back and prove it before calling it done.
+3. **Scout's lessons, as 25 lines of rules** in [`post-scout/RULES.md`](post-scout/RULES.md), placed in your `CLAUDE.md`
+   or a project's `AGENTS.md`, which your model reads at the start of every session. They say: work only in the org you
+   name, and never touch logins, aliases or the default org; ask before deleting anything the session didn't create,
+   before org-wide switches and before editing a shared layout or page you didn't name; what demo-ready means for the
+   person who'll demo it; say when Salesforce's hosted Flow generator is off; and read every item back and prove it
+   before calling it done.
+
+It shows every change before it makes one and changes nothing without your yes. Removing Scout itself is a separate
+yes. Your workspace stays where it is, with every org's history, change logs and demo plans and the lessons Scout
+saved from your builds, and the rules tell your model where it is and to read the lessons that match a build. Start
+a new session afterwards, so the rules and plugins load.
+
+**A longer review of your lessons, if you want one.** In that new session, ask your AI tool to review your Scout
+lessons. It checks each one against the Salesforce Docs, Salesforce's official skills and what today's model can do,
+shows you keep, update or drop for each, and on your yes writes the ones that hold where it keeps its own lessons. The
+originals stay as they are. With many lessons it takes a while, so give it a session of its own.
+
+### How I know
+
+I measured Scout against plain Opus 5.5 on Salesforce's official plugins: 27 builds in one test org, three setups, three
+demo scenarios, three runs each, all on Opus 5.5 at High effort in Claude Code, and every build checked in the org by a
+separate evaluator. Scout 2.5.2 was demo-ready in 3 of 9 builds. Opus 5.5 with Salesforce's official plugins was
+demo-ready in 4 of 9 (7 on a lenient reading), and the same with a short rules file in 4 of 9 (6 lenient), at about a
+third of Scout's cost. In a follow-up of 12 builds, a 25-line version of those rules was demo-ready in 6 of 6, against
+0 of 6 without it, at the same cost, with no false "done" claims against 8.
+
+The samples are small, and the follow-up's added lines were written from the same scenarios, so they still have to
+prove themselves on new ones. Scout did a few things measurably better, and each of them is now a line in those rules:
+it saved the org-wide default of a new hierarchy custom setting, it made fewer unasked edits to shared layouts, and it
+noticed when Salesforce's hosted Flow generator was switched off. Scout's check before every write couldn't be
+measured: no setup ever tried a command against the wrong org.
 
 ### Move on Claude Code
 
@@ -51,8 +77,8 @@ First see every change, without making any:
 python3 sf-demo-scout/post-scout/install.py --host claude --dry-run
 ```
 
-Then make them (add `--remove-scout` to remove Scout as well; its workspace and org histories stay unless you also add
-`--remove-scout-workspace`):
+Then make them (add `--remove-scout` to remove Scout as well; its workspace, with the org histories and lessons,
+stays where it is):
 
 ```bash
 python3 sf-demo-scout/post-scout/install.py --host claude --yes
@@ -101,8 +127,9 @@ Nothing Scout deployed to an org changes, a Scout Log included.
 ### Uninstall Scout
 
 Move first: the installer lives in Scout's folder. The installer can remove Scout for you; to do it yourself:
-- **Claude Code:** the installer's `--remove-scout`, or ask Scout to uninstall itself. It shows what it would remove, and removes only its configuration and
-  cache on your yes; your workspace and its org histories go only if you ask for that too. Then, in a terminal,
+- **Claude Code:** the installer's `--remove-scout`, or ask Scout to uninstall itself. Either shows what it would remove,
+  and removes only Scout's configuration and cache on your yes; the installer always keeps your workspace, and Scout's
+  own uninstall removes it only if you explicitly ask for that too. Then, in a terminal,
   `claude plugin uninstall sf-demo-scout@scout` and `claude plugin marketplace remove scout`.
 - **Codex:** ask Scout to uninstall itself in the same way, then `codex plugin remove sf-demo-scout@scout` and
   `codex plugin marketplace remove scout`.

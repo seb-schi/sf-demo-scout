@@ -97,6 +97,7 @@ class PostScoutTest(unittest.TestCase):
         self.assertIn("Keep this line.", text)
         self.assertEqual(text.count(BEGIN), 1)
         self.assertIn("Rules for Salesforce demo builds", text)
+        self.assertNotIn("Your Scout workspace", text)  # no workspace in this home, so no pointer
         self.assertTrue((claude_md.parent / "CLAUDE.md.before-post-scout").exists())
         state = json.loads(self.state.read_text())
         self.assertEqual(sorted(state["plugins"]), ["salesforce-code-quality@salesforce", "salesforce-development@salesforce"])
@@ -193,9 +194,60 @@ class PostScoutTest(unittest.TestCase):
         self.assertNotIn("sf-demo-scout@scout", json.loads(self.state.read_text())["plugins"])
         self.assertFalse(config.exists())
 
-    def test_workspace_removal_needs_remove_scout(self):
-        out = self.install("--host", "claude", "--remove-scout-workspace")
-        self.assertNotEqual(out.returncode, 0)
+    def workspace(self, root=None, lessons=2):
+        """A Scout workspace with one org folder and, unless `lessons` is None, that many lessons in one topic."""
+        root = root or self.home / "claude-projects" / "sf-demo-scout"
+        (root / "orgs" / "demo-acme").mkdir(parents=True)
+        (root / "orgs" / "demo-acme" / "change-log.md").write_text("# Change log\n")
+        if lessons is not None:
+            (root / "orgs" / "lessons").mkdir()
+            (root / "orgs" / "lessons" / "INDEX.md").write_text("# Lessons Index\n")
+            (root / "orgs" / "lessons" / "flow.md").write_text(
+                "".join("- 2026-08-0%d [abc123%d]: Rule %d.\n  - Symptom: x\n" % (n, n, n) for n in range(1, lessons + 1)))
+        return root
+
+    def test_the_workspace_stays_and_the_rules_point_to_it(self):
+        root = self.workspace()
+        config = self.home / ".config" / "sf-demo-scout"
+        config.mkdir(parents=True)
+        (config / "config.json").write_text("{}")
+        self.set_state(marketplaces=[], plugins=["sf-demo-scout@scout"], docs=True)
+        out = self.install("--host", "claude", "--plugins", "none", "--remove-scout", "--remove-scout-workspace", "--yes")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("--remove-scout-workspace is ignored", out.stdout)  # 2.6.0's flag, which removed it
+        self.assertIn("with its org histories and 2 lessons", out.stdout)
+        self.assertIn("review your Scout lessons", out.stdout)
+        self.assertTrue((root / "orgs" / "lessons" / "flow.md").exists())
+        self.assertTrue((root / "orgs" / "demo-acme" / "change-log.md").exists())
+        self.assertFalse(config.exists())  # Scout's own configuration still goes
+        text = (self.home / ".claude" / "CLAUDE.md").read_text()
+        self.assertEqual(text.count(BEGIN), 1)
+        for expected in ("## Your Scout workspace", "`%s`" % root, "orgs/lessons/INDEX.md", "review my Scout lessons"):
+            self.assertIn(expected, text)
+        self.assertIn("POST_SCOUT_SKIP rules already current", self.install("--host", "claude", "--plugins", "none",
+                                                                          "--no-docs", "--yes").stdout)
+
+    def test_the_workspace_scouts_configuration_names_comes_first(self):
+        elsewhere = self.workspace(self.tmp / "my-scout", lessons=None)
+        self.workspace()  # the default folder exists too
+        config = self.home / ".config" / "sf-demo-scout"
+        config.mkdir(parents=True)
+        (config / "config.json").write_text(json.dumps({"workspace_path": str(elsewhere)}))
+        self.install("--host", "codex", "--yes")
+        text = (self.home / ".codex" / "AGENTS.md").read_text()
+        self.assertIn("`%s`" % elsewhere, text)
+        self.assertNotIn("orgs/lessons/INDEX.md", text)  # that one has no lessons, so no lesson lines
+        self.assertNotIn("review my Scout lessons", text)
+
+    def test_a_project_gets_no_personal_path_and_cursor_gets_lines_to_paste(self):
+        self.workspace()
+        project = self.tmp / "proj"
+        project.mkdir()
+        out = self.install("--host", "claude", "--scope", "project", "--project", str(project), "--plugins", "none",
+                           "--no-docs", "--yes")
+        self.assertIn("gets no personal path", out.stdout)
+        self.assertNotIn("Your Scout workspace", (project / "AGENTS.md").read_text())
+        self.assertIn("paste these lines under them: ## Your Scout workspace", self.install("--host", "cursor").stdout)
 
     def test_it_prints_utf8_under_the_ansi_code_page(self):
         # Before Python 3.15 a Windows pipe takes the ANSI code page, which can't spell → or a home such as Łukasz 東京.

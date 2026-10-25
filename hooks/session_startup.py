@@ -63,22 +63,30 @@ MISSING_NOTICE = Notice(f"## {INFO} Scout builds with Salesforce's official plug
 
 
 def retired_notice(host: str) -> Notice:
-    """Scout 2.6.0 is the farewell release: every session says so once and offers the move to post-Scout, which the
-    builder starts by asking. Scout keeps working for anyone who wants it. SCOUT_NO_RETIREMENT_NOTICE=1 silences it."""
+    """Scout 2.6 is the farewell release: every session says once, in plain words, why Scout is retiring and what the
+    move to post-Scout does, which the builder starts by asking. Scout keeps working for anyone who wants it.
+    SCOUT_NO_RETIREMENT_NOTICE=1 silences it."""
     if os.environ.get("SCOUT_NO_RETIREMENT_NOTICE") == "1":
         return NO_NOTICE
     root = os.environ.get("CLAUDE_PLUGIN_ROOT") or str(Path(__file__).resolve().parents[1])
     installer = os.path.join(root, "post-scout", "install.py")
     known = host if host in ("claude", "codex", "cursor") else "claude"
-    return Notice(f"## {INFO} Scout is retired (2.6.0, its farewell release). In Scout's own benchmark, Salesforce's "
-                  "official plugins with a short rules file (post-Scout) matched or beat it at a fraction of the cost. "
-                  "Say this to the builder once, in one line, at the start of your first reply. If they ask to move "
-                  f"off Scout, run `python3 \"{installer}\" --host {known} --dry-run`, show its plan, and run it with "
-                  "`--yes` only on their yes. Removing Scout (`--remove-scout`) and its workspace "
-                  "(`--remove-scout-workspace`) each need their own, separate yes. Scout still works in this session "
-                  "if they want it.\n\n",
-                  "Scout is retired: Salesforce's official plugins with the post-Scout rules now do the job. Say "
-                  "\"move me off Scout\" and Scout sets that up for you.")
+    return Notice(f"## {INFO} Scout is retired (2.6, its farewell release). Once, at the start of your first reply, "
+                  "tell the builder in two or three plain sentences: Scout was built in April 2026, when AI tools "
+                  "needed a lot of help to build a demo you could present; today's models and Salesforce's official "
+                  "plugins do most of that, and Scout's lessons now fit in a short set of rules. If they say \"move me "
+                  "off Scout\", you set up Salesforce's official plugins, the Salesforce Docs MCP and those rules, "
+                  "which their model then reads at the start of every session, so they keep most of what Scout gave "
+                  "them without the big suite, and their workspace, with its org histories and the lessons from their "
+                  "builds, stays where it is; you show every change first, and Scout still works today if they'd "
+                  f"rather finish something. To move them, run `python3 \"{installer}\" --host {known} --dry-run`, "
+                  "show its plan in plain words, and run it with `--yes` only on their yes. Removing Scout "
+                  "(`--remove-scout`) needs its own, separate yes. If they have lessons, say that in a new session "
+                  "they can ask to review their Scout lessons for today's models, and that it takes a while.\n\n",
+                  "Scout is retiring. It was built in April, when AI tools needed a lot of help to build a demo you "
+                  "could actually present. Today's models and Salesforce's own plugins do most of that, and Scout's "
+                  "lessons now fit in a short set of rules. Say \"move me off Scout\" and it sets them up for you, "
+                  "asking before every change; your org histories and lessons stay where they are.")
 
 
 EFFORT_NOTICE = Notice("", "Scout works best on Opus 5.5 at High effort or higher. Switch with `/effort high`, or "

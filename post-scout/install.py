@@ -4,7 +4,7 @@ remove Scout.
 
 Usage:
   python3 install.py --host claude|codex|cursor [--scope user|project] [--project DIR] [--plugins core|all|none]
-                     [--no-docs] [--remove-scout] [--remove-scout-workspace] [--dry-run | --yes]
+                     [--no-docs] [--remove-scout] [--dry-run | --yes]
 
 Without --yes it only prints the plan (a dry run). With --yes it carries the plan out, printing each step as it goes.
 
@@ -14,14 +14,17 @@ What it does:
   - user scope (default): ~/.claude/CLAUDE.md on Claude Code, ~/.codex/AGENTS.md on Codex
   - project scope: AGENTS.md in the project folder, plus CLAUDE.md with `@AGENTS.md` on Claude Code
   - On Cursor, user rules live in Cursor's settings, so the user scope prints the rules for you to paste there.
+- **Scout's workspace stays where it is.** Its org histories, change logs, demo plans and lessons are the builder's
+  own work, so nothing here removes them. In user scope the rules block ends with where the workspace is, how to use
+  it, and how to review the lessons for today's models; a project's AGENTS.md, which may be shared, gets no such path.
 - **The official plugins.** On Claude Code it adds Salesforce's marketplace (github.com/forcedotcom/sf-skills) and
   installs its core plugins (salesforce-development, salesforce-code-quality), or more with --plugins all, and turns
   that marketplace's auto-update on unless you chose otherwise. On Codex
   and Cursor it prints Salesforce's own commands to run (the same marketplace on Codex; `npx skills add` on Cursor).
 - **The Salesforce Docs MCP.** On Claude Code it registers it at user scope; on Codex and Cursor it prints the command
   or setting.
-- **--remove-scout.** It first runs Scout's own uninstaller (configuration and cache; the workspace with its org
-  histories only with --remove-scout-workspace), then removes the plugin with the host's own command.
+- **--remove-scout.** It first runs Scout's own uninstaller (configuration and cache only; the workspace stays), then
+  removes the plugin with the host's own command.
 
 It never touches Salesforce orgs, logins, aliases or default orgs. Every printed line starts with a token:
 POST_SCOUT_PLAN, POST_SCOUT_DONE, POST_SCOUT_SKIP, POST_SCOUT_NOTE or POST_SCOUT_FAILED.
@@ -32,6 +35,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -46,6 +50,7 @@ CORE = ("salesforce-development", "salesforce-code-quality")
 MORE = ("agentforce-adlc", "experience-lwc", "service-engagement")
 DOCS_NAME = "salesforce-docs"
 DOCS_URL = "https://salesforce-docs-76258744c9d7.herokuapp.com/api/mcp"
+LESSON = re.compile(r"^- \d{4}-\d{2}-\d{2}\b")  # how Scout wrote each lesson's first line
 
 
 def say(token, text):
@@ -90,24 +95,63 @@ def find_claude():
 
 # ---------------------------------------------------------------- the rules
 
-def block():
-    return "%s\n%s\n\n%s\n%s\n" % (BEGIN, SCOPE_LINE, RULES.read_text(encoding="utf-8").strip(), END)
+def block(extra=""):
+    return "%s\n%s\n\n%s%s\n%s\n" % (BEGIN, SCOPE_LINE, RULES.read_text(encoding="utf-8").strip(), extra, END)
 
 
-def with_block(text):
+def with_block(text, extra=""):
     """The file's text with the rules block added, or replaced in place when it's already there."""
     if BEGIN in text and END in text:
         head, rest = text.split(BEGIN, 1)
         tail = rest.split(END, 1)[1]
-        return head + block().rstrip("\n") + tail
+        return head + block(extra).rstrip("\n") + tail
     joiner = "" if not text or text.endswith("\n\n") else ("\n" if text.endswith("\n") else "\n\n")
-    return text + joiner + block()
+    return text + joiner + block(extra)
 
 
-def write_rules(path, apply):
+def scout_workspace():
+    """Scout's workspace, found as Scout's uninstaller finds it: the folder Scout's configuration names, then
+    $SCOUT_WORKSPACE, then ~/claude-projects/sf-demo-scout. None unless that folder holds org histories (orgs/)."""
+    home = Path.home()
+    try:
+        named = json.loads((home / ".config" / "sf-demo-scout" / "config.json").read_text(encoding="utf-8")).get(
+            "workspace_path")
+    except (OSError, ValueError, AttributeError):
+        named = None
+    candidates = [value for value in (named, os.environ.get("SCOUT_WORKSPACE")) if isinstance(value, str) and value]
+    path = Path(candidates[0]).expanduser() if candidates else home / "claude-projects" / "sf-demo-scout"
+    return path if (path / "orgs").is_dir() else None
+
+
+def lesson_count(lessons):
+    count = 0
+    for topic in sorted(lessons.glob("*.md")):
+        if topic.name != "INDEX.md":
+            try:
+                count += sum(1 for line in topic.read_text(encoding="utf-8", errors="replace").splitlines()
+                             if LESSON.match(line))
+            except OSError:
+                pass
+    return count
+
+
+def workspace_section(workspace, lessons):
+    """The end of the rules block: where Scout's workspace stays, how to use it, and, with lessons, how to review them."""
+    text = ("\n\n## Your Scout workspace\nScout's workspace stays at `%s`. Each org's folder under `orgs/` holds its "
+            "history, change logs and demo plans: when you work in an org that has a folder there, read its newest notes "
+            "first." % workspace)
+    if lessons:
+        text += (" Before a build, read `orgs/lessons/INDEX.md` there and the lesson topics that match the build.\n"
+                 "If I ask you to review my Scout lessons, check each one against the Salesforce Docs, Salesforce's "
+                 "official skills and what you can do today, and show me keep, update or drop for each. Only on my "
+                 "yes, write the ones that hold where you keep your own lessons, and leave the originals as they are.")
+    return text
+
+
+def write_rules(path, apply, extra=""):
     path = Path(path)
     before = path.read_text(encoding="utf-8") if path.exists() else ""
-    after = with_block(before)
+    after = with_block(before, extra)
     if after == before:
         return say("SKIP", "rules already current in %s" % path)
     verb = "update the rules in" if BEGIN in before else "add the rules to"
@@ -136,19 +180,36 @@ def import_line(path, apply):
 
 def rules(args, apply):
     home = Path.home()
+    workspace = scout_workspace()  # before --remove-scout takes Scout's configuration, which may name it
+    lessons = workspace / "orgs" / "lessons" if workspace else None
+    lessons = lessons if lessons and (lessons / "INDEX.md").is_file() else None
+    extra = workspace_section(workspace, lessons) if workspace else ""
     if args.scope == "project":
         project = Path(args.project or os.getcwd()).resolve()
         write_rules(project / "AGENTS.md", apply)
         if args.host == "claude":
             import_line(project / "CLAUDE.md", apply)
+        if workspace:
+            say("NOTE", "Scout's workspace stays at %s; a project's AGENTS.md may be shared, so it gets no personal path. "
+                        "Rerun with --scope user to point your own rules at it" % workspace)
         return
     if args.host == "claude":
-        write_rules(home / ".claude" / "CLAUDE.md", apply)
+        write_rules(home / ".claude" / "CLAUDE.md", apply, extra)
     elif args.host == "codex":
-        write_rules(Path(os.environ.get("CODEX_HOME") or home / ".codex") / "AGENTS.md", apply)
+        write_rules(Path(os.environ.get("CODEX_HOME") or home / ".codex") / "AGENTS.md", apply, extra)
     else:
         say("NOTE", "Cursor keeps user rules in its settings: open Cursor Settings → Rules → User Rules and paste "
                     "%s, or rerun with --scope project to write AGENTS.md into a project" % RULES)
+        if extra:
+            say("NOTE", "paste these lines under them: %s" % " ".join(extra.split()))
+    if workspace:
+        count = lesson_count(lessons) if lessons else 0
+        say("NOTE", "Scout's workspace stays at %s, with its org histories%s, and the rules point to it" % (
+            workspace, (" and %d lessons" % count if count else " and lessons") if lessons else ""))
+    if lessons:
+        say("NOTE", "for a longer pass that rechecks every lesson against the Salesforce Docs, Salesforce's official "
+                    "skills and today's model, ask your AI tool to review your Scout lessons; it takes a while, so "
+                    "give it a session of its own")
 
 
 # ---------------------------------------------------------------- Claude Code: official plugins and the Docs MCP
@@ -234,15 +295,14 @@ def docs_mcp(claude, apply):
 
 def remove_scout(args, claude, apply):
     uninstaller = HERE.parent / "scripts" / "scout_uninstall.py"
-    if uninstaller.exists():
-        extra = ["--workspace"] if args.remove_scout_workspace else []
+    if uninstaller.exists():  # without --workspace: the builder's workspace always stays
         if not apply:
-            code, out, err = run([sys.executable, str(uninstaller), "--dry-run", *extra])
+            code, out, err = run([sys.executable, str(uninstaller), "--dry-run"])
             for line in out.splitlines():
                 if line.strip():
                     say("PLAN", "Scout's uninstaller would: %s" % line.strip())
         else:
-            code, out, err = run([sys.executable, str(uninstaller), "--yes", *extra])
+            code, out, err = run([sys.executable, str(uninstaller), "--yes"])
             for line in out.splitlines():
                 if line.strip():
                     say("DONE" if code == 0 else "FAILED", "Scout's uninstaller: %s" % line.strip())
@@ -286,16 +346,15 @@ def main(argv=None):
     parser.add_argument("--plugins", default="core", choices=("core", "all", "none"))
     parser.add_argument("--no-docs", action="store_true", help="don't register the Salesforce Docs MCP")
     parser.add_argument("--remove-scout", action="store_true")
-    parser.add_argument("--remove-scout-workspace", action="store_true",
-                        help="with --remove-scout, also remove Scout's workspace and its org histories")
+    parser.add_argument("--remove-scout-workspace", action="store_true", help=argparse.SUPPRESS)  # 2.6.0's, now ignored
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--yes", action="store_true")
     args = parser.parse_args(argv)
-    if args.remove_scout_workspace and not args.remove_scout:
-        parser.error("--remove-scout-workspace needs --remove-scout")
     apply = bool(args.yes)
     say("NOTE", "%s for %s (%s scope)" % ("applying" if apply else "dry run: nothing changes", args.host, args.scope))
+    if args.remove_scout_workspace:
+        say("NOTE", "--remove-scout-workspace is ignored: Scout's workspace, with its org histories and lessons, stays")
     rules(args, apply)
     claude = find_claude() if args.host == "claude" else None
     if args.host == "claude" and not claude:

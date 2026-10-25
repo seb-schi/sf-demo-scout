@@ -224,6 +224,8 @@ class ProcessTests(unittest.TestCase):
                 os.killpg(proc.pid, 0)
             except ProcessLookupError:
                 break
+            except PermissionError:
+                pass  # macOS answers EPERM for a group of killed processes not yet reaped; keep waiting for it to go
             time.sleep(0.05)
         else:
             self.fail("the background child outlived kill_tree")
