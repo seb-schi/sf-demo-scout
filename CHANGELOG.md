@@ -2,27 +2,43 @@
 
 Newest first. Scout updates itself; each entry says what changed for you. Scout is retired: see the README.
 
+## 2026-10-25 (Scout 2.6.1)
+
+- **The farewell, explained.** When a session starts, Scout now says in a few plain sentences why it's retiring and
+  what moving does, instead of one line, and the README's first section tells the whole story.
+- **Your workspace and lessons stay.** Moving off Scout no longer offers to remove its workspace. Every org's history,
+  change logs and demo plans, and the lessons Scout saved from your builds, stay where they are, and the rules tell
+  your model where they are: it reads an org's newest notes before working there, and the lessons that match a build.
+- **A longer review of your lessons, if you want one.** In a new session after the move, ask your AI tool to review
+  your Scout lessons. It checks each one against the Salesforce Docs, Salesforce's official skills and what today's
+  model can do, and on your yes keeps the ones that hold where it keeps its own lessons; the originals stay as they
+  are. It takes a while, so give it a session of its own.
+
 ## 2026-10-24 (Scout 2.6.0)
 
-- **Scout is retired, and this is its farewell release.** Scout keeps working, but it now tells you it's retired and
-  offers to move you to post-Scout: Salesforce's [official plugins](https://github.com/forcedotcom/sf-skills), the
-  public [Agentforce Labs Salesforce Docs MCP](https://labs.agentforce.com/docs/salesforce-docs-mcp), and a one-page set
-  of build rules in your `CLAUDE.md` or a project's `AGENTS.md`. No new features are planned.
-- **Why: a benchmark.** In 27 builds in one test org (three setups, three demo scenarios, three runs each, all on
-  Opus 5.5 at High effort in Claude Code, every build checked in the org by a separate evaluator), Scout 2.5.2 was
-  demo-ready in 3 of 9, Opus 5.5 with Salesforce's official plugins in 4 of 9 (7 on a lenient reading), and the same with
-  a short rules file in 4 of 9 (6 lenient), at about a third of Scout's cost. In a follow-up of 12 builds, a 25-line
-  version of those rules was demo-ready in 6 of 6, against 0 of 6 without it, at the same cost. The samples are small,
-  and the follow-up's added lines were written from the same scenarios.
-- **Moving takes one sentence, or two commands.** Ask Scout "move me off Scout". Or, in a terminal,
-  `python3 <this repository>/post-scout/install.py --host claude --dry-run` shows every change it would make, and the
-  same command with `--yes` makes them. On Claude Code it writes the rules, sets up Salesforce's official plugins (kept up to
-  date) and the Docs MCP, and can remove Scout. On Codex and Cursor it writes the rules and prints Salesforce's own setup
-  commands; the README's first section has the steps. Everything is in
-  the `post-scout` folder.
+- **Scout is retiring, and this is its farewell release.** I started Scout in April, when hand-building one customer's
+  demo took too long, to take a demo from discovery to demo-ready in hours instead of days. AI tools would build what
+  you asked and stop there: fields nobody could see, empty records, a page the presenter never opens, and "done" before
+  anything was checked. Scout closed that gap, with sparring on the story, a check of every piece in the org and a
+  guard around every write.
+- **A lot has happened since.** The models got much better, and Salesforce published its own
+  [official plugins](https://github.com/forcedotcom/sf-skills), which Scout already builds with. In October I rebuilt
+  Scout to lean on the new models, and most of the releases since were for a customer workshop in early November,
+  where a customer's team will build alongside us in one org for three days. For our own demo building, though, I
+  wanted to know whether Scout still earns its place, so I measured it. It doesn't anymore, which says a lot about how
+  far the models have come: today's model with Salesforce's plugins, given Scout's key lessons as a short set of rules,
+  builds demos at least as well, at about a third of the cost. The README has the details.
+- **What happens next.** The next time you start Scout, it says it's retiring and offers to move you. Say "move me off
+  Scout" and it sets up post-Scout: Salesforce's official plugins (kept up to date), the public
+  [Agentforce Labs Salesforce Docs MCP](https://labs.agentforce.com/docs/salesforce-docs-mcp), and Scout's lessons
+  distilled into 25 lines of rules your model reads at the start of every session, so you keep most of what Scout gave
+  you without the big suite. It shows every change first and asks before making it. Removing Scout is a separate yes,
+  and your workspace and org histories stay unless you ask. In a terminal instead:
+  `python3 <this repository>/post-scout/install.py --host claude --dry-run`, then the same with `--yes`; the README
+  covers Codex and Cursor.
 - **What goes with Scout.** Story sparring, delivery prep, per-org histories, the string telephone, team mode and build
-  cards. Nothing Scout deployed to an org changes, and removing Scout keeps your workspace and its org histories unless
-  you ask for them to go too.
+  cards. Nothing Scout deployed to an org changes, and Scout keeps working for now, so you can finish what you're on.
+- **Thank you** for all the feedback, the bug reports and the ideas along the way.
 
 ## 2026-10-22 (Scout 2.5.2)
 

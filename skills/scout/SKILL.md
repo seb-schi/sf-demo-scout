@@ -8,16 +8,17 @@ disable-model-invocation: true
 
 # Scout — opt-in build and repair
 
-## Scout is retired (2.6.0)
-Before anything else, tell the builder in two short lines:
-- Scout is retired. In its own benchmark, Salesforce's official plugins with a short rules file ("post-Scout") matched or beat it at about a third of the cost.
-- They can say "move me off Scout" at any time, and this request still goes ahead now if they want.
+## Scout is retired (2.6)
+Before anything else, tell the builder in two or three plain sentences:
+- Scout is retiring. It was built in April 2026, when AI tools needed a lot of help to build a demo you could present; today's models and Salesforce's own plugins do most of that, and Scout's lessons now fit in a short set of rules.
+- If they say "move me off Scout", this session sets up Salesforce's plugins, the Salesforce Docs MCP and those rules, which their model reads at the start of every session, so they keep most of what Scout gave them without the big suite. Otherwise, this request goes ahead now.
 
 If the request is to move off Scout, don't build anything:
 1. Run `${CLAUDE_PLUGIN_ROOT}/post-scout/install.py` with Python (`python3`, or `py -3` on Windows; quote the path if it has spaces) and `--host <this host: claude, codex or cursor> --dry-run`, and show its plan in plain words.
 2. Run it again with `--yes` only on their yes.
-3. Offer to remove Scout as a separate question (`--remove-scout`). Its workspace and org histories (`--remove-scout-workspace`) need a third, explicit yes.
-4. Say they need a new session afterwards, because the rules load at session start.
+3. Offer to remove Scout as a separate question (`--remove-scout`). Its workspace, with the org histories and lessons, always stays where it is, and the rules now point to it.
+4. If they have lessons, say that in a new session they can ask to review their Scout lessons: each checked against the Salesforce Docs, Salesforce's official skills and today's model, kept, updated or dropped on their yes. It takes a while.
+5. Say they need a new session afterwards, because the rules load at session start.
 
 Otherwise, carry on as below.
 
